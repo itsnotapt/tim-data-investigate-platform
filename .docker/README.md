@@ -52,8 +52,10 @@ These variables can be set in a file named [.env](https://docs.docker.com/compos
 * REDIRECT_URI
   * The URI used to redirect back to the frontend after logging in. Typically, the frontend URI.
 * API_BASEPATH
+  * This *MUST* include a trailing slash.
   * The URI to the API. Typically, the frontend URI.
 * BACKEND_URI
+  * This must *NOT* include a trailing slash.
   * Where NGINX will proxy requests for `/api` requests to e.g. `https://backend`
 * AGGRID_LICENSE
   * If using the `frontend-enterprise` image, this is your AgGrid license. 
