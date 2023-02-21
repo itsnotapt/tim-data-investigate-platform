@@ -54,6 +54,6 @@ These variables can be set in a file named [.env](https://docs.docker.com/compos
 * API_BASEPATH
   * The URI to the API. Typically, the frontend URI.
 * BACKEND_URI
-  * Where NGIX will proxy requests for the `/api` to. 
+  * Where NGINX will proxy requests for `/api` requests to e.g. `https://backend`
 * AGGRID_LICENSE
   * If using the `frontend-enterprise` image, this is your AgGrid license. 
