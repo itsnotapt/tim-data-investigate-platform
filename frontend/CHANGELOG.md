@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.1...frontend-v1.5.2) (2023-02-21)
+
+
+### Bug Fixes
+
+* config.js now blocking. ([fd4e914](https://github.com/itsnotapt/tim-data-investigate-platform/commit/fd4e9145f65930cced163f50af17c66dd5231121))
+
 ## [1.5.1](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.0...frontend-v1.5.1) (2023-02-18)
 
 

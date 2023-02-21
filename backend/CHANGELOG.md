@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/itsnotapt/tim-data-investigate-platform/compare/backend-v3.0.0...backend-v3.0.1) (2023-02-21)
+
+
+### Bug Fixes
+
+* slight adjustment to env variables. ([3de24ac](https://github.com/itsnotapt/tim-data-investigate-platform/commit/3de24ac2b9477443a23e651f63946ead2743650d))
+
 ## [3.0.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/backend-v2.1.1...backend-v3.0.0) (2023-02-17)
 
 
