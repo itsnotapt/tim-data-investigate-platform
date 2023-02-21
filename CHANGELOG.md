@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.0.2](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.1...core-v3.0.2) (2023-02-21)
+
+
+### Bug Fixes
+
+* config.js now blocking. ([fd4e914](https://github.com/itsnotapt/tim-data-investigate-platform/commit/fd4e9145f65930cced163f50af17c66dd5231121))
+* slight adjustment to env variables. ([3de24ac](https://github.com/itsnotapt/tim-data-investigate-platform/commit/3de24ac2b9477443a23e651f63946ead2743650d))
+
 ## [3.0.1](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.0...core-v3.0.1) (2023-02-18)
 
 
