@@ -16,6 +16,7 @@ services:
       - AGGRID_LICENSE
       - KUSTO_CLUSTER_URI
       - KUSTO_DATABASE_NAME
+    command: '/bin/sh -c "nginx -g \"daemon off; error_log stderr;\""'
 
   backend:
     build: ../backend
@@ -47,6 +48,7 @@ services:
       - REDIS_CONNECTION_STRING
       - MONGO_CONNECTION_STRING
       - MONGO_DATABASE_NAME
+      - MONGO_WITH_COSMOSDB
       - DATABASE_TYPE
 
   couchbase:

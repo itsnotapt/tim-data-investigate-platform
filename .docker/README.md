@@ -46,6 +46,8 @@ These variables can be set in a file named [.env](https://docs.docker.com/compos
 * REDIS_CONNECTION_STRING
 * MONGO_CONNECTION_STRING
 * MONGO_DATABASE_NAME
+* MONGO_WITH_COSMOSDB
+  * Whether the MongoDB instance is using CosmosDB or not. Set to `true` if using CosmosDB.
 
 ### Frontend
 
