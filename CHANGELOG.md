@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.3](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.2...core-v3.0.3) (2023-02-22)
+
+
+### Bug Fixes
+
+* remove host header from nginx ([6db99a5](https://github.com/itsnotapt/tim-data-investigate-platform/commit/6db99a53c918ff91666efec7054a83a2b7da71c7))
+
 ## [3.0.2](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.1...core-v3.0.2) (2023-02-21)
 
 

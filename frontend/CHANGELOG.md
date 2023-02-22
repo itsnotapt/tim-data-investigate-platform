@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.3](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.2...frontend-v1.5.3) (2023-02-22)
+
+
+### Bug Fixes
+
+* remove host header from nginx ([6db99a5](https://github.com/itsnotapt/tim-data-investigate-platform/commit/6db99a53c918ff91666efec7054a83a2b7da71c7))
+
 ## [1.5.2](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.1...frontend-v1.5.2) (2023-02-21)
 
 
