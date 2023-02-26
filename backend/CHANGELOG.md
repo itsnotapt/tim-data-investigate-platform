@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/itsnotapt/tim-data-investigate-platform/compare/backend-v3.0.1...backend-v3.0.2) (2023-02-26)
+
+
+### Bug Fixes
+
+* capture exception for kusto and throw database error. ([02ad822](https://github.com/itsnotapt/tim-data-investigate-platform/commit/02ad822a14e1a6cd75b87065061302672da46004))
+
 ## [3.0.1](https://github.com/itsnotapt/tim-data-investigate-platform/compare/backend-v3.0.0...backend-v3.0.1) (2023-02-21)
 
 
