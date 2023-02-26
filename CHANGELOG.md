@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.6](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.5...core-v3.0.6) (2023-02-26)
+
+
+### Bug Fixes
+
+* nginx 426 error ([b2e6f12](https://github.com/itsnotapt/tim-data-investigate-platform/commit/b2e6f12429d27d656c5b46e272dada3d2d8b451b))
+
 ## [3.0.5](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.4...core-v3.0.5) (2023-02-26)
 
 
