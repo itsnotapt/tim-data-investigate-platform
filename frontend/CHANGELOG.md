@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.3...frontend-v1.5.4) (2023-02-26)
+
+
+### Bug Fixes
+
+* support for ssl nginx ([16e760e](https://github.com/itsnotapt/tim-data-investigate-platform/commit/16e760e144bad257e7a5a9772d2ab7a9ad8e5464))
+
 ## [1.5.3](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.2...frontend-v1.5.3) (2023-02-22)
 
 
