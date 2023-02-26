@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.5](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.4...core-v3.0.5) (2023-02-26)
+
+
+### Bug Fixes
+
+* support for ssl nginx ([16e760e](https://github.com/itsnotapt/tim-data-investigate-platform/commit/16e760e144bad257e7a5a9772d2ab7a9ad8e5464))
+
 ## [3.0.4](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.3...core-v3.0.4) (2023-02-26)
 
 
