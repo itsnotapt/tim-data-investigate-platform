@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.4](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.3...core-v3.0.4) (2023-02-26)
+
+
+### Bug Fixes
+
+* capture exception for kusto and throw database error. ([02ad822](https://github.com/itsnotapt/tim-data-investigate-platform/commit/02ad822a14e1a6cd75b87065061302672da46004))
+
 ## [3.0.3](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.2...core-v3.0.3) (2023-02-22)
 
 
