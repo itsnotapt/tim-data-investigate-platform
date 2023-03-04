@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.7](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.6...core-v3.0.7) (2023-03-04)
+
+
+### Bug Fixes
+
+* starttime and endtime for kusto queries ([c9ce5f3](https://github.com/itsnotapt/tim-data-investigate-platform/commit/c9ce5f3d3889c185553effccf7b7314c91ea1190))
+
 ## [3.0.6](https://github.com/itsnotapt/tim-data-investigate-platform/compare/core-v3.0.5...core-v3.0.6) (2023-02-26)
 
 
