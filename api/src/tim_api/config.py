@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     tag_cluster_uri: str = Field(min_length=1)
     tag_database: str = "Research"
     tag_ingest_url: str | None = None  # optional; derived from tag_cluster_uri when unset
+    # Dev only: in-memory fake instead of real ingestion (needs environment=development).
+    tag_ingest_fake: bool = False
 
     # --- cluster allow-list (SEC-01, Q-022) --------------------------------------------
     allowed_kusto_suffixes: Annotated[list[str], NoDecode] = Field(
@@ -67,6 +69,7 @@ class Settings(BaseSettings):
 
     # --- storage (ADR-0004) ------------------------------------------------------------
     database_url: SecretStr
+    run_retention_sweep_seconds: int = Field(default=300, gt=0)  # expired-run cleanup interval
 
     # --- HTTP --------------------------------------------------------------------------
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
@@ -99,9 +102,23 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _asyncpg_dsn(cls, value: SecretStr) -> SecretStr:
-        if not value.get_secret_value().startswith("postgresql+asyncpg://"):
-            raise ValueError("must start with postgresql+asyncpg://")
+        url = value.get_secret_value()
+        # memory:// is the in-memory store (data lost on restart); production check below.
+        if not url.startswith(("memory://", "postgresql+asyncpg://")):
+            raise ValueError("must start with postgresql+asyncpg:// (or memory:// in development)")
         return value
+
+    @model_validator(mode="after")
+    def _no_memory_store_in_production(self) -> Settings:
+        if (
+            self.database_url.get_secret_value().startswith("memory://")
+            and self.environment == "production"
+        ):
+            raise ValueError(
+                f"{ENV_PREFIX}DATABASE_URL=memory:// is not allowed when "
+                f"{ENV_PREFIX}ENVIRONMENT=production"
+            )
+        return self
 
     @model_validator(mode="after")
     def _no_auth_bypass_in_production(self) -> Settings:

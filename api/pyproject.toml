@@ -9,12 +9,22 @@ dependencies = [
     "uvicorn[standard]",
     "pydantic",
     "pydantic-settings",
+    "httpx2>=2.13.1",
+    "pyjwt[crypto]>=2.15.1",
+    "msal>=1.39.0",
+    "azure-kusto-data>=6.0.4",
+    "sqlalchemy[asyncio]>=2",
+    "asyncpg>=0.31.0",
+    "alembic>=1.20.0",
+    "jsonpatch>=1.33",
+    "azure-kusto-ingest>=6.0.4",
+    "azure-identity>=1.25.3",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.13.1",
     "mypy>=2.3.1",
+    "pgserver>=0.1.4",
     "pytest",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
@@ -54,6 +64,7 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --cov"
+markers = ["kusto: integration test against a real Kusto ingest endpoint (needs TIM_TEST_KUSTO_INGEST_URL)"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
@@ -64,3 +75,7 @@ branch = true
 [tool.coverage.report]
 show_missing = true
 fail_under = 80
+
+[[tool.mypy.overrides]]
+module = ["msal", "msal.*"]
+ignore_missing_imports = true

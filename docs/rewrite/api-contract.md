@@ -26,9 +26,10 @@ The React frontend is new, so **compatibility with the legacy Vue client is not 
 | Guid | Lower-case hyphenated string. Malformed path/body guid gives 400 (same as legacy). |
 | Auth | `Authorization: Bearer <Entra access token>` on every route except health checks. Token: audience `api://{clientId}` (or bare client id), v1 or v2 issuer of the configured tenant, scope `user_impersonation` (ADR-0005, Q-014). No other custom headers. |
 | Identity | The caller's identity is **always taken from the token** (SEC-03): `oid` as stable id, name from `unique_name`, then `upn`, then `preferred_username`. Identity-like body fields are ignored. |
-| CORS | Configurable origin allow-list (`TIM_CORS_ORIGINS`), default none (same-origin via web proxy) (SEC-05). |
+| CORS | Configurable origin allow-list (`TIM_CORS_ALLOWED_ORIGINS`), default none (same-origin via web proxy) (SEC-05). |
 | Success codes | 200 with body, 201 with body on create, 202 for a run that is still executing, 204 for success with no body. Never 200 with empty body (BUG-04). |
 | Validation errors | **400** (not FastAPI's default 422) for any body/query/path validation failure, including unparseable JSON. |
+| Trace header | Every response carries `x-trace-id` (equal to the error body `traceId`). The request may supply a W3C `traceparent` or `x-request-id`, which is reused. CORS exposes it; allowed request headers: `Authorization`, `Content-Type`, `traceparent`, `x-request-id`. |
 | Error body | Every non-2xx response, including 401, 404, 405, 500, uses one envelope, `application/problem+json` (RFC 7807 style). See below. |
 | Query-run failures | A run that executed and failed is **not** an HTTP error: the run resource is returned with `status: "error"` (see endpoint 3). |
 | Limits | Query-run limits from Q-021 (defaults): 100 000 rows, 64 MB serialised result, 10 min execution timeout, 1 day retention. Configurable via env. |
@@ -91,6 +92,8 @@ The React frontend is new, so **compatibility with the legacy Vue client is not 
 
 Twelve live endpoints plus one removed (13 legacy endpoints, all accounted for) and two health checks. Not part of the contract (ops only): OpenAPI at `/api/openapi.json`, Swagger UI at `/api/docs`, Prometheus `/metrics`; none exposed via ingress.
 
+The spec is checked against this catalogue by `api/tests/test_openapi_contract.py` (P2-16). Regenerate: `cd api && uv run python -m tim_api.openapi_export && UPDATE_SNAPSHOTS=1 uv run pytest tests/test_openapi_contract.py`, then `cd web && npm run gen:api`.
+
 All Bearer endpoints can also return 401 (`unauthorized`) and 500 (`internal`); these are not repeated per endpoint.
 
 ## 3. Endpoints
@@ -152,7 +155,7 @@ Start a Kusto query run. Returns the run if it finishes within 1 s, otherwise 20
 | 200 | `KustoQueryRun` with `status` `completed` or `error` or `timedOut` | Finished within 1 s. |
 | 202 | `KustoQueryRun` with `status: "created"` (no `resultData`) | Still running. |
 | 400 | problem | Validation, cluster policy. |
-| 403/502 | problem | Not produced by this call: token exchange and Kusto errors occur inside the run and surface as `status: "error"` (`mainError`). |
+| 403/502/503 | problem | Token exchange (OBO) runs before the run is created, so its failures return synchronously: 403 `consent-required`, 502 `upstream`, 503 `unavailable`. Kusto execution errors occur inside the run and surface as `status: "error"` (`mainError`). |
 
 ```json
 {
@@ -170,6 +173,7 @@ Start a Kusto query run. Returns the run if it finishes within 1 s, otherwise 20
   - Execution: V2 response; rows of all `PrimaryResult` tables concatenated into one flat list of dicts; `QueryCompletionInformation` Stats row becomes `executionMetrics`; progressive frames give `status: "error"`.
   - Value serialisation (grid parity, unchanged): datetime to ISO string, timespan to `"hh:mm:ss"`, dynamic to nested JSON, null to `null`, guid to string.
   - Limits (Q-021): more than `MAX_RESULT_ROWS` rows or `MAX_RESULT_BYTES` serialised gives `status: "error"`, `resultData: null`, `mainError` "Result exceeds limit of ..." (no truncation). Execution beyond `QUERY_TIMEOUT_SECONDS` gives `status: "timedOut"` with a `mainError` message.
+  - NUL characters (U+0000) in `resultData` strings/keys and `mainError` are replaced with U+FFFD (PostgreSQL JSONB cannot store them); `query`/`database` containing NUL are rejected with 400. No `Location` header on 202. Unexpected server failures give `status: "error"` with `mainError` "The query failed unexpectedly".
   - `mainError` is the outermost Kusto error message (safe text); stack trace is logged with `traceId`, never returned.
   - Startup recovery: runs left `created` after a restart are marked `error` with `mainError: "Run interrupted by server restart"`.
   - Terminal state is persisted before the response or the next poll can observe it. `expiresAt` is refreshed on completion, so every run expires the same way.

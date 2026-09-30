@@ -7,10 +7,12 @@ TIM ("triage and investigation") is a Kusto investigation platform: analysts run
 ## Status
 | | |
 |---|---|
-| Phase | **1 — Scaffolding** (Phase 0 done; P1 code complete, awaiting CI/Docker verification) |
-| Last updated | 2026-09-29 |
+| Phase | **2 — Backend parity: done** (Phase 3 frontend foundations partly done) |
+| Last updated | 2026-09-30 |
 | Done | Legacy explored; 42 screenshots + index; harness (`tools/legacy-screenshots/`); rules; all current-system docs; target architecture (Accepted); component mapping; work breakdown; ADRs 0001–0006; root `CLAUDE.md`. All Blocking questions answered (Q-001…Q-004, Q-019, Q-027) |
-| Phase 1 | Done: P1-01…04, P1-07…09, P1-12. Review: P1-05/06 (CI workflows need a green PR run), P1-10/11 (Dockerfiles + compose not built locally: no Docker). Next: Phase 2 backend parity (P2-01…) and P3 frontend foundations |
+| Phase 1 | Done, except P1-05/06 (CI workflows) awaiting a green PR run. Images + compose verified with Docker 2026-09-30 |
+| Phase 2 | Done (P2-01…P2-16): models, Entra JWT + OBO, cluster validation, Kusto query client, schema/query-run/template/tagged-event endpoints, PostgreSQL + Alembic, streaming tag ingestion, table-creation CLI, problem-details errors, OpenAPI snapshot + `web/src/lib/api/schema.d.ts`. 451 api tests |
+| Phase 3 | Done: P3-01, P3-04…P3-07, P3-09, P3-10 (136 web tests). Next: P3-02 typed API client, P3-03 polling, P3-08 bootstrap; then Phase 4 features |
 | Decisions | PostgreSQL; AG Grid Enterprise only (trial in dev, licence key in prod, no Community build); popup + OBO; no data migration; `web/` + `api/` (ADR-0003…0006) |
 
 ## Map

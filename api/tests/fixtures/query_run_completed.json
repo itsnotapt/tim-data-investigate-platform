@@ -1,0 +1,78 @@
+{
+  "queryRunId": "c1b7f1f6-9a34-4a52-8c1e-5f2e0f7b2a90",
+  "status": "completed",
+  "kustoQuery": {
+    "cluster": "https://help.kusto.windows.net",
+    "database": "Samples",
+    "requestedBy": "analyst@contoso.com",
+    "startTime": "2026-09-28T00:00:00Z",
+    "endTime": "2026-09-29T00:00:00Z",
+    "query": "StormEvents | take 100"
+  },
+  "executeDateTimeUtc": "2026-09-29T10:00:00.114Z",
+  "expiresAt": "2026-09-30T10:00:01.020Z",
+  "resultData": [
+    {
+      "EventTime": "2026-09-29T10:00:00Z",
+      "StartTime": "2026-09-29T10:00:00Z",
+      "EndTime": "2026-09-29T10:30:00Z",
+      "EventId": "61032",
+      "State": "TEXAS",
+      "EventType": "Hail",
+      "InjuriesDirect": 2,
+      "DamageProperty": 0,
+      "Source": "Law Enforcement",
+      "TagEvent": {
+        "IsSaved": true,
+        "Tags": [
+          "investigate"
+        ],
+        "Determination": "malicious",
+        "Comment": "Confirmed",
+        "Comments": []
+      }
+    },
+    {
+      "EventTime": "2026-09-29T08:23:00Z",
+      "StartTime": "2026-09-29T08:23:00Z",
+      "EndTime": "2026-09-29T08:53:00Z",
+      "EventId": "61039",
+      "State": "KANSAS",
+      "EventType": "Thunderstorm Wind",
+      "InjuriesDirect": 0,
+      "DamageProperty": 1375,
+      "Source": "Trained Spotter",
+      "TagEvent": null
+    },
+    {
+      "EventTime": "2026-09-29T06:46:00Z",
+      "StartTime": "2026-09-29T06:46:00Z",
+      "EndTime": "2026-09-29T07:16:00Z",
+      "EventId": "61046",
+      "State": "IOWA",
+      "EventType": "Flash Flood",
+      "InjuriesDirect": 0,
+      "DamageProperty": 2750,
+      "Source": "Law Enforcement",
+      "TagEvent": null
+    }
+  ],
+  "executionMetrics": {
+    "execution_time": 0.42,
+    "resource_usage": {
+      "cpu": {
+        "total cpu": "00:00:00.1"
+      },
+      "memory": {
+        "peak_per_node": 12345678
+      }
+    },
+    "dataset_statistics": [
+      {
+        "table_row_count": 3,
+        "table_size": 9000
+      }
+    ]
+  },
+  "mainError": null
+}

@@ -1,7 +1,18 @@
 import { createDevStubAuth } from './devStubAuth';
+import { getConfig } from '../config/runtimeConfig';
+import { createMsalAuthClient } from './msalAuth';
 import type { AuthClient } from './types';
 
 export type { AuthAccount, AuthClient } from './types';
+export { AuthClientError, toAuthError, type AuthErrorCode } from './errors';
+export {
+  apiScopes,
+  createMsalAuthClient,
+  type MsalAuthClient,
+  type MsalAuthConfig,
+} from './msalAuth';
+export { AuthProvider } from './AuthProvider';
+export { useAuth, type AuthStatus, type UseAuth } from './useAuth';
 export { DEV_ACCOUNT, DEV_TOKEN, createDevStubAuth } from './devStubAuth';
 
 export interface AuthEnv {
@@ -20,8 +31,8 @@ export function createAuthClient(env: AuthEnv = import.meta.env): AuthClient {
     }
     return createDevStubAuth();
   }
-  // TODO(P3-01): MSAL popup implementation (ADR-0005).
-  throw new Error('MSAL auth is not implemented (P3-01); set VITE_AUTH_STUB=true for dev');
+  const { auth, redirectUri } = getConfig();
+  return createMsalAuthClient({ auth, redirectUri, cacheLocation: 'localStorage' });
 }
 
 let cached: AuthClient | undefined;

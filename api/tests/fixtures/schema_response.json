@@ -1,0 +1,1 @@
+{ "schema": { "Databases": { "SecurityLogs": { "Name": "SecurityLogs", "Tables": { "SignInLogs": { "Name": "SignInLogs", "OrderedColumns": [ { "Name": "ReportGuid", "Type": "System.Guid", "CslType": "guid" } ] } } } } } }

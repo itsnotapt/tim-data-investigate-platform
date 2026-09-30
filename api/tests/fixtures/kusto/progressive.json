@@ -1,0 +1,30 @@
+[
+  {
+    "FrameType": "DataSetHeader",
+    "IsProgressive": true,
+    "Version": "v2.0"
+  },
+  {
+    "FrameType": "TableHeader",
+    "TableId": 0,
+    "TableKind": "PrimaryResult",
+    "TableName": "PrimaryResult",
+    "Columns": [
+      {
+        "ColumnName": "A",
+        "ColumnType": "long"
+      }
+    ]
+  },
+  {
+    "FrameType": "TableFragment",
+    "TableId": 0,
+    "FieldCount": 1,
+    "TableFragmentType": "DataAppend",
+    "Rows": [
+      [
+        1
+      ]
+    ]
+  }
+]

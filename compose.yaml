@@ -24,10 +24,11 @@ services:
       retries: 10
       start_period: 10s
 
-  api:
+  # One-shot: applies Alembic migrations, then exits. The api starts only after it succeeds.
+  migrate:
     build: ./api
-    restart: unless-stopped
-    environment:
+    command: ["alembic", "upgrade", "head"]
+    environment: &api-env
       TIM_ENVIRONMENT: development
       TIM_LOG_LEVEL: ${TIM_LOG_LEVEL:-INFO}
       TIM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tim}:${POSTGRES_PASSWORD:-tim}@postgres:5432/${POSTGRES_DB:-tim}
@@ -41,6 +42,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     ports:
       - "${API_PORT:-8080}:8080"
     # Health check comes from the image's HEALTHCHECK (/api/healthChecks/liveness).

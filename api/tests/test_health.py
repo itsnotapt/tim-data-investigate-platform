@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -5,8 +7,9 @@ from tim_api.main import create_app
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(create_app())
+def client() -> Iterator[TestClient]:
+    with TestClient(create_app()) as c:  # lifespan wires storage for readiness
+        yield c
 
 
 @pytest.mark.parametrize("probe", ["liveness", "readiness"])

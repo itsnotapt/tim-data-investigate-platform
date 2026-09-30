@@ -23,7 +23,7 @@ Process: see [RULES.md §4](RULES.md#4-handling-questions-and-decisions). IDs ar
 | Q-015 | Keep startup creation of Kusto tag tables/mappings, or move to IaC/migration script? | Separate CLI/migration command |
 | Q-016 | Deployment target: keep Docker Compose + Helm? Single container (API serves SPA) or two? | Two images + compose; helm later |
 | Q-017 | Is `suggest.enabled:false` on the Kusto editor intentional (disables IntelliSense popup)? | Enable suggestions |
-| Q-018 | Kusto `.show schema as json` column name — frontend reads `ClusterSchema`; confirm against a real cluster | Verify during backend Kusto task |
+| Q-018 | Kusto `.show schema as json` column name — frontend reads `ClusterSchema`; confirm against a real cluster | Verify during backend Kusto task. **Still open (P2-06):** endpoint implemented tolerantly, not verified against a real cluster: runs `.show schema as json` with the database as context, accepts `ClusterSchema`, `DatabaseSchema` or a single unknown column, parses a JSON string (or an already parsed object), else 502. Once confirmed, narrow `SCHEMA_COLUMNS` in `kusto/router.py` |
 | Q-020 | **Tag ingestion identity**: keep writing tags under the app identity while recording the user from the token as `createdBy` (SEC-03 fix), or ingest with the user's OBO token? | App identity, `createdBy` from token |
 | Q-021 | **Query result limits and retention values**: max rows / bytes per run, query timeout, run retention | 100 000 rows, 64 MB, 10 min timeout (poll deadline 11 min), 1 day retention |
 | Q-022 | **Cluster allow-list policy** (SEC-01): explicit host allow-list required, or https + known suffix list? | https + suffix list (`.kusto.windows.net`, `.kusto.fabric.microsoft.com`), optional strict allow-list env |
@@ -35,6 +35,10 @@ Process: see [RULES.md §4](RULES.md#4-handling-questions-and-decisions). IDs ar
 |---|---|---|
 | Q-101 | Tagged-event requests are capped at 1000 items per call and 1 MB per `eventAsJson`, validated all-or-nothing (see [api-contract.md](rewrite/api-contract.md) 3.11-3.13) | 2026-09-29 |
 | Q-102 | Error envelope is RFC 7807-style `{type,title,status,detail,traceId,errors?}` (`application/problem+json`), replacing the `{error, detail, traceId}` sketch in target-architecture section 5; validation is always 400, not 422 (see [api-contract.md](rewrite/api-contract.md) section 1) | 2026-09-29 |
+| Q-103 | Kusto `decimal` values are serialised as a JSON number when lossless as a float, otherwise as the exact string (legacy Newtonsoft output of `SqlDecimal` was an object and is not ported). Also: legacy read stats `execution_time` but Kusto sends `ExecutionTime`, so legacy always returned 0; the new client maps `ExecutionTime` (see `kusto/query_client.py`) | 2026-09-29 |
+| Q-104 | `OboAuthError` (OBO `invalid_grant` / `interaction_required` / `consent_required`) maps to 403 `urn:tim:problem:consent-required` as api-contract §1 lists; the SPA re-prompts interactively. Responses also carry an `x-trace-id` header matching the body `traceId` | 2026-09-29 |
+| Q-105 | Tag ingestion uses ManagedStreamingIngestClient (streaming, falling back to queued) to keep legacy read-your-writes; tag tables need the streaming ingestion policy enabled (P2-14 CLI does this) | 2026-09-30 |
+| Q-106 | Query-run ownership is keyed on the principal **name** (`unique_name`/`upn`/`preferred_username`, stored as `requestedBy`), matching legacy, not on `oid`. A reassigned UPN could read a previous owner's run; risk bounded by the 1-day run retention (Q-021). Switch to an `owner_oid` column if stricter isolation is wanted | 2026-09-30 |
 | Q-100 | Screenshots captured with mocked API + stubbed auth + unlicensed AG Grid Enterprise represent the production UI closely enough for parity | 2026-09-29 |
 
 ## Answered

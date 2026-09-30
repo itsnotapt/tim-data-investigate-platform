@@ -194,7 +194,7 @@ The new app uses its **own IndexedDB database named `tim`**, versioned from v1. 
 | `row_results` | component uuid | row array |
 | `column_views` | view uuid | `{uuid, name, columnState}` |
 | `query_options` | template uuid | `{hide}` |
-| `meta` (new) | `schemaVersion` | integer |
+| `meta` (new, deferred) | `schemaVersion` | integer. Not created in v1 (P3-04): the IndexedDB version number is the schema version; add `meta` only if a migration needs it |
 
 Versioning: `tim` is opened at an explicit version starting at v1, with a forward-only migration list in `lib/storage/migrations.ts`; v1 creates the stores above and stamps `meta.schemaVersion = 1`. Unknown newer version: refuse to write, show a banner. Values are validated on read (zod or hand-written guards); a corrupt record is skipped and reported, not thrown.
 

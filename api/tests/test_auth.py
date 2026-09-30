@@ -59,8 +59,9 @@ def test_enabled_without_token_returns_401() -> None:
     assert response.headers["www-authenticate"] == "Bearer"
 
 
-def test_enabled_with_token_is_rejected_until_jwt_validation_exists() -> None:
-    # TODO(P2): replace with valid/invalid JWT cases once validation is implemented.
+def test_enabled_with_garbage_token_returns_401_without_echoing_it() -> None:
     with TestClient(_app()) as client:
         response = client.get("/test/whoami", headers={"Authorization": "Bearer abc"})
     assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert "abc" not in response.text

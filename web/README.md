@@ -25,11 +25,19 @@ Stack: React 19, React Router (hash router), MUI + Emotion. TypeScript is `stric
 
 ## Layout
 
-`src/app` (shell, router, theme), `src/features/*`, `src/lib/*`, `src/components`. Rules: `features/*` import `lib/*` and `components/*`, never each other's internals.
+`src/app` (shell, routes + lazy pages, router, theme), `src/features/*`, `src/lib/*`, `src/components`. Rules: `features/*` import `lib/*` and `components/*`, never each other's internals.
 
 ## Routes (hash, same as legacy)
 
 `#/`, `#/queries`, `#/view/:uuid`, `#/share/:uuid`, `#/exportimport`. All are placeholders for now.
+
+## Browser storage
+
+`src/lib/storage` owns the IndexedDB database `tim` (v1; stores `display_components`, `row_results`, `column_views`, `query_options`). Use the DAOs (`displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `queryOptionsDao`); `rowResultsDao.get` returns `[]` when missing (BUG-27). It never opens the legacy `localforage` DB (Q-004). Tests reset the singleton with `resetTimDb()`.
+
+## Time ranges
+
+`src/lib/time-range` is pure logic (no UI yet). `TimeRange` is JSON data: `absolute` (ISO start/end) or `relative` (start/end "ago" offsets, end `null` = now). `resolveTimeRange(range, now?)` gives UTC `{start, end}` and must be called at execution time. `TIME_RANGE_PRESETS` / `DEFAULT_TIME_RANGE` (Last 15 minutes) mirror legacy; labels keep the legacy wording, including "Last 1 hours". `parseCustomPeriod` rejects NaN, empty, zero and negative amounts and start >= end (BUG-39); `parseCustomDateRange` takes UTC `YYYY-MM-DD` + `HH:MM[Z]`.
 
 ## Runtime config
 
@@ -45,9 +53,14 @@ Stack: React 19, React Router (hash router), MUI + Emotion. TypeScript is `stric
 | `tagCluster`, `tagDatabase`       | `VITE_TAG_CLUSTER`, `VITE_TAG_DATABASE`      | cluster required; database defaults to `Research`           |
 | `defaultClusters`                 | `VITE_DEFAULT_CLUSTERS` (JSON)               | default: help.kusto.windows.net sample                      |
 
-## Dev auth
+## Auth
 
-Set `VITE_AUTH_STUB=true` (e.g. in `.env.local`, or in the environment for Playwright) to use the stub auth client: a fixed account (`dev.user@example.com`) and a fake token, no Entra sign-in. `createAuthClient()` in `src/lib/auth/` throws if the stub is requested in a production build (`vite build` mode `production`); without the flag it throws "not implemented (P3-01)" until MSAL lands. Pair it with the API's `TIM_AUTH_DISABLED=true` (see `api/README.md`). All auth goes through the `AuthClient` interface (`getAccount`, `acquireToken`, `login`, `logout`).
+`src/lib/auth/` is the single auth module (ADR-0005). `createAuthClient()` returns either the dev stub or the MSAL client; all code uses the `AuthClient` interface (`getAccount`, `acquireToken`, `login`, `logout`).
+
+- **MSAL client** (`createMsalAuthClient`): `PublicClientApplication` from runtime config (`auth.clientId`, `auth.authority`, `redirectUri`), cache in `localStorage`. On first use it runs `initialize()` and `handleRedirectPromise()` and restores the cached account, so there is no prompt on every load (BUG-23). `acquireToken(scopes)` tries `acquireTokenSilent` for the active account, or `ssoSilent` when there is none, and opens a popup only on `InteractionRequiredAuthError` or when SSO fails. Only one interactive request is in flight at a time and concurrent callers share it (BUG-23). Failures reject with `AuthClientError` (`code`: `interaction_in_progress`, `popup_blocked`, `cancelled`, `unknown`) and leave nothing stuck, so sign-in can be retried (BUG-22). `logout` uses `logoutPopup`. API scope: `api://<clientId>/user_impersonation` (`apiScopes()`).
+- **Popup redirect page**: `@azure/msal-browser` v5 popups return to `redirectUri`, which must serve `blank.html` (built from `web/blank.html` and `src/lib/auth/redirectBridge.ts`) so the response reaches the main window. Register `https://<host>/blank.html` in Entra.
+- **React**: `<AuthProvider client={getAuthClient()}>` (wraps `MsalProvider` for MSAL clients) and `useAuth()` returning `{ account, status: 'loading' | 'signedOut' | 'signedIn' | 'error', error, login, logout, getToken }`. Mounted in `App` (`authClient` prop overrides the client in tests; `main.tsx` passes `getAuthClient()`).
+- **Dev stub**: set `VITE_AUTH_STUB=true` (e.g. in `.env.local`, or in the environment for Playwright) for a fixed account (`dev.user@example.com`) and fake token, no Entra sign-in. `createAuthClient()` throws if the stub is requested in a production build. Pair it with the API's `TIM_AUTH_DISABLED=true` (see `api/README.md`).
 
 ## Docker image
 
@@ -78,3 +91,14 @@ Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine
 The entrypoint also honours `TIM_HTML_DIR`, `TIM_NGINX_TEMPLATE`, `TIM_NGINX_CONF` and `TIM_ENTRYPOINT_DRY_RUN=1` (render files and exit) for testing without Docker.
 
 Docs: [RULES.md](../docs/RULES.md), [docs/README.md](../docs/README.md), [work-breakdown.md](../docs/rewrite/work-breakdown.md).
+
+### Shared components and helpers (P3-06, P3-10)
+
+- `lib/uuid` (`generateUuid`, `crypto.randomUUID`), `lib/isEmpty` (legacy `isEmptyValue` plus empty array/object, BUG-41).
+- `app/AppShell` (white dense toolbar: menu > Query Manager, TIM link, Help > Wiki Page / Report a bug from config in a new tab, Settings > Export / Import, Account > Sign in / Sign out with the legacy logout snackbar) wraps the routes in `app/AuthGate` (signed out: "You must sign-in first."; loading: progress; error: message + Retry, BUG-22). The placeholder side drawer was removed; the query tree arrives with P4.
+- `components/SnackbarHost` + `useNotify()`: FIFO, one at a time, default 5000 ms, 200 ms pause between messages, optional link button, Dismiss. Mounted in `App`.
+- `components/DraggableDialog`: MUI Dialog dragged by title via pointer events, clamped to the viewport, re-clamped on window resize; no polling (BUG-37), no extra dependency.
+
+## API types
+
+`src/lib/api/openapi.json` is exported by the API (`cd api && uv run python -m tim_api.openapi_export`). `npm run gen:api` turns it into `src/lib/api/schema.d.ts` (openapi-typescript; committed, excluded from lint and prettier). Regenerate both after any API change.

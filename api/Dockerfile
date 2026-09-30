@@ -36,6 +36,9 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
+# Migrations: `docker run ... alembic upgrade head` (alembic.ini + migrations/ live in /app).
+COPY --chown=tim:tim alembic.ini ./
+COPY --chown=tim:tim migrations ./migrations
 USER tim
 EXPOSE 8080
 

@@ -17,6 +17,7 @@ docker compose up -d postgres              # PostgreSQL on localhost:5432 (tim/t
 cd api
 cp .env.example .env                       # then edit, see "Required env" below
 uv sync
+uv run alembic upgrade head          # create/upgrade tables (not run automatically)
 uv run uvicorn tim_api.main:app --reload --port 8080
 
 cd web                                     # second terminal
@@ -39,7 +40,7 @@ docker compose up --build
 | `api`      | http://localhost:8080 (`API_PORT`)      | docs at `/api/docs`, liveness at `/api/healthChecks/liveness`         |
 | `postgres` | 127.0.0.1:5432 (`POSTGRES_PORT`)        | `postgres:17-alpine`, data in the `postgres-data` volume              |
 
-`api` waits for a healthy `postgres`, and `web` for a healthy `api`. `docker compose down -v` also deletes the database volume. There is no migration service yet (Alembic, later task); until then the api does not create tables.
+`api` waits for a healthy `postgres`, and `web` for a healthy `api`. `docker compose down -v` also deletes the database volume. The api never creates tables itself. In compose, the one-shot `migrate` service runs `alembic upgrade head` and `api` starts only after it succeeds. Outside compose, run `uv run alembic upgrade head` from `api/` first.
 
 ## Required env
 

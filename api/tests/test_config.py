@@ -38,7 +38,9 @@ def test_defaults_applied() -> None:
     s = make()
     assert s.environment == "production"
     assert s.tag_database == "Research"
-    assert s.auth_client_secret is None
+    assert s.tag_ingest_url is None
+    assert s.tag_ingest_fake is False
+    assert s.auth_client_secret is not None
     assert s.auth_disabled is False
     assert s.cors_allowed_origins == []
     assert s.allowed_kusto_hosts == []

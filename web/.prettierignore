@@ -3,3 +3,5 @@ dist
 coverage
 package-lock.json
 *.tsbuildinfo
+src/lib/api/schema.d.ts
+src/lib/api/openapi.json
