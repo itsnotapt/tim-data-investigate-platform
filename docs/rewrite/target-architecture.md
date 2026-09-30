@@ -2,7 +2,7 @@
 
 Status: **Accepted** (2026-09-29): Q-001…Q-004 and Q-019 answered; see ADR-0003…0006. Remaining Open questions use their proposed defaults until answered.
 
-Decisions taken: PostgreSQL ([ADR-0004](../decisions/0004-postgresql-persistence.md)), AG Grid Enterprise unlicensed during development ([ADR-0006](../decisions/0006-ag-grid-enterprise.md); the production licence is Blocking question **Q-027**), popup login with single Entra app + OBO ([ADR-0005](../decisions/0005-auth-entra-popup-obo.md)), no legacy data migration (Q-004), `web/` + `api/` layout ([ADR-0003](../decisions/0003-repo-layout.md)). Every choice that still depends on an open question cites its Q-ID and the proposed default from [open-questions.md](../open-questions.md). Questions this doc raised are Q-020…Q-026 (Q-023, Q-025 and Q-026 are now moot).
+Decisions taken: PostgreSQL ([ADR-0004](../decisions/0004-postgresql-persistence.md)), AG Grid Enterprise only, trial during development and licensed in production ([ADR-0006](../decisions/0006-ag-grid-enterprise.md), Q-027; no Community build), popup login with single Entra app + OBO ([ADR-0005](../decisions/0005-auth-entra-popup-obo.md)), no legacy data migration (Q-004), `web/` + `api/` layout ([ADR-0003](../decisions/0003-repo-layout.md)). Every choice that still depends on an open question cites its Q-ID and the proposed default from [open-questions.md](../open-questions.md). Questions this doc raised are Q-020…Q-026 (Q-023, Q-025 and Q-026 are now moot).
 
 Related: [current-system/overview.md](../current-system/overview.md) (legacy diagram, glossary), [backend-api.md](../current-system/backend-api.md), [frontend-architecture.md](../current-system/frontend-architecture.md), [known-issues.md](../current-system/known-issues.md). Companions: [component-mapping.md](component-mapping.md), [work-breakdown.md](work-breakdown.md), `api-contract.md` (to write).
 
@@ -69,9 +69,9 @@ Unchanged from legacy: templates render in the browser, tags round-trip through 
 | Concern | Choice | Notes |
 |---|---|---|
 | Build | Vite, TypeScript `strict` | Function components + hooks only |
-| Routing | React Router with **`createHashRouter`** | Keeps `#/share/:uuid`, `#/view/:uuid`, `#/queries`, `#/exportimport` so existing share links keep working |
+| Routing | React Router with **`createHashRouter`** | Single `react-router` package (v8; `RouterProvider` from `react-router/dom`). Keeps `#/share/:uuid`, `#/view/:uuid`, `#/queries`, `#/exportimport` so existing share links keep working |
 | UI | MUI (Q-012 default) | Closest to Vuetify/Material look |
-| Grid | AG Grid React + `ag-grid-enterprise`, unlicensed during development (Q-002, ADR-0006) | Enterprise-only code (context menu, set filter, side bar, status bar, grouping) stays inside `features/grid` so a Community fallback remains possible; production licence is Q-027 and blocks production deploy (BUG-43) |
+| Grid | AG Grid React + `ag-grid-enterprise` only; trial during development, licence key in production (Q-002, Q-027, ADR-0006) | No Community build or fallback (BUG-43 avoided by design); grid config lives in `features/grid` |
 | Auth | `@azure/msal-react` + `@azure/msal-browser`, popup login (Q-003, ADR-0005) | One `lib/auth` module |
 | Browser storage | IndexedDB via `idb`, own DB `tim` (Q-004, Q-005: browser-only) | See 3.6 |
 | Editor | `@monaco-editor/react` + `@kusto/monaco-kusto` | Q-017 default: enable suggestions |
@@ -231,7 +231,7 @@ api/
   src/tim_api/
     main.py            app factory, lifespan (init store, optional table check), routers, error handlers, CORS
     config.py          Settings (pydantic-settings)
-    auth/              jwt validation dependency, CurrentUser, OBO token provider + cache
+    auth/              jwt validation dependency `get_current_principal`, `Principal`, OBO token provider + cache
     kusto/             KustoGateway protocol, real client (OBO), schema, frame parsing, value serialisation, cluster validator
     templates/         router, schemas, service (JSON Patch), repository use
     query_runs/        router, schemas, runner (asyncio tasks), service (ownership, timeout, retention)
@@ -245,15 +245,15 @@ Dependencies point inward: routers -> services -> protocols (`KustoGateway`, `To
 ### 4.3 Request flow
 
 ```
-Request ─► CORS (configured origins) ─► auth dependency: verify JWT ─► CurrentUser{oid, name}
+Request ─► CORS (configured origins) ─► auth dependency: verify JWT ─► Principal{oid, name, tenant_id, token}
         ─► router (Pydantic validation, 422->400 mapping per contract)
         ─► service ─► repository / KustoGateway / IngestGateway
-        ─► response model (no internals)     errors ─► global handler: {error, detail?, traceId}; log stack server-side only
+        ─► response model (no internals)     errors ─► global handler: RFC 7807 problem (api-contract.md, Q-102); stack to server log only
 ```
 
 ### 4.4 Auth
 
-- **Inbound**: validate the bearer JWT against the tenant JWKS (cached, refreshed on unknown `kid`). Checks: signature, `exp/nbf`, `aud == api://{clientId}`, `iss` in {`https://sts.windows.net/{tid}/`, `https://login.microsoftonline.com/{tid}/v2.0`, ...} (Q-014: accept v1 and v2). `CurrentUser.name` from `unique_name` -> `upn` -> `preferred_username`; `oid` is the stable id.
+- **Inbound**: validate the bearer JWT against the tenant JWKS (cached, refreshed on unknown `kid`). Checks: signature, `exp/nbf`, `aud == api://{clientId}`, `iss` in {`https://sts.windows.net/{tid}/`, `https://login.microsoftonline.com/{tid}/v2.0`, ...} (Q-014: accept v1 and v2). `Principal.name` from `unique_name` -> `upn` -> `preferred_username`; `oid` is the stable id.
 - **Outbound OBO**: `msal.ConfidentialClientApplication` created **once**, with its in-memory token cache (`SerializableTokenCache` if multi-replica needs it later). Credential: client secret if set, else federated/managed-identity assertion. Scope derived per cluster and configurable (Q-013 default), not hard-coded to `help.kusto.windows.net` (BUG-09). MSAL calls are blocking, so run them via `asyncio.to_thread`.
 - Token used for Kusto is never logged or stored with a run.
 - `/api/user/authenticate` and `SIGNING_KEY`/`AUTH_USERNAME`/`AUTH_PASSWORD` removed; app no longer needs them to boot (SEC-07, Q-011).
@@ -266,7 +266,7 @@ Request ─► CORS (configured origins) ─► auth dependency: verify JWT ─�
 - `StartTime`/`EndTime` passed as Kusto **client request properties / query parameters** (legacy parity, KQL must `declare query_parameters`).
 - Value serialisation matches legacy for grid parity: datetime -> ISO string, timespan -> `hh:mm:ss`, dynamic -> nested JSON, null -> null, guid -> string.
 - Row/size cap: configurable `MAX_RESULT_ROWS`/`MAX_RESULT_BYTES` (values to be decided, Q-021); exceeding it yields `status:"error"` with a clear message instead of a stuck run (BUG-02).
-- Schema: `.show schema as json`; the column name (`ClusterSchema` vs `DatabaseSchema`) is verified against a real cluster during the Kusto task (Q-018). Return parsed JSON object rather than JSON-in-string only if Q-008 fix applies (see 5).
+- Schema: `.show schema as json`; the column name (`ClusterSchema` vs `DatabaseSchema`) is verified against a real cluster during the Kusto task (Q-018). Returned as a parsed object `{schema: <object>}` (api-contract.md D8, Q-028).
 
 ### 4.6 Query runs
 
@@ -323,7 +323,7 @@ Full field-level contract will live in `docs/rewrite/api-contract.md` (to be cre
 | # | Endpoint | Legacy quirk | Decision | Ref |
 |---|---|---|---|---|
 | 1 | `POST /api/user/authenticate` | dead login | **Removed** | SEC-07, Q-011 |
-| 2 | `POST /api/kusto/schema` | JSON string inside JSON row list (`data[0].ClusterSchema`) | **Kept** in phase 1 for Monaco loader parity; parsed-object variant is a follow-up (Q-018 verifies column) | Q-008, Q-018 |
+| 2 | `POST /api/kusto/schema` | JSON string inside JSON row list (`data[0].ClusterSchema`) | **Fixed**: `{schema: <object>}` (the React client is new, no parity constraint; api-contract.md D8) | Q-008, Q-018, Q-028 |
 | 3 | `POST /api/kusto/query` | `requestedBy` in body | **Fixed**: field ignored/absent, owner from token | SEC-03 |
 | 3 | same | cluster validation skipped | **Fixed** | SEC-01 |
 | 3-4 | query errors returned as 200 `status:"error"` | **Kept** (frontend reads `status`); revisit under Q-008 | Q-008 |
@@ -338,7 +338,7 @@ Full field-level contract will live in `docs/rewrite/api-contract.md` (to be cre
 | 10 | DELETE missing uuid = 500 | **Fixed**: 404 | BUG-03 |
 | 11-13 | tagged events: client `createdBy`/`dateTimeUtc` | **Fixed**: server-set | SEC-03 |
 | 11-13 | 204 on success, empty array = 400 | **Kept** | |
-| all | 400 shapes (`ValidationProblemDetails` vs plain string) | **Unified** to one error envelope `{error, detail, traceId}`; SPA client maps it once (BUG-40) | Q-008 |
+| all | 400 shapes (`ValidationProblemDetails` vs plain string) | **Unified** to one RFC 7807-style problem envelope (api-contract.md D17, Q-102); SPA client maps it once (BUG-40) | Q-008 |
 | all | 500 empty body | **Fixed**: envelope | SEC-04 |
 | all | CORS any origin | **Fixed**: configurable | SEC-05 |
 | health | `/api/healthChecks/readiness`, `/liveness` | always 204 | **Kept** paths; readiness probes the store | |
@@ -355,7 +355,7 @@ JSON: field names byte-identical to legacy DTOs; Kusto column names as dictionar
 | SEC-01 | Cluster URL unvalidated; OBO token sent anywhere | https + host allow-list / suffix check before any token acquisition | `kusto/cluster.py`, 4.5 |
 | SEC-02 | No run ownership check | `owner_oid` stored on run; non-owner gets 404 | `query_runs/service.py`, 4.6 |
 | SEC-03 | `createdBy`/`requestedBy`/`dateTimeUtc` client-supplied | Identity from validated token, timestamps server-side; fields removed/ignored in schemas | `auth/`, `tagged_events/`, `templates/` |
-| SEC-04 | Stack traces returned | Global handler + `mainError` only; trace to server log with `traceId` | `main.py` |
+| SEC-04 | Stack traces returned | Global handler + `mainError` only; trace to server log with `traceId` (problem envelope, api-contract.md) | `main.py` |
 | SEC-05 | CORS `*` | `CORS_ALLOWED_ORIGINS` list, default none (same-origin behind proxy) | `main.py`, `config.py` |
 | SEC-06 | Handlebars `noEscape`, unescaped `array`, share-link params run as victim | KQL-literal-escaping helpers; params validated vs template; `execute=1` confirmation | `web/lib/kql-templates`, `web/features/share` |
 | SEC-07 | Dead auth endpoint and secrets required at boot | Removed (Q-011 default) | `auth/` |
@@ -384,18 +384,21 @@ JSON: field names byte-identical to legacy DTOs; Kusto column names as dictionar
 | `AUTH_TENANT_ID` | `TIM_AUTH_TENANT_ID` | required |
 | `AUTH_CLIENT_ID` | `TIM_AUTH_CLIENT_ID` | required; audience `api://{id}` |
 | `AUTH_CLIENT_SECRET` | `TIM_AUTH_CLIENT_SECRET` | optional; else federated/managed-identity assertion |
+| *(none)* | `TIM_AUTH_AUTHORITY_HOST` | optional, default `https://login.microsoftonline.com`; sovereign clouds |
+| *(none)* | `TIM_AUTH_DISABLED` | dev only (P1-12); rejected when `TIM_ENVIRONMENT=production` |
+| *(none)* | `TIM_ENVIRONMENT` | `development` \| `production` (default `production`) |
 | `SIGNING_KEY`, `AUTH_USERNAME`, `AUTH_PASSWORD` | *(removed)* | SEC-07 |
 | *(hard-coded scope)* | `TIM_KUSTO_OBO_SCOPE` | Q-013; default derived per cluster |
 | *(none)* | `TIM_ALLOWED_KUSTO_HOSTS` / `TIM_ALLOWED_KUSTO_SUFFIXES` | SEC-01; see Q-022 |
 | `KUSTO_CLUSTER_URI` | `TIM_TAG_CLUSTER_URI` | tag cluster (admin + ingest) |
 | `KUSTO_DATABASE_NAME` (default `Research`) | `TIM_TAG_DATABASE` | |
-| `KUSTO_INGEST_URL` | *(removed)* | unused in legacy; derive ingest URI or add later |
+| `KUSTO_INGEST_URL` | `TIM_TAG_INGEST_URL` | optional; unused in legacy, derived from the cluster URI when unset |
 | `AZURE_CLIENT_ID/TENANT_ID/CLIENT_SECRET` | same (read by `azure-identity`) | app identity for ingest/admin |
 | `DATABASE_TYPE` | *(removed)* | Q-001, ADR-0004: PostgreSQL only |
 | `COUCHBASE_*`, `MONGO_*`, `REDIS_CONNECTION_STRING` | `TIM_DATABASE_URL` | one PostgreSQL URL (`postgresql+asyncpg://…`, ADR-0004) |
-| *(none)* | `TIM_QUERY_TIMEOUT_SECONDS` (default TBD) | Q-007 |
+| *(none)* | `TIM_QUERY_TIMEOUT_SECONDS` (default 600) | Q-007, Q-021 |
 | *(none)* | `TIM_RUN_RETENTION_SECONDS` (default 86400) | Q-007 |
-| *(none)* | `TIM_MAX_RESULT_ROWS` / `TIM_MAX_RESULT_BYTES` | Q-021 |
+| *(none)* | `TIM_MAX_RESULT_ROWS` (100000) / `TIM_MAX_RESULT_BYTES` (64 MB) | Q-021 |
 | *(any origin)* | `TIM_CORS_ALLOWED_ORIGINS` | SEC-05 |
 | *(none)* | `TIM_LOG_LEVEL` | |
 
@@ -404,10 +407,10 @@ JSON: field names byte-identical to legacy DTOs; Kusto column names as dictionar
 | Legacy `.docker` env | `window.appConfig` key | New container env |
 |---|---|---|
 | `AUTH_CLIENT_ID` | `auth.clientId` | `AUTH_CLIENT_ID` |
-| `AUTH_TENANT_ID` | `auth.authority` | `AUTH_TENANT_ID` |
-| `REDIRECT_URI` | `REDIRECT_URI` | kept: MSAL popup returns to this SPA redirect URI (must be registered in Entra) |
+| `AUTH_TENANT_ID` | `auth.authority` (full URL, `https://login.microsoftonline.com/<tenant>`) | `AUTH_TENANT_ID` (entrypoint builds the URL); dev fallback env is `VITE_AUTH_AUTHORITY` |
+| `REDIRECT_URI` | `redirectUri` | kept: MSAL popup returns to this SPA redirect URI (must be registered in Entra) |
 | `API_BASEPATH` | `apiEndpoint` | `API_BASEPATH` (normalised) |
-| `AGGRID_LICENSE` | `agGridLicenseKey` | `AGGRID_LICENSE` (optional; unlicensed during development, Q-002, ADR-0006; production licence Q-027) |
+| `AGGRID_LICENSE` | `agGridLicenseKey` | `AGGRID_LICENSE` (optional in development (trial); required in production, Q-027, ADR-0006) |
 | `KUSTO_CLUSTER_URI` | `tagCluster` + default cluster | `TAG_CLUSTER` |
 | `KUSTO_DATABASE_NAME` | `tagDatabase` + default database | `TAG_DATABASE` |
 | *(hard-coded)* | `wikiUri`, `issueUri` | `HELP_WIKI_URI`, `HELP_ISSUE_URI` (typo fixed) |
@@ -431,6 +434,10 @@ JSON: field names byte-identical to legacy DTOs; Kusto column names as dictionar
 | integration | real store in a container; Kusto emulator/`help.kusto.windows.net` sample optional | repository behaviour, TTL cleanup, Kusto frame parsing (Q-018 check) | optional job |
 | static | `tsc --noEmit`, eslint, `ruff`, `mypy` | | CI required |
 
+### CI
+
+`.github/workflows/build-web.yml` (Node 24: `npm ci`, lint, `format:check`, typecheck, test, build) and `build-api.yml` (uv: `sync --locked`, ruff check, ruff format --check, mypy, pytest) run on PRs and pushes to main touching `web/**` / `api/**` respectively; least-privilege permissions, superseded runs cancelled. The api docker-build job is commented out until P1-10. `release-please-config.json` has `web` (node) and `api` (python) packages at 0.1.0; no image publishing until P5.
+
 Coverage is not a numeric gate initially; the gate is that every bug ID marked "Fixed" has a regression test named after it.
 
 ---
@@ -441,8 +448,8 @@ Proposed default: **two images + Docker Compose; Helm later.**
 
 | Item | Proposal |
 |---|---|
-| `web` image | multi-stage Node build -> nginx; entrypoint renders `config.js` (and `nginx.conf` proxying `/api/` to `BACKEND_URI`); Monaco assets bundled by Vite, no `prepublish` copy step; single build with AG Grid Enterprise; licence key supplied at runtime via `config.js`. **Production deploy is blocked by Q-027** |
-| `api` image | `python:3.12-slim`, `uv sync --frozen`, `uvicorn tim_api.main:app` (workers = 1 per container so the task registry and TTL sweeper stay simple), non-root, `/api/healthChecks/*` probes |
+| `web` image | multi-stage Node build -> `nginx-unprivileged` (port 8080, `TIM_ENVIRONMENT` selects development/production, default production); entrypoint renders `config.js` (and `nginx.conf` proxying `/api/` to `BACKEND_URI`); Monaco assets bundled by Vite, no `prepublish` copy step; single build with AG Grid Enterprise; licence key supplied at runtime via `config.js` (required in production, Q-027) |
+| `api` image | `python:3.12-slim`, `uv sync --locked --no-dev`, port 8080, `uvicorn tim_api.main:app` (workers = 1 per container so the task registry and TTL sweeper stay simple), non-root, `/api/healthChecks/*` probes |
 | Compose | `web`, `api`, `postgres` (ADR-0004); a one-shot `init` service runs the DB migration and `init-kusto` CLI (Q-015) |
 | Ingress | routes `/api` **without** rewrite (BUG-10); `/metrics` not exposed |
 | CI | path-filtered workflows for `web/**` and `api/**` (lint, type-check, tests, image build); release-please gets `web` and `api` packages when they ship; legacy workflows stay until cut-over |
@@ -464,7 +471,7 @@ Decision (Q-004): **no legacy data is migrated.** There is no template import CL
 
 Cut-over:
 1. Build `web` + `api` alongside legacy (legacy untouched, ADR-0003).
-2. Verify with the workflow checklist W1-W14. Production deploy waits on Q-027 (AG Grid licence).
+2. Verify with the workflow checklist W1-W14. Production deploy needs the AG Grid licence key configured (Q-027).
 3. Deploy the new stack and retire the legacy deployment.
 4. Delete `frontend/` and `backend/` in one change (work-breakdown P5).
 
@@ -473,7 +480,7 @@ Cut-over:
 
 | # | Risk | Impact | Mitigation |
 |---|---|---|---|
-| R1 | AG Grid Enterprise runs unlicensed (Q-002, Q-027) | Production use needs a licence; watermark and console warning until then | Q-027 blocks production deploy; Enterprise code isolated in `features/grid` so a Community fallback (custom context menu) stays possible (ADR-0006) |
+| R1 | AG Grid Enterprise runs on the trial until the licence arrives (Q-002, Q-027) | Watermark and console warning in dev; production can't go live without the key | Licence procurement tracked outside the repo; prod entrypoint requires `AGGRID_LICENSE`; no Community fallback (ADR-0006) |
 | R2 | MSAL popup blocked or re-prompting (BUG-22/23) | Users cannot sign in | Silent token first, single in-flight request, retryable sign-in, popup hint text; test sign-in explicitly |
 | R3 | Handlebars escaping breaks existing templates (Q-006, SEC-06) | Templates render differently | Escape only at literal boundaries, snapshot-test rendered output of all shipped templates before/after |
 | R4 | Kusto client is synchronous, MSAL is blocking | Event-loop stalls under load | Thread offload, bounded worker pool, load test |

@@ -14,7 +14,7 @@ Conventions:
 
 | Legacy | New location | Notes / behaviour changes | Bugs fixed | Cx |
 |---|---|---|---|---|
-| `main.js` | `app/main.tsx` | Mount React, MsalProvider, ThemeProvider, router, runtime-config bootstrap. AG Grid Enterprise module registration + optional licence key from runtime config (ADR-0006: runs unlicensed in development; no `sed` build trick, single build). | BUG-43 | S |
+| `main.js` | `app/main.tsx` | Mount React, MsalProvider, ThemeProvider, router, runtime-config bootstrap. AG Grid Enterprise module registration + optional licence key from runtime config (ADR-0006: Enterprise only, trial in development; no `sed` build trick, single build, no Community variant). | BUG-43 | S |
 | `plugins/vuetify.js` | `app/theme.ts` | MUI theme approximating Vuetify defaults (primary/accent colours, dense toolbar). Q-012. | – | S |
 | `router/index.js` | `app/routes.tsx` | `createHashRouter`; same 5 routes; add catch-all redirect to `/`; lazy routes. | – | S |
 | `App.vue` (shell, auth gate, toolbar) | `app/AppShell.tsx`, `app/Toolbar.tsx`, `app/AuthGate.tsx`, `app/useBootstrap.ts` | Toolbar: hamburger menu (Query Manager), TIM link, Help menu, Settings menu, Account menu. Bootstrap = login → load templates → load column views → load tabs. Popup login + silent SSO first (ADR-0005). Retry after a failed first sign-in re-runs bootstrap. | BUG-22, BUG-23 | M |

@@ -11,4 +11,4 @@ Statuses: **Proposed** (drafted, waiting for the user) → **Accepted** → opti
 | [0003](0003-repo-layout.md) | Repo layout: `web/` + `api/` | Accepted | 2026-09-29 |
 | [0004](0004-postgresql-persistence.md) | PostgreSQL for templates and query runs | Accepted | 2026-09-29 |
 | [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to Kusto | Accepted | 2026-09-29 |
-| [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise (unlicensed during development) | Accepted | 2026-09-29 |
+| [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise only (trial in development, licensed in production) | Accepted | 2026-09-29 |

@@ -7,10 +7,11 @@ TIM ("triage and investigation") is a Kusto investigation platform: analysts run
 ## Status
 | | |
 |---|---|
-| Phase | **0 — Discovery & documentation** (wrapping up; Blocking questions answered 2026-09-29) |
+| Phase | **1 — Scaffolding** (Phase 0 done; P1 code complete, awaiting CI/Docker verification) |
 | Last updated | 2026-09-29 |
-| Done | Legacy explored; 42 screenshots + index; harness (`tools/legacy-screenshots/`); rules; all current-system docs (overview, data models, API, frontend, workflows, infra, known issues); target architecture (Proposed); component mapping; work breakdown; ADRs 0001–0006; root `CLAUDE.md` |
-| Next | Phase 0 wrap-up: P0-16 (`rewrite/api-contract.md`), then **Phase 1 scaffolding** (`web/`, `api/`, tooling, CI, compose with Postgres). Decisions so far: PostgreSQL, AG Grid Enterprise unlicensed in dev, popup + OBO, no data migration, `web/` + `api/` (ADR-0003…0006). Only Blocking question: Q-027 (production AG Grid licence, blocks deploy only) |
+| Done | Legacy explored; 42 screenshots + index; harness (`tools/legacy-screenshots/`); rules; all current-system docs; target architecture (Accepted); component mapping; work breakdown; ADRs 0001–0006; root `CLAUDE.md`. All Blocking questions answered (Q-001…Q-004, Q-019, Q-027) |
+| Phase 1 | Done: P1-01…04, P1-07…09, P1-12. Review: P1-05/06 (CI workflows need a green PR run), P1-10/11 (Dockerfiles + compose not built locally: no Docker). Next: Phase 2 backend parity (P2-01…) and P3 frontend foundations |
+| Decisions | PostgreSQL; AG Grid Enterprise only (trial in dev, licence key in prod, no Community build); popup + OBO; no data migration; `web/` + `api/` (ADR-0003…0006) |
 
 ## Map
 | Path | Contents |
@@ -28,8 +29,10 @@ TIM ("triage and investigation") is a Kusto investigation platform: analysts run
 | ├ [overview.md](current-system/overview.md) | Architecture diagram, tech stack, glossary |
 | ├ [data-models.md](current-system/data-models.md) | Every server and browser entity, field by field |
 | **rewrite/** | The new system |
-| ├ [target-architecture.md](rewrite/target-architecture.md) | Proposed React + FastAPI design |
+| ├ [target-architecture.md](rewrite/target-architecture.md) | Accepted React + FastAPI design |
 | ├ [component-mapping.md](rewrite/component-mapping.md) | Legacy unit → new module |
+| ├ [local-dev.md](rewrite/local-dev.md) | Running `api/`, `web/` and PostgreSQL locally |
+| ├ [api-contract.md](rewrite/api-contract.md) | Every endpoint of the new API, schemas, deviations D1–D20 |
 | └ [work-breakdown.md](rewrite/work-breakdown.md) | Task board (phases P0–P5) |
 | **[decisions/](decisions/README.md)** | ADRs |
 | [../tools/legacy-screenshots/](../tools/legacy-screenshots/README.md) | Harness that regenerates the screenshots |

@@ -1,6 +1,6 @@
 # Data models (legacy)
 
-Every entity that the legacy app stores or sends over the wire. The rewrite keeps these **JSON field names** (RULES §6) unless `rewrite/api-contract.md` (task P0-16) records a change.
+Every entity that the legacy app stores or sends over the wire. The rewrite keeps these **JSON field names** (RULES §6) unless [`rewrite/api-contract.md`](../rewrite/api-contract.md) records a change.
 
 - **Server entities** are the .NET models in `backend/Tim.Backend/Models/**`. They are persisted in Couchbase, Mongo or Redis, or ingested into the Kusto tag tables.
 - **Browser entities** are kept only in the SPA (IndexedDB, URLs, `window.appConfig`).

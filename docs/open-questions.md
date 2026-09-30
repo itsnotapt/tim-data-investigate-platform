@@ -5,7 +5,7 @@ Process: see [RULES.md §4](RULES.md#4-handling-questions-and-decisions). IDs ar
 ## Blocking
 | ID | Question | Why it matters | Proposed default |
 |---|---|---|---|
-| Q-027 | **AG Grid Enterprise licence for production**: buy one, or ship with Community + custom context menu/side bar? Blocks deployment (P5), not development | AG Grid terms require a licence for production use of Enterprise features; unlicensed builds show a watermark | Buy a licence before first production deploy; keep Enterprise-only usage isolated in `features/grid` so a Community fallback stays possible |
+| – | None | | |
 
 ## Open
 | ID | Question | Proposed default |
@@ -28,10 +28,13 @@ Process: see [RULES.md §4](RULES.md#4-handling-questions-and-decisions). IDs ar
 | Q-021 | **Query result limits and retention values**: max rows / bytes per run, query timeout, run retention | 100 000 rows, 64 MB, 10 min timeout (poll deadline 11 min), 1 day retention |
 | Q-022 | **Cluster allow-list policy** (SEC-01): explicit host allow-list required, or https + known suffix list? | https + suffix list (`.kusto.windows.net`, `.kusto.fabric.microsoft.com`), optional strict allow-list env |
 | Q-024 | **Handlebars escaping semantics** (Q-006 follow-up): what happens to existing templates that use raw `{{x}}` inside KQL strings, and does `array` change output for values with quotes? | Escape only in explicit string-literal helpers; raw `{{x}}` unchanged but linted; `array` escapes quotes |
+| Q-028 | **Schema response shape** (`POST /api/kusto/schema`): return `{schema: <parsed object>}` (contract default, Q-008 fix) or keep legacy row list with JSON-in-string for Monaco loader parity (target-architecture section 5 said keep)? Depends on Q-018 (source column) | `{schema: <object>}`; the React client is new, so no parity constraint. See [api-contract.md](rewrite/api-contract.md) 3.2 |
 
 ## Assumed
 | ID | Assumption | Date |
 |---|---|---|
+| Q-101 | Tagged-event requests are capped at 1000 items per call and 1 MB per `eventAsJson`, validated all-or-nothing (see [api-contract.md](rewrite/api-contract.md) 3.11-3.13) | 2026-09-29 |
+| Q-102 | Error envelope is RFC 7807-style `{type,title,status,detail,traceId,errors?}` (`application/problem+json`), replacing the `{error, detail, traceId}` sketch in target-architecture section 5; validation is always 400, not 422 (see [api-contract.md](rewrite/api-contract.md) section 1) | 2026-09-29 |
 | Q-100 | Screenshots captured with mocked API + stubbed auth + unlicensed AG Grid Enterprise represent the production UI closely enough for parity | 2026-09-29 |
 
 ## Answered
@@ -42,6 +45,7 @@ Process: see [RULES.md §4](RULES.md#4-handling-questions-and-decisions). IDs ar
 | Q-002 | AG Grid Enterprise licence available? | **Keep using the unlicensed trial for now** (user). Enterprise features used during development (watermark and console warning accepted); production licence is Q-027 → [ADR-0006](decisions/0006-ag-grid-enterprise.md) | 2026-09-29 |
 | Q-003 | Auth model and login style? | **Popup is fine** (user). Keep single Entra app (SPA + API) with OBO to Kusto; keep popup login, but fix BUG-23 (initialise MSAL properly and use cached account / silent token first) → [ADR-0005](decisions/0005-auth-entra-popup-obo.md) | 2026-09-29 |
 | Q-004 | Must existing data migrate? | **No** (user). No template or IndexedDB migration tooling. Export/Import (W13) stays as a feature for the new app's own data | 2026-09-29 |
+| Q-027 | AG Grid Enterprise licence for production? | **A licence will be obtained; use the trial until then; don't support Community** (user). Single Enterprise build; licence key supplied via runtime config (`agGridLicenseKey`) and required for production deploys; no Community fallback is built or maintained → [ADR-0006](decisions/0006-ag-grid-enterprise.md) | 2026-09-29 |
 | Q-019 | Monorepo layout `web/` + `api/`? | **Yes** (user) → [ADR-0003](decisions/0003-repo-layout.md) | 2026-09-29 |
 | Q-023 | Reuse legacy IndexedDB names in place? | Moot after Q-004: new app uses its own IndexedDB database (`tim`), versioned from v1; no legacy read | 2026-09-29 |
 | Q-025 | Hashless redirect URI for MSAL redirect login? | Moot after Q-003 (popup login kept) | 2026-09-29 |
