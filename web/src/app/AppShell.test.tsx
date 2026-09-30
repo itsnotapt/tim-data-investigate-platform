@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
@@ -13,6 +14,8 @@ vi.mock('../lib/config/runtimeConfig', () => ({
     issueUri: 'https://issues.example/new',
   })),
 }));
+
+beforeEach(stubBootstrap);
 
 const ACCOUNT: AuthAccount = { id: 'u', name: 'jo@example.com', tenantId: 't' };
 

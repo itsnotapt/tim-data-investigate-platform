@@ -4,14 +4,17 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Container from '@mui/material/Container';
 import Link from '@mui/material/Link';
 import type { ReactNode } from 'react';
-import { useAuth } from '../lib/auth';
+import { useBootstrap, type BootstrapSteps } from './useBootstrap';
 
-/** Renders the routes only when signed in; otherwise the legacy sign-in / loading / error states. */
-export function AuthGate({ children }: { children: ReactNode }) {
-  const { status, error, login } = useAuth();
+/**
+ * Renders the routes only when signed in and bootstrapped (templates, column views, tabs);
+ * otherwise the legacy sign-in / loading / error states.
+ */
+export function AuthGate({ children, steps }: { children: ReactNode; steps?: BootstrapSteps }) {
+  const { status, error, login, retry } = useBootstrap(steps);
 
   switch (status) {
-    case 'signedIn':
+    case 'loaded':
       return <>{children}</>;
     case 'signedOut':
       return (
@@ -38,12 +41,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
             severity="error"
             variant="outlined"
             action={
-              <Button color="inherit" size="small" onClick={() => void login()}>
+              <Button color="inherit" size="small" onClick={retry}>
                 Retry
               </Button>
             }
           >
-            {error?.message ?? 'Sign-in failed.'}
+            {error?.message ?? 'Loading failed.'}
           </Alert>
         </Container>
       );

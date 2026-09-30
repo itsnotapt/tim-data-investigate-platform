@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { stubBootstrap } from '../test/stubBootstrap';
 import { App } from './App';
 import type { AuthClient } from '../lib/auth';
 import { resetConfigCache } from '../lib/config/runtimeConfig';
+
+beforeEach(stubBootstrap);
 
 const client = (): AuthClient => ({
   getAccount: vi.fn().mockResolvedValue({ id: 'u', name: 'jo@example.com', tenantId: 't' }),

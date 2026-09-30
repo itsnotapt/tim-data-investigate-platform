@@ -4,6 +4,8 @@
  * store layout: docs/rewrite/target-architecture.md section 3.7.
  */
 
+import type { TimeRange } from '../time-range';
+
 export type DisplayComponentName = 'KustoQueryResult' | 'TemplateQueryResult';
 
 /** Serialisable error only (BUG-38); never store Error instances. */
@@ -19,6 +21,8 @@ export interface DisplayComponentState {
   isExecuting: boolean;
   /** Template components only. */
   editQuery?: boolean;
+  /** Kusto components only: the picked time range (resolved at run time). Default Last 15 minutes. */
+  timeRange?: TimeRange;
   executionTime?: number | null;
   cpuUsage?: string | null;
   memoryUsage?: string | null;

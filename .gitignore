@@ -356,3 +356,5 @@ MigrationBackup/
 .idea
 
 **/.env
+# Claude Code local settings
+.claude/settings.local.json

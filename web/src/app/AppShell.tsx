@@ -13,11 +13,13 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import { Suspense, useState, type ReactElement, type ReactNode } from 'react';
+import { Suspense, useCallback, useState, type ReactElement, type ReactNode } from 'react';
 import { Link as RouterLink, Outlet } from 'react-router';
 import { useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
+import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
+import { useTemplatesStore } from '../features/templates';
 import { AuthGate } from './AuthGate';
 
 interface ToolbarMenuProps {
@@ -84,6 +86,34 @@ function AccountMenu() {
   );
 }
 
+/** Side tree plus the routed page; only rendered once signed in and bootstrapped. */
+function ShellContent() {
+  const templates = useTemplatesStore((s) => s.templates);
+  const queryOptions = useTemplatesStore((s) => s.queryOptions);
+  const notify = useNotify();
+  const onReloadTemplates = useCallback(async () => {
+    try {
+      await useTemplatesStore.getState().reload();
+    } catch (e) {
+      notify(`Failed to reload templates: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [notify]);
+  return (
+    <>
+      <SideTree
+        templates={templates}
+        queryOptions={queryOptions}
+        onReloadTemplates={onReloadTemplates}
+      />
+      <Box sx={{ ml: `${SIDE_TREE_COLLAPSED_WIDTH}px` }}>
+        <Suspense fallback={<CircularProgress aria-label="Loading page" sx={{ m: 2 }} />}>
+          <Outlet />
+        </Suspense>
+      </Box>
+    </>
+  );
+}
+
 export function AppShell() {
   const { wikiUri, issueUri } = getConfig();
   return (
@@ -147,11 +177,9 @@ export function AppShell() {
           <AccountMenu />
         </Toolbar>
       </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 3, position: 'relative' }}>
         <AuthGate>
-          <Suspense fallback={<CircularProgress aria-label="Loading page" sx={{ m: 2 }} />}>
-            <Outlet />
-          </Suspense>
+          <ShellContent />
         </AuthGate>
       </Box>
     </Box>

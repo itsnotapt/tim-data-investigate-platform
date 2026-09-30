@@ -1,9 +1,12 @@
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
+import { NewQueryMenu } from '../features/new-query';
+import { useTemplatesStore } from '../features/templates';
 
 /** Legacy landing page (screenshot 01). */
 export default function Welcome() {
+  const templates = useTemplatesStore((s) => s.templates);
+  const queryOptions = useTemplatesStore((s) => s.queryOptions);
   return (
     <Box
       sx={{
@@ -19,10 +22,9 @@ export default function Welcome() {
         Welcome to TIM
       </Typography>
       <Typography sx={{ mb: 2 }}>The triage and investigation experience.</Typography>
-      {/* TODO(P4): replace with NewQueryButton (New query menu). */}
-      <Button variant="contained" color="inherit" disabled>
+      <NewQueryMenu templates={templates} queryOptions={queryOptions} variant="contained">
         Get Started
-      </Button>
+      </NewQueryMenu>
     </Box>
   );
 }

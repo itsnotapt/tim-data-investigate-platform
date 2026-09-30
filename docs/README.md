@@ -7,12 +7,13 @@ TIM ("triage and investigation") is a Kusto investigation platform: analysts run
 ## Status
 | | |
 |---|---|
-| Phase | **2 — Backend parity: done** (Phase 3 frontend foundations partly done) |
+| Phase | **4 — Frontend features: done** (Phase 5 verification next) |
 | Last updated | 2026-09-30 |
 | Done | Legacy explored; 42 screenshots + index; harness (`tools/legacy-screenshots/`); rules; all current-system docs; target architecture (Accepted); component mapping; work breakdown; ADRs 0001–0006; root `CLAUDE.md`. All Blocking questions answered (Q-001…Q-004, Q-019, Q-027) |
 | Phase 1 | Done, except P1-05/06 (CI workflows) awaiting a green PR run. Images + compose verified with Docker 2026-09-30 |
 | Phase 2 | Done (P2-01…P2-16): models, Entra JWT + OBO, cluster validation, Kusto query client, schema/query-run/template/tagged-event endpoints, PostgreSQL + Alembic, streaming tag ingestion, table-creation CLI, problem-details errors, OpenAPI snapshot + `web/src/lib/api/schema.d.ts`. 451 api tests |
-| Phase 3 | Done: P3-01, P3-04…P3-07, P3-09, P3-10 (136 web tests). Next: P3-02 typed API client, P3-03 polling, P3-08 bootstrap; then Phase 4 features |
+| Phase 3 | Done (P3-01…P3-10): MSAL popup auth, typed API client + query-run polling, IndexedDB `tim` DB, time range, app shell, bootstrap, routing, draggable dialog |
+| Phase 4 | Done (P4-01…P4-30): tab store, side tree, TabHost, New Query menu, ad-hoc tab (Monaco Kusto, time range, cluster), schema IntelliSense, query runs, AG Grid Enterprise grid + status/side bars, column views, detail panel, KQL template engine + template tab, pivots, tagging (quick tag, dialog, inline comment), share links, Query Manager, Export/Import, help menu. 463 web tests; browser smoke test (Playwright, mocked Kusto) of all main flows passed 2026-09-30. Next: Phase 5 (P5-01 Playwright e2e harness) |
 | Decisions | PostgreSQL; AG Grid Enterprise only (trial in dev, licence key in prod, no Community build); popup + OBO; no data migration; `web/` + `api/` (ADR-0003…0006) |
 
 ## Map

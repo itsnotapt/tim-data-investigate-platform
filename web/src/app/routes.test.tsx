@@ -1,13 +1,26 @@
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthProvider, type AuthClient } from '../lib/auth';
+import { useTabsStore } from '../features/tabs';
+import { useTemplatesStore } from '../features/templates';
+import userEvent from '@testing-library/user-event';
 import { routes } from './routes';
 
 vi.mock('../lib/config/runtimeConfig', () => ({
-  getConfig: vi.fn(() => ({ wikiUri: 'https://wiki.example', issueUri: 'https://issues.example' })),
+  getConfig: vi.fn(() => ({
+    wikiUri: 'https://wiki.example',
+    issueUri: 'https://issues.example',
+    defaultClusters: [],
+  })),
 }));
+
+beforeEach(() => {
+  useTabsStore.reset();
+  stubBootstrap();
+});
 
 const client: AuthClient = {
   getAccount: vi.fn().mockResolvedValue({ id: 'u', name: 'jo@example.com', tenantId: 't' }),
@@ -29,26 +42,50 @@ function renderAt(entry: string) {
 }
 
 describe('routes', () => {
-  it('/ renders Welcome with a Get Started placeholder', async () => {
+  it('/ renders Welcome with a working Get Started menu and the side tree', async () => {
     renderAt('/');
     expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
     expect(screen.getByText('The triage and investigation experience.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Get Started' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Get Started' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Reload templates' })).toBeInTheDocument();
+  });
+
+  it('Reload templates in the tree notifies when the reload fails', async () => {
+    useTemplatesStore.setState({ reload: () => Promise.reject(new Error('offline')) });
+    renderAt('/');
+    await userEvent.click(await screen.findByRole('button', { name: 'Reload templates' }));
+    expect(await screen.findByText(/Failed to reload templates: offline/)).toBeInTheDocument();
+  });
+
+  it('/share/tpl-1 renders the share page (no such template)', async () => {
+    renderAt('/share/tpl-1');
+    expect(await screen.findByText('This query was not found.')).toBeInTheDocument();
   });
 
   it.each([
     ['/queries', 'Query Manager'],
-    ['/view/abc-123', 'View'],
-    ['/share/tpl-1', 'Share query'],
     ['/exportimport', 'Export / Import'],
   ])('%s renders its page', async (path, title) => {
     renderAt(path);
     expect(await screen.findByRole('heading', { level: 2, name: title })).toBeInTheDocument();
   });
 
-  it('passes :uuid params to view and share pages', async () => {
+  it('/view/:uuid renders the ad-hoc query tab', async () => {
+    useTabsStore.getState().createTab({
+      componentUuid: 'abc-123',
+      componentName: 'KustoQueryResult',
+      parentUuid: null,
+      title: 'My tab',
+      params: { query: 'T', cluster: '', database: '' },
+    });
     renderAt('/view/abc-123');
-    expect(await screen.findByText('Display component: abc-123')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Summary')).toHaveValue('My tab');
+  });
+
+  it('/view/:uuid with an unknown uuid redirects to /', async () => {
+    const router = renderAt('/view/unknown');
+    expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/');
   });
 
   it('redirects an unknown hash to /', async () => {

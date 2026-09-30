@@ -7,7 +7,7 @@ window.appConfig = {
     authority: 'https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000',
   },
   redirectUri: 'http://localhost:5173/blank.html',
-  apiEndpoint: '/api',
+  apiEndpoint: '', // same origin; request paths already start with /api
   agGridLicenseKey: '',
   wikiUri: 'https://github.com/itsnotapt/tim-data-investigate-platform/wiki',
   issueUri: 'https://github.com/itsnotapt/tim-data-investigate-platform/issues',

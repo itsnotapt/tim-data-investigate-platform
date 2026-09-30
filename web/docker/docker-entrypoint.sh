@@ -55,7 +55,7 @@ printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
     || fail "AUTH_TENANT_ID must be a tenant GUID or domain name"
 
 TAG_DATABASE=${TAG_DATABASE:-Research}
-API_BASEPATH=${API_BASEPATH-/api}
+API_BASEPATH=${API_BASEPATH-}
 AGGRID_LICENSE=${AGGRID_LICENSE-}
 HELP_WIKI_URI=${HELP_WIKI_URI-}
 HELP_ISSUE_URI=${HELP_ISSUE_URI-}

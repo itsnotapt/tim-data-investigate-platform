@@ -14,6 +14,10 @@ export default defineConfig({
       },
     },
   },
+  // Monaco workers import each other / share chunks; IIFE workers can't code-split.
+  worker: { format: 'es' },
+  // @kusto/monaco-kusto's language service bundle references Node's `global`.
+  define: { global: 'globalThis' },
   server: {
     // Dev loop: forward API calls to the api run locally (see docs/rewrite/local-dev.md).
     proxy: {
