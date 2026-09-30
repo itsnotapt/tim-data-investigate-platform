@@ -15,6 +15,8 @@ npm run format:check  # Prettier check (CI)
 npm run typecheck     # tsc --noEmit
 npm test              # Vitest (jsdom + Testing Library), single run
 npm run test:watch    # Vitest watch mode
+npm run e2e           # Playwright e2e (headless Chromium, mocked api)
+npm run e2e:headed    # same, with a visible browser
 ```
 
 Tooling: TypeScript is pinned to 6.0.x because typescript-eslint (8.71) does not yet support TS 7 (peer `<6.1.0`); revisit when it does. Tests live next to code as `*.test.tsx`; setup in `src/test-setup.ts`, config in `vite.config.ts`.
@@ -22,6 +24,10 @@ Tooling: TypeScript is pinned to 6.0.x because typescript-eslint (8.71) does not
 Local stack (PostgreSQL, api, `docker compose`): see [local-dev.md](../docs/rewrite/local-dev.md). `npm run dev` proxies `/api` to `http://localhost:8080`.
 
 Stack: React 19, React Router (hash router), MUI + Emotion. TypeScript is `strict` with `noUncheckedIndexedAccess`.
+
+## E2E tests
+
+`e2e/*.spec.ts` (Playwright, headless Chromium; config in `playwright.config.ts`, own `e2e/tsconfig.json`, excluded from Vitest). `npm run e2e` starts `vite` on port 5180 with `VITE_AUTH_STUB=true` (dev stub auth: fixed signed-in account, token `dev-stub-token`; refused in production builds, so the harness uses the dev server, not `vite preview`). `/config.js` comes from `public/config.js`. No Python api is needed: `e2e/fixtures.ts` exports a `test` that intercepts every `/api/**` call (`e2e/mocks/api.ts`, data in `e2e/mocks/data.ts`, mirroring `tools/legacy-screenshots/mocks.mjs`). Query runs go POST 202 then poll 202 then 200. Each test gets a fresh browser context (empty IndexedDB). Override per file with `test.use({ apiOptions: { rows, templates, pendingPolls, handlers } })`; inspect requests via the `api` fixture (`api.callsTo('POST', '/api/kusto/query')`). `shot(page, 'NN-name')` (`e2e/shot.ts`) writes to `docs/rewrite/screenshots/` only when `E2E_SHOTS=1`. Reports go to `test-results/` and `playwright-report/` (gitignored). First run on a machine: `npx playwright install chromium`.
 
 ## Layout
 
@@ -64,6 +70,8 @@ Stack: React 19, React Router (hash router), MUI + Emotion. TypeScript is `stric
 
 ## Docker image
 
+Production deployment (compose stack, env vars, `/api` routing): see [deploy/README.md](../deploy/README.md).
+
 ```bash
 docker build -t tim-web web/
 docker run --rm -p 8080:8080 \
@@ -72,7 +80,7 @@ docker run --rm -p 8080:8080 \
   -e TAG_CLUSTER=https://<cluster>.kusto.windows.net -e AGGRID_LICENSE=<key> tim-web
 ```
 
-Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine` serves on port 8080 as uid 101. `docker/docker-entrypoint.sh` validates the env (exit 1 listing every missing variable), writes `/usr/share/nginx/html/config.js` (values JSON-escaped with `jq`), renders the nginx conf from `docker/nginx.conf.template` and execs nginx. nginx proxies `/api/` to `BACKEND_URI` keeping the `/api` path (do not strip it in an ingress), resolves the backend at request time, sends gzip and security headers, and serves `config.js` and `index.html` with `no-cache`. `GET /healthz` returns 200.
+Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine` serves on port 8080 as uid 101. `docker/docker-entrypoint.sh` validates the env (exit 1 listing every missing variable), writes `/usr/share/nginx/html/config.js` (values JSON-escaped with `jq`), renders the nginx conf from `docker/nginx.conf.template` and execs nginx. nginx proxies `/api/` to `BACKEND_URI` keeping the `/api` path (do not strip it in an ingress), resolves the backend at request time, sends gzip and security headers (CSP, `X-Frame-Options: SAMEORIGIN`, nosniff, Referrer-Policy, HSTS when `X-Forwarded-Proto: https`; the CSP allows `'unsafe-eval'` for Handlebars and the Kusto worker, and a cross-origin `API_BASEPATH` origin is added to `connect-src` automatically), and serves `config.js` and `index.html` with `no-cache`. `GET /healthz` returns 200.
 
 | Env var                            | Required                                 | Maps to / notes                                                                  |
 | ---------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
@@ -202,7 +210,7 @@ AG Grid Enterprise only (ADR-0006, no Community path), v33+ Theming API (`themeB
 
 ## Share (`src/features/share`, P4-26)
 
-`buildShareUrl(templateUuid, inParams)` makes `<origin><path>#/share/<uuid>?p=<base64url of UTF-8 JSON>&execute=0` (BUG-31); `decodeShareParams` also reads legacy `btoa` links (standard base64, Latin-1, `+` turned into a space). The Share Link button (`useShareTemplateQuery`) copies it and shows "Shared link has been saved to the clipboard.". `ShareQueryPage` (`#/share/:uuid`, after bootstrap so templates are loaded) shows "This query was not found." / "Parameters are missing." / "Parameters are invalid.", else `sanitizeShareParams` (declared params only over the defaults, legacy string `match` converted, Q-109) creates a root `TemplateQueryResult` titled with `buildSummary`, in edit mode, and navigates to it. `execute=1` asks "Run shared query?" first (SEC-06, Q-110) and runs only on confirm.
+`buildShareUrl(templateUuid, inParams)` makes `<origin><path>#/share/<uuid>?p=<base64url of UTF-8 JSON>&execute=0` (BUG-31); `decodeShareParams` also reads legacy `btoa` links (standard base64, Latin-1, `+` turned into a space). The Share Link button (`useShareTemplateQuery`) copies it and shows "Shared link has been saved to the clipboard.". `ShareQueryPage` (`#/share/:uuid`, after bootstrap so templates are loaded) shows "This query was not found." / "Parameters are missing." / "Parameters are invalid.", else `sanitizeShareParams` (declared params only over the defaults, legacy string `match` converted, Q-109) creates a root `TemplateQueryResult` titled with `buildSummary`, and navigates to it. `execute=1` runs it immediately (legacy parity; trusted users, Q-030, Q-110 reverted) unless required data is missing, then it opens in edit mode; `execute=0` always opens in edit mode.
 
 ## Tagging (`src/features/tagging`, P4-21, P4-22)
 

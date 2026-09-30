@@ -1,11 +1,8 @@
 import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Container from '@mui/material/Container';
-import Typography from '@mui/material/Typography';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { DraggableDialog } from '../../components/DraggableDialog';
 import {
   buildSummary,
   isDataComplete,
@@ -34,8 +31,8 @@ const asRecord = (v: object) => v as Record<string, unknown>;
 
 /**
  * `#/share/:uuid?p=...&execute=0|1` (legacy ShareQuery.vue): recreates the tab as a root
- * `TemplateQueryResult` and opens it. `execute=1` runs it, but only after the user confirms
- * (SEC-06, Q-110); declining opens the tab in edit mode without running.
+ * `TemplateQueryResult` and opens it. `execute=1` runs it immediately (as legacy; trusted
+ * users, Q-030), `execute=0` opens it in edit mode.
  */
 export default function ShareQueryPage() {
   const { uuid = '' } = useParams();
@@ -43,7 +40,6 @@ export default function ShareQueryPage() {
   const navigate = useNavigate();
   const loaded = useTemplatesStore((s) => s.loaded);
   const templates = useTemplatesStore((s) => s.templates);
-  const [decided, setDecided] = useState(false);
   const handled = useRef<string | null>(null);
 
   const p = search.get('p');
@@ -64,10 +60,8 @@ export default function ShareQueryPage() {
     return { pending: { template, params, title: buildSummary(template, params) } };
   }, [loaded, templates, uuid, p]);
   const error = parsed && 'error' in parsed ? parsed.error : null;
-  const pending = parsed && 'pending' in parsed && execute && !decided ? parsed.pending : null;
 
   const open = (t: Pending, run: boolean) => {
-    setDecided(true);
     const complete = isDataComplete(t.template, t.params);
     const tabUuid = useTabsStore.getState().createTab({
       componentName: 'TemplateQueryResult',
@@ -81,11 +75,11 @@ export default function ShareQueryPage() {
   };
 
   useEffect(() => {
-    if (!parsed || !('pending' in parsed) || execute) return;
+    if (!parsed || !('pending' in parsed)) return;
     const key = `${uuid}|${p}`;
     if (handled.current === key) return; // StrictMode / re-render guard
     handled.current = key;
-    open(parsed.pending, false);
+    open(parsed.pending, execute);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed, execute, uuid, p]);
 
@@ -101,33 +95,7 @@ export default function ShareQueryPage() {
 
   return (
     <Container sx={{ mt: 2 }}>
-      {!pending && <CircularProgress size={24} aria-label="Loading shared query" />}
-      <DraggableDialog
-        open={pending !== null}
-        title="Run shared query?"
-        maxWidth="sm"
-        fullWidth
-        onClose={() => {
-          if (pending) open(pending, false);
-        }}
-        actions={
-          <>
-            <Button color="inherit" onClick={() => pending && open(pending, false)}>
-              Open without running
-            </Button>
-            <Button onClick={() => pending && open(pending, true)}>Run</Button>
-          </>
-        }
-      >
-        <Typography gutterBottom>
-          This link asks to run a query automatically with the parameters below. Only run it if you
-          trust the sender.
-        </Typography>
-        <Typography sx={{ fontWeight: 700 }}>{pending?.title}</Typography>
-        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {pending ? JSON.stringify(pending.params, null, 2) : ''}
-        </pre>
-      </DraggableDialog>
+      <CircularProgress size={24} aria-label="Loading shared query" />
     </Container>
   );
 }

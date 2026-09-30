@@ -70,7 +70,18 @@ export async function exportTabsJson(): Promise<string> {
   await useTabsStore.getState().flush();
   const tabs = await displayComponentsDao.getAll();
   tabs.sort((a, b) => a.displayComponentIndex - b.displayComponentIndex);
-  return JSON.stringify(tabs);
+  return JSON.stringify(tabs.map(stripServerFields));
+}
+
+const SERVER_ONLY = ['createdBy', 'updatedBy', 'updated'];
+
+/** Template tabs embed the server template; drop author emails and timestamps (F-B07). */
+function stripServerFields(tab: DisplayComponent): DisplayComponent {
+  const params = tab.params as { queryTemplate?: Record<string, unknown> } | undefined;
+  const qt = params?.queryTemplate;
+  if (tab.componentName !== 'TemplateQueryResult' || !qt) return tab;
+  const clean = Object.fromEntries(Object.entries(qt).filter(([k]) => !SERVER_ONLY.includes(k)));
+  return { ...tab, params: { ...params, queryTemplate: clean } } as DisplayComponent;
 }
 
 /** Writes the tabs (same uuid overwrites) and reloads the tab store in place. */

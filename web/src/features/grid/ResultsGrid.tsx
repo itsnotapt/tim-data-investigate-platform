@@ -131,7 +131,7 @@ export function ResultsGrid({
 
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', py: 0.5 }}>
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', pt: 1.25, pb: 0.5 }}>
         <TextField
           size="small"
           label="Quick UI filter"

@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetConfigCache } from '../../lib/config/runtimeConfig';
@@ -103,22 +102,12 @@ describe('ShareQueryPage', () => {
     expect(Object.values(useTabsStore.getState().tabs)[0]?.title).toBe('User old');
   });
 
-  it('execute=1 asks for confirmation, then runs', async () => {
+  it('execute=1 creates the tab and runs it immediately, without a dialog', async () => {
     renderAt(link({ user: 'bob' }, 1));
-    expect(await screen.findByText('Run shared query?')).toBeInTheDocument();
-    expect(Object.keys(useTabsStore.getState().tabs)).toHaveLength(0);
-    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await screen.findByTestId('loc');
+    expect(screen.queryByText('Run shared query?')).not.toBeInTheDocument();
     const tab = Object.values(useTabsStore.getState().tabs)[0]!;
     expect(run).toHaveBeenCalledWith(tab.componentUuid);
     expect(tab.state.editQuery).toBe(false);
-  });
-
-  it('execute=1 declined opens the tab in edit mode without running', async () => {
-    renderAt(link({ user: 'bob' }, 1));
-    await userEvent.click(await screen.findByRole('button', { name: 'Open without running' }));
-    await waitFor(() => expect(screen.getByTestId('loc')).toBeInTheDocument());
-    expect(Object.values(useTabsStore.getState().tabs)[0]?.state.editQuery).toBe(true);
-    expect(run).not.toHaveBeenCalled();
   });
 });

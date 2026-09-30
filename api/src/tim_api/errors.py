@@ -22,7 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError
 from tim_api.kusto.validation import InvalidClusterError
 from tim_api.models_common import ApiModel
-from tim_api.observability import get_trace_id
+from tim_api.observability import get_trace_id, log_safe
 from tim_api.storage import AlreadyExistsError, NotFoundError, StorageUnavailableError
 from tim_api.tagged_events.ingest import TagIngestError
 
@@ -36,6 +36,7 @@ _TYPES: dict[int, tuple[str, str]] = {
     403: ("forbidden", "Forbidden"),
     404: ("not-found", "Not found"),
     409: ("conflict", "Conflict"),
+    413: ("too-large", "Payload too large"),
     500: ("internal", "Internal error"),
     502: ("upstream", "Upstream failure"),
     503: ("unavailable", "Service unavailable"),
@@ -122,7 +123,7 @@ def unhandled_response(request: Request, exc: BaseException) -> JSONResponse:
         "Unhandled exception traceId=%s method=%s path=%s",
         trace_id,
         request.method,
-        request.url.path,
+        log_safe(request.url.path),
         exc_info=(type(exc), exc, exc.__traceback__),
     )
     return problem_response(request, 500, "Internal error")

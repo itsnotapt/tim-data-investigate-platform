@@ -222,10 +222,14 @@ def parse_v2_frames(frames: Iterable[Mapping[str, Any]], limits: ResultLimits) -
         if kind != "PrimaryResult":
             continue
 
+        raw_rows = frame.get("Rows", [])
+        # Cheap pre-check: refuse an oversized frame before building a dict per row.
+        if len(rows) + len(raw_rows) > limits.max_rows:
+            raise KustoResultLimitError(f"Result exceeds limit of {limits.max_rows} rows")
         columns = frame.get("Columns", [])
         names = [c["ColumnName"] for c in columns]
         types = [str(c.get("ColumnType") or c.get("DataType") or "") for c in columns]
-        for raw in frame.get("Rows", []):
+        for raw in raw_rows:
             if isinstance(raw, dict):  # partial-failure marker row: {"OneApiErrors": [...]}
                 message = _one_api_error_message(raw.get("OneApiErrors"))
                 raise KustoQueryError(sanitise_message(message or "Kusto reported an error"))

@@ -32,7 +32,7 @@ export function TimeRangePicker({ value, onChange, disabled }: TimeRangePickerPr
         aria-haspopup="menu"
         aria-expanded={anchor ? true : undefined}
         onClick={(e) => setAnchor(e.currentTarget)}
-        sx={{ textTransform: 'none', borderRadius: 4 }}
+        sx={{ borderRadius: 4 }}
       >
         Time range: {timeRangeLabel(value)}
       </Button>

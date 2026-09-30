@@ -40,6 +40,11 @@ def get_run_tasks(request: Request) -> set[asyncio.Task[KustoQueryRun]]:
     return tasks
 
 
+def get_run_slots(request: Request) -> asyncio.Semaphore:
+    slots: asyncio.Semaphore = request.app.state.run_slots
+    return slots
+
+
 @router.post("/query", response_model=KustoQueryRun, responses={202: {"model": KustoQueryRun}})
 async def start_query(
     body: KustoQueryRequest,
@@ -51,6 +56,7 @@ async def start_query(
     kusto: Annotated[KustoQueryClient, Depends(get_kusto_client)],
     store: Annotated[QueryRunStore, Depends(get_run_store)],
     tasks: Annotated[set[asyncio.Task[KustoQueryRun]], Depends(get_run_tasks)],
+    slots: Annotated[asyncio.Semaphore, Depends(get_run_slots)],
 ) -> KustoQueryRun:
     cluster = validate_cluster_url(body.cluster, settings)  # before any token use (SEC-01)
     if "\x00" in body.query or "\x00" in body.database:
@@ -58,7 +64,7 @@ async def start_query(
         raise problem_exception(400, "query and database must not contain NUL characters")
     # Auth errors (401/403/502/503) surface synchronously, before a run exists.
     token = await obo.get_token(principal, cluster)
-    manager = RunManager(store, kusto, settings, tasks)
+    manager = RunManager(store, kusto, settings, tasks, slots=slots)
     run = await manager.start(
         body, cluster=cluster, owner=principal.name, token=token, trace_id=get_trace_id(request)
     )

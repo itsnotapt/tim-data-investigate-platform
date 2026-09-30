@@ -113,7 +113,12 @@ export function SideTree({
           data-testid={`tree-node-${t.componentUuid}`}
           aria-current={isActive ? 'page' : undefined}
           onClick={() => open(t)}
-          sx={{ minHeight: 40, pl: expanded ? 1 + depth * 2 : 2, whiteSpace: 'nowrap' }}
+          sx={{
+            minHeight: 40,
+            pl: expanded ? 1 + depth * 2 : 2,
+            whiteSpace: 'nowrap',
+            ...(isActive && { color: 'primary.main' }),
+          }}
         >
           {expanded && (
             <IconButton

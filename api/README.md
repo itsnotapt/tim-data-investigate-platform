@@ -42,7 +42,8 @@ uv run alembic downgrade base      # drop everything (dev)
 ```
 
 The api image contains `alembic.ini` and `migrations/`, so a compose/Kubernetes job can run
-`alembic upgrade head` with the same image.
+`alembic upgrade head` with the same image. Production deployment (compose, env table, `/api` routing):
+[`deploy/README.md`](../deploy/README.md). Empty `TIM_AUTH_CLIENT_SECRET` / `TIM_TAG_INGEST_URL` count as unset.
 
 **Retention (BUG-01).** Every run has `expires_at`; reads treat an expired run as missing, and a
 background task started in the lifespan deletes expired rows every
@@ -129,6 +130,27 @@ input fields ignored, serialised by alias): `templates/models.py`, `query_runs/m
 Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed: success -> `completed`; `KustoQueryError` -> `error` with the sanitised message; `KustoResultLimitError` -> `error` ("Result exceeds limit of ..."); `TIM_QUERY_TIMEOUT_SECONDS` exceeded (`asyncio.timeout`) -> `timedOut` with a `mainError`; anything else -> `error` "The query failed unexpectedly" (traceback logged with the trace id). Tasks are referenced from `app.state.run_tasks` and cancelled on shutdown (a cancelled run is marked `error` "Run interrupted by server restart"). At startup `mark_stale_runs` marks runs still `created` for longer than the query timeout as `error` with the same message (BUG-02); younger runs (other replicas) are left alone.
 
 PostgreSQL JSONB/TEXT cannot store U+0000, so NUL characters in result data (keys and values) and in `mainError` are replaced with U+FFFD before persisting (`sanitise_nul`); this applies to both stores for identical behaviour. Tests run the flow against memory and PostgreSQL (`storage` fixture).
+
+### Limits (P5-07, Q-021, Q-111)
+
+| Setting | Default | Behaviour when exceeded |
+|---|---|---|
+| `TIM_MAX_RESULT_ROWS` | 100 000 | run ends `error`, `resultData: null`, `mainError` "Result exceeds limit of N rows". Never truncated. |
+| `TIM_MAX_RESULT_BYTES` | 64 MB | same, "... N bytes" (size of the compact JSON of all rows) |
+| `TIM_QUERY_TIMEOUT_SECONDS` | 600 | `timedOut` |
+| `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
+| `TIM_MAX_CONCURRENT_RUNS` | 16 | per process; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
+| `TIM_MAX_REQUEST_BYTES` | 16777216 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` (P5-09 S-A03) |
+
+The row cap is checked per result table before any row is converted, the byte cap while rows are
+converted (conversion stops at the first row that crosses it), and `GET` returns at most the
+byte cap of rows, so the response is bounded. The synchronous Azure SDK materialises the raw
+response before parsing, which the caps cannot prevent (server-side `set truncationmaxrecords`
+/ `truncationmaxsize` could; not applied). Memory budget, checked by
+`tests/test_query_runs_load.py`: converting and sanitising a result peaks below 3x its
+serialised size on top of the raw frames (measured about 2.3x for 100 000 rows x 10 columns
+incl. dynamic, 37 MB payload); `sanitise_nul` returns clean data without copying it. The 100k
+case is marked `slow` and skipped by default: `uv run pytest -m slow`.
 
 ## Tagged events (P2-12)
 

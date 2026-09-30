@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -10,7 +11,12 @@ from tim_api.config import get_settings
 from tim_api.deps import get_storage
 from tim_api.errors import register_exception_handlers
 from tim_api.kusto.router import router as kusto_router
-from tim_api.observability import LazyCORSMiddleware, RequestLoggingMiddleware, configure_logging
+from tim_api.observability import (
+    BodySizeLimitMiddleware,
+    LazyCORSMiddleware,
+    RequestLoggingMiddleware,
+    configure_logging,
+)
 from tim_api.openapi_meta import install_openapi
 from tim_api.query_runs.router import router as query_runs_router
 from tim_api.query_runs.runner import cancel_tasks, mark_stale_runs
@@ -37,6 +43,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     storage = build_storage(settings)
     app.state.storage = storage
     app.state.run_tasks = set()
+    app.state.run_slots = asyncio.Semaphore(settings.max_concurrent_runs)
     await mark_stale_runs(storage.runs, settings)  # BUG-02
     stop_retention = start_retention_loop(storage, settings.run_retention_sweep_seconds)
     try:
@@ -78,6 +85,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     install_openapi(app)
     # Added last = outermost: CORS wraps logging so even error responses carry CORS headers.
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(LazyCORSMiddleware)
 

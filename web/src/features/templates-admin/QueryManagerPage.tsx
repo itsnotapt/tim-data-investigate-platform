@@ -54,10 +54,8 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'cluster', label: 'Cluster' },
 ];
 
-function formatUpdated(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-}
+/** Legacy shows the raw UTC ISO value (F-B04); keep it verbatim. */
+const formatUpdated = (iso: string): string => iso;
 
 /** Query Manager (legacy QueryEditor): list, filter, bulk delete/restore, create/edit dialog. */
 export default function QueryManagerPage({
@@ -259,7 +257,12 @@ export default function QueryManagerPage({
         </TableHead>
         <TableBody>
           {pageRows.map((t) => (
-            <TableRow key={t.uuid} hover selected={selected.has(t.uuid)}>
+            <TableRow
+              key={t.uuid}
+              hover
+              selected={selected.has(t.uuid)}
+              sx={t.isDeleted ? { '& td': { color: 'text.disabled' }, opacity: 0.6 } : undefined}
+            >
               <TableCell padding="checkbox">
                 <Checkbox
                   checked={selected.has(t.uuid)}

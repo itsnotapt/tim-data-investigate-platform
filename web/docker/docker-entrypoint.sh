@@ -124,9 +124,23 @@ NGINX_RESOLVER=${NGINX_RESOLVER:-127.0.0.11}
 printf '%s' "$NGINX_RESOLVER" | grep -Eq '^[][A-Za-z0-9.:-]+$' \
     || fail "NGINX_RESOLVER contains invalid characters"
 
-# Both substituted values were validated above, so they are safe for sed and for nginx.
+# CSP connect-src: a cross-origin API_BASEPATH (scheme://host[:port]) must be allowed explicitly.
+# A same-origin path (or empty) needs nothing. Anything else is refused rather than injected into
+# the header.
+CSP_CONNECT_EXTRA=""
+case "$API_BASEPATH" in
+    http://* | https://*)
+        api_origin=$(printf '%s' "$API_BASEPATH" | sed -E 's|^(https?://[^/?#]+).*$|\1|')
+        printf '%s' "$api_origin" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' \
+            || fail "API_BASEPATH must be empty, a path, or http(s)://host[:port][/path] (got '$API_BASEPATH')"
+        CSP_CONNECT_EXTRA=" $api_origin"
+        ;;
+esac
+
+# All substituted values were validated above, so they are safe for sed and for nginx.
 mkdir -p "$(dirname "$NGINX_CONF")"
 sed -e "s|@BACKEND_URI@|$BACKEND_URI|g" -e "s|@NGINX_RESOLVER@|$NGINX_RESOLVER|g" \
+    -e "s|@CSP_CONNECT_EXTRA@|$CSP_CONNECT_EXTRA|g" \
     "$NGINX_TEMPLATE" >"$NGINX_CONF"
 
 if [ "${TIM_ENTRYPOINT_DRY_RUN:-}" = 1 ]; then

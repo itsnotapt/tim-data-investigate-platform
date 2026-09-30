@@ -73,12 +73,16 @@ class Settings(BaseSettings):
 
     # --- HTTP --------------------------------------------------------------------------
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # Hard cap on any request body (S-A03); larger requests get 413 before parsing.
+    max_request_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
 
     # --- query-run limits (Q-021) ------------------------------------------------------
     max_result_rows: int = Field(default=100_000, gt=0)
     max_result_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
     query_timeout_seconds: int = Field(default=600, gt=0)
     run_retention_seconds: int = Field(default=86_400, gt=0)
+    # Runs executing at once in this process (Q-111); further runs wait in `created`.
+    max_concurrent_runs: int = Field(default=16, gt=0)
 
     @field_validator(
         "allowed_kusto_suffixes", "allowed_kusto_hosts", "cors_allowed_origins", mode="before"
@@ -86,6 +90,12 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_lists(cls, value: object) -> object:
         return _split_list(value)
+
+    @field_validator("auth_client_secret", "tag_ingest_url", mode="before")
+    @classmethod
+    def _empty_is_unset(cls, value: object) -> object:
+        """Compose/Helm pass unset optional variables as empty strings."""
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("allowed_kusto_suffixes", "allowed_kusto_hosts")
     @classmethod

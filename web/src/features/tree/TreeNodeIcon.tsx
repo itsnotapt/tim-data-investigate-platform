@@ -45,7 +45,15 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
         data-testid="tree-icon"
         data-status="results"
         data-tone={tone}
-        sx={{ '& .MuiBadge-badge': { fontSize: 10, height: 16, minWidth: 16, px: 0.5 } }}
+        sx={{
+          '& .MuiBadge-badge': {
+            fontSize: 10,
+            height: 16,
+            minWidth: 16,
+            px: 0.5,
+            ...(tone === 'default' && { bgcolor: 'grey.500', color: 'common.white' }),
+          },
+        }}
       >
         <Folder color={color} />
       </Badge>

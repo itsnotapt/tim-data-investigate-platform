@@ -54,7 +54,7 @@ function ActionSelect({
       label={label}
       value={value}
       onChange={(e) => onChange(e.target.value as TagAction)}
-      sx={{ minWidth: 130 }}
+      sx={{ minWidth: 170 }}
     >
       {actions.map((a) => (
         <MenuItem key={a} value={a}>

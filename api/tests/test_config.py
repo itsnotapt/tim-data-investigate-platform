@@ -98,3 +98,12 @@ def test_reads_dotenv_file(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("TIM_TAG_DATABASE=FromFile\n")
     assert Settings(_env_file=env_file).tag_database == "FromFile"
+
+
+def test_empty_optional_secret_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Compose passes unset optional variables as empty strings (must not become a secret)."""
+    monkeypatch.setenv("TIM_AUTH_CLIENT_SECRET", "")
+    monkeypatch.setenv("TIM_TAG_INGEST_URL", "")
+    s = make()
+    assert s.auth_client_secret is None
+    assert s.tag_ingest_url is None

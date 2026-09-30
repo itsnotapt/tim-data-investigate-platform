@@ -90,6 +90,32 @@ describe('ExportImportPage', () => {
     expect(useTabsStore.getState().tabs[a]?.parentUuid).toBeNull();
   });
 
+  it('export omits server-only template fields and still re-imports', async () => {
+    const store = useTabsStore.getState();
+    await store.load();
+    store.createTab({
+      componentName: 'TemplateQueryResult',
+      parentUuid: null,
+      title: 'Tpl',
+      params: {
+        inParams: {},
+        queryTemplate: {
+          name: 'q',
+          createdBy: 'a@b.c',
+          updatedBy: 'd@e.f',
+          updated: '2026-01-01Z',
+        },
+      },
+    } as never);
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect((box() as HTMLTextAreaElement).value).toContain('Tpl'));
+    const json = (box() as HTMLTextAreaElement).value;
+    expect(json).not.toMatch(/createdBy|updatedBy|a@b\.c/);
+    expect(json).toContain('"name":"q"');
+    expect(importBtn()).toBeEnabled();
+  });
+
   it('disables Import for empty, invalid JSON and schema mismatch', async () => {
     renderPage();
     expect(importBtn()).toBeDisabled();

@@ -179,6 +179,10 @@ Start a Kusto query run. Returns the run if it finishes within 1 s, otherwise 20
   - Terminal state is persisted before the response or the next poll can observe it. `expiresAt` is refreshed on completion, so every run expires the same way.
 - **Deviation from legacy:** (a) cluster validation enforced (SEC-01, Q-022); (b) `requestedBy` ignored, owner from token (SEC-03); (c) `stackTrace` removed (SEC-04); (d) row/size/time limits and `timedOut` now set (BUG-02, Q-021); (e) uniform retention, new `expiresAt` field (BUG-01, Q-021); (f) errors use the problem envelope with 400 for all validation (Q-008). Kept: 200/202 split and execution errors as 200 `status:"error"` (the run is a resource; failure is a valid final state) - Q-007, Q-008.
 
+#### Limits
+
+Defaults (Q-021, env-configurable): 100 000 rows (`TIM_MAX_RESULT_ROWS`), 64 MB of compact JSON (`TIM_MAX_RESULT_BYTES`), 10 min execution (`TIM_QUERY_TIMEOUT_SECONDS`), 1 day retention (`TIM_RUN_RETENTION_SECONDS`), 16 concurrent executions per process (`TIM_MAX_CONCURRENT_RUNS`, Q-111). Row/byte overflow is a final `status: "error"` with `resultData: null` and `mainError` "Result exceeds limit of ..."; results are never truncated, so there is no truncation flag and a completed `resultData` is at most 64 MB. Runs above the concurrency limit stay `created` (202) until a slot frees.
+
 ### 3.4 `GET /api/kusto/query/{queryRunId}`
 
 Poll a run.

@@ -44,13 +44,23 @@ RACE_SECONDS = 1.0
 
 
 def sanitise_nul(value: Any) -> Any:
-    """Replace U+0000 with U+FFFD in every string (keys and values) of a JSON-like value."""
+    """Replace U+0000 with U+FFFD in every string (keys and values) of a JSON-like value.
+
+    Containers without a NUL are returned as is (no copy), so a large clean result is not
+    duplicated in memory (P5-07).
+    """
     if isinstance(value, str):
         return value.replace("\x00", NUL_REPLACEMENT) if "\x00" in value else value
     if isinstance(value, dict):
-        return {sanitise_nul(k): sanitise_nul(v) for k, v in value.items()}
+        items = [(sanitise_nul(k), sanitise_nul(v)) for k, v in value.items()]
+        if all(nk is k and nv is v for (nk, nv), (k, v) in zip(items, value.items(), strict=True)):
+            return value
+        return dict(items)
     if isinstance(value, list):
-        return [sanitise_nul(v) for v in value]
+        new = [sanitise_nul(v) for v in value]
+        if all(n is o for n, o in zip(new, value, strict=True)):
+            return value
+        return new
     return value
 
 
@@ -69,6 +79,7 @@ class RunManager:
         settings: Settings,
         tasks: set[asyncio.Task[KustoQueryRun]],
         *,
+        slots: asyncio.Semaphore | None = None,
         clock: Clock = _utcnow,
         race_seconds: float | None = None,
     ) -> None:
@@ -76,6 +87,7 @@ class RunManager:
         self._kusto = kusto
         self._settings = settings
         self._tasks = tasks  # owned by app.state: strong refs until done, cancelled on shutdown
+        self._slots = slots or asyncio.Semaphore(settings.max_concurrent_runs)
         self._clock = clock
         self._race_seconds = RACE_SECONDS if race_seconds is None else race_seconds
 
@@ -123,16 +135,17 @@ class RunManager:
         limits = ResultLimits(settings.max_result_rows, settings.max_result_bytes)
         fields: dict[str, Any]
         try:
-            async with asyncio.timeout(settings.query_timeout_seconds) as scope:
-                result = await self._kusto.execute(
-                    echo.cluster,
-                    echo.database,
-                    echo.query,
-                    token,
-                    echo.start_time,
-                    echo.end_time,
-                    limits,
-                )
+            async with self._slots:  # queued runs stay `created`; the timeout starts after
+                async with asyncio.timeout(settings.query_timeout_seconds) as scope:
+                    result = await self._kusto.execute(
+                        echo.cluster,
+                        echo.database,
+                        echo.query,
+                        token,
+                        echo.start_time,
+                        echo.end_time,
+                        limits,
+                    )
             fields = {
                 "status": QueryRunStatus.COMPLETED,
                 "result_data": sanitise_nul(result.rows),

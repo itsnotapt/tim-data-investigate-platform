@@ -1,9 +1,17 @@
-# Rendered by docker-entrypoint.sh. @BACKEND_URI@ and @NGINX_RESOLVER@ are validated before
-# substitution. Do not add other placeholders without extending the entrypoint.
+# Rendered by docker-entrypoint.sh. @BACKEND_URI@, @NGINX_RESOLVER@ and @CSP_CONNECT_EXTRA@ are
+# validated before substitution. Do not add other placeholders without extending the entrypoint.
 
 map $http_x_forwarded_proto $tim_forwarded_proto {
     default $http_x_forwarded_proto;
     ""      $scheme;
+}
+
+# HSTS only when the request arrived over https at the TLS-terminating proxy in front of us
+# (a browser ignores the header on plain http anyway). No includeSubDomains: the host may share
+# a parent domain with unrelated sites.
+map $tim_forwarded_proto $tim_hsts {
+    https   "max-age=31536000";
+    default "";
 }
 
 server {
@@ -17,7 +25,22 @@ server {
     # Security headers. Only `expires` (not add_header) is used in locations below, so these
     # are not lost to add_header inheritance rules.
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    # SAMEORIGIN, not DENY: MSAL's silent flows load the redirect page (/blank.html) in a hidden
+    # same-origin iframe (S-W05). Cross-origin framing is still refused, see frame-ancestors.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Strict-Transport-Security $tim_hsts always;
+    # CSP (S-W02). Why each relaxation exists:
+    #  - script-src 'unsafe-eval': Handlebars compiles templates with `new Function` and the Kusto
+    #    language-service worker uses eval. Everything else is same-origin ('self'); there are no
+    #    inline scripts (config.js is a same-origin file).
+    #  - style-src 'unsafe-inline': emotion (MUI) and AG Grid inject <style> tags / style attributes.
+    #  - worker-src 'self' blob:: Monaco workers are same-origin Vite chunks; blob: is kept for
+    #    Monaco/AG Grid fallbacks.
+    #  - img-src data: blob: / font-src data:: inlined icons and codicon font.
+    #  - connect-src: this origin (/api), Entra ID (MSAL authority/token endpoints) and, if
+    #    API_BASEPATH is a cross-origin URL, that origin (@CSP_CONNECT_EXTRA@).
+    #  - frame-src: MSAL hidden iframe (ssoSilent) navigates to Entra ID, then back to /blank.html.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com@CSP_CONNECT_EXTRA@; worker-src 'self' blob:; frame-src 'self' https://login.microsoftonline.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 

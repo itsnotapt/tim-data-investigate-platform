@@ -1,0 +1,97 @@
+# Production-style stack: postgres + one-shot migrate + api + web (nginx proxies /api/).
+# Usage (from repo root):
+#   cp deploy/.env.example deploy/.env   # then edit
+#   docker compose -f deploy/compose.prod.yaml --env-file deploy/.env up -d --build
+# Only `web` publishes a port. Put TLS termination in front of it; if that proxy/ingress
+# routes /api itself it must NOT strip the /api prefix (BUG-10).
+name: tim-prod
+
+x-api-env: &api-env
+  TIM_ENVIRONMENT: production
+  TIM_LOG_LEVEL: ${TIM_LOG_LEVEL:-INFO}
+  TIM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tim}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tim}
+  TIM_AUTH_TENANT_ID: ${TIM_AUTH_TENANT_ID:?set TIM_AUTH_TENANT_ID}
+  TIM_AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:?set TIM_AUTH_CLIENT_ID}
+  TIM_AUTH_CLIENT_SECRET: ${TIM_AUTH_CLIENT_SECRET:-}
+  TIM_TAG_CLUSTER_URI: ${TIM_TAG_CLUSTER_URI:?set TIM_TAG_CLUSTER_URI}
+  TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
+  TIM_ALLOWED_KUSTO_HOSTS: ${TIM_ALLOWED_KUSTO_HOSTS:-}
+  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.29.0.0/16}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tim}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-tim}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [tim]
+
+  # One-shot: Alembic upgrade (the api never migrates at startup). Re-runs on every `up`.
+  migrate:
+    build: ../api
+    image: tim-api:${TIM_IMAGE_TAG:-local}
+    command: ["alembic", "upgrade", "head"]
+    environment: *api-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [tim]
+
+  api:
+    build: ../api
+    image: tim-api:${TIM_IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # HEALTHCHECK (liveness) comes from the image; readiness is /api/healthChecks/readiness.
+    networks: [tim]
+
+  web:
+    build: ../web
+    image: tim-web:${TIM_IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      TIM_ENVIRONMENT: production
+      BACKEND_URI: http://api:8080
+      REDIRECT_URI: ${PUBLIC_URL:?set PUBLIC_URL}/blank.html
+      AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:?set TIM_AUTH_CLIENT_ID}
+      AUTH_TENANT_ID: ${TIM_AUTH_TENANT_ID:?set TIM_AUTH_TENANT_ID}
+      TAG_CLUSTER: ${TIM_TAG_CLUSTER_URI:?set TIM_TAG_CLUSTER_URI}
+      TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
+      AGGRID_LICENSE: ${AGGRID_LICENSE:?set AGGRID_LICENSE (required in production)}
+      HELP_WIKI_URI: ${HELP_WIKI_URI:-}
+      HELP_ISSUE_URI: ${HELP_ISSUE_URI:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [tim]
+
+networks:
+  tim:
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+
+volumes:
+  postgres-data:

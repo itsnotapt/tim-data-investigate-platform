@@ -108,7 +108,11 @@ export function QueryHelperDialog({
         The <code>StartTime</code> and <code>EndTime</code> time range parameters are injected into
         the Kusto query using <code>query_parameters</code>.
       </Typography>
-      <Code label="Time range sample">{TIME_RANGE_SAMPLE}</Code>
+      <Code label="Time range sample">
+        {TIME_RANGE_SAMPLE.split(/(StartTime|EndTime)/).map((part, i) =>
+          i % 2 === 1 ? <strong key={i}>{part}</strong> : part,
+        )}
+      </Code>
 
       <Heading id="qh-tags">Tagged Events</Heading>
       <Typography sx={{ my: 1 }}>

@@ -63,8 +63,8 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --cov"
-markers = ["kusto: integration test against a real Kusto ingest endpoint (needs TIM_TEST_KUSTO_INGEST_URL)"]
+addopts = "-ra --cov -m \"not slow\""
+markers = ["slow: takes more than ~5 s (deselect with -m \"not slow\")", "kusto: integration test against a real Kusto ingest endpoint (needs TIM_TEST_KUSTO_INGEST_URL)"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

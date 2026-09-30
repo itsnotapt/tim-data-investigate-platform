@@ -28,6 +28,19 @@ TRACE_HEADER = "x-trace-id"
 _TRACEPARENT = re.compile(r"^[0-9a-f]{2}-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _HANDLER_MARK = "_tim_handler"
+# API responses are JSON carrying user data: never sniffed, never cached by browsers/proxies.
+_SECURITY_HEADERS = [
+    (b"x-content-type-options", b"nosniff"),
+    (b"cache-control", b"no-store"),
+]
+
+
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+
+
+def log_safe(value: str) -> str:
+    """Escape control characters so a request path cannot forge log lines (S-A06)."""
+    return _CONTROL.sub(lambda m: f"\\x{ord(m.group()):02x}", value)
 
 
 def new_trace_id() -> str:
@@ -64,6 +77,46 @@ def configure_logging(level: str) -> None:
         log.addHandler(handler)
 
 
+class BodySizeLimitMiddleware:
+    """Reject request bodies over ``TIM_MAX_REQUEST_BYTES`` with 413 (S-A03).
+
+    Checks ``Content-Length`` up front and counts streamed bytes (chunked uploads). Sits inside
+    the logging middleware so the 413 carries a trace id. Settings are read on first request.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        from tim_api.errors import problem_exception, problem_response  # avoid an import cycle
+
+        limit = get_settings().max_request_bytes
+        declared = StarletteRequest(scope).headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > limit:
+            response = problem_response(
+                StarletteRequest(scope), 413, "Request body is too large", slug="too-large"
+            )
+            await response(scope, receive, send)
+            return
+
+        received = 0
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise problem_exception(413, "Request body is too large")
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+
 class RequestLoggingMiddleware:
     """Pure ASGI middleware: assigns the trace id, logs one line per request."""
 
@@ -91,6 +144,10 @@ class RequestLoggingMiddleware:
                     (k, v) for k, v in message["headers"] if k.lower() != TRACE_HEADER.encode()
                 ]
                 headers.append((TRACE_HEADER.encode(), trace_id.encode()))
+                present = {k.lower() for k, _ in headers}
+                for name, value in _SECURITY_HEADERS:  # S-A05
+                    if name not in present:
+                        headers.append((name, value))
                 message["headers"] = headers
             await send(message)
 
@@ -103,7 +160,7 @@ class RequestLoggingMiddleware:
             logger.info(
                 "%s %s -> %d %.1fms traceId=%s",
                 scope["method"],
-                scope["path"],
+                log_safe(scope["path"]),
                 status_code,
                 (time.perf_counter() - started) * 1000,
                 trace_id,
