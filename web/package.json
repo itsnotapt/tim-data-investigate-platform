@@ -72,6 +72,7 @@
   "overrides": {
     "openapi-typescript": {
       "typescript": "$typescript"
-    }
+    },
+    "dompurify": "^3.4.15"
   }
 }

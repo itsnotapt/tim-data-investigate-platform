@@ -16,7 +16,7 @@ x-api-env: &api-env
   TIM_TAG_CLUSTER_URI: ${TIM_TAG_CLUSTER_URI:?set TIM_TAG_CLUSTER_URI}
   TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
   TIM_ALLOWED_KUSTO_HOSTS: ${TIM_ALLOWED_KUSTO_HOSTS:-}
-  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.29.0.0/16}
+  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-${TIM_SUBNET:-10.89.0.0/24}}
 
 services:
   postgres:
@@ -91,7 +91,7 @@ networks:
   tim:
     ipam:
       config:
-        - subnet: 172.29.0.0/16
+        - subnet: ${TIM_SUBNET:-10.89.0.0/24}
 
 volumes:
   postgres-data:

@@ -26,7 +26,7 @@ service and `/` to web, and **do not strip or rewrite the `/api` prefix**. Do no
 Web also serves `/healthz`. `config.js` and `index.html` are `no-cache`; `/assets/` is cached 1 year.
 
 When the api sits behind a proxy, set `FORWARDED_ALLOW_IPS` to the proxy address(es) (compose pins the
-network to 172.29.0.0/16 so the default works).
+network to `TIM_SUBNET`, default `10.89.0.0/24`, and the default trusts that subnet; change `TIM_SUBNET` if it overlaps a host or VPN range).
 
 ## Environment variables
 
@@ -77,6 +77,21 @@ Job, and route `/api` without a rewrite.
 
 ## Verification status
 
-Validated without a container runtime (the agent's shell had no Docker socket access): `docker compose config`
-renders, `docker-entrypoint.sh` dry-run renders `config.js` (with `agGridLicenseKey`) and the nginx conf and
-fails without `AGGRID_LICENSE`. **Still to do on a Docker host:** image builds, `up`, readiness, proxy check through `WEB_PORT`.
+Verified 2026-09-30 (P5-08) on Docker Engine 29.8.1 / Compose v5.5.1 (Docker Desktop, WSL2), following the
+Quick start with a copied `.env.example` (dummy Entra ids, dummy `AGGRID_LICENSE`, dummy client secret, project `tim-p508`, `WEB_PORT=18508`):
+
+- Both images build; `postgres` healthy, `migrate` exits 0 (Alembic `0001`), `api` healthy, `web` up. Only `web` publishes a port.
+- `GET /api/healthChecks/readiness` through nginx: 204 (503 problem+json with postgres stopped); `/api` prefix preserved (api answers `/api/...` routes, 401 for `/api/templates/queries` without a token).
+- `/config.js` has `agGridLicenseKey`, client/tenant ids, redirect URI, tag cluster; `no-cache`. `/` has CSP, `nosniff`, `X-Frame-Options: SAMEORIGIN`, no HSTS; HSTS appears with `X-Forwarded-Proto: https`. Hashed `/assets/*` served with 1 year cache.
+- Body limits: 17 MB gets api 413 (`TIM_MAX_REQUEST_BYTES` default 16 MiB); 27 MB gets nginx 413 (`client_max_body_size 25m`).
+- api runs as uid 10001 with a read-only root fs, web as uid 101. (The postgres image's entrypoint starts as root and drops to `postgres` for the server.)
+- `web` without `AGGRID_LICENSE` exits 1 with `tim-web: missing required environment variable(s): AGGRID_LICENSE` (compose also refuses to render without it).
+- `down` then `up`: `migrate` re-runs as a no-op, data in `postgres-data` persists.
+- Headless Chromium (Playwright) loads the SPA from the container: "You must sign-in first." screen, no console errors, no CSP violations.
+
+Defect found and fixed: the fixed network subnet `172.29.0.0/16` made container-to-container traffic fail on Docker Desktop
+(`migrate` timed out connecting to postgres). The subnet is now `TIM_SUBNET` (default `10.89.0.0/24`).
+
+**Not verifiable here:** real Entra sign-in (popup flow, token validation, OBO), real Kusto (queries, tag reads/ingest, the
+allow-list against a live cluster), TLS termination / external ingress (only simulated with `X-Forwarded-Proto`), the app
+after sign-in (lazy chunks such as Monaco were not exercised under the CSP), and Helm (not ported, Q-016).

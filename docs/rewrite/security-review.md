@@ -15,7 +15,7 @@ Review of the new stack (`api/`, `web/`, `deploy/`, `web/docker`, rewrite CI) on
 
 Accepted on that basis (2026-09-30): S-A01 (any user manages templates, as legacy; Q-029), S-A02 (global `TIM_MAX_CONCURRENT_RUNS` only), S-A04 (`scp` not enforced), S-A07 (runs keyed on the name claim; runs are short-lived), S-W01 (MSAL cache in `localStorage`, as legacy), S-W08 (raw `{{x}}` not linted), S-W11 and S-W13 (deployment hardening left to the hosting environment).
 
-Still open, as routine maintenance: S-W06 (bump monaco-editor / monaco-kusto to pick up the dompurify fixes), P5-16.
+S-W06 was resolved by P5-16 (dompurify override).
 
 ## API
 
@@ -80,7 +80,7 @@ Still open, as routine maintenance: S-W06 (bump monaco-editor / monaco-kusto to 
 | S-W03 | Info | config.js injection via env values: none found | web/docker/docker-entrypoint.sh:84-117 | No issue; regression test added |
 | S-W04 | Info | Dev auth stub cannot be enabled in a production build; stub code still ships | web/src/lib/auth/index.ts:25-33 | Verified; optional tree-shake follow-up |
 | S-W05 | Low | `X-Frame-Options: DENY` breaks MSAL silent (hidden iframe) flows | web/docker/nginx.conf.template:19 | Fixed in this change |
-| S-W06 | Low | Bundled dompurify (via monaco-editor 0.55) has 18 moderate advisories | web/package.json (monaco-editor, @kusto/monaco-kusto) | Open, follow-up P5-09a |
+| S-W06 | Low | Bundled dompurify (via monaco-editor 0.55) has 18 moderate advisories | web/package.json (monaco-editor, @kusto/monaco-kusto) | Resolved (P5-16): npm `overrides` pins dompurify `^3.4.15` (3.2.7 → 3.4.16) |
 | S-W07 | Low | CI had no dependency audit gate | .github/workflows/build-web.yml | Fixed in this change (high+ gate) |
 | S-W08 | Low | Raw `{{x}}` in KQL is unescaped and Q-024's "linted" is not implemented | web/src/lib/kql-templates/engine.ts:21-28 | Open, follow-up P5-09b |
 | S-W09 | Info | Share links, import, YAML, Handlebars prototype access: verified safe | see details | No issue |
@@ -111,7 +111,7 @@ Verification: e2e suite (29 tests, Monaco kusto + yaml editors, AG Grid, templat
 
 **S-W05 (Low, fixed).** MSAL `ssoSilent`/iframe fallbacks load `/blank.html` in a hidden same-origin iframe; `DENY` refuses that, forcing a popup (or failing silently). Changed to `SAMEORIGIN` plus `frame-ancestors 'self'`; cross-origin clickjacking is still blocked. Could not test against real Entra (no tenant); the popup flow is unaffected.
 
-**S-W06 (Low, open).** `npm audit` (prod and full): dompurify <=3.4.12 with 18 moderate advisories (most are IN_PLACE, SAFE_FOR_TEMPLATES, custom-element options that TIM does not use), pulled by monaco-editor 0.54-0.56, pulled by @kusto/monaco-kusto >=15. Monaco uses it for markdown hovers (Kusto docs text); no attacker-controlled HTML reaches it in TIM. Fix path is `monaco-editor@0.57` which npm marks as breaking for monaco-kusto. Follow-up: bump monaco-editor / monaco-kusto together and rerun the e2e suite; re-check before cut-over.
+**S-W06 (Low, resolved by P5-16).** `npm audit` (prod and full): dompurify <=3.4.12 with 18 moderate advisories (most are IN_PLACE, SAFE_FOR_TEMPLATES, custom-element options that TIM does not use), pulled by monaco-editor 0.54-0.56, pulled by @kusto/monaco-kusto >=15. Monaco uses it for markdown hovers (Kusto docs text); no attacker-controlled HTML reaches it in TIM. Fix path is `monaco-editor@0.57` which npm marks as breaking for monaco-kusto. Resolution (P5-16): no compatible bump exists (@kusto/monaco-kusto 15.0.1 is the latest and peers on `monaco-editor@^0.55`; 0.57 would break the peer range), so `web/package.json` has `overrides.dompurify: ^3.4.15` and the lockfile resolves dompurify 3.4.16 under monaco-editor 0.55.1 (unchanged). `npm audit --omit=dev`: 3 moderate before, 0 after. Unit and e2e suites pass; no behaviour change. Drop the override once monaco-kusto supports a monaco-editor that bundles dompurify >= 3.4.15.
 
 **S-W07 (Low, fixed).** Added `npm audit --omit=dev --audit-level=high` before lint in CI (currently exit 0).
 
