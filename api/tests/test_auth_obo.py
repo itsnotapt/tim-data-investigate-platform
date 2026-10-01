@@ -109,6 +109,35 @@ async def test_other_error_dict_maps_to_upstream(monkeypatch: pytest.MonkeyPatch
         await provider.get_token(PRINCIPAL, CLUSTER)
 
 
+async def test_rejection_logs_aadsts_codes_not_description(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    provider, app = _provider(_settings(monkeypatch))
+    app.result = {
+        "error": "invalid_grant",
+        "error_description": "AADSTS65001: user@example.com has not consented",
+        "error_codes": [65001, "x", True],
+        "correlation_id": "c14d465f-3429-44ad-9cea-183578ff010e",
+        "trace_id": "not a guid user@example.com",
+    }
+    with caplog.at_level("WARNING", logger="tim_api.auth"), pytest.raises(OboAuthError):
+        await provider.get_token(PRINCIPAL, CLUSTER)
+    assert "codes=AADSTS65001 " in caplog.text
+    assert "correlation_id=c14d465f-3429-44ad-9cea-183578ff010e" in caplog.text
+    assert "trace_id=None" in caplog.text
+    assert "user@example.com" not in caplog.text
+
+
+async def test_rejection_without_codes_logs_none(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    provider, app = _provider(_settings(monkeypatch))
+    app.result = {"error": "temporarily_unavailable"}
+    with caplog.at_level("WARNING", logger="tim_api.auth"), pytest.raises(OboUpstreamError):
+        await provider.get_token(PRINCIPAL, CLUSTER)
+    assert "codes=none" in caplog.text
+
+
 async def test_exception_maps_to_upstream_without_leaking(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

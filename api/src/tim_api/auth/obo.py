@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any, Protocol
@@ -31,6 +32,7 @@ logger = logging.getLogger("tim_api.auth")
 
 FEDERATED_TOKEN_FILE_ENV = "AZURE_FEDERATED_TOKEN_FILE"  # noqa: S105 - env var name, not a secret
 _REAUTH_ERRORS = frozenset({"invalid_grant", "interaction_required"})
+_GUID = re.compile(r"[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
 
 
 class OboError(Exception):
@@ -143,10 +145,33 @@ class MsalOboTokenProvider:
             return token
 
         error = str(result.get("error", "unknown_error"))
-        logger.warning("OBO exchange rejected: error=%s scope=%s", error, scope)
+        logger.warning(
+            "OBO exchange rejected: error=%s codes=%s scope=%s correlation_id=%s trace_id=%s",
+            error,
+            _aadsts_codes(result.get("error_codes")),
+            scope,
+            _guid_or_none(result.get("correlation_id")),
+            _guid_or_none(result.get("trace_id")),
+        )
         if error in _REAUTH_ERRORS:
             raise OboAuthError("User token cannot be exchanged; sign in again")
         raise OboUpstreamError(f"OBO token exchange failed ({error})")
+
+
+def _aadsts_codes(value: object) -> str:
+    """``AADSTS<n>`` codes from MSAL's ``error_codes``. ``error_description`` is never logged:
+    it can name the user and tenant."""
+    if not isinstance(value, list):
+        return "none"
+    codes = [f"AADSTS{c}" for c in value if isinstance(c, int) and not isinstance(c, bool)]
+    return ",".join(codes) or "none"
+
+
+def _guid_or_none(value: object) -> str | None:
+    """Entra correlation/trace ids, kept only when they look like GUIDs (safe to log)."""
+    if isinstance(value, str) and _GUID.fullmatch(value):
+        return value
+    return None
 
 
 class DisabledOboTokenProvider:

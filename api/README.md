@@ -77,7 +77,10 @@ shared in-memory token cache; blocking calls run via `asyncio.to_thread`. Scope 
 client assertion re-read from `AZURE_FEDERATED_TOKEN_FILE`; with neither, startup fails
 (`OboConfigError`). Errors for endpoints to map: `OboAuthError` (`invalid_grant` /
 `interaction_required`) -> 403 `consent-required`, `OboUpstreamError` -> 502, `OboUnavailableError` (auth disabled or
-no token) -> 503. With `TIM_AUTH_DISABLED=true` the provider always raises `OboUnavailableError`,
+no token) -> 503. A rejected exchange logs the MSAL `error`, the `AADSTS<n>` codes from
+`error_codes` (e.g. `AADSTS65001` = consent missing), the scope and Entra's correlation/trace ids
+(GUIDs only); `error_description` is never logged, as it can name the user.
+With `TIM_AUTH_DISABLED=true` the provider always raises `OboUnavailableError`,
 so Kusto calls need real auth even in dev.
 Tests override the `get_token_validator` dependency with a `TokenValidator` built on a fake JWKS
 fetcher.
