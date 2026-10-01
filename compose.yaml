@@ -35,6 +35,13 @@ services:
       TIM_AUTH_DISABLED: ${TIM_AUTH_DISABLED:-true}
       TIM_AUTH_TENANT_ID: ${TIM_AUTH_TENANT_ID:-00000000-0000-0000-0000-000000000000}
       TIM_AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
+      # OBO credential for Kusto queries; empty means unset (only needed with real auth).
+      TIM_AUTH_CLIENT_SECRET: ${TIM_AUTH_CLIENT_SECRET:-}
+      # Tag ingest identity for DefaultAzureCredential. No value: passed only when set in .env,
+      # because azure-identity treats an empty AZURE_* variable as configured.
+      AZURE_TENANT_ID:
+      AZURE_CLIENT_ID:
+      AZURE_CLIENT_SECRET:
       TIM_TAG_CLUSTER_URI: ${TIM_TAG_CLUSTER_URI:-https://example.westeurope.kusto.windows.net}
       TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
       # uvicorn trusts X-Forwarded-* only from these addresses; the web container proxies here.

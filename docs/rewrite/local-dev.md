@@ -52,4 +52,16 @@ Compose reads the repo-root `.env` (template: `.env.example`, lists every variab
 
 ## Dev auth
 
-`TIM_AUTH_DISABLED=true` (the compose default) makes every api request run as a fixed dev user and logs a warning at startup. It is only accepted with `TIM_ENVIRONMENT=development`; the api refuses to start in production with it. Real token validation is a later task. Pair it with the web stub auth (`VITE_AUTH_STUB=true` when using `npm run dev`). The web container image does not yet have a stub-auth switch, so the full-stack web UI shows the "not implemented" auth error until MSAL lands (P3-01). Use the main loop for UI work.
+`TIM_AUTH_DISABLED=true` (the compose default) makes every api request run as a fixed dev user and logs a warning at startup. It is only accepted with `TIM_ENVIRONMENT=development`; the api refuses to start in production with it. Pair it with the web stub auth (`VITE_AUTH_STUB=true` when using `npm run dev`). The web container image has no stub-auth switch and always uses MSAL, so with dev auth use the main loop for UI work. With dev auth every Kusto call fails (the OBO provider raises `OboUnavailableError`, 503), so queries and schema need real auth.
+
+## Real auth and Kusto (optional)
+
+To run the stack against a real tenant and cluster, set in `.env`:
+
+- `TIM_AUTH_DISABLED=false`, `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID` and `TIM_AUTH_CLIENT_SECRET` (the secret's *Value*, not its ID). The secret is the OBO credential for Kusto calls.
+- `TIM_TAG_CLUSTER_URI` and `TIM_TAG_DATABASE`.
+- For tag writes, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (`DefaultAzureCredential`). Reusing the app registration is fine; `.env.example` shows the `${TIM_AUTH_*}` form. Compose passes these to the api only when set: an empty `AZURE_*` variable makes azure-identity try (and fail) the environment credential.
+
+The app registration needs: a **Single-page application** platform with redirect URIs `http://localhost:8081/blank.html` (compose) and `http://localhost:5173/blank.html` (`npm run dev`); an exposed API `api://<client id>` with scope `user_impersonation`; the delegated **Azure Data Explorer / user_impersonation** permission with admin consent; and a client secret.
+
+On the cluster: signed-in users need at least viewer on the databases they query, and the `AZURE_*` identity needs ingestor on the tag database (`.add database <db> ingestors ('aadapp=<client id>;<tenant id>')`). Create the tag tables once with `python -m tim_api.tagged_events.cli create-tables` (`api/README.md`).
