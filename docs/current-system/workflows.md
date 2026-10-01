@@ -1,5 +1,7 @@
 # User workflows (legacy)
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 End-to-end features the rewrite must support. Screenshot numbers refer to [screenshots/](screenshots/README.md).
 
 | # | Workflow | Steps | Screens |

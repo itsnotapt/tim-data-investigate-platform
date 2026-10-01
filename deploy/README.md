@@ -6,10 +6,10 @@ Images: `tim-api` (`api/Dockerfile`, build context `api/`) and `tim-web` (`web/D
 ## Quick start (fresh host)
 
 ```bash
-cp deploy/.env.example deploy/.env      # edit: Entra ids, Kusto cluster, AGGRID_LICENSE, POSTGRES_PASSWORD, PUBLIC_URL
+cp deploy/.env.example deploy/.env      # edit: Entra ids, Kusto cluster, POSTGRES_PASSWORD, PUBLIC_URL
 docker compose -f deploy/compose.prod.yaml --env-file deploy/.env up -d --build
 curl -i http://localhost:8080/api/healthChecks/readiness      # 204 when postgres is reachable
-curl -s http://localhost:8080/config.js                        # contains agGridLicenseKey
+curl -s http://localhost:8080/config.js                        # contains agGridLicenseKey (empty = AG Grid trial)
 ```
 
 Start order is enforced by compose: `postgres` healthy -> `migrate` (one-shot `alembic upgrade head`,
@@ -59,7 +59,7 @@ Compose input names (`deploy/.env`) are the same as the dev stack; the mapping t
 | `AUTH_CLIENT_ID` | yes | - | `auth.clientId` |
 | `AUTH_TENANT_ID` | yes | - | `auth.authority` |
 | `TAG_CLUSTER` / `TAG_DATABASE` | yes / no | - / `Research` | `tagCluster` / `tagDatabase` |
-| **`AGGRID_LICENSE`** | **yes in production** | - | **`agGridLicenseKey`** (Q-027, ADR-0006); the container exits without it |
+| `AGGRID_LICENSE` | no | empty | `agGridLicenseKey` (ADR-0006). If empty the grid runs as an AG Grid Enterprise trial (watermark, console notice) |
 | `API_BASEPATH` | no | empty | `apiEndpoint` (client prefixes `/api` itself; leave empty) |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` (JSON array) | no | - | `wikiUri`, `issueUri`, `defaultClusters` |
 | `NGINX_RESOLVER` | no | first nameserver in resolv.conf | runtime DNS for `BACKEND_URI` |
@@ -85,7 +85,7 @@ Quick start with a copied `.env.example` (dummy Entra ids, dummy `AGGRID_LICENSE
 - `/config.js` has `agGridLicenseKey`, client/tenant ids, redirect URI, tag cluster; `no-cache`. `/` has CSP, `nosniff`, `X-Frame-Options: SAMEORIGIN`, no HSTS; HSTS appears with `X-Forwarded-Proto: https`. Hashed `/assets/*` served with 1 year cache.
 - Body limits: 17 MB gets api 413 (`TIM_MAX_REQUEST_BYTES` default 16 MiB); 27 MB gets nginx 413 (`client_max_body_size 25m`).
 - api runs as uid 10001 with a read-only root fs, web as uid 101. (The postgres image's entrypoint starts as root and drops to `postgres` for the server.)
-- `web` without `AGGRID_LICENSE` exits 1 with `tim-web: missing required environment variable(s): AGGRID_LICENSE` (compose also refuses to render without it).
+- Changed 2026-09-30: `AGGRID_LICENSE` is optional (no production, no analysts; the trial must work everywhere). The earlier fail-fast check (container exit 1, compose refusing to render) was removed. See the trial re-verification below.
 - `down` then `up`: `migrate` re-runs as a no-op, data in `postgres-data` persists.
 - Headless Chromium (Playwright) loads the SPA from the container: "You must sign-in first." screen, no console errors, no CSP violations.
 

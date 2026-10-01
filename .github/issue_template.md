@@ -19,7 +19,7 @@ assignees: ''
 <!-- Please provide a description of what you expected to happen -->
 
 **Version Info**
-<!-- Specify version of frontend, backend, helm, or other relevant info -->
+<!-- Specify version of web, api, deploy (compose), or other relevant info -->
 
 **Additional context**
 <!-- Enter any other applicable info here -->

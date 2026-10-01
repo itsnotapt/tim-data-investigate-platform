@@ -22,7 +22,7 @@ COPY --chmod=0755 docker/docker-entrypoint.sh /docker-entrypoint.sh
 COPY --from=build --chown=101:0 /app/dist /usr/share/nginx/html
 
 # Runtime env: see web/README.md. Required: BACKEND_URI, REDIRECT_URI, AUTH_CLIENT_ID,
-# AUTH_TENANT_ID, TAG_CLUSTER, and AGGRID_LICENSE unless TIM_ENVIRONMENT=development.
+# AUTH_TENANT_ID, TAG_CLUSTER. AGGRID_LICENSE is optional (empty = AG Grid trial).
 USER 101
 EXPOSE 8080
 

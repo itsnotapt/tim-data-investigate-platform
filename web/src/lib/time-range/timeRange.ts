@@ -1,6 +1,6 @@
 /**
- * Pure time-range model for ad-hoc Kusto queries (legacy: frontend/src/helpers/utils.js:11-84,
- * frontend/src/components/TimeSelection.vue). All values are UTC.
+ * Pure time-range model for ad-hoc Kusto queries (legacy: frontend/src/helpers/utils.js:11-84 (removed in P5-12),
+ * frontend/src/components/TimeSelection.vue (removed in P5-12)). All values are UTC.
  *
  * A range is either absolute (fixed start/end) or relative ("ago" offsets evaluated at
  * execution time via {@link resolveTimeRange}). Ranges are plain JSON-serialisable data.

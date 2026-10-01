@@ -1,6 +1,6 @@
 # TIM web (React)
 
-React + TypeScript + Vite rewrite of the legacy Vue frontend (`../frontend/`). See [ADR-0003](../docs/decisions/0003-repo-layout.md) and [target-architecture.md](../docs/rewrite/target-architecture.md) (section 3).
+React + TypeScript + Vite rewrite of the legacy Vue frontend (removed in P5-12; see git history). See [ADR-0003](../docs/decisions/0003-repo-layout.md) and [target-architecture.md](../docs/rewrite/target-architecture.md) (section 3).
 
 Requires **Node 24** (`engines.node >= 24`) and npm.
 
@@ -54,7 +54,7 @@ Stack: React 19, React Router (hash router), MUI + Emotion. TypeScript is `stric
 | `auth.clientId`, `auth.authority` | `VITE_AUTH_CLIENT_ID`, `VITE_AUTH_AUTHORITY` | required; authority is a full URL                           |
 | `redirectUri`                     | `VITE_AUTH_REDIRECT`                         | required                                                    |
 | `apiEndpoint`                     | `VITE_API_ENDPOINT`                          | optional, default `''` (same origin), trailing `/` stripped |
-| `agGridLicenseKey`                | `VITE_AGGRID_LICENSE_KEY`                    | optional in dev, required in production (ADR-0006)          |
+| `agGridLicenseKey`                | `VITE_AGGRID_LICENSE_KEY`                    | optional; empty = AG Grid trial (ADR-0006)                  |
 | `wikiUri`, `issueUri`             | `VITE_HELP_WIKI_URI`, `VITE_HELP_ISSUE_URI`  | default GitHub URLs                                         |
 | `tagCluster`, `tagDatabase`       | `VITE_TAG_CLUSTER`, `VITE_TAG_DATABASE`      | cluster required; database defaults to `Research`           |
 | `defaultClusters`                 | `VITE_DEFAULT_CLUSTERS` (JSON)               | default: help.kusto.windows.net sample                      |
@@ -82,19 +82,19 @@ docker run --rm -p 8080:8080 \
 
 Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine` serves on port 8080 as uid 101. `docker/docker-entrypoint.sh` validates the env (exit 1 listing every missing variable), writes `/usr/share/nginx/html/config.js` (values JSON-escaped with `jq`), renders the nginx conf from `docker/nginx.conf.template` and execs nginx. nginx proxies `/api/` to `BACKEND_URI` keeping the `/api` path (do not strip it in an ingress), resolves the backend at request time, sends gzip and security headers (CSP, `X-Frame-Options: SAMEORIGIN`, nosniff, Referrer-Policy, HSTS when `X-Forwarded-Proto: https`; the CSP allows `'unsafe-eval'` for Handlebars and the Kusto worker, and a cross-origin `API_BASEPATH` origin is added to `connect-src` automatically), and serves `config.js` and `index.html` with `no-cache`. `GET /healthz` returns 200.
 
-| Env var                            | Required                                 | Maps to / notes                                                                  |
-| ---------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
-| `BACKEND_URI`                      | yes                                      | nginx upstream, `http(s)://host[:port]`, no path (trailing `/` stripped)         |
-| `REDIRECT_URI`                     | yes                                      | `redirectUri`; must be registered in Entra                                       |
-| `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` | yes                                      | `auth.clientId`; `auth.authority` = `https://login.microsoftonline.com/<tenant>` |
-| `TAG_CLUSTER`                      | yes                                      | `tagCluster` (also the default cluster)                                          |
-| `AGGRID_LICENSE`                   | yes unless `TIM_ENVIRONMENT=development` | `agGridLicenseKey` (ADR-0006, Q-027)                                             |
-| `TIM_ENVIRONMENT`                  | no                                       | `production` (default) or `development`; only relaxes `AGGRID_LICENSE`           |
-| `TAG_DATABASE`                     | no                                       | default `Research`                                                               |
-| `API_BASEPATH`                     | no                                       | `apiEndpoint`, default empty (same origin; paths already start `/api`)           |
-| `HELP_WIKI_URI`, `HELP_ISSUE_URI`  | no                                       | omitted when empty (app defaults apply)                                          |
-| `DEFAULT_CLUSTERS`                 | no                                       | JSON array; default is one group from `TAG_CLUSTER`/`TAG_DATABASE`               |
-| `NGINX_RESOLVER`                   | no                                       | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`   |
+| Env var                            | Required | Maps to / notes                                                                  |
+| ---------------------------------- | -------- | -------------------------------------------------------------------------------- |
+| `BACKEND_URI`                      | yes      | nginx upstream, `http(s)://host[:port]`, no path (trailing `/` stripped)         |
+| `REDIRECT_URI`                     | yes      | `redirectUri`; must be registered in Entra                                       |
+| `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` | yes      | `auth.clientId`; `auth.authority` = `https://login.microsoftonline.com/<tenant>` |
+| `TAG_CLUSTER`                      | yes      | `tagCluster` (also the default cluster)                                          |
+| `AGGRID_LICENSE`                   | no       | `agGridLicenseKey`; empty = trial (ADR-0006)                                     |
+| `TIM_ENVIRONMENT`                  | no       | `production` (default) or `development`; does not affect `AGGRID_LICENSE`        |
+| `TAG_DATABASE`                     | no       | default `Research`                                                               |
+| `API_BASEPATH`                     | no       | `apiEndpoint`, default empty (same origin; paths already start `/api`)           |
+| `HELP_WIKI_URI`, `HELP_ISSUE_URI`  | no       | omitted when empty (app defaults apply)                                          |
+| `DEFAULT_CLUSTERS`                 | no       | JSON array; default is one group from `TAG_CLUSTER`/`TAG_DATABASE`               |
+| `NGINX_RESOLVER`                   | no       | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`   |
 
 The entrypoint also honours `TIM_HTML_DIR`, `TIM_NGINX_TEMPLATE`, `TIM_NGINX_CONF` and `TIM_ENTRYPOINT_DRY_RUN=1` (render files and exit) for testing without Docker.
 

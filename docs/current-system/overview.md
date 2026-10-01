@@ -1,5 +1,7 @@
 # Legacy system overview
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 TIM ("triage and investigation") lets analysts run KQL against Azure Data Explorer (Kusto), pivot from result rows into other queries through shared **query templates**, and tag or comment on events. An investigation is a **tree of tabs**: each pivot creates a child tab.
 
 Details: [backend-api.md](backend-api.md) · [frontend-architecture.md](frontend-architecture.md) · [frontend-components.md](frontend-components.md) · [data-models.md](data-models.md) · [workflows.md](workflows.md) · [infrastructure.md](infrastructure.md) · [known-issues.md](known-issues.md).

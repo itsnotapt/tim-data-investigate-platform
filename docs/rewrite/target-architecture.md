@@ -2,7 +2,7 @@
 
 Status: **Accepted** (2026-09-29): Q-001…Q-004 and Q-019 answered; see ADR-0003…0006. Remaining Open questions use their proposed defaults until answered.
 
-Decisions taken: PostgreSQL ([ADR-0004](../decisions/0004-postgresql-persistence.md)), AG Grid Enterprise only, trial during development and licensed in production ([ADR-0006](../decisions/0006-ag-grid-enterprise.md), Q-027; no Community build), popup login with single Entra app + OBO ([ADR-0005](../decisions/0005-auth-entra-popup-obo.md)), no legacy data migration (Q-004), `web/` + `api/` layout ([ADR-0003](../decisions/0003-repo-layout.md)). Every choice that still depends on an open question cites its Q-ID and the proposed default from [open-questions.md](../open-questions.md). Questions this doc raised are Q-020…Q-026 (Q-023, Q-025 and Q-026 are now moot).
+Decisions taken: PostgreSQL ([ADR-0004](../decisions/0004-postgresql-persistence.md)), AG Grid Enterprise only, licence key optional (trial works everywhere since 2026-09-30; [ADR-0006](../decisions/0006-ag-grid-enterprise.md), Q-027; no Community build), popup login with single Entra app + OBO ([ADR-0005](../decisions/0005-auth-entra-popup-obo.md)), no legacy data migration (Q-004), `web/` + `api/` layout ([ADR-0003](../decisions/0003-repo-layout.md)). Every choice that still depends on an open question cites its Q-ID and the proposed default from [open-questions.md](../open-questions.md). Questions this doc raised are Q-020…Q-026 (Q-023, Q-025 and Q-026 are now moot).
 
 Related: [current-system/overview.md](../current-system/overview.md) (legacy diagram, glossary), [backend-api.md](../current-system/backend-api.md), [frontend-architecture.md](../current-system/frontend-architecture.md), [known-issues.md](../current-system/known-issues.md). Companions: [component-mapping.md](component-mapping.md), [work-breakdown.md](work-breakdown.md), `api-contract.md` (to write).
 
@@ -71,7 +71,7 @@ Unchanged from legacy: templates render in the browser, tags round-trip through 
 | Build | Vite, TypeScript `strict` | Function components + hooks only |
 | Routing | React Router with **`createHashRouter`** | Single `react-router` package (v8; `RouterProvider` from `react-router/dom`). Keeps `#/share/:uuid`, `#/view/:uuid`, `#/queries`, `#/exportimport` so existing share links keep working |
 | UI | MUI (Q-012 default) | Closest to Vuetify/Material look |
-| Grid | AG Grid React + `ag-grid-enterprise` only; trial during development, licence key in production (Q-002, Q-027, ADR-0006) | No Community build or fallback (BUG-43 avoided by design); grid config lives in `features/grid` |
+| Grid | AG Grid React + `ag-grid-enterprise` only; licence key optional, trial works everywhere (Q-002, Q-027, ADR-0006) | No Community build or fallback (BUG-43 avoided by design); grid config lives in `features/grid` |
 | Auth | `@azure/msal-react` + `@azure/msal-browser`, popup login (Q-003, ADR-0005) | One `lib/auth` module |
 | Browser storage | IndexedDB via `idb`, own DB `tim` (Q-004, Q-005: browser-only) | See 3.6 |
 | Editor | `@monaco-editor/react` + `@kusto/monaco-kusto` | Q-017 default: enable suggestions |
@@ -410,7 +410,7 @@ JSON: field names byte-identical to legacy DTOs; Kusto column names as dictionar
 | `AUTH_TENANT_ID` | `auth.authority` (full URL, `https://login.microsoftonline.com/<tenant>`) | `AUTH_TENANT_ID` (entrypoint builds the URL); dev fallback env is `VITE_AUTH_AUTHORITY` |
 | `REDIRECT_URI` | `redirectUri` | kept: MSAL popup returns to this SPA redirect URI (must be registered in Entra) |
 | `API_BASEPATH` | `apiEndpoint` | `API_BASEPATH` (normalised) |
-| `AGGRID_LICENSE` | `agGridLicenseKey` | `AGGRID_LICENSE` (optional in development (trial); required in production, Q-027, ADR-0006) |
+| `AGGRID_LICENSE` | `agGridLicenseKey` | `AGGRID_LICENSE` (optional everywhere; empty = trial, ADR-0006 amended 2026-09-30) |
 | `KUSTO_CLUSTER_URI` | `tagCluster` + default cluster | `TAG_CLUSTER` |
 | `KUSTO_DATABASE_NAME` | `tagDatabase` + default database | `TAG_DATABASE` |
 | *(hard-coded)* | `wikiUri`, `issueUri` | `HELP_WIKI_URI`, `HELP_ISSUE_URI` (typo fixed) |
@@ -427,7 +427,7 @@ JSON: field names byte-identical to legacy DTOs; Kusto column names as dictionar
 |---|---|---|---|
 | web unit | Vitest | `kql-templates` (buildParams, isDataComplete, escaping, summary), `time-range`, tree selection cascade, tag-dialog decision logic, share encode/decode incl. legacy links, IndexedDB migrations (`fake-indexeddb`), poll backoff (fake timers) | CI required |
 | web component | Testing Library + MSW | TemplateQueryResult param widgets (revive the 11 legacy cases), TagEventDialog validation, NewQueryButton search, Query Manager | CI required |
-| web e2e | Playwright against the built app with mocked API + stubbed auth | W1-W14 smoke; reuse `tools/legacy-screenshots/` harness ideas for visual parity captures into `docs/rewrite/screenshots/` | nightly / pre-cut-over |
+| web e2e | Playwright against the built app with mocked API + stubbed auth | W1-W14 smoke; reuse `tools/legacy-screenshots/` harness ideas (harness removed; commit 8a2ff2e) for visual parity captures into `docs/rewrite/screenshots/` | nightly / pre-cut-over |
 | api unit | pytest | cluster validator (SEC-01), claim parsing (Q-014), run state machine incl. timeout/recovery, JSON Patch re-validation, value serialisation | CI required |
 | api endpoint | FastAPI `TestClient` + fakes for Kusto/Token/Ingest/repos | every endpoint: happy path + main error (RULES §6); ownership (SEC-02); identity-from-token (SEC-03); no traces (SEC-04) | CI required |
 | contract | pytest against recorded legacy responses / `api-contract.md` examples | field names and shapes identical where marked Kept | CI required |
@@ -448,7 +448,7 @@ Proposed default: **two images + Docker Compose; Helm later.**
 
 | Item | Proposal |
 |---|---|
-| `web` image | multi-stage Node build -> `nginx-unprivileged` (port 8080, `TIM_ENVIRONMENT` selects development/production, default production); entrypoint renders `config.js` (and `nginx.conf` proxying `/api/` to `BACKEND_URI`); Monaco assets bundled by Vite, no `prepublish` copy step; single build with AG Grid Enterprise; licence key supplied at runtime via `config.js` (required in production, Q-027) |
+| `web` image | multi-stage Node build -> `nginx-unprivileged` (port 8080, `TIM_ENVIRONMENT` selects development/production, default production); entrypoint renders `config.js` (and `nginx.conf` proxying `/api/` to `BACKEND_URI`); Monaco assets bundled by Vite, no `prepublish` copy step; single build with AG Grid Enterprise; licence key supplied at runtime via `config.js` (optional; empty = trial, ADR-0006) |
 | `api` image | `python:3.12-slim`, `uv sync --locked --no-dev`, port 8080, `uvicorn tim_api.main:app` (workers = 1 per container so the task registry and TTL sweeper stay simple), non-root, `/api/healthChecks/*` probes |
 | Compose | `web`, `api`, `postgres` (ADR-0004); a one-shot `init` service runs the DB migration and `init-kusto` CLI (Q-015) |
 | Ingress | routes `/api` **without** rewrite (BUG-10); `/metrics` not exposed |
@@ -471,7 +471,7 @@ Decision (Q-004): **no legacy data is migrated.** There is no template import CL
 
 Cut-over:
 1. Build `web` + `api` alongside legacy (legacy untouched, ADR-0003).
-2. Verify with the workflow checklist W1-W14. Production deploy needs the AG Grid licence key configured (Q-027).
+2. Verify with the workflow checklist W1-W14. The AG Grid licence key is optional (trial without it, ADR-0006).
 3. Deploy the new stack and retire the legacy deployment.
 4. Delete `frontend/` and `backend/` in one change (work-breakdown P5).
 
@@ -480,7 +480,7 @@ Cut-over:
 
 | # | Risk | Impact | Mitigation |
 |---|---|---|---|
-| R1 | AG Grid Enterprise runs on the trial until the licence arrives (Q-002, Q-027) | Watermark and console warning in dev; production can't go live without the key | Licence procurement tracked outside the repo; prod entrypoint requires `AGGRID_LICENSE`; no Community fallback (ADR-0006) |
+| R1 | AG Grid Enterprise runs on the trial until the licence arrives (Q-002, Q-027) | Watermark and console notice wherever no key is set (accepted since 2026-09-30) | Licence procurement tracked outside the repo; key optional (ADR-0006 amendment); no Community fallback (ADR-0006) |
 | R2 | MSAL popup blocked or re-prompting (BUG-22/23) | Users cannot sign in | Silent token first, single in-flight request, retryable sign-in, popup hint text; test sign-in explicitly |
 | R3 | Handlebars escaping breaks existing templates (Q-006, SEC-06) | Templates render differently | Escape only at literal boundaries, snapshot-test rendered output of all shipped templates before/after |
 | R4 | Kusto client is synchronous, MSAL is blocking | Event-loop stalls under load | Thread offload, bounded worker pool, load test |

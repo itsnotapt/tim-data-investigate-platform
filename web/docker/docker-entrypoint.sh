@@ -26,9 +26,6 @@ esac
 
 # --- required variables ---------------------------------------------------------------
 required="BACKEND_URI REDIRECT_URI AUTH_CLIENT_ID AUTH_TENANT_ID TAG_CLUSTER"
-if [ "$TIM_ENVIRONMENT" = production ]; then
-    required="$required AGGRID_LICENSE"
-fi
 missing=""
 for name in $required; do
     eval "value=\${$name-}"
@@ -56,7 +53,11 @@ printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
 
 TAG_DATABASE=${TAG_DATABASE:-Research}
 API_BASEPATH=${API_BASEPATH-}
+# Optional (ADR-0006, amended 2026-09-30): without a key AG Grid Enterprise runs as a trial.
 AGGRID_LICENSE=${AGGRID_LICENSE-}
+if [ -z "$AGGRID_LICENSE" ]; then
+    echo "tim-web: AGGRID_LICENSE not set, AG Grid Enterprise runs in trial mode" >&2
+fi
 HELP_WIKI_URI=${HELP_WIKI_URI-}
 HELP_ISSUE_URI=${HELP_ISSUE_URI-}
 DEFAULT_CLUSTERS=${DEFAULT_CLUSTERS-}
@@ -71,7 +72,7 @@ fi
 # --- config.js --------------------------------------------------------------------------
 # jq does all JSON escaping. "<" is additionally emitted as < so the file stays safe even
 # if it is ever inlined in HTML. Empty optional values are omitted so the app's own defaults
-# apply.
+# apply, except agGridLicenseKey, which is always written (empty = trial mode).
 mkdir -p "$HTML_DIR"
 config_tmp="$HTML_DIR/.config.js.$$"
 {
@@ -104,7 +105,7 @@ config_tmp="$HTML_DIR/.config.js.$$"
                 else [{name: "Cluster", clusters: [$tagCluster], databases: [$tagDatabase]}]
                 end
             )
-        } | with_entries(select(.value != ""))' \
+        } | with_entries(select(.value != "" or .key == "agGridLicenseKey"))' \
         | sed 's/</\\u003c/g'
     printf ';\n'
 } >"$config_tmp"

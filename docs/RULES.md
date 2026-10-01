@@ -1,6 +1,6 @@
 # Working rules for the TIM rewrite
 
-These rules are for **every agent or human** working on the rewrite of TIM from Vue 2 + .NET 6 to **React (frontend) + Python (backend)**. Read this file fully before doing anything; then read [README.md](README.md) for current status.
+These rules are for **every agent or human** working on the rewrite of TIM from Vue 2 + .NET 6 to **React (frontend) + Python (backend)**. The legacy code has been removed from the repo (P5-12); only `web/` and `api/` remain. Read this file fully before doing anything; then read [README.md](README.md) for current status.
 
 ---
 
@@ -9,23 +9,24 @@ These rules are for **every agent or human** working on the rewrite of TIM from 
 1. Read `docs/README.md` → **Status** section: which phase is active, what's in progress.
 2. Read `docs/open-questions.md` → anything marked **Answered** since your last session changes the plan; anything **Blocking** your task means stop and ask.
 3. Read `docs/rewrite/work-breakdown.md` → pick the lowest-numbered task whose dependencies are `done` and whose status is `todo`. Don't start a task another agent has marked `in-progress` unless the user says so.
-4. Read the legacy spec docs relevant to that task (`docs/current-system/*`) **before** reading legacy source. The docs cite `file:line` — go to source only to confirm or fill a gap.
+4. Read the legacy spec docs relevant to that task (`docs/current-system/*`, a historical archive) **before** reading legacy source. The docs cite `file:line` as of commit `8a2ff2e` — read source (`git show 8a2ff2e:frontend/<path>`) only to confirm or fill a gap.
 
 ## 2. Sources of truth (in priority order)
 
 1. **The user's explicit answers** — recorded in `open-questions.md` (Answered) or an ADR in `docs/decisions/`.
 2. **Accepted ADRs** in `docs/decisions/`.
 3. **Legacy behaviour** as documented in `docs/current-system/` and shown in `docs/current-system/screenshots/`.
-4. **Legacy source code** (`frontend/`, `backend/`) — authoritative for behaviour when the docs are silent or wrong. If docs and code disagree, code wins; **fix the doc** in the same change.
+4. **Legacy source code** at commit `8a2ff2e` (`git show 8a2ff2e:frontend/...`, `git show 8a2ff2e:backend/...`; the folders are no longer in the tree) — authoritative for behaviour when the docs are silent or wrong. If docs and code disagree, code wins; **fix the doc** in the same change.
 5. Your own judgement — only for things nobody would reasonably care about (naming of a private helper, etc.).
 
 Never silently "improve" legacy behaviour. Parity first; deviations need a decision (see §4).
 
-## 3. Legacy code is read-only
+## 3. Legacy code is gone (archive only)
 
-- Do **not** modify `frontend/` or `backend/` (the legacy apps). They are the reference implementation.
-- The new apps live in `web/` (React) and `api/` (Python) — see [ADR-0003](decisions/0003-repo-layout.md).
-- Exception: `tools/legacy-screenshots/` may be edited to capture more reference screens.
+- `frontend/`, `backend/`, `helm/`, the legacy compose files and `tools/legacy-screenshots/` were removed in P5-12. Do **not** re-add them.
+- For legacy behaviour, read `docs/current-system/` (historical archive; its paths refer to commit `8a2ff2e`) or the code at that commit: `git show 8a2ff2e:frontend/src/...`, `git show 8a2ff2e:backend/...`.
+- `docs/current-system/` is not maintained for new behaviour; fix it only where it is wrong about legacy.
+- The repo contains only the new apps: `web/` (React) and `api/` (Python) — see [ADR-0003](decisions/0003-repo-layout.md).
 
 ## 4. Handling questions and decisions
 
@@ -46,9 +47,9 @@ Question IDs are permanent (`Q-001`, `Q-002`, …). Never renumber. Reference th
 - **Update docs in the same change as the code.** A task isn't done until docs reflect it.
 - Keep `docs/README.md` → Status current (phase, last updated date, what's next).
 - Every task in `work-breakdown.md` has a status: `todo` → `in-progress (agent/date)` → `review` → `done`. Update it when you start and finish.
-- Cite legacy code as `path/to/file.ext:line` relative to repo root.
+- Cite legacy code as `path/to/file.ext:line` relative to the repo root at commit `8a2ff2e`.
 - Don't paste large legacy code blocks into docs; describe behaviour and cite lines. Short excerpts for subtle logic are fine.
-- New screenshots go in `docs/current-system/screenshots/` (legacy) or `docs/rewrite/screenshots/` (new app), and are indexed in the folder README.
+- New screenshots go in `docs/rewrite/screenshots/` (new app) and are indexed in the folder README. `docs/current-system/screenshots/` (legacy) is frozen.
 - Dates in `YYYY-MM-DD`.
 
 ## 6. Engineering rules for the new code

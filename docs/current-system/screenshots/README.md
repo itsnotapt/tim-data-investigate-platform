@@ -1,8 +1,10 @@
 # Legacy UI screenshots
 
+> **Archive.** Screenshots of the removed legacy system; paths refer to commit `8a2ff2e`. The PNGs are frozen.
+
 42 screenshots of the legacy Vue app (1440×900). They are the visual reference for parity (see [RULES.md §6](../../RULES.md#6-engineering-rules-for-the-new-code)).
 
-**How they were made:** `tools/legacy-screenshots/` (see its [README](../../../tools/legacy-screenshots/README.md) to regenerate). The legacy frontend runs under Vite with:
+**How they were made:** `tools/legacy-screenshots/` (harness removed in P5-12; available at commit `8a2ff2e`: `git show 8a2ff2e:tools/legacy-screenshots/README.md`). The legacy frontend runs under Vite with:
 - **mocked API data**: 4 templates and 40 storm-event rows from `mocks.mjs`
 - **a stubbed MSAL sign-in**
 - **unlicensed AG Grid Enterprise** injected, so the context menu, side bar, set filters and grouping render as they do in the enterprise build

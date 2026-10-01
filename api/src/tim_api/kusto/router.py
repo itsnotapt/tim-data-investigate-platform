@@ -1,6 +1,7 @@
 """Kusto endpoints: ``POST /api/kusto/schema`` (api-contract 3.2, D8).
 
-Legacy: ``backend/Tim.Backend/Controllers/External/KustoExternalController.cs:56-68``.
+Legacy (removed in P5-12):
+``backend/Tim.Backend/Controllers/External/KustoExternalController.cs:56-68``.
 """
 
 from __future__ import annotations

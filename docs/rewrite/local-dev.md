@@ -47,7 +47,7 @@ docker compose up --build
 Compose reads the repo-root `.env` (template: `.env.example`, lists every variable). Compose pins `TIM_ENVIRONMENT=development` for `api` and `web`.
 
 - `api` (see `api/README.md`): `TIM_DATABASE_URL` (compose builds it from `POSTGRES_*`), `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`, `TIM_TAG_CLUSTER_URI` (https). Placeholder values are fine for dev.
-- `web` container (see `web/README.md`): `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`, `TAG_CLUSTER`. `AGGRID_LICENSE` is optional while `TIM_ENVIRONMENT=development` (AG Grid runs as a trial, ADR-0006). Compose maps these from the `TIM_*` and `REDIRECT_URI` values in `.env`.
+- `web` container (see `web/README.md`): `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`, `TAG_CLUSTER`. `AGGRID_LICENSE` is optional (AG Grid runs as a trial when empty, ADR-0006). Compose maps these from the `TIM_*` and `REDIRECT_URI` values in `.env`.
 - For a locally run api, use `TIM_DATABASE_URL=postgresql+asyncpg://tim:tim@localhost:5432/tim` in `api/.env`.
 
 ## Dev auth

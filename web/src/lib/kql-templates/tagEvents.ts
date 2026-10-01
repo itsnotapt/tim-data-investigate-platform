@@ -2,7 +2,7 @@ import { escapeKqlVerbatim } from './escape';
 
 /**
  * The `{{> getTagEvents}}` partial: KQL text ported verbatim from the legacy
- * `frontend/src/helpers/kustoQueries.js:4-39` (whitespace included; a test compares the rendered
+ * `frontend/src/helpers/kustoQueries.js:4-39 (removed in P5-12)` (whitespace included; a test compares the rendered
  * text with a fixture generated from the legacy source). Only the tag cluster and database are
  * interpolated, exactly as legacy did at module load; here they are escaped as KQL literals
  * (they come from runtime config, not user input, so normal values render unchanged).

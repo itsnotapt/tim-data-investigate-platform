@@ -1,5 +1,5 @@
 /**
- * Mock data for the e2e harness. Mirrors tools/legacy-screenshots/mocks.mjs so screenshots of the
+ * Mock data for the e2e harness. Mirrors tools/legacy-screenshots/mocks.mjs (removed in P5-12) so screenshots of the
  * rewrite are comparable with the legacy ones. Shapes follow docs/rewrite/api-contract.md.
  */
 const NOW = new Date('2026-09-29T10:00:00Z');

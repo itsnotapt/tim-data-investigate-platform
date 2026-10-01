@@ -9,7 +9,8 @@ Layers:
   thread; the aio client needs the extra ``aiohttp`` dependency) and feeds the parser.
 * ``KustoQueryClient`` is the protocol callers (query runner, schema endpoint) depend on.
 
-Legacy reference: ``backend/Tim.Backend/Providers/Kusto/KustoQueryClient.cs:77-204``.
+Legacy reference (removed in P5-12, see git history):
+``backend/Tim.Backend/Providers/Kusto/KustoQueryClient.cs:77-204``.
 """
 
 from __future__ import annotations

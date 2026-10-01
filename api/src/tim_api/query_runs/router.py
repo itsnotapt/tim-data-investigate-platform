@@ -1,7 +1,7 @@
 """Query-run endpoints: ``POST /api/kusto/query`` and ``GET /api/kusto/query/{queryRunId}``
 (api-contract 3.3, 3.4; D3, D4, D6, D7).
 
-Legacy: ``backend/Tim.Backend/Controllers/External/KustoExternalController.cs``.
+Legacy (removed in P5-12): ``backend/Tim.Backend/Controllers/External/KustoExternalController.cs``.
 """
 
 from __future__ import annotations

@@ -2,21 +2,15 @@
 
 TIM is a Kusto investigation platform that enables an analyst to quickly pivot between data sources; annotate their findings; and promotes collaboration through shared queries (pivots) and centralized tagged events.
 
+## Overview
+
+A React single-page app (`web/`) backed by a FastAPI service (`api/`). The previous Vue/.NET implementation was removed in P5-12 and remains in git history.
+
 ## Getting Started
 
-### Docker Compose
-
-1. Download the docker compose YAML file.
-```bash
-curl -LO https://github.com/microsoft/tim-data-investigate-platform/raw/main/.docker/compose.yaml
-```
-
-2. Create or set the environment variables (refer to [Environment Variables](.docker/README.md#environment-variables)).
-
-3. Run docker compose to download the latest images and deploy TIM locally.
-```bash
-docker compose up
-```
+- Local development: [docs/rewrite/local-dev.md](docs/rewrite/local-dev.md)
+- Deployment: [deploy/README.md](deploy/README.md)
+- Documentation index and project status: [docs/README.md](docs/README.md)
 
 ## Contributing
 

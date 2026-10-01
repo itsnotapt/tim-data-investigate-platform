@@ -1,5 +1,7 @@
 # Frontend architecture (legacy Vue 2)
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 > Source: `frontend/src/`. Stack: Vue 2.7, Vuetify 2.6 (MDI icons), Vuex 3, vue-router 3 (**hash mode**), ag-grid 29 via `ag-grid-vue` (**Enterprise features used**), Monaco 0.35 + `@kusto/monaco-kusto` (loaded at runtime from `public/monaco-editor`), axios, `@azure/msal-browser` v2, localforage (IndexedDB), Handlebars, js-yaml. Build: Vite 3 + `vite-plugin-vue2`.
 > Versions at HEAD `a51eea0`: frontend 1.5.6, backend 3.0.4, core 3.0.7.
 

@@ -1,5 +1,7 @@
 # Data models (legacy)
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 Every entity that the legacy app stores or sends over the wire. The rewrite keeps these **JSON field names** (RULES §6) unless [`rewrite/api-contract.md`](../rewrite/api-contract.md) records a change.
 
 - **Server entities** are the .NET models in `backend/Tim.Backend/Models/**`. They are persisted in Couchbase, Mongo or Redis, or ingested into the Kusto tag tables.

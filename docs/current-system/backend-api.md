@@ -1,5 +1,7 @@
 # Backend API spec (legacy .NET 6 service)
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 > Source: `backend/Tim.Backend/`. Paths below are relative to that folder unless absolute.
 > Status: **verified by code reading** (2026-09-29). Nothing here was verified against a running backend — there is no .NET toolchain in the dev environment and there are **zero backend tests**.
 

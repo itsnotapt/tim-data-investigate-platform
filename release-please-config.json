@@ -1,41 +1,19 @@
 {
     "bootstrap-sha": "02ad822a14e1a6cd75b87065061302672da46004",
     "packages": {
-      ".": {
-        "changelog-path": "CHANGELOG.md",
-        "release-type": "simple",
-        "package-name": "core"
-      },
-      "frontend": {
-        "release-type": "simple",
-        "package-name": "frontend",
-        "extra-files": [
-            {
-                "type": "yaml",
-                "path": "helm/Chart.yaml",
-                "jsonpath": "$.version"
-            }
-        ]
-      },
-      "backend": {
-        "release-type": "simple",
-        "package-name": "backend",
-        "extra-files": [
-            {
-                "type": "yaml",
-                "path": "helm/Chart.yaml",
-                "jsonpath": "$.version"
-            }
-        ]
-      },
-      "web": {
-        "release-type": "node",
-        "package-name": "web"
-      },
-      "api": {
-        "release-type": "python",
-        "package-name": "api"
-      }
+        ".": {
+            "changelog-path": "CHANGELOG.md",
+            "release-type": "simple",
+            "package-name": "core"
+        },
+        "web": {
+            "release-type": "node",
+            "package-name": "web"
+        },
+        "api": {
+            "release-type": "python",
+            "package-name": "api"
+        }
     },
     "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
 }

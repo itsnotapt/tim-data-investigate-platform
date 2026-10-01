@@ -2,7 +2,8 @@
 
 :class:`AzureTagIngestClient` does managed streaming ingestion (streaming, falling back to
 queued) with ``azure-kusto-ingest`` under the app identity (Q-020, ``DefaultAzureCredential``
-via ``AZURE_*``). Like legacy direct ingest (backend/Tim.Backend/Startup/ServiceExtensions.cs:350,
+via ``AZURE_*``). Like legacy direct ingest (removed in P5-12:
+backend/Tim.Backend/Startup/ServiceExtensions.cs:350,
 Providers/Kusto/KustoIngestClient.cs:49-64) it sends NDJSON with a JSON mapping reference, so rows
 are queryable right away; the tag tables need the streaming ingestion policy (P2-14).
 :class:`FakeTagIngestClient` is for tests and explicit local development

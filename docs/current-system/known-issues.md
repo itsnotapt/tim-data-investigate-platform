@@ -1,5 +1,7 @@
 # Known legacy issues
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 Bugs, security issues, and dead code found in the legacy app. **Do not reproduce these in the rewrite** (RULES §4). Reference them by ID (`BUG-xx`, `SEC-xx`) in tasks and PRs.
 
 ## Security

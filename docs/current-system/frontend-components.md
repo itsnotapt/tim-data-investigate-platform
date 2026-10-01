@@ -1,5 +1,7 @@
 # Frontend component inventory (legacy Vue 2)
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 > Paths relative to `frontend/src/`. Screenshots in [screenshots/](screenshots/README.md). Complexity = React rewrite estimate (S/M/L).
 
 ## Component tree

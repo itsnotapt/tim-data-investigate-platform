@@ -1,5 +1,7 @@
 # Infrastructure, build & deployment (legacy)
 
+> **Archive.** This document describes the legacy system (Vue 2 + .NET 6), which was removed from the repo in P5-12. Paths and `file:line` citations refer to commit `8a2ff2e` (`git show 8a2ff2e:<path>`). Kept for reference; not maintained.
+
 ## Frontend image (`frontend/Dockerfile`)
 - `ARG BUILD_VERSION=community`. Stage `dependency`: node:16-alpine + python3/make/g++, `yarn install` (Yarn 1 runs `prepublish` → copies Monaco assets to `public/monaco-editor`).
 - `build-community`: `yarn build`. `build-enterprise`: `yarn add ag-grid-enterprise@29.0.0` + `sed` uncomments `/* LICENSE */` lines in `main.js` + `yarn build`.

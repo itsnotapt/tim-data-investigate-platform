@@ -22,7 +22,7 @@ Paths: `web/` = React app, `api/` = Python app (see target-architecture.md). Bra
 | ID | Task | Depends on | Blocked by | Acceptance criteria | Status |
 |---|---|---|---|---|---|
 | P0-01 | Explore legacy backend and frontend; write findings | – | – | All controllers, components, helpers, store modules inventoried | done |
-| P0-02 | Capture 42 legacy screenshots (`tools/legacy-screenshots/`) | P0-01 | – | PNGs in `docs/current-system/screenshots/`, regenerable by script | done |
+| P0-02 | Capture 42 legacy screenshots (`tools/legacy-screenshots/`, removed in P5-12; at commit 8a2ff2e) | P0-01 | – | PNGs in `docs/current-system/screenshots/`, regenerable by script | done |
 | P0-03 | Write current-system docs (overview, backend-api, frontend-architecture, frontend-components, workflows, infrastructure, known-issues) | P0-01 | – | Files exist and cite `file:line` | done |
 | P0-04 | Write `RULES.md`, `README.md`, `open-questions.md` | P0-03 | – | Rules and question log exist | done |
 | P0-05 | Write `rewrite/target-architecture.md` | P0-03 | – | File exists with layout and conventions | done |
@@ -66,7 +66,7 @@ Reference: `backend-api.md`, `rewrite/api-contract.md` (P0-16).
 
 | ID | Task | Depends on | Blocked by | Acceptance criteria | Status |
 |---|---|---|---|---|---|
-| P2-01 | Pydantic models: templates (`QueryTemplate`, `QueryParam`, `QueryField`), query runs, tagged events, schema request; JSON names identical to legacy (`backend-api.md`, `data-models.md`) | P1-04, P0-09 | – | Round-trip tests using sample JSON from the legacy screenshot mocks (`tools/legacy-screenshots/mocks.mjs`); validation rules ported | done |
+| P2-01 | Pydantic models: templates (`QueryTemplate`, `QueryParam`, `QueryField`), query runs, tagged events, schema request; JSON names identical to legacy (`backend-api.md`, `data-models.md`) | P1-04, P0-09 | – | Round-trip tests using sample JSON from the legacy screenshot mocks (`tools/legacy-screenshots/mocks.mjs`, removed; at commit 8a2ff2e); validation rules ported | done |
 | P2-02 | Auth: JWT validation (`auth/jwt.py`): JWKS fetch + cache, `aud == api://{clientId}`, issuer set, expiry, username claim fallback `unique_name`→`upn`→`preferred_username`; `get_current_user` dependency | P1-08 | Q-014 | Tests with locally signed tokens: valid, wrong aud, wrong issuer, expired, bad signature, v1 and v2 claims; unauthenticated → 401 | done |
 | P2-03 | Auth: OBO exchange (`auth/obo.py`) behind an interface; cached `ConfidentialClientApplication`; secret or client-assertion credential; scope from config/cluster | P2-02 | Q-013 | Unit tests with a fake MSAL: correct scope, app instance reused, failure maps to 401/502 (BUG-09) | done |
 | P2-04 | Cluster URL validation helper (`kusto/validation.py`): https only, absolute, host allow-list/suffix policy from config | P1-08 | – | Table-driven tests incl. `http://`, `file:`, IP, userinfo, lookalike hosts; used by schema and query (SEC-01) | done |
@@ -145,7 +145,7 @@ Order follows dependencies. Legacy refs: `frontend-components.md`, `workflows.md
 
 | ID | Task | Depends on | Blocked by | Acceptance criteria | Status |
 |---|---|---|---|---|---|
-| P5-01 | Playwright e2e harness for `web/` with mocked API (route interception) and stubbed auth, modelled on `tools/legacy-screenshots/{flow,mocks}.mjs`; reuse the same mock data | P4-11, P3-08 | – | `npm run e2e` runs headless in CI; one smoke scenario (sign in, new query, run) passes | done |
+| P5-01 | Playwright e2e harness for `web/` with mocked API (route interception) and stubbed auth, modelled on `tools/legacy-screenshots/{flow,mocks}.mjs` (removed; at commit 8a2ff2e); reuse the same mock data | P4-11, P3-08 | – | `npm run e2e` runs headless in CI; one smoke scenario (sign in, new query, run) passes | done |
 | P5-02 | E2E flows W1–W7 with screenshots saved to `docs/rewrite/screenshots/` (same numbering as legacy) | P5-01, P4-25, P4-24, P4-23, P4-16, P4-15, P4-14, P4-10, P4-07, P4-03 | – | Screens counterpart to legacy 01–26 captured; each flow asserts key UI text | done |
 | P5-03 | E2E flows W8–W14 with screenshots (share, convert, clone, manage tabs, query manager, export/import, help) | P5-01, P4-26, P4-27, P4-29, P4-30, P4-19 | – | Screens counterpart to legacy 27–41 captured | done |
 | P5-04 | Parity review: side-by-side comparison of legacy and new screenshots, table of differences in `docs/rewrite/parity-report.md`; each difference marked accepted/fix | P5-02, P5-03 | – | Report covers all 42 legacy screens; every "fix" has a follow-up task | done |
@@ -154,9 +154,9 @@ Order follows dependencies. Legacy refs: `frontend-components.md`, `workflows.md
 | P5-07 | Backend load/robustness pass: large result sets, row/size cap decision, concurrent runs | P2-09 | – | Documented limits; test with 100k-row fake result stays within memory budget | done |
 | P5-08 | Deployment artefacts: production images, compose for prod, chosen deploy target (Helm or other), env docs incl. `agGridLicenseKey` (required in production, Q-027); fix BUG-10 class issues (env names consistent, `/api` path preserved) | P1-10, P2-16 | Q-016 | Fresh environment deploy follows README and passes readiness; ingress routes `/api` correctly | done (verified 2026-09-30 on Docker 29.8.1: fresh compose deploy, readiness 204 via nginx, `/api` preserved, headers, 413 limits, non-root, BUG-43 fail-fast, idempotent re-up; subnet made configurable, Q-114. Real Entra/Kusto/TLS unverified) |
 | P5-09 | Security review of the new stack (auth, OBO, cluster validation, template injection, CORS, headers, dependency audit) | P5-05 | – | Findings triaged in docs; no High open | done |
-| P5-10 | Cut-over plan and rollout (parallel run, comms, rollback; no data migration) | P5-08, P5-09 | – | Plan documented and agreed by the user | todo |
-| P5-11 | Cut over: switch environments, update release-please and CI to new packages | P5-10 | – | Production runs the new stack with the AG Grid licence key configured; legacy pipelines disabled | todo |
-| P5-12 | Remove legacy: delete `frontend/`, `backend/`, legacy helm/compose/workflows; archive docs status | P5-11 | – | Repo builds and CI green without legacy folders; `docs/README.md` Status updated; RULES §3 revised | todo |
+| P5-10 | Replace-legacy plan ([cutover-plan.md](cutover-plan.md)); no production, users, migration or rollback (Q-034) | P5-08, P5-09 | – | Plan documented and agreed by the user | done (no production, Q-034; plan in cutover-plan.md) |
+| P5-11 | Retarget release automation to new packages: release-please config/manifest and `release-please.yml` build `web`/`api` (tim-web/tim-api images); disable legacy workflows. Needs CI green on a real PR (user opens it) | P5-10 | – | Release workflows build web/api; legacy pipelines disabled | done (2026-09-30): release workflow retargeted to tim-web/tim-api, legacy pipelines removed; CI green on a real PR still pending |
+| P5-12 | Remove legacy: delete `frontend/`, `backend/`, `helm/`, legacy compose/workflows; revise RULES §3 and CLAUDE.md; mark `docs/current-system/` as historical archive; fix links | P5-11 | – | Repo builds and CI green without legacy folders; `docs/README.md` Status updated; RULES §3 revised | done (2026-09-30): legacy folders removed, RULES §3 revised; CI green on a real PR still pending |
 | P5-13 | Parity fixes: editor and toolbar (F-A01, F-A02, F-A03, F-A04, F-B06 in `parity-report.md`) | P5-04 | – | Fixes applied, affected screens re-captured, report rows marked fixed | done |
 | P5-14 | Parity fixes: layout, tree, tagging, Query Manager, export (F-A06, F-A07, F-B01–F-B05, F-B07) | P5-04 | – | Fixes applied, affected screens re-captured, report rows marked fixed | done |
 | P5-15 | ~~Security follow-ups, API (S-A01, S-A02, S-A04, S-A07)~~ | – | – | Accepted risk for trusted internal users (Q-029, Q-030) | dropped (Q-030) |

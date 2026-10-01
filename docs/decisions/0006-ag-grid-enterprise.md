@@ -25,4 +25,7 @@ The legacy app shipped two builds (community and enterprise); the community buil
 ## Consequences
 - Development and parity testing use the real Enterprise UI (same as the screenshots).
 - No work is spent on a custom context menu, side bar or Community-compatible filters.
-- Production deploy (P5-08, P5-11) needs the purchased licence key configured; this is a deployment prerequisite, not an open question.
+- Production deploy (P5-08, P5-11) needs the purchased licence key configured; this is a deployment prerequisite, not an open question. (superseded by the 2026-09-30 amendment below) (Superseded by the 2026-09-30 amendment below.)
+
+## Amendment 2026-09-30: licence key optional everywhere
+By user decision there is no production deployment and no analysts, and the AG Grid Enterprise trial (no key) must work everywhere, including the production compose/container. The "required for production" rule above (and the fail-fast entrypoint from Q-027) is withdrawn. `AGGRID_LICENSE` stays optional: when set it is applied via `LicenseManager.setLicenseKey`; when empty the container logs one info line, writes an empty `agGridLicenseKey` to `config.js`, and the grid runs as a trial (watermark and console notice accepted). Enterprise remains the only build (no Community fallback).

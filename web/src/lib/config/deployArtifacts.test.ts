@@ -60,6 +60,21 @@ describe.skipIf(!hasTools)('web container entrypoint (S-W03, S-W02)', () => {
     expect(sandbox.appConfig?.agGridLicenseKey).toBe(evil);
   });
 
+  it('ADR-0006: AGGRID_LICENSE is optional; without it config.js has an empty agGridLicenseKey', () => {
+    for (const env of <Record<string, string>[]>[
+      { AGGRID_LICENSE: '' },
+      { AGGRID_LICENSE: '', TIM_ENVIRONMENT: 'production' },
+    ]) {
+      const { status, stderr, config } = runEntrypoint(env);
+      expect(status).toBe(0);
+      expect(stderr).not.toContain('missing required');
+      expect(stderr).toContain('trial mode');
+      const sandbox: { appConfig?: { agGridLicenseKey?: string } } = {};
+      runInNewContext(config, { window: sandbox });
+      expect(sandbox.appConfig?.agGridLicenseKey).toBe('');
+    }
+  });
+
   it('S-W02: renders a CSP without script unsafe-inline and with same-origin connect-src', () => {
     const { status, conf } = runEntrypoint({});
     expect(status).toBe(0);

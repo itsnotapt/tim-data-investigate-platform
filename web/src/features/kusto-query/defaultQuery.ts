@@ -1,4 +1,4 @@
-/** Same text as legacy `defaultNewQuery()` (frontend/src/helpers/displayComponent.js:26). */
+/** Same text as legacy `defaultNewQuery()` (frontend/src/helpers/displayComponent.js:26 (removed in P5-12)). */
 export const DEFAULT_QUERY_EXAMPLE = `declare query_parameters(StartTime:datetime, EndTime:datetime);
 DeviceProcessEvents
 | where Timestamp between (StartTime .. EndTime)
