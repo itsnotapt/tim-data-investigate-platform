@@ -23,7 +23,7 @@ export interface CreatePivotTabOptions {
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /**
- * Legacy `createNewTemplateQueryComponent` for a grid pivot (displayComponent.js:145): params from
+ * Creates the tab for a grid pivot: params from
  * the clicked / selected rows, a child `TemplateQueryResult`, edit mode unless it is run
  * (`!autoExecute || !isDataComplete`), run when `autoExecute && isDataComplete`, and navigate to it
  * only when the data is incomplete (the user has to fill it in). Returns the new tab uuid.

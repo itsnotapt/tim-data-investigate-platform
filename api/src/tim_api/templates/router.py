@@ -1,4 +1,4 @@
-"""Query template endpoints (api-contract.md sections 3.5-3.10)."""
+"""Query template endpoints."""
 
 from __future__ import annotations
 

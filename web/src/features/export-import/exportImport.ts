@@ -36,8 +36,8 @@ const tabSchema = z.discriminatedUnion('componentName', [
   }),
 ]);
 
-/** Legacy-compatible payload: a JSON array of stored tabs (no row results). */
-export const exportSchema = z.array(tabSchema);
+/** Payload: a JSON array of stored tabs (no row results). */
+const exportSchema = z.array(tabSchema);
 
 export type ParseResult = { ok: true; tabs: DisplayComponent[] } | { ok: false; message: string };
 
@@ -75,7 +75,7 @@ export async function exportTabsJson(): Promise<string> {
 
 const SERVER_ONLY = ['createdBy', 'updatedBy', 'updated'];
 
-/** Template tabs embed the server template; drop author emails and timestamps (F-B07). */
+/** Template tabs embed the server template; drop author emails and timestamps. */
 function stripServerFields(tab: DisplayComponent): DisplayComponent {
   const params = tab.params as { queryTemplate?: Record<string, unknown> } | undefined;
   const qt = params?.queryTemplate;

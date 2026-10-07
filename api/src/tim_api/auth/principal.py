@@ -1,6 +1,6 @@
 """The authenticated caller (ADR-0005); the resolving dependency is in ``dependencies.py``.
 
-Identity always comes from the token, never from the request body (SEC-03).
+Identity always comes from the token, never from the request body.
 """
 
 from __future__ import annotations

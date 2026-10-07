@@ -54,10 +54,10 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'cluster', label: 'Cluster' },
 ];
 
-/** Legacy shows the raw UTC ISO value (F-B04); keep it verbatim. */
+/** Shows the raw UTC ISO value verbatim. */
 const formatUpdated = (iso: string): string => iso;
 
-/** Query Manager (legacy QueryEditor): list, filter, bulk delete/restore, create/edit dialog. */
+/** Query Manager: list, filter, bulk delete/restore, create/edit dialog. */
 export default function QueryManagerPage({
   client,
   store = useTemplatesStore,

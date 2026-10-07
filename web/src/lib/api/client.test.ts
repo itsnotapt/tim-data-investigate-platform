@@ -247,7 +247,7 @@ describe('endpoint modules', () => {
     expect(bodies[2]).toEqual([{ op: 'replace', path: '/isDeleted', value: false }]);
   });
 
-  it('never sends identity fields in template bodies (SEC-03, BUG-40)', async () => {
+  it('never sends identity fields in template bodies', async () => {
     const bodies: Record<string, unknown>[] = [];
     server.use(
       http.post(apiUrl('/api/templates/queries'), async ({ request }) => {

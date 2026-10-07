@@ -1,6 +1,6 @@
-"""Kusto schema request/response models (api-contract.md 3.2, 4).
+"""Kusto schema request/response models.
 
-Cluster policy (https, host suffix/allow-list) is enforced by `kusto/validation.py` (P2-04),
+Cluster policy (https, host suffix/allow-list) is enforced by `kusto/validation.py`,
 not here; the models only require a non-blank string.
 """
 

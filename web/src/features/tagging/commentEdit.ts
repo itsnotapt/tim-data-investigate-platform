@@ -11,7 +11,7 @@ import { tagErrorMessage } from './submitTags';
 
 export const COMMENT_MESSAGES = {
   saving: 'Quick saving comment...',
-  success: 'Comment successfully quick saved.', // BUG-42: legacy text was wrong in places
+  success: 'Comment successfully quick saved.',
   failed: (m: string) => `Saving comments failed: ${m}`,
 } as const;
 
@@ -79,7 +79,7 @@ export async function commentEdit(
   return true;
 }
 
-/** `onCellEditRequest` handler for a tab's grid (comment edit, P4-24). */
+/** `onCellEditRequest` handler for a tab's grid (comment edit). */
 export function useCommentEdit(
   uuid: string,
   columnId?: string | null,

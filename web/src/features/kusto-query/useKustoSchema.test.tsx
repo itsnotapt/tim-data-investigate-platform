@@ -79,7 +79,7 @@ describe('useKustoSchema', () => {
     expect(setSchema).toHaveBeenLastCalledWith(doc('A'), 'https://contoso', 'A');
   });
 
-  it('ignores a stale response (BUG-28)', async () => {
+  it('ignores a stale response', async () => {
     delays['Slow'] = 100;
     const { rerender } = renderHook(({ db }) => useKustoSchema('contoso', db, editor), {
       wrapper,
@@ -114,7 +114,7 @@ describe('useKustoSchema', () => {
 });
 
 describe('normalizeSchema', () => {
-  it('accepts the schema variants (Q-018, Q-028)', () => {
+  it('accepts the schema variants', () => {
     const d = doc('x');
     expect(normalizeSchema(d)).toEqual(d);
     expect(normalizeSchema({ ClusterSchema: JSON.stringify(d) })).toEqual(d);

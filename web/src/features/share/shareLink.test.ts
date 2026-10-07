@@ -15,21 +15,11 @@ const template = {
 } as never;
 
 describe('share link', () => {
-  it('round-trips emoji and non-Latin1 params (BUG-31)', () => {
+  it('round-trips emoji and non-Latin1 params', () => {
     const params = { user: 'héllo 😀 日本語', list: ['a+b/c', '😀'] };
     const p = encodeShareParams(params);
     expect(p).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(decodeShareParams(p)).toEqual(params);
-  });
-
-  it('decodes legacy btoa links, including Latin-1 and a + turned into a space', () => {
-    const ascii = { a: 'x>>y?z' };
-    expect(decodeShareParams(btoa(JSON.stringify(ascii)))).toEqual(ascii);
-    const latin = { a: 'café' };
-    expect(decodeShareParams(btoa(JSON.stringify(latin)))).toEqual(latin);
-    const legacy = btoa(JSON.stringify({ a: '>>>>' })); // contains '+'
-    expect(legacy).toContain('+');
-    expect(decodeShareParams(legacy.replace(/\+/g, ' '))).toEqual({ a: '>>>>' });
   });
 
   it('throws on garbage', () => {
@@ -43,7 +33,7 @@ describe('share link', () => {
     expect(buildShareUrl('t', {}, true, 'https://h/')).toMatch(/&execute=1$/);
   });
 
-  it('sanitizes against the template (SEC-06)', () => {
+  it('sanitizes against the template', () => {
     expect(
       sanitizeShareParams(template, { user: 'bob', evil: 'x', __proto__: { y: 1 }, ip: 'v' }),
     ).toEqual({ user: 'bob', other: 'o', ip: [{ column: '', value: 'v' }] });

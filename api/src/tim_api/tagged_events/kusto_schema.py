@@ -1,8 +1,6 @@
-"""Single source of truth for the tag tables (backend-api.md#kusto-tables, P2-14).
+"""Single source of truth for the tag tables.
 
-Columns, types, JSON mapping names and paths are identical to the legacy ``*Table`` classes
-(removed in P5-12:
-backend/Tim.Backend/Models/TaggedEvents/Tables/{SavedEvent,EventTag,EventComment}Table.cs).
+Columns, types, JSON mapping names and paths of the three tables.
 Ingestion row keys (``router.py``) are the camelCase paths below.
 """
 

@@ -2,9 +2,9 @@ import { apiScopes, getAuthClient } from '../auth';
 import { getConfig } from '../config/runtimeConfig';
 import { ApiError, CLIENT_PROBLEM, apiErrorFromResponse } from './errors';
 
-export const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
-export interface RequestOptions {
+interface RequestOptions {
   /** Cancels the request (rejects with the signal's reason, normally an `AbortError`). */
   signal?: AbortSignal;
   /** Per-request timeout; `0` disables it. Default 30 s. */
@@ -16,7 +16,7 @@ export interface CallOptions extends RequestOptions {
   client?: ApiClient;
 }
 
-export interface ApiRequest extends RequestOptions {
+interface ApiRequest extends RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** Path below the API origin, e.g. `/api/templates/queries`. */
   path: string;
@@ -24,7 +24,7 @@ export interface ApiRequest extends RequestOptions {
   body?: unknown;
 }
 
-export interface ApiResponse<T> {
+interface ApiResponse<T> {
   status: number;
   data: T;
   traceId: string | undefined;
@@ -164,9 +164,4 @@ export function getApiClient(): ApiClient {
     getToken: () => getAuthClient().acquireToken(apiScopes(getConfig().auth.clientId)),
   });
   return cached;
-}
-
-/** Test helper. */
-export function resetApiClientCache(): void {
-  cached = undefined;
 }

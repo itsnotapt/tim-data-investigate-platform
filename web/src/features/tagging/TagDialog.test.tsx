@@ -82,13 +82,22 @@ async function setup() {
     </NotifyContext.Provider>,
   );
   await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(2));
-  const user = userEvent.setup();
+  // delay: null skips the per-keystroke setTimeout(0) that stalls under CPU contention.
+  const user = userEvent.setup({ delay: null });
   await user.click(screen.getByText('open-dialog'));
   const dialog = await screen.findByRole('dialog');
   return { user, dialog };
 }
 
-async function choose(user: ReturnType<typeof userEvent.setup>, label: RegExp, option: string) {
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Focus the field and paste the text in one input event (no per-key typing). */
+async function fill(user: User, field: HTMLElement, text: string) {
+  await user.click(field);
+  await user.paste(text);
+}
+
+async function choose(user: User, label: RegExp, option: string) {
   await user.click(screen.getByRole('combobox', { name: label }));
   await user.click(await screen.findByRole('option', { name: option }));
 }
@@ -110,14 +119,25 @@ describe('TagDialog', () => {
     expect(calls).toEqual([]);
   });
 
+  it('disables the Tags field only while the tag action is Ignore', async () => {
+    const { user, dialog } = await setup();
+    const tags = () => within(dialog).getByRole('combobox', { name: 'Tags' });
+    expect(tags()).toBeDisabled();
+    await choose(user, /tag action/i, 'Append');
+    expect(tags()).toBeEnabled();
+    await choose(user, /tag action/i, 'Ignore');
+    expect(tags()).toBeDisabled();
+  });
+
   it('previews tag modifications', async () => {
     const { user, dialog } = await setup();
     await choose(user, /tag action/i, 'Append');
-    await user.type(within(dialog).getByRole('combobox', { name: 'Tags' }), 'new{Enter}');
+    await fill(user, within(dialog).getByRole('combobox', { name: 'Tags' }), 'new');
+    await user.keyboard('{Enter}');
     expect(await within(dialog).findByText('Adding new to 2 event(s).')).toBeTruthy();
   });
 
-  it('submits, updates the grid rows and closes (BUG-25)', async () => {
+  it('submits, updates the grid rows and closes', async () => {
     server.use(
       record('/api/taggedevents/savedEvents'),
       record('/api/taggedevents/comments'),
@@ -125,9 +145,10 @@ describe('TagDialog', () => {
     );
     const { user, dialog } = await setup();
     await choose(user, /^determination$/i, 'Malicious');
-    await user.type(within(dialog).getByRole('textbox', { name: 'Comment' }), 'looks bad');
+    await fill(user, within(dialog).getByRole('textbox', { name: 'Comment' }), 'looks bad');
     await choose(user, /tag action/i, 'Append');
-    await user.type(within(dialog).getByRole('combobox', { name: 'Tags' }), 'apt{Enter}');
+    await fill(user, within(dialog).getByRole('combobox', { name: 'Tags' }), 'apt');
+    await user.keyboard('{Enter}');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -148,7 +169,7 @@ describe('TagDialog', () => {
     expect(notify).toHaveBeenLastCalledWith('Tag events successfully customised.');
   });
 
-  it('keeps the dialog open and shows the error when a request fails (BUG-26)', async () => {
+  it('keeps the dialog open and shows the error when a request fails', async () => {
     server.use(
       record('/api/taggedevents/savedEvents'),
       http.post(apiUrl('/api/taggedevents/comments'), () =>
@@ -157,7 +178,7 @@ describe('TagDialog', () => {
     );
     const { user, dialog } = await setup();
     await choose(user, /^determination$/i, 'Benign');
-    await user.type(within(dialog).getByRole('textbox', { name: 'Comment' }), 'fine');
+    await fill(user, within(dialog).getByRole('textbox', { name: 'Comment' }), 'fine');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     expect(

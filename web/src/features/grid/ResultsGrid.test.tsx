@@ -67,7 +67,7 @@ describe('TabResultsGrid', () => {
     useTabsStore.setState({ tabs: {}, order: [] });
   });
 
-  it('renders without throwing when no rows are stored (BUG-27)', async () => {
+  it('renders without throwing when no rows are stored', async () => {
     act(() => {
       useTabsStore.getState().createTab({
         componentName: 'KustoQueryResult',

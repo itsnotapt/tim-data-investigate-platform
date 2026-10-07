@@ -4,7 +4,7 @@ import type { CodeEditorInstance } from './CodeEditor';
 
 /**
  * Handle for a `CodeEditor`: pass `onMount` to it, then use `getEditor` / `getKustoWorker` (for
- * `setSchemaFromShowSchema`, P4-10). Both getters are stable across renders.
+ * `setSchemaFromShowSchema`). Both getters are stable across renders.
  */
 export function useCodeEditor() {
   const ref = useRef<CodeEditorInstance | null>(null);

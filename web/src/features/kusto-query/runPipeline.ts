@@ -13,7 +13,7 @@ export interface PipelineQuery {
   cluster: string;
   database: string;
   query: string;
-  /** Omitted for template queries (Q-009). */
+  /** Omitted for template queries. */
   timeRange?: TimeRange;
 }
 
@@ -33,10 +33,10 @@ function statsToState(stats: KustoQueryStats | null) {
 }
 
 /**
- * Shared run pipeline for Kusto and template tabs (legacy displayComponent.js runNewQuery): sets
+ * Shared run pipeline for Kusto and template tabs: sets
  * executing, calls the API with the resolved time range (if any), stores rows (IndexedDB) and
  * stats, marks the tab unvisited and triggers the grid. Errors are stored as `{message, code?}`
- * and the rows deleted (BUG-38, BUG-27). Aborted when the tab is removed (BUG-30); nothing is
+ * and the rows deleted. Aborted when the tab is removed; nothing is
  * written after that. One run per tab: a new run aborts the previous one. Never rejects.
  */
 export async function runTabQuery(

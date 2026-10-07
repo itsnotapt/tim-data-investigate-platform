@@ -9,11 +9,11 @@ export type GridRowWithId = GridRow & { _id: string };
 export type TemplateColumns = Record<string, unknown> | null | undefined;
 
 export const ROW_ID_FIELD = '_id';
-export const DEFAULT_ROW_ID_COLUMN = 'EventId';
-/** The only editable column (BUG-42: legacy made every column editable but saved only this one). */
+const DEFAULT_ROW_ID_COLUMN = 'EventId';
+/** The only editable column. */
 export const COMMENT_COLUMN = 'TagEvent.Comment';
 
-/** Editable only for saved rows that have an event id and a determination (legacy guards). */
+/** Editable only for saved rows that have an event id and a determination. */
 export function isCommentEditable(data: unknown): boolean {
   const row = data as {
     EventId?: unknown;
@@ -23,19 +23,15 @@ export function isCommentEditable(data: unknown): boolean {
   return tag?.IsSaved === true && Boolean(row?.EventId) && Boolean(tag?.Determination);
 }
 
-/** Column-specific edit rule; template `editable` overrides are ignored (BUG-42). */
+/** Column-specific edit rule; template `editable` overrides are ignored. */
 function editRule(name: string): Pick<ColDef, 'editable'> {
   return {
     editable: name === COMMENT_COLUMN ? (params) => isCommentEditable(params.data) : false,
   };
 }
 
-/** Columns added hidden so the side bar / filters / grouping can reach them (legacy parity). */
-export const HIDDEN_TAG_COLUMNS = [
-  'TagEvent.Tags',
-  'TagEvent.Comment',
-  'TagEvent.Determination',
-] as const;
+/** Columns added hidden so the side bar / filters / grouping can reach them. */
+const HIDDEN_TAG_COLUMNS = ['TagEvent.Tags', 'TagEvent.Comment', 'TagEvent.Determination'] as const;
 
 /** Text of a cell value: objects as JSON, other values via `String`. */
 export function scalarText(value: unknown): string {
@@ -53,7 +49,7 @@ function asColDef(value: unknown): ColDef {
 
 /**
  * Adds a unique `_id` to each row: the value of `idColumn` (default `EventId`), or
- * `row-index-<n>` when that is empty/missing/duplicated (legacy `KustoPivot.vue:363-384`).
+ * `row-index-<n>` when that is empty/missing/duplicated.
  */
 export function prepareRows(rows: readonly GridRow[], idColumn?: string | null): GridRowWithId[] {
   const col = idColumn || DEFAULT_ROW_ID_COLUMN;
@@ -67,7 +63,7 @@ export function prepareRows(rows: readonly GridRow[], idColumn?: string | null):
   });
 }
 
-/** Union of all row keys in first-seen order, without `_id` (fixes BUG-36: legacy used row 0 only). */
+/** Union of all row keys in first-seen order, without `_id`. */
 export function collectColumnNames(rows: readonly GridRow[]): string[] {
   const names = new Set<string>();
   for (const row of rows) for (const key of Object.keys(row)) names.add(key);
@@ -76,10 +72,10 @@ export function collectColumnNames(rows: readonly GridRow[]): string[] {
 }
 
 /**
- * Column definitions, in legacy order: template-declared columns (except `default`), then every other
+ * Column definitions, template-declared columns (except `default`), then every other
  * row key with the template's `default` overrides, then the hidden TagEvent columns.
  * The selection checkbox column comes from the grid's `rowSelection`, not from here.
- * No rows gives no columns (legacy `setupColumns` returned early).
+ * No rows gives no columns.
  */
 export function buildColumnDefs(
   rows: readonly GridRow[],

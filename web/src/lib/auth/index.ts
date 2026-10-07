@@ -4,16 +4,11 @@ import { createMsalAuthClient } from './msalAuth';
 import type { AuthClient } from './types';
 
 export type { AuthAccount, AuthClient } from './types';
-export { AuthClientError, toAuthError, type AuthErrorCode } from './errors';
-export {
-  apiScopes,
-  createMsalAuthClient,
-  type MsalAuthClient,
-  type MsalAuthConfig,
-} from './msalAuth';
+export { AuthClientError } from './errors';
+export { apiScopes } from './msalAuth';
 export { AuthProvider } from './AuthProvider';
-export { useAuth, type AuthStatus, type UseAuth } from './useAuth';
-export { DEV_ACCOUNT, DEV_TOKEN, createDevStubAuth } from './devStubAuth';
+export { useAuth } from './useAuth';
+export { DEV_ACCOUNT, DEV_TOKEN } from './devStubAuth';
 
 export interface AuthEnv {
   VITE_AUTH_STUB?: unknown;
@@ -32,7 +27,7 @@ export function createAuthClient(env: AuthEnv = import.meta.env): AuthClient {
     return createDevStubAuth();
   }
   const { auth, redirectUri } = getConfig();
-  return createMsalAuthClient({ auth, redirectUri, cacheLocation: 'localStorage' });
+  return createMsalAuthClient({ auth, redirectUri });
 }
 
 let cached: AuthClient | undefined;
@@ -41,9 +36,4 @@ let cached: AuthClient | undefined;
 export function getAuthClient(): AuthClient {
   cached ??= createAuthClient();
   return cached;
-}
-
-/** Test helper. */
-export function resetAuthClientCache(): void {
-  cached = undefined;
 }

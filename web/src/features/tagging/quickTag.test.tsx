@@ -47,7 +47,7 @@ beforeEach(async () => {
 });
 
 describe('quickTag', () => {
-  it('saves unsaved events, then comments (lower-case), and reports the legacy texts', async () => {
+  it('saves unsaved events, then comments (lower-case), and reports the snackbar texts', async () => {
     server.use(record('/api/taggedevents/savedEvents'), record('/api/taggedevents/comments'));
     const notify = vi.fn();
     const r = await quickTag(prepareRows(rows.slice(0, 2)), 'Malicious', notify, { client });

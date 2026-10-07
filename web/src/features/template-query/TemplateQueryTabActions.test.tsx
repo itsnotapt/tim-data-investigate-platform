@@ -92,7 +92,7 @@ function setup() {
   return userEvent.setup();
 }
 
-describe('TemplateQueryTab actions (P4-19)', () => {
+describe('TemplateQueryTab actions', () => {
   it('Run Query shows the snackbar, runs, and stores results', async () => {
     server.use(
       http.post(apiUrl('/api/kusto/query'), () =>

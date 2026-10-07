@@ -33,7 +33,7 @@ describe('presets', () => {
     ['Last 90 days', 90 * 86_400_000],
   ];
 
-  it('has exactly the legacy presets in order', () => {
+  it('has the presets in menu order', () => {
     expect(TIME_RANGE_PRESETS.map(timeRangeLabel)).toEqual(expected.map(([l]) => l));
   });
 
@@ -59,7 +59,7 @@ describe('presets', () => {
   });
 });
 
-describe('custom period (BUG-39)', () => {
+describe('custom period', () => {
   it('accepts a valid period ending now', () => {
     const r = parseCustomPeriod({ startAmount: '2', startUnit: 'hours', endUnit: 'now' });
     expect(r).toEqual({

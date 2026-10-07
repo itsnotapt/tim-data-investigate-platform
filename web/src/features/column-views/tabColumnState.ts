@@ -1,5 +1,5 @@
 /**
- * In-memory column state per tab (not persisted: legacy kept it in the kept-alive grid only).
+ * In-memory column state per tab (not persisted).
  * The grid saves it when its tab is hidden or unmounted and restores it when shown or re-created.
  */
 const states = new Map<string, unknown[]>();

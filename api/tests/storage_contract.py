@@ -1,7 +1,7 @@
-"""Reusable storage contract suite (P2-07). Not collected directly (no ``test_`` prefix).
+"""Reusable storage contract suite. Not collected directly (no ``test_`` prefix).
 
 ``test_storage_contract.py`` subclasses these with a parametrised ``storage`` fixture. To run the
-suite against another implementation (P2-08 Postgres), add it to that fixture's params; every
+suite against another implementation (e.g. Postgres), add it to that fixture's params; every
 implementation must pass unchanged. Each test needs an empty store.
 """
 

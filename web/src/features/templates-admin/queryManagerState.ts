@@ -35,8 +35,7 @@ export function sortTemplates(
 }
 
 /**
- * Button state. Restore is enabled by the number of deleted rows selected (legacy used the
- * delete count, BUG-24). Delete is disabled if any selected template is managed (legacy parity).
+ * Button state. Restore is enabled by the number of deleted rows selected. Delete is disabled if any selected template is managed.
  */
 export function selectionCounts(selected: QueryTemplate[]) {
   const deleteRows = selected.filter((t) => t.isDeleted !== true);

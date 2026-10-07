@@ -1,10 +1,10 @@
 import { formatCluster, getKustoSchema } from '../../lib/api';
 
 /**
- * Unwraps the schema document for `setSchemaFromShowSchema` (Q-018, Q-028: the wire shape is
- * tolerated in both variants). Accepted: the parsed document (`{Databases: ...}`), an object
+ * Unwraps the schema document for `setSchemaFromShowSchema` (the wire shape is tolerated in
+ * several variants). Accepted: the parsed document (`{Databases: ...}`), an object
  * wrapping it in `ClusterSchema` / `DatabaseSchema` (object or JSON string), a JSON string, or
- * legacy rows (`[{ClusterSchema: "<json>"}]`, optionally under `data`).
+ * rows (`[{ClusterSchema: "<json>"}]`, optionally under `data`).
  */
 export function normalizeSchema(value: unknown): object {
   return withDatabaseDefaults(unwrapSchema(value));
@@ -44,7 +44,7 @@ function unwrapSchema(value: unknown, depth = 0): object {
 
 const cache = new Map<string, Promise<object>>();
 
-export const schemaKey = (cluster: string, database: string): string =>
+const schemaKey = (cluster: string, database: string): string =>
   `${formatCluster(cluster)}|${database.trim()}`;
 
 /**

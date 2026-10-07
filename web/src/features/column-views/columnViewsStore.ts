@@ -3,13 +3,13 @@ import { columnViewsDao, type ColumnView } from '../../lib/storage';
 import { generateUuid } from '../../lib/uuid';
 
 export interface ColumnViewsState {
-  /** Sorted by name (legacy `getAllColumnViews`). */
+  /** Sorted by name. */
   views: ColumnView[];
   loaded: boolean;
   load(): Promise<void>;
   /** Persists a new view and returns its uuid. */
   add(name: string, columnState: unknown[]): Promise<string>;
-  /** Overwrites the stored column state of a view (legacy "Save this column view"). */
+  /** Overwrites the stored column state of a view. */
   saveState(uuid: string, columnState: unknown[]): Promise<void>;
   rename(uuid: string, name: string): Promise<void>;
   remove(uuid: string): Promise<void>;

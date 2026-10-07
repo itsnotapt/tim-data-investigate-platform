@@ -1,7 +1,7 @@
 /**
- * KQL string-literal escaping (SEC-06, Q-024).
+ * KQL string-literal escaping.
  *
- * TIM templates quote values as verbatim literals `@'...'` (legacy `array` helper). In a verbatim
+ * TIM templates quote values as verbatim literals `@'...'` (`array` helper). In a verbatim
  * literal a backslash is an ordinary character and the only escape is a doubled quote, so
  * `escapeKqlVerbatim` doubles `'` (and nothing else: `"` is literal inside `@'...'`).
  */
@@ -34,7 +34,7 @@ export function stringifyValue(item: unknown): string {
   return JSON.stringify(item) ?? '';
 }
 
-/** `@'a','b'` for each item, quotes doubled. Nullish input yields '' (legacy `items?.map`). */
+/** `@'a','b'` for each item, quotes doubled. Nullish input yields ''. */
 export function kqlVerbatimList(items: unknown): string {
   if (items === null || items === undefined) return '';
   const list = Array.isArray(items) ? (items as unknown[]) : [items];

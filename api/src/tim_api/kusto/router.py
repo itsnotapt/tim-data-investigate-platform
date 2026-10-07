@@ -1,8 +1,4 @@
-"""Kusto endpoints: ``POST /api/kusto/schema`` (api-contract 3.2, D8).
-
-Legacy (removed in P5-12):
-``backend/Tim.Backend/Controllers/External/KustoExternalController.cs:56-68``.
-"""
+"""Kusto endpoints: ``POST /api/kusto/schema``."""
 
 from __future__ import annotations
 
@@ -30,8 +26,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/kusto", tags=["kusto"])
 
-# Q-018 (unverified against a real cluster): the legacy SPA read ``ClusterSchema``; a
-# database-scoped ``.show schema as json`` documents ``DatabaseSchema``. Accept either.
+# Result column holding the schema document; ``ClusterSchema`` and ``DatabaseSchema`` are accepted.
 SCHEMA_COLUMNS = ("ClusterSchema", "DatabaseSchema")
 
 
@@ -67,7 +62,7 @@ async def get_schema(
     obo: Annotated[OboTokenProvider, Depends(get_obo_provider)],
     kusto: Annotated[KustoQueryClient, Depends(get_kusto_client)],
 ) -> SchemaResponse:
-    cluster = validate_cluster_url(body.cluster, settings)  # before any token exchange (SEC-01)
+    cluster = validate_cluster_url(body.cluster, settings)  # before any token exchange
     token = await obo.get_token(principal, cluster)
     try:
         rows = await kusto.show_schema(cluster, body.database, token)

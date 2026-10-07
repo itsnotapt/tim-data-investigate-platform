@@ -6,8 +6,8 @@ import { useTemplatesStore } from '../templates';
 import { createPivotTab } from './createPivotTab';
 import { buildPivotMenuItems } from './pivotMenu';
 
-/** Tracks whether Shift is held (legacy `keydown`/`keyup` listener); cleared on window blur. */
-export function useShiftHeld(): { current: boolean } {
+/** Tracks whether Shift is held; cleared on window blur. */
+function useShiftHeld(): { current: boolean } {
   const held = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

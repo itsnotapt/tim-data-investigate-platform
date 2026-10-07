@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import { shotHovering } from '../mocks/flows-b';
+import { shotHovering } from '../shot';
 
 async function runNewQuery(page: import('@playwright/test').Page) {
   await page.goto('/');
@@ -13,9 +13,7 @@ async function runNewQuery(page: import('@playwright/test').Page) {
   await expect(page.locator('.ag-row').first()).toBeVisible();
 }
 
-test('W11 side tree expands on hover (screen 16), cascade-select and remove tabs', async ({
-  page,
-}) => {
+test('side tree expands on hover, cascade-select and remove tabs', async ({ page }) => {
   await runNewQuery(page);
 
   // Collapsed: only icons. Hover expands with the title and selection checkboxes.
@@ -45,7 +43,7 @@ test('W11 side tree expands on hover (screen 16), cascade-select and remove tabs
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
 });
 
-test('W11 Reload templates refetches the template list', async ({ page, api }) => {
+test('Reload templates refetches the template list', async ({ page, api }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
   const before = api.callsTo('GET', '/api/templates/queries').length;

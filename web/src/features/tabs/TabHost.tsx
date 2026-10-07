@@ -8,7 +8,7 @@ import { useTabsStore } from './tabStore';
 /**
  * Renders the tab at `/view/:uuid`. Visited tabs stay mounted (hidden with display:none) so
  * their grids keep state. Unknown uuids redirect home, but only after tabs finished loading
- * (BUG-20: a hard load must not bounce before IndexedDB is read).
+ * (a hard load must not bounce before IndexedDB is read).
  */
 export function TabHost({ registry = defaultRegistry }: { registry?: TabRegistry }) {
   const { uuid = '' } = useParams();

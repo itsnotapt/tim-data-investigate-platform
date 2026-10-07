@@ -9,8 +9,6 @@ export interface TabsData {
 
 export const selectTab = (s: TabsData, uuid: string): Tab | undefined => s.tabs[uuid];
 
-export const selectIsTab = (s: TabsData, uuid: string): boolean => uuid in s.tabs;
-
 export function selectChildrenOf(s: TabsData, uuid: string): Tab[] {
   return selectAllInOrder(s).filter((t) => t.parentUuid === uuid);
 }

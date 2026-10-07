@@ -109,7 +109,7 @@ function DateRangeForm({ value, onClose, onApply }: Omit<CustomDateRangeDialogPr
   );
 }
 
-/** "Custom date range" (screen 09): UTC dates and HH:MM times. The form resets on each open. */
+/** "Custom date range": UTC dates and HH:MM times. The form resets on each open. */
 export function CustomDateRangeDialog({ open, ...rest }: CustomDateRangeDialogProps) {
   return open ? <DateRangeForm {...rest} /> : null;
 }
@@ -209,7 +209,7 @@ function PeriodForm({ value, onClose, onApply }: Omit<CustomPeriodDialogProps, '
   );
 }
 
-/** "Custom time period" (screen 10): "N <unit> ago" start, end "now" or "M <unit> ago". */
+/** "Custom time period": "N <unit> ago" start, end "now" or "M <unit> ago". */
 export function CustomPeriodDialog({ open, ...rest }: CustomPeriodDialogProps) {
   return open ? <PeriodForm {...rest} /> : null;
 }

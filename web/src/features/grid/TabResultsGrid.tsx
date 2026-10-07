@@ -29,7 +29,7 @@ export function TabResultsGrid({ uuid, ...rest }: TabGridProps) {
     [state?.executionTime, state?.cpuUsage, state?.memoryUsage],
   );
 
-  // Legacy (KustoPivot.vue:180) treated a missing or array `columns` as no overrides.
+  // A missing or array `columns` means no overrides.
   const onCellEditRequest = useCommentEdit(uuid, template?.columnId);
   const columns = template?.columns && !Array.isArray(template.columns) ? template.columns : null;
   return (

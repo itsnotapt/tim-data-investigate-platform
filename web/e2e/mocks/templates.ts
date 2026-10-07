@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect } from '../fixtures';
 import type { ApiHandler } from './api';
@@ -7,9 +6,9 @@ import { templates as baseTemplates, type MockTemplate } from './data';
 
 export const STORM_UUID = '11111111-1111-1111-1111-111111111111';
 
-/** Legacy-style share payload (plain base64 of the JSON params). */
+/** Share-link payload: base64url of the UTF-8 JSON params. */
 export const shareParams = (params: object): string =>
-  encodeURIComponent(Buffer.from(JSON.stringify(params)).toString('base64'));
+  Buffer.from(JSON.stringify(params), 'utf8').toString('base64url');
 
 /** Opens the storm template through a share link with execute=1. */
 export async function openRunTemplateTab(page: Page, state = 'TEXAS'): Promise<void> {
@@ -18,17 +17,11 @@ export async function openRunTemplateTab(page: Page, state = 'TEXAS'): Promise<v
   await expect(page).toHaveURL(/#\/view\//);
 }
 
-/** Hovers the side tree so it expands (legacy screen 16 / 27). */
-export async function expandTree(page: Page): Promise<void> {
-  await page.getByLabel('Query tree').hover();
-  await expect(page.getByRole('checkbox').first()).toBeVisible();
-}
+// ---- Query Manager: a small stateful template store behind /api/templates/queries ----
 
-// ---- W12 Query Manager: a small stateful template store behind /api/templates/queries ----
-
-export const DELETED_TEMPLATE: MockTemplate = {
+const DELETED_TEMPLATE: MockTemplate = {
   uuid: '44444444-4444-4444-4444-444444444444',
-  name: 'Old deleted query',
+  name: 'Deleted query',
   isDeleted: true,
   isManaged: false,
   updated: '2026-07-28T10:00:00.000Z',
@@ -106,16 +99,4 @@ export function templateStoreHandlers(): {
       state.splice(0, state.length, ...initial());
     },
   };
-}
-
-/**
- * Like `shot()` but leaves the mouse where it is: for states that only exist while hovering
- * (the expanded side tree, legacy screen 16). Same directory and E2E_SHOTS gate as shot.ts.
- */
-export async function shotHovering(page: Page, name: string): Promise<void> {
-  if (process.env['E2E_SHOTS'] !== '1') return;
-  await page.waitForTimeout(500);
-  await page.screenshot({
-    path: resolve(import.meta.dirname, '../../../docs/rewrite/screenshots', `${name}.png`),
-  });
 }

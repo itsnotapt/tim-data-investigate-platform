@@ -1,7 +1,7 @@
 """Backend runtime configuration (pydantic-settings, env vars only).
 
 All variables use the ``TIM_`` prefix and may also come from a ``.env`` file in the working
-directory. Names and defaults follow docs/rewrite/target-architecture.md section 7.
+directory.
 The app identity for Kusto ingest/admin is read by ``azure-identity`` from the standard
 ``AZURE_CLIENT_ID`` / ``AZURE_TENANT_ID`` / ``AZURE_CLIENT_SECRET`` variables and is
 deliberately not part of ``Settings``.
@@ -49,11 +49,11 @@ class Settings(BaseSettings):
     auth_client_id: str = Field(min_length=1)  # API audience is api://{client id}
     auth_client_secret: SecretStr | None = None  # else federated/managed-identity assertion
     auth_authority_host: str = "https://login.microsoftonline.com"  # sovereign clouds override
-    # Dev-only bypass. Behaviour is implemented in P1-12; rejected in production.
+    # Dev-only bypass. Rejected in production.
     auth_disabled: bool = False
 
     # --- Kusto -------------------------------------------------------------------------
-    # OBO scope template (Q-013). "{cluster}" is replaced by the cluster base URI.
+    # OBO scope template. "{cluster}" is replaced by the cluster base URI.
     kusto_obo_scope: str = "{cluster}/.default"
     tag_cluster_uri: str = Field(min_length=1)
     tag_database: str = "Research"
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # Dev only: in-memory fake instead of real ingestion (needs environment=development).
     tag_ingest_fake: bool = False
 
-    # --- cluster allow-list (SEC-01, Q-022) --------------------------------------------
+    # --- cluster allow-list --------------------------------------------
     allowed_kusto_suffixes: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(_DEFAULT_SUFFIXES)
     )
@@ -73,15 +73,15 @@ class Settings(BaseSettings):
 
     # --- HTTP --------------------------------------------------------------------------
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
-    # Hard cap on any request body (S-A03); larger requests get 413 before parsing.
+    # Hard cap on any request body; larger requests get 413 before parsing.
     max_request_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
 
-    # --- query-run limits (Q-021) ------------------------------------------------------
+    # --- query-run limits ------------------------------------------------------
     max_result_rows: int = Field(default=100_000, gt=0)
     max_result_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
     query_timeout_seconds: int = Field(default=600, gt=0)
     run_retention_seconds: int = Field(default=86_400, gt=0)
-    # Runs executing at once in this process (Q-111); further runs wait in `created`.
+    # Runs executing at once in this process; further runs wait in `created`.
     max_concurrent_runs: int = Field(default=16, gt=0)
 
     @field_validator(

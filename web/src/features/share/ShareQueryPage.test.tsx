@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe('ShareQueryPage', () => {
-  it('shows the legacy error texts', async () => {
+  it('shows the not-found error', async () => {
     renderAt(link({}, 0, 'nope'));
     expect(await screen.findByText('This query was not found.')).toBeInTheDocument();
   });
@@ -93,13 +93,6 @@ describe('ShareQueryPage', () => {
     });
     expect(tab.state.editQuery).toBe(true);
     expect(run).not.toHaveBeenCalled();
-  });
-
-  it('decodes a legacy btoa link', async () => {
-    const p = encodeURIComponent(btoa(JSON.stringify({ user: 'old' })));
-    renderAt(`/share/t1?p=${p}&execute=0`);
-    await screen.findByTestId('loc');
-    expect(Object.values(useTabsStore.getState().tabs)[0]?.title).toBe('User old');
   });
 
   it('execute=1 creates the tab and runs it immediately, without a dialog', async () => {

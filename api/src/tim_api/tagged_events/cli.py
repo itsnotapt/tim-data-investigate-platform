@@ -1,8 +1,8 @@
-"""``python -m tim_api.tagged_events.cli create-tables`` (P2-14, Q-015).
+"""``python -m tim_api.tagged_events.cli create-tables``.
 
 Creates/updates the tag tables, JSON ingestion mappings and streaming-ingestion policy in the tag
-cluster/database. All commands are idempotent. Unlike legacy startup creation (errors swallowed,
-KustoAdminClient.cs:62-72), any failure is printed and the exit status is non-zero.
+cluster/database. All commands are idempotent.
+Any failure is printed and the exit status is non-zero.
 """
 
 from __future__ import annotations

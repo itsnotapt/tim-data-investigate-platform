@@ -38,8 +38,7 @@ describe('tagSets', () => {
     expect(tagsDiff(['a', 'b', 'a', 'c'], ['b'])).toEqual(['a', 'c']);
     expect(tagsIntersect(['a', 'b'], ['c', 'b', 'a'])).toEqual(['b', 'a']);
     expect(existingTagCounts([saved, saved2, unsaved]).get('b')).toBe(2);
-    expect(tagOptions([saved], ['z'], ['r'], false)).toEqual(['z', 'a', 'b', 'r']);
-    expect(tagOptions([saved], ['z'], ['r'], true)).toEqual(['z', 'a', 'b']);
+    expect(tagOptions([saved], ['z'])).toEqual(['z', 'a', 'b']);
   });
 });
 
@@ -120,7 +119,7 @@ describe('validateTagDialog', () => {
         .ok,
     ).toBe(true);
   });
-  it('collects several cross-field messages in legacy order', () => {
+  it('collects several cross-field messages in order', () => {
     const r = validateTagDialog(
       input({ determinationAction: 'Ignore', commentAction: 'Ignore', tagAction: 'Append' }),
       [unsaved],

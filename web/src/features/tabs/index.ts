@@ -1,11 +1,6 @@
 export { createTabsStore, useTabsStore } from './tabStore';
-export type { TabsState, TabsStore, TabsStoreOptions } from './tabStore';
+export type { TabsStore } from './tabStore';
 export * from './selectors';
 export { toStoredError } from './errors';
-export { indexedDbTabPersistence, PersistQueue } from './persistence';
 export type { TabPersistence } from './persistence';
 export * from './types';
-export { TabHost } from './TabHost';
-export { touchLru, MAX_MOUNTED_TABS } from './lru';
-export { tabRegistry, registerTabComponent } from './tabRegistry';
-export type { TabComponentProps, TabRegistry } from './tabRegistry';

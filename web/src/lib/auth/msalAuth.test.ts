@@ -137,7 +137,6 @@ describe('createMsalAuthClient', () => {
     expect(m.instance.acquireTokenPopup).not.toHaveBeenCalled();
   });
 
-  // BUG-23
   it('shares one popup between concurrent acquireToken calls', async () => {
     const client = make();
     m.instance.acquireTokenSilent!.mockRejectedValue(interaction());
@@ -176,7 +175,6 @@ describe('createMsalAuthClient', () => {
     expect(m.instance.acquireTokenPopup).toHaveBeenCalledTimes(1);
   });
 
-  // BUG-22
   it('rejects a failed popup with a typed error and can be retried', async () => {
     const client = make();
     m.instance.acquireTokenSilent!.mockRejectedValue(interaction());

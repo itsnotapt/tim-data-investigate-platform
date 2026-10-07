@@ -1,8 +1,6 @@
 /**
- * Sample KQL shown by QueryHelperDialog (legacy `QueryHelperDialog.vue`). Corrections vs legacy
- * (BUG-41): the function is invoked as `getTagEvents()` (legacy defined `getTagEvents` but invoked
- * `GetTagEvents`, which KQL treats as a different name), and the stray `}` after the default
- * example is gone.
+ * Sample KQL shown by QueryHelperDialog. The function is invoked as `getTagEvents()`, matching its definition (KQL names are
+ * case-sensitive).
  */
 
 export const TIME_RANGE_SAMPLE = `declare query_parameters(StartTime:datetime, EndTime:datetime);

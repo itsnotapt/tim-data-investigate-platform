@@ -46,9 +46,3 @@ export async function loadMonacoKusto(): Promise<MonacoApi> {
   }
   return monaco;
 }
-
-/** Test hook. */
-export function resetMonacoLoaderForTests(): void {
-  corePromise = null;
-  kustoPromise = null;
-}

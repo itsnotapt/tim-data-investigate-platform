@@ -4,7 +4,7 @@ import { useTemplatesStore } from '../features/templates';
 import { useAuth } from '../lib/auth';
 import { loadColumnViews } from './columnViewsState';
 
-export type BootstrapStatus = 'signedOut' | 'loading' | 'loaded' | 'error';
+type BootstrapStatus = 'signedOut' | 'loading' | 'loaded' | 'error';
 
 export interface BootstrapSteps {
   loadTemplates: () => Promise<void>;
@@ -19,7 +19,7 @@ async function loadTabs(): Promise<void> {
   if (loadError) throw new Error(loadError);
 }
 
-export const defaultSteps: BootstrapSteps = {
+const defaultSteps: BootstrapSteps = {
   loadTemplates: () => useTemplatesStore.getState().load(),
   loadColumnViews,
   loadTabs,
@@ -27,7 +27,7 @@ export const defaultSteps: BootstrapSteps = {
 
 export interface UseBootstrap {
   status: BootstrapStatus;
-  /** Sign-in or data-load failure (legacy texts, incl. `interaction_in_progress`). */
+  /** Sign-in or data-load failure (e.g. `interaction_in_progress`). */
   error: Error | null;
   /** Sign-in: starts a fresh login attempt. */
   login: () => Promise<void>;
@@ -36,8 +36,8 @@ export interface UseBootstrap {
 }
 
 /**
- * Startup sequence (legacy `App.vue` runSetup): sign in, then templates, column views and tabs.
- * BUG-22: a failed attempt leaves the app retryable instead of stuck.
+ * Startup sequence: sign in, then templates, column views and tabs.
+ * A failed attempt leaves the app retryable.
  */
 export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap {
   const auth = useAuth();

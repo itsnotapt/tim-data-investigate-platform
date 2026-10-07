@@ -129,7 +129,7 @@ describe('ExportImportPage', () => {
     expect(screen.getByText(/Invalid settings/)).toBeInTheDocument();
   });
 
-  it('parseImport resets isExecuting and accepts legacy-shaped records', () => {
+  it('parseImport resets isExecuting on imported tabs', () => {
     const r = parseImport(
       JSON.stringify([
         {

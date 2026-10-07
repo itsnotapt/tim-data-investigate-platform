@@ -64,7 +64,7 @@ describe('comment column definitions', () => {
   };
 
   it('only TagEvent.Comment can be edited, and only for saved rows with a determination', () => {
-    expect(editable('Name', rows[1])).toBe(false); // template override ignored, BUG-42
+    expect(editable('Name', rows[1])).toBe(false); // template override ignored
     expect(editable('EventId', rows[1])).toBe(false);
     expect(editable('TagEvent.Comment', rows[0])).toBe(false);
     expect(editable('TagEvent.Comment', rows[2])).toBe(false);

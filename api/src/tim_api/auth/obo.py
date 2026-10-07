@@ -1,13 +1,12 @@
 """On-Behalf-Of exchange: the caller's API token -> a Kusto token for one cluster (ADR-0005).
 
 * One ``msal.ConfidentialClientApplication`` per provider (i.e. per process) with MSAL's shared
-  in-memory token cache, so repeat calls are served from cache (BUG-09: legacy built a new app
-  per request and hard-coded the ``help`` cluster scope).
+  in-memory token cache, so repeat calls are served from cache.
 * Credential: ``TIM_AUTH_CLIENT_SECRET`` if set, else a client assertion read from the federated
   / workload-identity token file (``AZURE_FEDERATED_TOKEN_FILE``). With neither, construction
   fails with :class:`OboConfigError` (raised at startup when auth is enabled).
 * Scope: ``TIM_KUSTO_OBO_SCOPE`` with ``{cluster}`` replaced by the already validated, normalised
-  cluster URL (Q-013).
+  cluster URL.
 * MSAL is blocking, so calls run in a worker thread.
 
 Tokens (the user assertion and the result) are never logged or put in exception messages.
@@ -38,7 +37,10 @@ class OboError(Exception):
 
 
 class OboAuthError(OboError):
-    """The user's token can't be exchanged (expired, revoked, consent/MFA needed): map to 401."""
+    """The user's token can't be exchanged (expired, revoked, consent/MFA needed).
+
+    Mapped to 403 ``consent-required``.
+    """
 
 
 class OboUpstreamError(OboError):

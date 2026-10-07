@@ -112,7 +112,7 @@ describe('KustoQueryTab', () => {
     await user.type(screen.getByRole('combobox', { name: /Database/ }), 'Db');
     await user.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(tab(uuid).title).toBe('Mine');
-    // Normalised on blur (no forced .kusto.windows.net, BUG-29).
+    // Normalised on blur (no forced .kusto.windows.net).
     expect(tab(uuid).params).toMatchObject({ cluster: 'https://contoso', database: 'Db' });
     expect(screen.queryByLabelText('Summary')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit Query' })).toBeInTheDocument();

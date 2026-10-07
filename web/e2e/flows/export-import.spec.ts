@@ -1,12 +1,10 @@
 import { test, expect } from '../fixtures';
 import { shot } from '../shot';
-import { openRunTemplateTab } from '../mocks/flows-b';
+import { openRunTemplateTab } from '../mocks/templates';
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-test('W13 export copies tabs JSON to the clipboard (screen 40), import restores removed tabs', async ({
-  page,
-}) => {
+test('export copies tabs JSON to the clipboard, import restores removed tabs', async ({ page }) => {
   await openRunTemplateTab(page);
 
   await page.getByRole('button', { name: 'Settings' }).click();
@@ -44,7 +42,7 @@ test('W13 export copies tabs JSON to the clipboard (screen 40), import restores 
   await expect(page.getByRole('checkbox', { name: 'Select Storm events in TEXAS' })).toBeVisible();
 });
 
-test('W13 invalid JSON is rejected and Import stays disabled', async ({ page }) => {
+test('invalid JSON is rejected and Import stays disabled', async ({ page }) => {
   await page.goto('/#/exportimport');
   await page.getByLabel('Settings (JSON)').fill('{ not json');
   await expect(page.getByText('Not valid JSON.')).toBeVisible();

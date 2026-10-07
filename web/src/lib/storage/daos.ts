@@ -21,7 +21,7 @@ export const displayComponentsDao = {
 };
 
 export const rowResultsDao = {
-  /** Returns `[]` when nothing is stored (fixes BUG-27: legacy threw). */
+  /** Returns `[]` when nothing is stored. */
   async get(componentUuid: string): Promise<RowResult[]> {
     return (await (await openTimDb()).get(STORE.rowResults, componentUuid)) ?? [];
   },
@@ -38,7 +38,7 @@ export const rowResultsDao = {
 };
 
 export const columnViewsDao = {
-  /** Sorted by name, as the legacy lists were. */
+  /** Sorted by name. */
   async list(): Promise<ColumnView[]> {
     const all = await (await openTimDb()).getAll(STORE.columnViews);
     return all.sort((a, b) => a.name.localeCompare(b.name));

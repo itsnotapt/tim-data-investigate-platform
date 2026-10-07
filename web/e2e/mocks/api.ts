@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test';
 import { executionMetrics, kustoSchema, rows, templates, type MockRow } from './data';
 
 /** Every API call the app made, for assertions. */
-export interface ApiCall {
+interface ApiCall {
   method: string;
   path: string;
   search: string;

@@ -82,13 +82,19 @@ async function setup() {
 const row = (name: string) => screen.getByRole('checkbox', { name: `Select ${name}` });
 
 describe('QueryManagerPage', () => {
-  it('lists templates with legacy columns, hiding deleted by default', async () => {
+  it('lists templates with their columns, hiding deleted by default', async () => {
     await setup();
     expect(listQueries[0]).toContain('includeDeleted=true');
     for (const h of ['Name', 'Type', 'Menu text', 'Last Updated', 'Path', 'Cluster']) {
       expect(screen.getByRole('columnheader', { name: h })).toBeInTheDocument();
     }
     expect(screen.queryByText('Tpl 3')).not.toBeInTheDocument();
+  });
+
+  it('shows the Last Updated timestamp as the raw ISO value', async () => {
+    data = [tpl('1', { updated: '2026-03-04T05:06:07.123Z' })];
+    await setup();
+    expect(screen.getByText('2026-03-04T05:06:07.123Z')).toBeInTheDocument();
   });
 
   it('Show deleted reveals deleted rows (no link) and the Restore button', async () => {
@@ -107,7 +113,7 @@ describe('QueryManagerPage', () => {
     expect(screen.getByText('Tpl 2')).toBeInTheDocument();
   });
 
-  it('enables Restore from the restore count, not the delete count (BUG-24)', async () => {
+  it('enables Restore from the restore count, not the delete count', async () => {
     const { user } = await setup();
     await user.click(screen.getByRole('switch', { name: 'Show deleted' }));
     const restore = () => screen.getByRole('button', { name: /^Restore/ });

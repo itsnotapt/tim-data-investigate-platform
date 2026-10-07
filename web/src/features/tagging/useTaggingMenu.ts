@@ -21,8 +21,8 @@ export interface TagMenuParams {
   };
 }
 
-/** Selected rows, or the clicked row when nothing is selected (legacy `getMultidataFromSelected`). */
-export function tagTargets(params: TagMenuParams): GridRowWithId[] {
+/** Selected rows, or the clicked row when nothing is selected. */
+function tagTargets(params: TagMenuParams): GridRowWithId[] {
   const selected = params.api
     .getSelectedNodes()
     .map((n) => n.data as GridRowWithId | undefined)
@@ -39,7 +39,7 @@ export interface TaggingMenuOptions {
   openDialog?: OpenTagDialog | null;
 }
 
-/** "Tag Events" submenu with the three quick tags (P4-21); disabled unless rows are taggable. */
+/** "Tag Events" submenu with the three quick tags; disabled unless rows are taggable. */
 export function buildTaggingMenu(uuid: string, opts: TaggingMenuOptions): GetExtraContextMenuItems {
   return (params) => {
     const p = params as unknown as TagMenuParams;

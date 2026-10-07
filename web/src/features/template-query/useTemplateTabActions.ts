@@ -6,10 +6,10 @@ import { buildShareUrl } from '../share/shareLink';
 import { cloneTemplateTab, convertTemplateTab, runTemplateQuery } from './runTemplateQuery';
 
 /**
- * Toolbar actions for `TemplateQueryTab` (P4-19); share (P4-26).
+ * Toolbar actions for `TemplateQueryTab`.
  */
 
-/** `runTemplateQuery(uuid)` (no time range, Q-009) plus the "Executing query..." snackbar. */
+/** `runTemplateQuery(uuid)` (no time range) plus the "Executing query..." snackbar. */
 export function useRunTemplateQuery(): (uuid: string) => void {
   const notify = useNotify();
   return useCallback(
@@ -40,7 +40,7 @@ export function useConvertTemplateQuery(): (uuid: string) => void {
   }, []);
 }
 
-/** Copy a share link (legacy `onClickShareQuery`, `execute=0`) and show the snackbar. */
+/** Copy a share link (`execute=0`) and show the snackbar. */
 export function useShareTemplateQuery(): (uuid: string) => void {
   const notify = useNotify();
   return useCallback(

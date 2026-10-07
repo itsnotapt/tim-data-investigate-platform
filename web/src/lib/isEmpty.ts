@@ -1,8 +1,6 @@
 /**
- * Legacy `isEmptyValue` (frontend/src/helpers/utils.js:13 (removed in P5-12)) treats '', undefined and null as
- * empty. It also compared `val === []` / `val === {}`, which is never true (BUG-41); here empty
- * arrays and empty plain objects are empty, as the legacy code evidently intended.
- * Whitespace-only strings, 0 and false are NOT empty (as in legacy).
+ * True for '', undefined, null, empty arrays and empty plain objects.
+ * Whitespace-only strings, 0 and false are NOT empty.
  */
 export function isEmpty(val: unknown): boolean {
   if (val === '' || val === undefined || val === null) return true;

@@ -139,7 +139,7 @@ describe('persistence', () => {
 });
 
 describe('remove', () => {
-  it('cascades to the whole subtree and their row results (BUG-32)', async () => {
+  it('cascades to the whole subtree and their row results', async () => {
     const s = store.getState();
     const a = s.createTab(kusto(null, 'a'));
     const b = s.createTab(kusto(a, 'b'));
@@ -180,7 +180,7 @@ describe('remove', () => {
   });
 });
 
-describe('errors (BUG-38)', () => {
+describe('errors', () => {
   it('stores only serialisable {message, code}', async () => {
     class ApiError extends Error {
       code = 'E_TIMEOUT';

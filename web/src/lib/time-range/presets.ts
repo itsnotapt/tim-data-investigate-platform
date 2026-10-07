@@ -1,8 +1,8 @@
 import { relativeRange, type RelativeTimeRange } from './timeRange';
 
 /**
- * Legacy quick-select presets, in menu order (TimeSelection.vue timeMenuItems).
- * Labels are produced by `timeRangeLabel`, e.g. "Last 15 minutes", "Last 1 hours" (sic, parity).
+ * Quick-select presets, in menu order.
+ * Labels are produced by `timeRangeLabel`, e.g. "Last 15 minutes", "Last 1 hours".
  */
 export const TIME_RANGE_PRESETS: readonly RelativeTimeRange[] = [
   relativeRange({ amount: 15, unit: 'minutes' }),
@@ -14,5 +14,5 @@ export const TIME_RANGE_PRESETS: readonly RelativeTimeRange[] = [
   relativeRange({ amount: 90, unit: 'days' }),
 ];
 
-/** Legacy default: emitted on mount, "Last 15 minutes". */
+/** Default: emitted on mount, "Last 15 minutes". */
 export const DEFAULT_TIME_RANGE: RelativeTimeRange = TIME_RANGE_PRESETS[0] as RelativeTimeRange;

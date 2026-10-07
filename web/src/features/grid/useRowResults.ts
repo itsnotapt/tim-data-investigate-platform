@@ -4,7 +4,7 @@ import type { GridRow } from './columns';
 
 /**
  * Loads stored rows for a tab; reloads when `trigger` (the tab's `rowDataTrigger`) changes.
- * Missing or failing reads give `[]` (BUG-27: legacy threw after every query error).
+ * Missing or failing reads give `[]`.
  */
 export function useRowResults(uuid: string, trigger: number | null | undefined) {
   const [state, setState] = useState<{ rows: GridRow[]; loading: boolean }>({

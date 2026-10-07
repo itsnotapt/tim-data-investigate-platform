@@ -60,7 +60,7 @@ function Heading({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
-/** "Query Help" dialog (legacy QueryHelperDialog.vue, screens 13-14). */
+/** "Query Help" dialog. */
 export function QueryHelperDialog({
   open,
   onClose,

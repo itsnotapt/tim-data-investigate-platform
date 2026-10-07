@@ -61,7 +61,7 @@ describe('SideTree', () => {
     expect(node('a')).toHaveTextContent(/^2T-a$/);
   });
 
-  it('highlights the active node on first load (BUG-21)', () => {
+  it('highlights the active node on first load', () => {
     const store = newTestStore();
     store.getState().createTab(kusto('a'));
     store.getState().createTab(kusto('b'));
@@ -130,5 +130,24 @@ describe('SideTree', () => {
       document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
     });
     expect(screen.queryByLabelText('Select T-a')).not.toBeInTheDocument();
+  });
+
+  it('removes the document mousemove listener it added on hover when unmounted', async () => {
+    const add = vi.spyOn(document, 'addEventListener');
+    const remove = vi.spyOn(document, 'removeEventListener');
+    const store = newTestStore();
+    store.getState().createTab(kusto('a'));
+    const { unmount } = render(
+      <MemoryRouter>
+        <SideTree templates={[]} onReloadTemplates={vi.fn()} store={store} />
+      </MemoryRouter>,
+    );
+    await expand();
+    const added = add.mock.calls.filter((c) => c[0] === 'mousemove');
+    expect(added).toHaveLength(1);
+    unmount();
+    expect(remove.mock.calls.map((c) => [c[0], c[1]])).toContainEqual(['mousemove', added[0]?.[1]]);
+    add.mockRestore();
+    remove.mockRestore();
   });
 });

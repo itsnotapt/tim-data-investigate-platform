@@ -11,8 +11,6 @@ import type { AuthAccount, AuthClient } from './types';
 export interface MsalAuthConfig {
   auth: { clientId: string; authority: string };
   redirectUri: string;
-  /** Legacy default: localStorage (survives reloads, so no prompt on every load; BUG-23). */
-  cacheLocation?: 'localStorage' | 'sessionStorage';
 }
 
 /** An `AuthClient` backed by MSAL; exposes the instance so `AuthProvider` can wrap `MsalProvider`. */
@@ -20,7 +18,7 @@ export interface MsalAuthClient extends AuthClient {
   readonly msal: IPublicClientApplication;
 }
 
-/** Same single app registration serves SPA and API (ADR-0005). */
+/** Same single app registration serves SPA and API. */
 export function apiScopes(clientId: string): string[] {
   return [`api://${clientId}/user_impersonation`];
 }
@@ -45,11 +43,12 @@ export function createMsalAuthClient(config: MsalAuthConfig): MsalAuthClient {
       authority: config.auth.authority,
       redirectUri: config.redirectUri,
     },
-    cache: { cacheLocation: config.cacheLocation ?? 'localStorage' },
+    // localStorage survives reloads and is shared between tabs, so neither prompts again.
+    cache: { cacheLocation: 'localStorage' },
   });
   const loginScopes = apiScopes(config.auth.clientId);
 
-  // Initialise, clear any pending response, and restore the cached account (BUG-23).
+  // Initialise, clear any pending response, and restore the cached account.
   let ready: Promise<void> | undefined;
   const ensureReady = (): Promise<void> => {
     ready ??= (async () => {
@@ -64,8 +63,8 @@ export function createMsalAuthClient(config: MsalAuthConfig): MsalAuthClient {
     return ready;
   };
 
-  // At most one interactive request at a time (BUG-23). Cleared on settle so a failure or a
-  // cancelled popup can be retried (BUG-22).
+  // At most one interactive request at a time. Cleared on settle so a failure or a
+  // cancelled popup can be retried.
   let inFlight: InFlight | undefined;
   const interactive = (
     key: string,

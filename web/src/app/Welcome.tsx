@@ -3,7 +3,7 @@ import Typography from '@mui/material/Typography';
 import { NewQueryMenu } from '../features/new-query';
 import { useTemplatesStore } from '../features/templates';
 
-/** Legacy landing page (screenshot 01). */
+/** Landing page. */
 export default function Welcome() {
   const templates = useTemplatesStore((s) => s.templates);
   const queryOptions = useTemplatesStore((s) => s.queryOptions);

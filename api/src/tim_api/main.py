@@ -44,7 +44,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.storage = storage
     app.state.run_tasks = set()
     app.state.run_slots = asyncio.Semaphore(settings.max_concurrent_runs)
-    await mark_stale_runs(storage.runs, settings)  # BUG-02
+    await mark_stale_runs(storage.runs, settings)
     stop_retention = start_retention_loop(storage, settings.run_retention_sweep_seconds)
     try:
         yield
@@ -68,7 +68,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/healthChecks/readiness", status_code=status.HTTP_204_NO_CONTENT)
     async def readiness(storage: Annotated[Storage, Depends(get_storage)]) -> Response:
-        # Store only; Kusto reachability is deliberately not part of readiness (contract 3.14).
+        # Store only; Kusto reachability is deliberately not part of readiness.
         try:
             healthy = await storage.health()
         except Exception:

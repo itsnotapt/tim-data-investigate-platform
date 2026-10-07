@@ -1,11 +1,9 @@
-"""Tag ingestion client (api-contract 3.11-3.13).
+"""Tag ingestion client.
 
 :class:`AzureTagIngestClient` does managed streaming ingestion (streaming, falling back to
-queued) with ``azure-kusto-ingest`` under the app identity (Q-020, ``DefaultAzureCredential``
-via ``AZURE_*``). Like legacy direct ingest (removed in P5-12:
-backend/Tim.Backend/Startup/ServiceExtensions.cs:350,
-Providers/Kusto/KustoIngestClient.cs:49-64) it sends NDJSON with a JSON mapping reference, so rows
-are queryable right away; the tag tables need the streaming ingestion policy (P2-14).
+queued) with ``azure-kusto-ingest`` under the app identity (``DefaultAzureCredential``
+via ``AZURE_*``). It sends NDJSON with a JSON mapping reference, so rows are queryable right
+away; the tag tables need the streaming ingestion policy.
 :class:`FakeTagIngestClient` is for tests and explicit local development
 (``TIM_TAG_INGEST_FAKE=true``).
 """
@@ -73,7 +71,10 @@ def serialize_ndjson(rows: list[dict[str, Any]]) -> bytes:
 
 
 class AzureTagIngestClient:
-    """Queued ingestion into the tag cluster. The SDK client is created lazily, once."""
+    """Streaming ingestion into the tag cluster, with the SDK's queued fallback.
+
+    The SDK client is created lazily, once.
+    """
 
     def __init__(self, ingest_url: str, database: str, engine_url: str | None = None) -> None:
         self._ingest_url = ingest_url

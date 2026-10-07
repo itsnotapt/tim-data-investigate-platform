@@ -7,7 +7,7 @@ import {
 } from '../../lib/api';
 import { generateUuid } from '../../lib/uuid';
 
-export type QueryType = QueryTemplate['queryType'];
+type QueryType = QueryTemplate['queryType'];
 
 export interface TemplateFormState {
   uuid: string;
@@ -26,7 +26,7 @@ export interface TemplateFormState {
   isManaged: boolean;
 }
 
-export type YamlField = 'params' | 'fields' | 'columns';
+type YamlField = 'params' | 'fields' | 'columns';
 export type FormErrors = Partial<
   Record<
     | 'name'
@@ -43,7 +43,7 @@ export type FormErrors = Partial<
 >;
 
 /** YAML text for an optional mapping (`null`/`undefined` is an empty editor). */
-export function dumpYaml(value: unknown): string {
+function dumpYaml(value: unknown): string {
   return value === null || value === undefined ? '' : dump(value);
 }
 
@@ -89,7 +89,7 @@ type ParsedYaml =
   { ok: true; value: Record<string, unknown> | undefined } | { ok: false; error: string };
 
 /** Parses an editor's text: empty (or a null document) means "not set". Must be a mapping. */
-export function parseYamlMapping(text: string): ParsedYaml {
+function parseYamlMapping(text: string): ParsedYaml {
   // js-yaml 5 rejects an empty document; an empty editor just means "not set".
   if (text.trim() === '') return { ok: true, value: undefined };
   let value: unknown;
@@ -120,8 +120,7 @@ const REQUIRED: [keyof FormErrors & keyof TemplateFormState, string][] = [
 
 /**
  * Validates the form and builds the request body. Never includes `createdBy`/`updatedBy`/
- * `updated` (SEC-03, BUG-40). `fields` is sent for `view` templates only if it parses (the
- * legacy dialog kept the hidden editor's value).
+ * `updated`. `fields` is sent for `view` templates only if it parses.
  */
 export function buildBody(form: TemplateFormState): BuildResult {
   const errors: FormErrors = {};
@@ -160,7 +159,7 @@ export function buildBody(form: TemplateFormState): BuildResult {
   return { ok: true, body };
 }
 
-/** Message for any save failure: ApiError detail plus per-field errors; never throws (BUG-40). */
+/** Message for any save failure: ApiError detail plus per-field errors; never throws. */
 export function describeSaveError(e: unknown): string {
   if (isApiError(e)) {
     const fieldErrors = e.errors

@@ -17,7 +17,7 @@ describe('sample KQL', () => {
     );
   });
 
-  it('BUG-41: invokes the function with the defined casing and has no stray brace', () => {
+  it('invokes the function with the defined casing and has no stray brace', () => {
     const tag = buildTagEventsSample('c', 'd');
     expect(tag).toContain('let getTagEvents=');
     expect(tag).toContain('| invoke getTagEvents()');

@@ -1,9 +1,8 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery } from '../mocks/flows-a-helpers';
+import { rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
 import { shot } from '../shot';
 
-// W5: Open a template directly (legacy screens 06, 28, 29, 31, 32)
-test('W5: search the New query menu', async ({ page }) => {
+test('search the New query menu', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /get started/i }).click();
   await page.getByRole('textbox', { name: 'Search queries' }).fill('storm');
@@ -16,7 +15,7 @@ test('W5: search the New query menu', async ({ page }) => {
   await shot(page, '06-new-query-menu-search');
 });
 
-test('W5: template results, edit mode, template tree, new draft', async ({ page }) => {
+test('template results, edit mode, template tree, new draft', async ({ page }) => {
   await runAdhocQuery(page);
   await rightClickState(page, 0);
   await page.locator('.ag-menu').getByText('Weather', { exact: true }).hover();

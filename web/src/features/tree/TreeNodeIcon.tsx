@@ -12,7 +12,7 @@ export interface TreeNodeIconProps {
   active: boolean;
 }
 
-/** Spinner, red alert, row-count badge over a folder, or a faded folder (legacy prepend slot). */
+/** Spinner, red alert, row-count badge over a folder, or a faded folder. */
 export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
   const status = nodeStatus(tab);
   const Folder = open ? FolderOpenIcon : FolderIcon;

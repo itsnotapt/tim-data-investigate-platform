@@ -1,5 +1,5 @@
 // Development runtime config. In production the web container renders this file
-// from environment variables at start (see docs/rewrite/target-architecture.md 3.10).
+// from environment variables at start.
 // Placeholder values only: no secrets in the repo.
 window.appConfig = {
   auth: {

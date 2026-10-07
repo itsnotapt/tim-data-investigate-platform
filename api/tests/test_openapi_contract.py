@@ -1,4 +1,4 @@
-"""Contract conformance (P2-16): the OpenAPI spec against docs/rewrite/api-contract.md.
+"""Contract conformance: the generated OpenAPI spec against the documented API contract.
 
 Regenerate the snapshot with ``UPDATE_SNAPSHOTS=1 uv run pytest tests/test_openapi_contract.py``
 and the web copy with ``uv run python -m tim_api.openapi_export``.
@@ -18,7 +18,7 @@ from tim_api.openapi_export import DEFAULT_OUT, generate_spec, render_spec
 SNAPSHOT = Path(__file__).parent / "snapshots" / "openapi.json"
 REGEN = "uv run python -m tim_api.openapi_export"
 
-# (method, path, operationId, success statuses, documented error statuses), contract section 2.
+# (method, path, operationId, success statuses, documented error statuses).
 CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
     ("post", "/api/kusto/schema", "getSchema", {"200"}, {"400", "401", "403", "502"}),
     ("post", "/api/kusto/query", "runQuery", {"200", "202"}, {"400", "401"}),
@@ -91,10 +91,6 @@ def test_contract_operation(
 def test_no_undocumented_operations(spec: dict[str, Any]) -> None:
     actual = {(m, p) for p, item in spec["paths"].items() for m in item}
     assert actual == {(m, p) for m, p, *_ in CONTRACT}
-
-
-def test_removed_authenticate_route_is_absent(spec: dict[str, Any]) -> None:
-    assert "/api/user/authenticate" not in spec["paths"]
 
 
 def test_all_paths_under_api(spec: dict[str, Any]) -> None:

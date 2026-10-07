@@ -61,7 +61,7 @@ describe('AppShell / AuthGate', () => {
     expect(screen.queryByText('routes ok')).not.toBeInTheDocument();
   });
 
-  it('error: shows the message and Retry succeeds (BUG-22)', async () => {
+  it('error: shows the message and Retry succeeds', async () => {
     const login = vi
       .fn()
       .mockRejectedValueOnce(new AuthClientError('interaction_in_progress'))

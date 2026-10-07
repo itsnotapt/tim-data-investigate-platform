@@ -6,8 +6,7 @@ import { getKustoWorkerFor } from '../../lib/monaco';
 import { fetchKustoSchema } from './kustoSchema';
 
 /**
- * Loads the Kusto schema into the editor's language service (legacy KustoMonacoEditor.vue
- * loadSchema, BUG-28 fixed): runs when the cluster, database or editor instance changes, so also
+ * Loads the Kusto schema into the editor's language service: runs when the cluster, database or editor instance changes, so also
  * for the initial values once the editor has mounted. Cached per cluster and database. A response
  * that arrives after the inputs changed (or the editor went away) is ignored. Errors are shown in
  * the snackbar. Does nothing while the cluster or database is empty.

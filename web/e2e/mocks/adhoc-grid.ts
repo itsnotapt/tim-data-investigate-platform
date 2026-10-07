@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { expect, type Page } from '@playwright/test';
+import { SHOT_DIR } from '../shot';
 
 /** Sign in (stub), New query, pick the sample cluster/database and run; waits for the grid. */
 export async function runAdhocQuery(page: Page): Promise<void> {
@@ -22,8 +23,6 @@ export async function rightClickState(page: Page, rowIndex: number): Promise<voi
     .locator(`.ag-row[row-index="${rowIndex}"] .ag-cell[col-id="State"]`)
     .click({ button: 'right' });
 }
-
-const SHOT_DIR = resolve(import.meta.dirname, '../../../docs/rewrite/screenshots');
 
 /** Like `shot` but leaves the mouse where it is (nested AG Grid menus close when it is parked). */
 export async function shotKeepMouse(page: Page, name: string): Promise<void> {

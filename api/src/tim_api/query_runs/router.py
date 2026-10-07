@@ -1,8 +1,4 @@
-"""Query-run endpoints: ``POST /api/kusto/query`` and ``GET /api/kusto/query/{queryRunId}``
-(api-contract 3.3, 3.4; D3, D4, D6, D7).
-
-Legacy (removed in P5-12): ``backend/Tim.Backend/Controllers/External/KustoExternalController.cs``.
-"""
+"""Query-run endpoints: ``POST /api/kusto/query`` and ``GET /api/kusto/query/{queryRunId}``."""
 
 from __future__ import annotations
 
@@ -58,7 +54,7 @@ async def start_query(
     tasks: Annotated[set[asyncio.Task[KustoQueryRun]], Depends(get_run_tasks)],
     slots: Annotated[asyncio.Semaphore, Depends(get_run_slots)],
 ) -> KustoQueryRun:
-    cluster = validate_cluster_url(body.cluster, settings)  # before any token use (SEC-01)
+    cluster = validate_cluster_url(body.cluster, settings)  # before any token use
     if "\x00" in body.query or "\x00" in body.database:
         # PostgreSQL text cannot hold NUL; such a query is never meaningful.
         raise problem_exception(400, "query and database must not contain NUL characters")
@@ -80,7 +76,7 @@ async def get_query_run(
     store: Annotated[QueryRunStore, Depends(get_run_store)],
 ) -> KustoQueryRun:
     run = await store.get_for_owner(query_run_id, principal.name, datetime.now(UTC))
-    if run is None:  # unknown, expired or someone else's: identical (SEC-02)
+    if run is None:  # unknown, expired or someone else's: identical
         raise problem_exception(404, "Query run not found")
     response.status_code = _status_code(run)
     return run

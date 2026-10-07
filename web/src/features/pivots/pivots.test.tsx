@@ -204,3 +204,22 @@ describe('usePivotMenu shift handling', () => {
     expect(runModule.runTemplateQuery).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('usePivotMenu window listeners', () => {
+  it('removes every window listener it added when unmounted', () => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    const { unmount } = renderHook(() => usePivotMenu('parent', newTestStore()), {
+      wrapper: ({ children }: { children: ReactNode }) => <MemoryRouter>{children}</MemoryRouter>,
+    });
+    const watched = ['keydown', 'keyup', 'blur'];
+    const added = add.mock.calls.filter((c) => watched.includes(c[0]));
+    expect(added.map((c) => c[0]).sort()).toEqual(['blur', 'keydown', 'keyup']);
+    unmount();
+    for (const [type, handler] of added.map((c) => [c[0], c[1]])) {
+      expect(remove.mock.calls.map((c) => [c[0], c[1]])).toContainEqual([type, handler]);
+    }
+    add.mockRestore();
+    remove.mockRestore();
+  });
+});

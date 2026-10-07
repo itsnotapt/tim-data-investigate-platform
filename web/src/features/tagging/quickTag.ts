@@ -3,7 +3,7 @@ import { buildQuickTagRequests } from './tagDialogLogic';
 import type { TagRow } from './tagSets';
 import { submitTagRequests, TagSubmitError } from './submitTags';
 
-export const QUICK_MESSAGES = {
+const QUICK_MESSAGES = {
   saving: 'Quick saving events...',
   success: 'Tag events successfully saved.',
   eventsFailed: (m: string) => `Saving events failed: ${m}`,
@@ -14,9 +14,9 @@ export type QuickTagResult =
   { ok: true; rows: TagRow[] } | { ok: false; error: TagSubmitError | Error };
 
 /**
- * Quick tag (legacy "Quick - Malicious/Suspicious/Benign"): saves the unsaved rows, then creates
- * a comment with the lower-cased determination for every row. Never rejects; the snackbar texts
- * are the legacy ones. On success `rows` are the updated rows (determination set, `IsSaved`).
+ * Quick tag ("Quick - Malicious/Suspicious/Benign"): saves the unsaved rows, then creates
+ * a comment with the lower-cased determination for every row. Never rejects. On success `rows` are the
+ * updated rows (determination set, `IsSaved`).
  */
 export async function quickTag(
   rows: readonly TagRow[],

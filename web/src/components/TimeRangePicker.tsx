@@ -13,7 +13,7 @@ export interface TimeRangePickerProps {
 
 type Custom = 'date' | 'period' | null;
 
-/** "Time range: <label>" button with presets and the custom dialogs (legacy TimeSelection.vue). */
+/** "Time range: <label>" button with presets and the custom dialogs. */
 export function TimeRangePicker({ value, onChange, disabled }: TimeRangePickerProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [custom, setCustom] = useState<Custom>(null);

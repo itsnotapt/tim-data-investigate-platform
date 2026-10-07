@@ -53,7 +53,7 @@ describe('useBootstrap', () => {
     expect(steps.loadTemplates).not.toHaveBeenCalled();
   });
 
-  it('failed first sign-in then retry proceeds to loaded (BUG-22)', async () => {
+  it('failed first sign-in then retry proceeds to loaded', async () => {
     const { steps } = makeSteps();
     const login = vi
       .fn()

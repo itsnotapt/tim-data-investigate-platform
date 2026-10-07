@@ -1,9 +1,8 @@
 import { test, expect } from '../fixtures';
-import { runAdhocQuery } from '../mocks/flows-a-helpers';
+import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { shot } from '../shot';
 
-// W3: Explore results (legacy screens 17-20)
-test('W3: sidebar, column menu and column view', async ({ page }) => {
+test('sidebar, column menu and column view', async ({ page }) => {
   await runAdhocQuery(page);
   await expect(page.getByRole('button', { name: /^new$/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /run query/i })).toBeVisible();

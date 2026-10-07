@@ -9,7 +9,7 @@ import {
 } from '../tabs';
 
 /**
- * Check/uncheck rules (legacy VTreeviewIndependantParent, BUG-32):
+ * Check/uncheck rules:
  * - checking a node checks it and all descendants;
  * - unchecking a node unchecks it, all descendants and all ancestors;
  * - checking every child does not check the parent on its own.
@@ -33,7 +33,7 @@ export function toggleChecked(
 }
 
 /** Drops uuids that no longer exist. */
-export function pruneChecked(data: TabsData, checked: ReadonlySet<string>): Set<string> {
+function pruneChecked(data: TabsData, checked: ReadonlySet<string>): Set<string> {
   return new Set([...checked].filter((id) => id in data.tabs));
 }
 

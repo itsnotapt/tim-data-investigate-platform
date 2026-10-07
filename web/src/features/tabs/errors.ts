@@ -1,8 +1,8 @@
 import type { StoredError } from './types';
 
 /**
- * Reduce anything thrown to a serialisable `{message, code?}` (BUG-38: legacy stored raw
- * error objects in Vuex and IndexedDB). Never keeps stacks, causes or class instances.
+ * Reduce anything thrown to a serialisable `{message, code?}`.
+ * Never keeps stacks, causes or class instances.
  */
 export function toStoredError(error: unknown): StoredError | null {
   if (error === null || error === undefined) return null;

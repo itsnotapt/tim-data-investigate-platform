@@ -1,9 +1,8 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery, shotKeepMouse } from '../mocks/flows-a-helpers';
+import { rightClickState, runAdhocQuery, shotKeepMouse } from '../mocks/adhoc-grid';
 import { shot } from '../shot';
 
-// W4: Pivot (legacy screens 21, 23, 26, 27)
-test('W4: context menu, pivot to a template child tab', async ({ page, api }) => {
+test('context menu, pivot to a template child tab', async ({ page, api }) => {
   await runAdhocQuery(page);
 
   await rightClickState(page, 1);

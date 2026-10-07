@@ -3,7 +3,7 @@ import { AllEnterpriseModule, LicenseManager } from 'ag-grid-enterprise';
 
 let modulesRegistered = false;
 
-/** Registers every Enterprise module (ADR-0006: Enterprise only). Idempotent. */
+/** Registers every Enterprise module (AG Grid Enterprise only). Idempotent. */
 export function registerAgGridModules(): void {
   if (modulesRegistered) return;
   ModuleRegistry.registerModules([AllEnterpriseModule]);
@@ -11,8 +11,7 @@ export function registerAgGridModules(): void {
 }
 
 /**
- * Call once at startup: `initAgGrid(getConfig())` (wire in `src/app/main.tsx` after config load).
- * Applies `agGridLicenseKey` when present; without it AG Grid runs as a trial (watermark).
+ * Call once at startup: `initAgGrid(getConfig())` (done in `src/app/main.tsx`). Applies `agGridLicenseKey` when present; without it AG Grid runs as a trial (watermark).
  */
 export function initAgGrid(config: { agGridLicenseKey?: string | undefined }): void {
   registerAgGridModules();

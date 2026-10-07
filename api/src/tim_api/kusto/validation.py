@@ -1,6 +1,6 @@
-"""Kusto cluster URL policy (SEC-01, Q-022).
+"""Kusto cluster URL policy.
 
-Implements "Cluster validation" in docs/rewrite/api-contract.md. Must run before any
+Must run before any
 token is acquired or sent to the cluster.
 """
 

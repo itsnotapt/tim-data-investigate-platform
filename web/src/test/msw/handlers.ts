@@ -52,7 +52,7 @@ export function makeRun(overrides: Partial<Run> = {}): Run {
   };
 }
 
-export const runResponse = (run: Run, status: 200 | 202 = run.status === 'created' ? 202 : 200) =>
+const runResponse = (run: Run, status: 200 | 202 = run.status === 'created' ? 202 : 200) =>
   HttpResponse.json(run, { status, headers: { 'x-trace-id': TEST_TRACE_ID } });
 
 /**

@@ -1,4 +1,4 @@
-"""Retention (BUG-01): expired runs are deleted by one mechanism for every store."""
+"""Retention: expired runs are deleted by one mechanism for every store."""
 
 import asyncio
 from datetime import datetime, timedelta

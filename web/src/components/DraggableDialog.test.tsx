@@ -1,3 +1,5 @@
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { DraggableDialog } from './DraggableDialog';
@@ -71,5 +73,44 @@ describe('DraggableDialog', () => {
     setup();
     fireEvent.pointerMove(screen.getByText('body'), { pointerId: 1, clientX: 600, clientY: 600 });
     expect(tx()).toBe('translate(0px, 0px)');
+  });
+
+  it('removes every window listener it added when unmounted', () => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    const { unmount } = render(
+      <DraggableDialog open title="Customise">
+        body
+      </DraggableDialog>,
+    );
+    const added = add.mock.calls.filter((c) => c[0] === 'resize');
+    expect(added).toHaveLength(1);
+    unmount();
+    const removed = remove.mock.calls.map((c) => [c[0], c[1]]);
+    expect(removed).toContainEqual(['resize', added[0]?.[1]]);
+  });
+
+  it('starts no interval timers beyond those of a plain MUI dialog', () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const plain = render(
+      <Dialog open>
+        <DialogTitle>Plain</DialogTitle>
+      </Dialog>,
+    );
+    const baseline = setIntervalSpy.mock.calls.length;
+    plain.unmount();
+    setIntervalSpy.mockClear();
+    setup();
+    expect(setIntervalSpy.mock.calls.length).toBe(baseline);
+  });
+
+  it('keeps the dialog inside the viewport when the window shrinks', () => {
+    const title = setup();
+    fireEvent.pointerDown(title, { pointerId: 1, button: 0, clientX: 500, clientY: 310 });
+    fireEvent.pointerMove(title, { pointerId: 1, clientX: 5000, clientY: 310 });
+    expect(tx()).toBe('translate(300px, 0px)');
+    vi.stubGlobal('innerWidth', 800);
+    fireEvent(window, new Event('resize'));
+    expect(tx()).toBe('translate(100px, 0px)');
   });
 });

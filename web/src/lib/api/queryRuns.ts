@@ -4,12 +4,11 @@ import type { components } from './schema';
 export type KustoQueryRequest = components['schemas']['KustoQueryRequest'];
 export type KustoQueryRun = components['schemas']['KustoQueryRun'];
 export type KustoQueryStats = components['schemas']['KustoQueryStats'];
-export type QueryRunStatus = components['schemas']['QueryRunStatus'];
-export type QueryRow = Record<string, unknown>;
+type QueryRow = Record<string, unknown>;
 
-export const POLL_START_MS = 500;
-export const POLL_MAX_INTERVAL_MS = 30_000;
-/** Server timeout is 10 min (Q-021); give up after 11. */
+const POLL_START_MS = 500;
+const POLL_MAX_INTERVAL_MS = 30_000;
+/** Server timeout is 10 min; give up after 11. */
 export const POLL_MAX_TOTAL_MS = 11 * 60 * 1000;
 const POLLS_PER_DOUBLING = 3;
 
@@ -62,7 +61,7 @@ export function handleResult(run: KustoQueryRun): QueryResult {
 }
 
 /**
- * Normalise a cluster URL (BUG-29: no forced `.kusto.windows.net`, so Fabric and other hosts work).
+ * Normalise a cluster URL without forcing `.kusto.windows.net`, so Fabric and other hosts work.
  * Trims, strips trailing slashes and prepends `https://` when no scheme was typed; the API
  * rejects hosts outside the allowed Kusto domains with `cluster-not-allowed`.
  */
@@ -73,14 +72,14 @@ export function formatCluster(cluster: string): string {
 }
 
 /** Start a run. `status` 200 means finished, 202 means poll. */
-export async function startQueryRun(
+async function startQueryRun(
   request: KustoQueryRequest,
   { client = getApiClient(), ...rest }: CallOptions = {},
 ): Promise<{ status: number; run: KustoQueryRun }> {
   const res = await client.request<KustoQueryRun>({
     method: 'POST',
     path: '/api/kusto/query',
-    // Whitelisted: `requestedBy` is never sent (SEC-03).
+    // Whitelisted: `requestedBy` is never sent.
     body: {
       cluster: request.cluster,
       database: request.database,
@@ -94,7 +93,7 @@ export async function startQueryRun(
 }
 
 /** Poll a run once. */
-export async function getQueryRun(
+async function getQueryRun(
   queryRunId: string,
   { client = getApiClient(), ...rest }: CallOptions = {},
 ): Promise<{ status: number; run: KustoQueryRun }> {
@@ -140,7 +139,7 @@ export interface RunQueryOptions extends CallOptions {
 }
 
 /**
- * POST the query, then poll while the run is `created` (202). Cancel with `signal` (BUG-30);
+ * POST the query, then poll while the run is `created` (202). Cancel with `signal`;
  * rejects with the signal's reason. Resolves with rows + stats, or throws `QueryRunError`,
  * `QueryTimeoutError` or `ApiError`.
  */

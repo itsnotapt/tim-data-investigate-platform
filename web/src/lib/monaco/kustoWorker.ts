@@ -13,8 +13,8 @@ export type KustoWorkerProxy = Awaited<
 >;
 
 /**
- * Returns the Kusto worker bound to the model's uri, or null if the editor has no model. P4-10
- * (`useKustoSchema`) calls `setSchemaFromShowSchema` on the result; schema fetching lives there.
+ * Returns the Kusto worker bound to the model's uri, or null if the editor has no model. `useKustoSchema`
+ * calls `setSchemaFromShowSchema` on the result; schema fetching lives there.
  */
 export async function getKustoWorkerFor(
   editor: Monaco.editor.IStandaloneCodeEditor,

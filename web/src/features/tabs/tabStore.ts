@@ -13,15 +13,15 @@ import {
   type TemplateQueryParams,
 } from './types';
 
-export interface TabsState {
+interface TabsState {
   tabs: Record<string, Tab>;
   /** Uuids in load/creation order; parents always precede children. */
   order: string[];
-  /** Next `displayComponentIndex` (renumbered on every load, as legacy). */
+  /** Next `displayComponentIndex` (renumbered on every load). */
   nextIndex: number;
   loaded: boolean;
   loadError: string | null;
-  /** Signal: bumps whenever a tab is created (replaces legacy `new:display-component`). */
+  /** Signal: bumps whenever a tab is created. */
   lastCreated: { uuid: string; seq: number } | null;
 
   load(): Promise<void>;
@@ -105,7 +105,7 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
             const tab = sanitize(raw);
             tabs[tab.componentUuid] = {
               ...tab,
-              // A missing parent makes the tab a root (legacy behaviour).
+              // A missing parent makes the tab a root.
               parentUuid:
                 tab.parentUuid !== null && ids.has(tab.parentUuid) ? tab.parentUuid : null,
               displayComponentIndex: index,
@@ -113,7 +113,7 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
             order.push(tab.componentUuid);
           });
           set({ tabs, order, nextIndex: order.length, loaded: true, loadError: null });
-          // Indexes were renumbered; persist them (legacy re-saves on load).
+          // Indexes were renumbered; persist them.
           for (const id of order) queue.schedule(id);
         } catch (e) {
           set({ loaded: true, loadError: toStoredError(e)?.message ?? 'Failed to load tabs' });

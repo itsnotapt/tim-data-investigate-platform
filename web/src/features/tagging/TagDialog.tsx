@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Autocomplete from '@mui/material/Autocomplete';
 import Button from '@mui/material/Button';
@@ -9,7 +9,7 @@ import Typography from '@mui/material/Typography';
 import type { CallOptions } from '../../lib/api';
 import { DraggableDialog } from '../../components/DraggableDialog';
 import { NotifyContext } from '../../components/notifyContext';
-import { existingTagCounts, retrieveRecentTags, tagOptions } from './tagSets';
+import { existingTagCounts, tagOptions } from './tagSets';
 import type { TagRow } from './tagSets';
 import {
   buildTagRequests,
@@ -66,9 +66,9 @@ function ActionSelect({
 }
 
 /**
- * "Customise Tag Events" (legacy `TagEventDialog`): determination / comment / tags, each with an
- * action. Stays open when a request fails and shows the error (BUG-26); on success hands the
- * updated rows to `onApply` (BUG-25) and closes.
+ * "Customise Tag Events": determination / comment / tags, each with an
+ * action. Stays open when a request fails and shows the error; on success hands the
+ * updated rows to `onApply` and closes.
  */
 export function TagDialog({ rows, onApply, onClose, call }: TagDialogProps) {
   const notify = useContext(NotifyContext);
@@ -76,22 +76,10 @@ export function TagDialog({ rows, onApply, onClose, call }: TagDialogProps) {
   const [validation, setValidation] = useState<TagValidation | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [recent, setRecent] = useState<string[]>([]);
-
-  useEffect(() => {
-    let live = true;
-    void retrieveRecentTags().then((r) => live && setRecent(r));
-    return () => {
-      live = false;
-    };
-  }, []);
 
   const patch = (p: Partial<TagDialogInput>) => setInput((i) => ({ ...i, ...p }));
   const counts = useMemo(() => existingTagCounts(rows), [rows]);
-  const options = useMemo(
-    () => tagOptions(rows, input.tags, recent, input.tagAction === 'Remove'),
-    [rows, input.tags, recent, input.tagAction],
-  );
+  const options = useMemo(() => tagOptions(rows, input.tags), [rows, input.tags]);
   const preview = useMemo(
     () => modificationPreview(rows, input.tagAction, input.tags),
     [rows, input.tagAction, input.tags],
@@ -127,7 +115,7 @@ export function TagDialog({ rows, onApply, onClose, call }: TagDialogProps) {
       maxWidth="md"
       fullWidth
       onClose={(_e, reason) => {
-        // Legacy dialog is persistent: only the Close button closes it.
+        // Persistent dialog: only the Close button closes it.
         if (reason !== 'backdropClick' && !submitting) onClose();
       }}
       actions={
@@ -217,10 +205,6 @@ export function TagDialog({ rows, onApply, onClose, call }: TagDialogProps) {
                   {n ? (
                     <Typography variant="caption" color="text.secondary">
                       Exists in {n} event(s)
-                    </Typography>
-                  ) : recent.includes(option) ? (
-                    <Typography variant="caption" color="text.secondary">
-                      Recent tag
                     </Typography>
                   ) : null}
                 </div>

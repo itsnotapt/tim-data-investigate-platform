@@ -37,7 +37,7 @@ export interface TemplateDialogProps {
 
 type TextKey = 'name' | 'menu' | 'summary' | 'cluster' | 'database' | 'columnId';
 
-/** Create/Edit template dialog (legacy CreateQueryDialog). Mount it only while open. */
+/** Create/Edit template dialog Mount it only while open. */
 export function TemplateDialog({ template, onClose, onSaved, client }: TemplateDialogProps) {
   const notify = useNotify();
   const editing = template !== null;

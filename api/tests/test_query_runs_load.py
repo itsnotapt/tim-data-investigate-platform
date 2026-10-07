@@ -1,4 +1,4 @@
-"""Load and robustness checks for query runs (P5-07, Q-021, Q-111).
+"""Load and robustness checks for query runs.
 
 Memory budget (documented in api/README.md): turning a Kusto V2 response into stored run
 rows (``parse_v2_frames`` + ``sanitise_nul``) must peak below ``PEAK_BUDGET_FACTOR`` times the
@@ -90,7 +90,7 @@ def frames_100k() -> Iterator[list[dict[str, Any]]]:
     ids=["10k", "100k"],
 )
 def test_rows_within_caps_and_memory_budget(rows: int) -> None:
-    """The 100k case is the Q-021 cap; run it with ``uv run pytest -m slow``."""
+    """The 100k case is the row cap; run it with ``uv run pytest -m slow``."""
     limits = ResultLimits(max_rows=ROWS, max_bytes=64 * 1024 * 1024)
     frames = make_frames(rows)
     tracemalloc.start()

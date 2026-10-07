@@ -1,7 +1,7 @@
 {
   "name": "tim-web",
   "version": "0.1.0",
-  "description": "TIM web app (React rewrite)",
+  "description": "TIM web app",
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && vite build",

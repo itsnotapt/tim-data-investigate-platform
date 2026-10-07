@@ -1,9 +1,8 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery } from '../mocks/flows-a-helpers';
+import { rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
 import { shot } from '../shot';
 
-// W7: Inspect row (legacy screen 24)
-test('W7: Show details opens the Result Details panel', async ({ page }) => {
+test('Show details opens the Result Details panel', async ({ page }) => {
   await runAdhocQuery(page);
   await rightClickState(page, 0);
   await page.locator('.ag-menu-option', { hasText: 'Show details' }).click();

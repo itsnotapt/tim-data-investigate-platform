@@ -15,28 +15,28 @@ import type { GridRowWithId } from './columns';
 import { rowClassRules } from './rowClasses';
 
 /** Side bar (screens 17, 18): Columns and Filters tool panels. */
-export const SIDE_BAR: SideBarDef['toolPanels'] & string[] = ['columns', 'filters'];
+const SIDE_BAR: SideBarDef['toolPanels'] & string[] = ['columns', 'filters'];
 
 /** Screen 15: execution stats on the left, then total / filtered / selected counts. */
-export const STATUS_PANELS: StatusPanelDef[] = [
+const STATUS_PANELS: StatusPanelDef[] = [
   { statusPanel: ExecutionStatusPanel, align: 'left' },
   { statusPanel: 'agTotalRowCountComponent' },
   { statusPanel: 'agFilteredRowCountComponent' },
   { statusPanel: 'agSelectedRowCountComponent' },
 ];
 
-/** Case-insensitive-by-grid quick filter text; objects are searched as JSON (legacy). */
+/** Case-insensitive-by-grid quick filter text; objects are searched as JSON. */
 export function quickFilterText(value: unknown): string {
   return scalarText(value);
 }
 
-/** Date comparator of the legacy multi filter: null cells sort before any filter date. */
+/** Date comparator of the multi filter: null cells sort before any filter date. */
 export function dateComparator(filterDate: Date, cellValue: unknown): number {
   if (cellValue === null || cellValue === undefined) return -1;
   return Date.parse(scalarText(cellValue)) - filterDate.getTime();
 }
 
-/** Multi filter: text, number, date (sub-menus) and set filter (legacy defaults). */
+/** Multi filter: text, number, date (sub-menus) and set filter. */
 export const defaultColDef: ColDef = {
   // No type inference: object cells (TagEvent, arrays) would warn about a missing valueFormatter.
   cellDataType: false,
@@ -66,10 +66,10 @@ export const defaultColDef: ColDef = {
 };
 
 export type ExtraMenuItems = (DefaultMenuItem | MenuItemDef)[];
-/** Extension point for pivots (P4-20), tagging (P4-21) and details (P4-25). */
+/** Extension point for pivots, tagging and details. */
 export type GetExtraContextMenuItems = (params: GetContextMenuItemsParams) => ExtraMenuItems;
 
-/** Extra items first, a separator, then copy / copy with headers / export (legacy order). */
+/** Extra items first, a separator, then copy / copy with headers / export. */
 export function buildContextMenu(extra: ExtraMenuItems = []): ExtraMenuItems {
   return [
     ...extra,
@@ -104,7 +104,7 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
     headerCheckbox: true,
     selectAll: 'filtered',
   },
-  // Legacy checkboxColDef: checkboxes stay visible while the grid scrolls sideways (F-C01).
+  // Checkboxes stay visible while the grid scrolls sideways.
   selectionColumnDef: {
     pinned: 'left',
     lockPinned: true,
