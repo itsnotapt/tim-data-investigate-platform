@@ -2,10 +2,10 @@
 
 TIM ships as two container images and runs on Docker Compose or Kubernetes (Helm). Both use the same container environment variables; [configuration.md](configuration.md) describes each variable, and [operations.md](operations.md) covers running a deployment.
 
-| Image     | Source                         | Published as                                                      |
-| --------- | ------------------------------ | ----------------------------------------------------------------- |
-| `tim-api` | `api/Dockerfile` (context `api/`) | `ghcr.io/<owner>/<repo>/tim-api:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
-| `tim-web` | `web/Dockerfile` (context `web/`) | `ghcr.io/<owner>/<repo>/tim-web:<version>` (same tag set)         |
+| Image     | Source                         | Base image | Published as                                                      |
+| --------- | ------------------------------ | ---------- | ----------------------------------------------------------------- |
+| `tim-api` | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13) | `ghcr.io/<owner>/<repo>/tim-api:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
+| `tim-web` | `web/Dockerfile` (context `web/`) | `nginxinc/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` | `ghcr.io/<owner>/<repo>/tim-web:<version>` (same tag set)         |
 
 Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a `web` or `api` release. `web` and `api` are versioned independently.
 
