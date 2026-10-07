@@ -45,7 +45,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/api/healthChecks/liveness', timeout=3)"]
 
-# One worker per container (target-architecture: task registry and TTL sweeper stay simple).
+# One worker per container: query runs and the retention sweeper are process-local.
 # --proxy-headers only trusts X-Forwarded-* from FORWARDED_ALLOW_IPS (default 127.0.0.1);
 # set that env var to the proxy/ingress address(es) in deployment.
 CMD ["uvicorn", "tim_api.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]

@@ -43,7 +43,7 @@ is_http_url() {
 }
 
 BACKEND_URI=$(printf '%s' "$BACKEND_URI" | sed 's|/*$||')
-# Scheme + host[:port] only. A path would change how nginx forwards /api/ (BUG-10 class).
+# Scheme + host[:port] only. A path would change how nginx forwards /api/.
 printf '%s' "$BACKEND_URI" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' \
     || fail "BACKEND_URI must be http(s)://host[:port] with no path (got '$BACKEND_URI')"
 is_http_url "$REDIRECT_URI" || fail "REDIRECT_URI must be an http(s) URL"
@@ -53,7 +53,7 @@ printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
 
 TAG_DATABASE=${TAG_DATABASE:-Research}
 API_BASEPATH=${API_BASEPATH-}
-# Optional (ADR-0006, amended 2026-09-30): without a key AG Grid Enterprise runs as a trial.
+# Optional: without a key AG Grid Enterprise runs in trial mode.
 AGGRID_LICENSE=${AGGRID_LICENSE-}
 if [ -z "$AGGRID_LICENSE" ]; then
     echo "tim-web: AGGRID_LICENSE not set, AG Grid Enterprise runs in trial mode" >&2
