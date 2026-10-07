@@ -59,7 +59,7 @@ Stack: React 19, React Router (hash router), MUI + Emotion, Zustand, AG Grid Ent
 
 ## Docker image
 
-Production deployment (compose stack, env vars, `/api` routing): see [deploy/README.md](../deploy/README.md).
+Production deployment and `/api` routing: see [docs/deployment.md](../docs/deployment.md). Environment variables: see [docs/configuration.md](../docs/configuration.md).
 
 ```bash
 docker build -t tim-web web/

@@ -63,5 +63,28 @@ See [development.md](development.md) for the exact commands.
 ## 6. Git
 
 - Commit, push or open a PR only when the user asks.
-- Never commit directly to `main`. Use a short-lived branch named by type: `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>`, `refactor/<short-name>`.
+- Never commit directly to `development` or `main`. Branch off `development` with a short-lived branch named by type: `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>`, `refactor/<short-name>`. Bots use `dependabot/` and `release-please--` branches.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, optionally scoped, e.g. `feat(web): …`). Release notes and versions are generated from them by release-please.
+
+**Branches and merge methods** (enforced by rulesets and `pr-conventions.yml`):
+
+| Branch | Role | PRs come from | Merge method |
+|---|---|---|---|
+| `development` | Default and integration branch | `feat/`, `fix/`, `docs/`, `chore/`, `refactor/`, `dependabot/` branches | **Squash**. The PR title becomes the commit subject and the commit body is blank. |
+| `development` | | `main` (the back-sync) | **Merge commit**. Merge commits on `development` are only for the back-sync. |
+| `main` | Release branch; release-please runs on it | `development` and `release-please--*` | **Merge commit**, so release-please sees each squashed commit. |
+
+- The PR title into `development` is the commit release-please reads: its type and `!` apply to every package whose files the PR changes. Leave the squash commit body empty; a `BREAKING CHANGE:` or `Release-As:` footer typed into it is applied to every package the PR touches.
+- Do not edit the merge commit message. It must stay `Merge pull request #N from …` with an empty body: release-please reads any paragraph that starts with a Conventional Commit type as a commit.
+- **Releasing:** merge `development` into `main`, then merge each release PR release-please opens (after a frontend or backend release it opens a chart patch release PR as well). When no release PR is open, `release-please.yml` merges `main` back into `development` with a merge commit (the back-sync).
+- **Release freeze:** from the `development` → `main` merge until the back-sync, nothing else is merged into `development`; `pr-conventions` fails while `main` has commits `development` lacks or a release PR is open. release-please reads history newest first by commit date and stops at the last release, so a commit merged into `development` while a release is pending would never be released. Re-run the check after the back-sync.
+
+## 7. Releases
+
+- Three release-please packages: `web/` is `frontend` (tags `frontend-vX.Y.Z`), `api/` is `backend` (`backend-vX.Y.Z`) and `deploy/helm/tim` is `chart` (`chart-vX.Y.Z`). There is no root package.
+- The files a commit touches decide which packages it bumps; the Conventional Commit scope is cosmetic. Files only under `web/e2e`, `api/tests` or `deploy/helm/tim/ci` release nothing.
+- A breaking commit (`!` or a `BREAKING CHANGE:` footer) bumps the major of every package whose files it touches. A PR into `development` is one commit, so a `!` title majors every package the PR changes: keep breaking changes in their own PR, out of `web/` and `api/` unless that package should go major. The PR needs the label `release:major-<package>` for each such package (checked by `pr-conventions.yml`).
+- `Release-As: X.Y.Z` must be on a commit that touches that package's files; empty commits are ignored. To force a version, add the footer in the squash-merge dialog of a PR that changes only that package.
+- Never edit versions by hand; release-please owns them.
+
+See [development.md](development.md#ci-and-releases) and [ADR-0016](decisions/0016-release-versions.md).

@@ -114,6 +114,7 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 | `TIM_TEST_DATABASE_URL`                                                        | `pytest`          | Postgres server for storage tests; falls back to `pgserver`.                                           |
 | `TIM_TEST_KUSTO_INGEST_URL`, `TIM_TEST_KUSTO_DATABASE`, `TIM_TEST_KUSTO_TABLE` | `pytest -m kusto` | Real ingest endpoint for the integration test (database default `Research`, table default `EventTag`). |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
+| `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |
 
 ## Web container
 
@@ -177,28 +178,23 @@ Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](dec
 
 ### Development stack
 
-`docker compose` reads `.env` at the repo root (template `.env.example`, git-ignored). Every variable has a default inside `compose.yaml`, so the file is optional. The template lists only the first group below; the pass-throughs in the second group can be added to `.env` when needed.
+`docker compose` reads `.env` at the repo root (template `.env.example`, git-ignored). Every variable has a default inside `compose.yaml`, so the file is optional. The template lists every variable below.
 
-| Variable                                            | Default                                                    | Used for                                                                 |
-| --------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `tim`, `tim`, `tim`                                        | PostgreSQL container; the api's `TIM_DATABASE_URL` is built from them.   |
-| `POSTGRES_PORT`                                     | `5432`                                                     | Host port, bound to `127.0.0.1`.                                         |
-| `API_PORT`                                          | `8080`                                                     | Host port of `api`.                                                      |
-| `WEB_PORT`                                          | `8081`                                                     | Host port of `web`.                                                      |
-| `TIM_AUTH_DISABLED`                                 | `true`                                                     | Passed to `migrate` and `api`.                                           |
-| `TIM_LOG_LEVEL`                                     | `INFO`                                                     | Passed to `migrate` and `api`.                                           |
-| `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`          | all-zero GUID                                              | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`. |
-| `TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE`           | `https://example.westeurope.kusto.windows.net`, `Research` | Passed to the api and, as `TAG_CLUSTER` / `TAG_DATABASE`, to `web`.      |
-| `REDIRECT_URI`                                      | `http://localhost:8081/blank.html`                         | Passed to `web`. Must match `WEB_PORT`.                                  |
-| `AGGRID_LICENSE`                                    | empty                                                      | Passed to `web`.                                                         |
-
-Further pass-throughs, not in `.env.example`:
-
-| Variable                                              | Default | Used for                                                                                    |
-| ----------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| `TIM_AUTH_CLIENT_SECRET`                              | empty   | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
-| `TIM_ALLOWED_KUSTO_HOSTS`                             | empty   | Passed to `migrate` and `api`. Empty uses the api default.                                  |
-| `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | empty   | Passed to `web`.                                                                            |
+| Variable                                              | Default                                                    | Used for                                                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`   | `tim`, `tim`, `tim`                                        | PostgreSQL container; the api's `TIM_DATABASE_URL` is built from them.                      |
+| `POSTGRES_PORT`                                       | `5432`                                                     | Host port, bound to `127.0.0.1`.                                                            |
+| `API_PORT`                                            | `8080`                                                     | Host port of `api`.                                                                         |
+| `WEB_PORT`                                            | `8081`                                                     | Host port of `web`.                                                                         |
+| `TIM_AUTH_DISABLED`                                   | `true`                                                     | Passed to `migrate` and `api`.                                                              |
+| `TIM_LOG_LEVEL`                                       | `INFO`                                                     | Passed to `migrate` and `api`.                                                              |
+| `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`            | all-zero GUID                                              | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`.                    |
+| `TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE`             | `https://example.westeurope.kusto.windows.net`, `Research` | Passed to the api and, as `TAG_CLUSTER` / `TAG_DATABASE`, to `web`.                         |
+| `REDIRECT_URI`                                        | `http://localhost:8081/blank.html`                         | Passed to `web`. Must match `WEB_PORT`.                                                     |
+| `AGGRID_LICENSE`                                      | empty                                                      | Passed to `web`.                                                                            |
+| `TIM_AUTH_CLIENT_SECRET`                              | empty                                                      | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
+| `TIM_ALLOWED_KUSTO_HOSTS`                             | empty                                                      | Passed to `migrate` and `api`. Empty uses the api default.                                  |
+| `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | empty                                                      | Passed to `web`.                                                                            |
 
 Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http://api:8080` for `web` and `FORWARDED_ALLOW_IPS=*` for the api; these do not come from `.env`. `TIM_CORS_ALLOWED_ORIGINS` is not passed by the dev stack.
 
@@ -222,7 +218,7 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | `WEB_PORT`                                            | no       | `8080`                        | Host port of `web`, the only published port.                                                   |
 | `TIM_SUBNET`                                          | no       | `10.89.0.0/24`                | Subnet of the compose network.                                                                 |
 | `FORWARDED_ALLOW_IPS`                                 | no       | `TIM_SUBNET`                  | Addresses from which the api trusts `X-Forwarded-*`.                                           |
-| `TIM_API_IMAGE`, `TIM_WEB_IMAGE`, `TIM_IMAGE_TAG`     | no       | `tim-api`, `tim-web`, `local` | Image names and tag. The defaults are the local build names; set them to run published images. |
+| `TIM_API_IMAGE`, `TIM_API_IMAGE_TAG`, `TIM_WEB_IMAGE`, `TIM_WEB_IMAGE_TAG` | no | `tim-api`, `local`, `tim-web`, `local` | Image names and tags. The defaults are the local build names; set them to run published images. |
 
 `TIM_ENVIRONMENT=production`, `BACKEND_URI=http://api:8080` and the other fixed values are set in the compose file.
 

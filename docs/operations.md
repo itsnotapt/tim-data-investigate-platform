@@ -15,7 +15,7 @@ Container health checks (every 30 s, timeout 5 s, 3 retries):
 - api image: Python `urlopen` against `http://127.0.0.1:8080/api/healthChecks/liveness` (start period 15 s).
 - web image: `wget` against `http://127.0.0.1:8080/healthz` (start period 5 s).
 
-On Kubernetes the chart's probes use these same paths: api liveness `/api/healthChecks/liveness` and readiness `/api/healthChecks/readiness`, web liveness and readiness `/healthz` (the image `HEALTHCHECK`s are not used by Kubernetes). A pod that fails readiness is removed from the Service endpoints; `helm test <release>` checks `/healthz`, `/config.js` and the api readiness through web.
+On Kubernetes the chart's probes use these same paths: api liveness `/api/healthChecks/liveness` and readiness `/api/healthChecks/readiness`, web liveness and readiness `/healthz` (the image `HEALTHCHECK`s are not used by Kubernetes). A pod that fails readiness is removed from the Service endpoints; `helm test <release> --logs` checks `/healthz`, `/config.js` and the api readiness through web.
 
 Use readiness, not liveness, to decide whether the api can take traffic. Through the web container, the api endpoints are also reachable under `/api/healthChecks/...`.
 
@@ -48,12 +48,12 @@ There is no metrics endpoint. Use the request log lines and health endpoints.
 
 ### Run database migrations
 
-The api never creates or changes tables on its own; a new or upgraded database must be migrated before the api serves traffic.
+The api never creates or changes tables on its own; a new or upgraded database must be migrated before the api can serve requests that use it.
 
 - Compose: the one-shot `migrate` service runs `alembic upgrade head`; `api` starts after it succeeds. Rerun with `docker compose up migrate`.
-- Kubernetes (Helm): the chart runs the migrations as a Job, `<release>-tim-migrate` (`<fullname>-migrate`), using the api image and only `TIM_DATABASE_URL` from the release Secret. It is a Helm hook with weight 0 and delete policy `before-hook-creation`, so Helm waits for it to finish before the install or upgrade continues:
+- Kubernetes (Helm): the chart runs the migrations as a Job, `<release>-tim-migrate` (`<fullname>-migrate`), using the api image and only `TIM_DATABASE_URL` from the release Secret. It is a Helm hook with weight 0 and delete policy `before-hook-creation`, and Helm waits for it to finish before the install or upgrade completes:
   - external database: `pre-install,pre-upgrade`, so the schema is current before the api Deployment is created or rolled out;
-  - in-cluster PostgreSQL (`postgresql.enabled`): `post-install,pre-upgrade`, because the database does not exist before an install. An init container waits until PostgreSQL accepts connections,.
+  - in-cluster PostgreSQL (`postgresql.enabled`): `post-install,pre-upgrade`, because the database does not exist before an install. An init container waits until PostgreSQL accepts connections. On a first install the api pods start alongside PostgreSQL and pass readiness before the schema exists; until the database is up and migrated they log non-fatal `Stale query-run sweep failed` and `Retention sweep failed` tracebacks (database unavailable), and requests that use the database fail.
   - `migrations.enabled: false` omits the Job; migrate by other means then.
 - Elsewhere: run the api image with the command `alembic upgrade head` (`alembic.ini` and `migrations/` are in `/app`) and `TIM_DATABASE_URL` set. Alembic reads only `TIM_DATABASE_URL` from the process environment.
 - From a checkout: `cd api && uv run alembic upgrade head`. Check the current revision with `alembic current`.

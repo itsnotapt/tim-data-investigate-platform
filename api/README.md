@@ -42,8 +42,8 @@ uv run alembic downgrade base      # drop everything (dev)
 ```
 
 The api image contains `alembic.ini` and `migrations/`, so a compose/Kubernetes job can run
-`alembic upgrade head` with the same image. Production deployment (compose, env table, `/api` routing):
-[`deploy/README.md`](../deploy/README.md). Empty `TIM_AUTH_CLIENT_SECRET` / `TIM_TAG_INGEST_URL` count as unset.
+`alembic upgrade head` with the same image. Production deployment and `/api` routing: [docs/deployment.md](../docs/deployment.md);
+environment variables: [docs/configuration.md](../docs/configuration.md). Empty `TIM_AUTH_CLIENT_SECRET` / `TIM_TAG_INGEST_URL` count as unset.
 
 **Retention.** Every run has `expires_at`; reads treat an expired run as missing, and a
 background task started in the lifespan deletes expired rows every
@@ -117,7 +117,7 @@ input fields ignored, serialised by alias): `templates/models.py`, `query_runs/m
 
 ## Kusto query client
 
-`kusto/query_client.py`: `KustoQueryClient` protocol (`execute(cluster_url, database, query, token, start, end, limits) -> QueryResult`), `get_kusto_client` dependency and `AzureKustoQueryClient` (sync `azure-kusto-data` client in `asyncio.to_thread`; the aio client needs the extra `aiohttp` dependency). Parsing is a pure function, `parse_v2_frames`, over raw V2 frames (fixtures in `tests/fixtures/kusto/`). `StartTime`/`EndTime` are sent as ISO-8601 query parameters (the KQL must declare them) and `servertimeout` comes from `TIM_QUERY_TIMEOUT_SECONDS`. Exceeding `TIM_MAX_RESULT_ROWS`/`TIM_MAX_RESULT_BYTES` raises `KustoResultLimitError` (no truncation, per api-contract 3.3); Kusto failures raise `KustoQueryError` with a sanitised message; progressive frames raise `KustoUnexpectedFrameError`. Cancelling the awaiting task does not stop the worker thread; the server timeout bounds it.
+`kusto/query_client.py`: `KustoQueryClient` protocol (`execute(cluster_url, database, query, token, start, end, limits) -> QueryResult`), `get_kusto_client` dependency and `AzureKustoQueryClient` (sync `azure-kusto-data` client in `asyncio.to_thread`; the aio client needs the extra `aiohttp` dependency). Parsing is a pure function, `parse_v2_frames`, over raw V2 frames (fixtures in `tests/fixtures/kusto/`). `StartTime`/`EndTime` are sent as ISO-8601 query parameters (the KQL must declare them) and `servertimeout` comes from `TIM_QUERY_TIMEOUT_SECONDS`. Exceeding `TIM_MAX_RESULT_ROWS`/`TIM_MAX_RESULT_BYTES` raises `KustoResultLimitError` (no truncation, see [docs/api.md](../docs/api.md)); Kusto failures raise `KustoQueryError` with a sanitised message; progressive frames raise `KustoUnexpectedFrameError`. Cancelling the awaiting task does not stop the worker thread; the server timeout bounds it.
 
 ## Kusto schema
 
@@ -162,7 +162,7 @@ case is marked `slow` and skipped by default: `uv run pytest -m slow`.
 
 ## Errors, CORS and logging
 
-- `errors.py`: every non-2xx is `application/problem+json` (`type`, `title`, `status`, `detail`, `traceId`, `errors?`). Handlers: `HTTPException` (headers kept, so `WWW-Authenticate` survives), `RequestValidationError` (400, `errors` keyed by camelCase JSON path with `from_` mapped to `from`; unparseable JSON gives `{"body": ["Malformed JSON"]}`), `NotFoundError` 404, `AlreadyExistsError` 409, `StorageUnavailableError` 503, `OboAuthError` 403 `consent-required` (api-contract §1), `OboUpstreamError` 502, `OboUnavailableError` 503, and any other exception 500 with detail `Internal error` (stack logged with the traceId, never returned). Details are fixed strings; exception messages are never echoed. Unknown `HTTPException` statuses get `urn:tim:problem:http-<status>`.
+- `errors.py`: every non-2xx is `application/problem+json` (`type`, `title`, `status`, `detail`, `traceId`, `errors?`). Handlers: `HTTPException` (headers kept, so `WWW-Authenticate` survives), `RequestValidationError` (400, `errors` keyed by camelCase JSON path with `from_` mapped to `from`; unparseable JSON gives `{"body": ["Malformed JSON"]}`), `NotFoundError` 404, `AlreadyExistsError` 409, `StorageUnavailableError` 503, `OboAuthError` 403 `consent-required` (see [docs/api.md](../docs/api.md)), `OboUpstreamError` 502, `OboUnavailableError` 503, and any other exception 500 with detail `Internal error` (stack logged with the traceId, never returned). Details are fixed strings; exception messages are never echoed. Unknown `HTTPException` statuses get `urn:tim:problem:http-<status>`.
 - `observability.py`: `RequestLoggingMiddleware` (pure ASGI) logs `METHOD path -> status ms traceId=...` (no query string, headers or bodies). The traceId is a valid W3C `traceparent` from the request, else a sane `x-request-id`, else generated (`traceparent` format); it is returned in the body and the `x-trace-id` response header. `LazyCORSMiddleware` reads `TIM_CORS_ALLOWED_ORIGINS` on first request (no CORS headers at all when empty); methods GET/POST/PUT/PATCH/DELETE/OPTIONS, request headers `Authorization`, `Content-Type`, `traceparent`, `x-request-id`, exposed `x-trace-id`, no credentials. `TIM_LOG_LEVEL` configures the `tim_api` logger at startup.
 
 ## Template endpoints

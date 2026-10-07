@@ -29,4 +29,4 @@ Some ADRs refer to documents from the React + Python migration. Those are preser
 | [0013](0013-tag-ingestion.md) | Tag ingestion runs as the app identity | Accepted | 2026-10-06 |
 | [0014](0014-web-auth-token-cache.md) | Web sign-in: token cache in localStorage | Accepted | 2026-10-06 |
 | [0015](0015-kql-templating.md) | KQL templating in the browser | Accepted | 2026-10-06 |
-| [0016](0016-linked-release-version.md) | Linked release version for web, api and chart | Proposed | 2026-10-07 |
+| [0016](0016-release-versions.md) | Release versions for frontend, backend and the Helm chart | Accepted | 2026-10-07 |
