@@ -1,16 +1,16 @@
 # 0002. `docs/` is the source of truth for the rewrite
 
-- **Status:** Accepted
+- **Status:** Superseded by [0007](0007-docs-describe-current-state.md)
 - **Date:** 2026-09-29
 - **Deciders:** the user (asked for "a doc set of rules to allow future agents to continue the work")
-- **Related:** [RULES.md](../RULES.md)
+- **Related:** [RULES.md](../RULES.md). The files named below (`open-questions.md`, `rewrite/work-breakdown.md`) are preserved at git tag `migration-complete`.
 
 ## Context
 Many agents and sessions will work on the rewrite, each starting without context. Re-reading the legacy source every time is slow, and answers would drift between sessions.
 
 ## Decision
 - `docs/RULES.md` defines how to work; `docs/README.md` holds current status; `docs/open-questions.md` logs every question with a permanent ID; ADRs record decisions; `docs/rewrite/work-breakdown.md` is the task board.
-- Priority order: user answers > Accepted ADRs > documented legacy behaviour > legacy code > judgement ([RULES §2](../RULES.md#2-sources-of-truth-in-priority-order)).
+- Priority order: user answers > Accepted ADRs > documented legacy behaviour > legacy code > judgement (RULES §2 at the time).
 - Docs are updated in the same change as the code. Where docs and legacy code disagree, the code wins and the doc gets fixed.
 
 ## Alternatives considered

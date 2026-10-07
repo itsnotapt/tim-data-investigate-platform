@@ -6,7 +6,7 @@
 - **Related:** Q-001, Q-007, Q-021, BUG-01, BUG-02, BUG-07, BUG-08
 
 ## Context
-The legacy backend switches between Couchbase, Mongo/Cosmos and Redis via `DATABASE_TYPE`. Each implementation handles TTL differently and some are broken ([backend-api.md § Persistence](../current-system/backend-api.md#persistence)). Only two entities are persisted: `QueryTemplate` and `KustoQueryRun`.
+The legacy backend switches between Couchbase, Mongo/Cosmos and Redis via `DATABASE_TYPE`. Each implementation handles TTL differently and some are broken (`docs/current-system/backend-api.md` § Persistence, preserved at git tag `migration-complete`). Only two entities are persisted: `QueryTemplate` and `KustoQueryRun`.
 
 ## Decision
 - **One store: PostgreSQL.** The 3-way switch is dropped.
