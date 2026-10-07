@@ -133,7 +133,7 @@ Applied to `cluster` before any token exchange. On success the value is normalis
 - No credentials, query, fragment or path (a trailing `/` is accepted); no IP address literals.
 - Port omitted or `443`.
 - Host is a valid domain name (internationalised names are converted to punycode).
-- If `TIM_ALLOWED_KUSTO_HOSTS` is set, the host must be one of them. Otherwise it must end with one of `TIM_ALLOWED_KUSTO_SUFFIXES` (default `.kusto.windows.net`, `.kusto.fabric.microsoft.com`) with at least one label before the suffix.
+- The host must match a pattern in `TIM_ALLOWED_KUSTO_HOSTS` (exact host, `*.domain` or `**.domain`; default `**.kusto.windows.net`; see [configuration](configuration.md#cluster-allow-list)). Otherwise the reason is `Invalid cluster URL: host is not in the allowed cluster list.`
 
 ## Templates
 

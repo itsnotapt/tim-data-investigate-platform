@@ -244,16 +244,11 @@
             "DEBUG"
           ]
         },
-        "allowedKustoSuffixes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "allowedKustoHosts": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "corsAllowedOrigins": {

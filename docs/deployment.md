@@ -77,7 +77,7 @@ and run `docker compose ... pull` followed by `docker compose ... up -d --no-bui
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID` | yes | - | Also passed to web |
 | `TIM_AUTH_CLIENT_SECRET` | yes | - | OBO client secret |
 | `TIM_TAG_CLUSTER_URI` | yes | - | https; `TIM_TAG_DATABASE` defaults to `Research` |
-| `TIM_ALLOWED_KUSTO_HOSTS`, `TIM_CORS_ALLOWED_ORIGINS` | no | empty | Comma separated |
+| `TIM_ALLOWED_KUSTO_HOSTS`, `TIM_CORS_ALLOWED_ORIGINS` | no | empty | Comma separated; empty hosts uses the api default `**.kusto.windows.net` |
 | `TIM_LOG_LEVEL` | no | `INFO` | |
 | `AGGRID_LICENSE` | no | empty | Empty = AG Grid Enterprise trial mode |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | no | empty | |
@@ -213,7 +213,7 @@ The migrations Job runs as a `pre-install,pre-upgrade` hook with an external dat
 | `<component>.extraEnv` / `extraEnvFrom` | empty | Further variables, e.g. `TIM_QUERY_TIMEOUT_SECONDS` |
 | `<component>.podLabels`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity`, `topologySpreadConstraints` | empty | Scheduling and metadata |
 | `api.logLevel` | `INFO` | `TIM_LOG_LEVEL` |
-| `api.allowedKustoSuffixes` / `allowedKustoHosts` | api default / empty | `TIM_ALLOWED_KUSTO_SUFFIXES` / `TIM_ALLOWED_KUSTO_HOSTS` |
+| `api.allowedKustoHosts` | empty (api default `**.kusto.windows.net`) | `TIM_ALLOWED_KUSTO_HOSTS` |
 | `api.corsAllowedOrigins` | empty | `TIM_CORS_ALLOWED_ORIGINS` |
 | `api.forwardedAllowIps` | `*` | `FORWARDED_ALLOW_IPS`; the api Service is cluster-internal, narrow to the pod CIDR if needed |
 | `web.helpWikiUri` / `helpIssueUri` | empty | `HELP_WIKI_URI` / `HELP_ISSUE_URI` |

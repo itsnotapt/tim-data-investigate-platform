@@ -68,10 +68,10 @@ api:
 
   # TIM_LOG_LEVEL
   logLevel: INFO
-  # TIM_ALLOWED_KUSTO_SUFFIXES (comma separated). Empty list = api default
-  # (.kusto.windows.net, .kusto.fabric.microsoft.com).
-  allowedKustoSuffixes: []
-  # TIM_ALLOWED_KUSTO_HOSTS (comma separated).
+  # TIM_ALLOWED_KUSTO_HOSTS (comma separated patterns). Empty list = api default
+  # (**.kusto.windows.net). Pattern kinds: exact host (help.kusto.windows.net),
+  # "*.domain" (exactly one label before the domain), "**.domain" (one or more labels).
+  # Fabric is opt-in: add "**.kusto.fabric.microsoft.com".
   allowedKustoHosts: []
   # TIM_CORS_ALLOWED_ORIGINS (comma separated). Not needed when the SPA is served by web.
   corsAllowedOrigins: []
