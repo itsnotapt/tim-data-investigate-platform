@@ -1,18 +1,58 @@
 {
     "bootstrap-sha": "02ad822a14e1a6cd75b87065061302672da46004",
     "packages": {
-        ".": {
-            "changelog-path": "CHANGELOG.md",
-            "release-type": "simple",
-            "package-name": "core"
-        },
         "web": {
             "release-type": "node",
-            "package-name": "web"
+            "package-name": "frontend",
+            "exclude-paths": [
+                "web/e2e"
+            ],
+            "extra-files": [
+                {
+                    "type": "yaml",
+                    "path": "/deploy/helm/tim/image-tags.yaml",
+                    "jsonpath": "$.frontend"
+                }
+            ]
         },
         "api": {
             "release-type": "python",
-            "package-name": "api"
+            "package-name": "backend",
+            "exclude-paths": [
+                "api/tests"
+            ],
+            "extra-files": [
+                {
+                    "type": "toml",
+                    "path": "uv.lock",
+                    "jsonpath": "$.package[?(@.name.value=='tim-api')].version"
+                },
+                {
+                    "type": "yaml",
+                    "path": "/deploy/helm/tim/image-tags.yaml",
+                    "jsonpath": "$.backend"
+                }
+            ]
+        },
+        "deploy/helm/tim": {
+            "release-type": "helm",
+            "package-name": "chart",
+            "exclude-paths": [
+                "deploy/helm/tim/ci"
+            ],
+            "changelog-sections": [
+                { "type": "feat", "section": "Features" },
+                { "type": "fix", "section": "Bug Fixes" },
+                { "type": "perf", "section": "Performance Improvements" },
+                { "type": "revert", "section": "Reverts" },
+                { "type": "chore", "section": "Image updates and chores" }
+            ],
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "Chart.yaml"
+                }
+            ]
         }
     },
     "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"

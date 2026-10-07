@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-web.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- with .Values.web.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -36,7 +36,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.web.terminationGracePeriodSeconds }}
       containers:
         - name: web
-          image: {{ include "tim.image" (list . .Values.web.image) | quote }}
+          image: {{ include "tim.image" (list . .Values.web.image "frontend") | quote }}
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.web.securityContext | nindent 12 }}

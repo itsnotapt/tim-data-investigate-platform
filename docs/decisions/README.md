@@ -21,7 +21,7 @@ Some ADRs refer to documents from the React + Python migration. Those are preser
 | [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to Kusto | Accepted | 2026-09-29 |
 | [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise only; licence key optional (trial mode without it) | Accepted | 2026-09-29 |
 | [0007](0007-docs-describe-current-state.md) | Docs describe the current system; rationale lives in ADRs | Accepted | 2026-10-06 |
-| [0008](0008-helm-chart.md) | Helm chart for Kubernetes deployment | Accepted | 2026-10-06 |
+| [0008](0008-helm-chart.md) | Helm chart for Kubernetes deployment | Accepted; image tag and chart version rules superseded by 0016 | 2026-10-06 |
 | [0009](0009-obo-token-exchange.md) | OBO token exchange: one shared MSAL app, configurable scope | Accepted | 2026-10-06 |
 | [0010](0010-kusto-cluster-allow-list.md) | Kusto cluster allow-list | Accepted | 2026-10-07 |
 | [0011](0011-development-only-modes.md) | Development-only modes refuse to run in production | Accepted | 2026-10-06 |
@@ -29,3 +29,4 @@ Some ADRs refer to documents from the React + Python migration. Those are preser
 | [0013](0013-tag-ingestion.md) | Tag ingestion runs as the app identity | Accepted | 2026-10-06 |
 | [0014](0014-web-auth-token-cache.md) | Web sign-in: token cache in localStorage | Accepted | 2026-10-06 |
 | [0015](0015-kql-templating.md) | KQL templating in the browser | Accepted | 2026-10-06 |
+| [0016](0016-linked-release-version.md) | Linked release version for web, api and chart | Proposed | 2026-10-07 |

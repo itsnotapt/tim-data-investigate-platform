@@ -133,13 +133,17 @@ The api image contains `alembic.ini` and `migrations/`, so the same image runs m
 
 ## CI and releases
 
-| Workflow (`.github/workflows/`) | Trigger                                   | What it runs                                                                                          |
-| ------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `build-api.yml`                 | PR / push to `main` touching `api/**`     | `uv sync --locked`, ruff check, ruff format check, mypy, pytest against a `postgres:17` service; Docker build (no push) |
-| `build-web.yml`                 | PR / push to `main` touching `web/**`     | `npm ci`, `npm audit --omit=dev --audit-level=high`, lint, format check, typecheck, test, build, Playwright e2e; Docker build (no push) |
-| `release-please.yml`            | push to `main`                            | release-please manifest with components `core` (repo root), `web` and `api`; a `web` or `api` release builds and pushes `ghcr.io/<repo>/tim-web` or `ghcr.io/<repo>/tim-api` |
+| Workflow (`.github/workflows/`) | Trigger                               | What it runs                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build-api.yml`                 | PR / push to `main` touching `api/**` | `uv sync --locked`, ruff check, ruff format check, mypy, pytest against a `postgres:17` service; Docker build (no push)                                                                                                                                                                                                                                                                                                                                   |
+| `build-web.yml`                 | PR / push to `main` touching `web/**` | `npm ci`, `npm audit --omit=dev --audit-level=high`, lint, format check, typecheck, test, build, Playwright e2e; Docker build (no push)                                                                                                                                                                                                                                                                                                                   |
+| `release-please.yml`            | push to `main`                        | release-please manifest with the linked group `web`, `api` and `chart` (`deploy/helm/tim`; tags `web-vX.Y.Z`, `api-vX.Y.Z`, `chart-vX.Y.Z`, one shared version) and the separately versioned `core` (repo root, tag `core-vX.Y.Z`); a release builds and pushes `ghcr.io/<repo>/tim-web` and `ghcr.io/<repo>/tim-api` tagged `X.Y.Z`, `X.Y`, `X` and `sha-<sha>`; the chart is packaged and pushed to `oci://ghcr.io/<repo>/charts/tim` after both images |
 
 Run the same commands locally before opening a PR.
+
+`web`, `api` and the Helm chart are a linked-versions group ([ADR-0016](decisions/0016-linked-release-version.md)). A release PR bumps `web/package.json`, `api/pyproject.toml`, `api/uv.lock` and the `Chart.yaml` `version` and `appVersion` together. Never edit these versions by hand; to force a version, add a `Release-As: X.Y.Z` footer to a commit.
+
+An api release PR bumps the version in both `api/pyproject.toml` and the `tim-api` entry of `api/uv.lock` (an `extra-files` entry in `release-please-config.json`), so `uv sync --locked` passes on it. That entry matches the package by name: if the `name` in `api/pyproject.toml` changes, change the jsonpath too.
 
 ## Commits and branches
 

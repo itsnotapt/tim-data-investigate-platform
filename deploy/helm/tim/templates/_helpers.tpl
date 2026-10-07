@@ -54,27 +54,19 @@ app.kubernetes.io/component: {{ index . 1 }}
 {{- end }}
 {{- end }}
 
-{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image)
-Requires a digest or a tag; there is no default tag. */}}
+{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image "backend")
+The digest wins over the tag; an empty tag uses the version pinned for the component
+("frontend" or "backend") in image-tags.yaml, which release-please updates. */}}
 {{- define "tim.image" -}}
 {{- $ := index . 0 -}}
 {{- $img := index . 1 -}}
-{{- include "tim.validateImages" $ -}}
+{{- $component := index . 2 -}}
 {{- if $img.digest -}}
 {{- printf "%s@%s" $img.repository $img.digest -}}
 {{- else -}}
-{{- printf "%s:%s" $img.repository ($img.tag | toString) -}}
+{{- $pinned := index ($.Files.Get "image-tags.yaml" | fromYaml) $component | toString -}}
+{{- printf "%s:%s" $img.repository (default $pinned ($img.tag | toString)) -}}
 {{- end -}}
-{{- end }}
-
-{{/* Fails unless the api and web images each have a digest or a tag. */}}
-{{- define "tim.validateImages" -}}
-{{- if not (or .Values.api.image.digest .Values.api.image.tag) }}
-{{- fail "api.image.tag or api.image.digest is required" }}
-{{- end }}
-{{- if not (or .Values.web.image.digest .Values.web.image.tag) }}
-{{- fail "web.image.tag or web.image.digest is required" }}
-{{- end }}
 {{- end }}
 
 {{- define "tim.secretName" -}}
@@ -106,7 +98,6 @@ Requires a digest or a tag; there is no default tag. */}}
 
 {{/* Required-value checks, rendered once from the api ConfigMap. */}}
 {{- define "tim.validate" -}}
-{{- include "tim.validateImages" . }}
 {{- $_ := required "config.auth.tenantId is required" .Values.config.auth.tenantId }}
 {{- $_ := required "config.auth.clientId is required" .Values.config.auth.clientId }}
 {{- $_ := required "config.tags.clusterUri is required" .Values.config.tags.clusterUri }}

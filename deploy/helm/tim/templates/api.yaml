@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-api.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- with .Values.api.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -36,7 +36,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.api.terminationGracePeriodSeconds }}
       containers:
         - name: api
-          image: {{ include "tim.image" (list . .Values.api.image) | quote }}
+          image: {{ include "tim.image" (list . .Values.api.image "backend") | quote }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.api.securityContext | nindent 12 }}

@@ -1,4 +1,5 @@
-# Every optional feature on: in-cluster PostgreSQL, HPA, licence key, workload identity.
+# Every optional feature on: in-cluster PostgreSQL, HPA, licence key, workload identity, image
+# tag and digest overrides.
 config:
   publicUrl: https://tim.example.com
   auth:

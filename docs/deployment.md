@@ -7,7 +7,7 @@ TIM ships as two container images and runs on Docker Compose or Kubernetes (Helm
 | `tim-api` | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13) | `ghcr.io/<owner>/<repo>/tim-api:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
 | `tim-web` | `web/Dockerfile` (context `web/`) | `nginxinc/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` | `ghcr.io/<owner>/<repo>/tim-web:<version>` (same tag set)         |
 
-Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a `web` or `api` release. `web` and `api` are versioned independently.
+Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a release. `web`, `api` and the Helm chart share one release version ([ADR-0016](decisions/0016-linked-release-version.md)).
 
 ## Topology
 
@@ -105,7 +105,7 @@ Pods restart automatically when the chart's ConfigMaps or Secret change (checksu
 
 ### Chart distribution
 
-The chart is published as an OCI artifact to GitHub Container Registry at `oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim`. Chart releases are tagged `chart-vX.Y.Z` and versioned independently of the web and api releases. Image tags are never taken from the chart: set `api.image.tag` and `web.image.tag` (or `digest`) in your values.
+The chart is published as an OCI artifact to GitHub Container Registry at `oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim`. Chart releases are tagged `chart-vX.Y.Z` and share their version with the web and api releases. The chart's `appVersion` is the default image tag, so `--version X.Y.Z` deploys the images tagged `X.Y.Z` without any tag settings. `api.image.tag`, `web.image.tag` and `digest` are optional overrides.
 
 ```bash
 helm show values oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim --version X.Y.Z > tim-values.yaml
@@ -132,12 +132,6 @@ config:
     clusterUri: https://<cluster>.<region>.kusto.windows.net
 secrets:
   existingSecret: tim-secrets
-api:
-  image:
-    tag: 0.1.0
-web:
-  image:
-    tag: 0.1.0
 ingress:
   className: nginx
   host: tim.example.com
@@ -152,7 +146,7 @@ helm upgrade --install tim deploy/helm/tim -n tim -f tim-values.yaml --wait
 helm test tim -n tim
 ```
 
-`deploy/helm/tim/ci/*.yaml` are further examples (minimal, all features, existing Secret). Rendering fails with a message when a required value is missing, including `api.image.tag` / `web.image.tag` (or the matching `digest`); there is no default tag; `values.schema.json` rejects unknown keys and malformed values.
+`deploy/helm/tim/ci/*.yaml` are further examples (minimal, all features, existing Secret). Rendering fails with a message when a required value is missing; image tags default to the chart's `appVersion`; `values.schema.json` rejects unknown keys and malformed values.
 
 ### Secrets
 
@@ -202,7 +196,7 @@ The migrations Job runs as a `pre-install,pre-upgrade` hook with an external dat
 | `config.tags.clusterUri` / `database` | required / `Research` | `TIM_TAG_CLUSTER_URI` / `TIM_TAG_DATABASE`, `TAG_CLUSTER` / `TAG_DATABASE` |
 | `secrets.existingSecret` | empty | Use this Secret instead of creating one |
 | `secrets.databaseUrl` / `authClientSecret` / `agGridLicense` | empty | `TIM_DATABASE_URL` / `TIM_AUTH_CLIENT_SECRET` / `AGGRID_LICENSE` |
-| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/tim-api` / empty / empty | Either `tag` or `digest` is required; `digest` wins over `tag` |
+| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/tim-api` / empty / empty | Empty `tag` uses the chart `appVersion`; `digest` wins over `tag` |
 | `web.image.*` | same, `tim-web` | |
 | `api.replicaCount`, `web.replicaCount` | `2` | Ignored when autoscaling is enabled |
 | `<component>.autoscaling.*` | disabled, 2 to 6 (api) / 2 to 4 (web), CPU 75 % | HPA (`autoscaling/v2`) |
@@ -232,6 +226,6 @@ Ingress controllers have their own body-size and timeout defaults (ingress-nginx
 ## Upgrades
 
 - Compose: update the checkout (or `TIM_IMAGE_TAG`), then `docker compose -f deploy/compose.prod.yaml --env-file deploy/.env up -d --build` (or `pull` + `up -d --no-build`). `migrate` re-runs (a no-op when the schema is current), then api and web are recreated.
-- Helm: set the new `api.image.tag` / `web.image.tag` and run `helm upgrade`. The migrations Job runs first; the Deployments then roll with `maxUnavailable` 25 %, gated on readiness. Migrations are forward-only: `helm rollback` restores the previous images but not the previous schema, so back up the database before upgrading.
+- Helm: run `helm upgrade` with the new chart `--version`; the images follow it (set `api.image.tag` / `web.image.tag` only to override). The migrations Job runs first; the Deployments then roll with `maxUnavailable` 25 %, gated on readiness. Migrations are forward-only: `helm rollback` restores the previous images but not the previous schema, so back up the database before upgrading.
 - The api holds running Kusto queries in-process. Pods stopped during a rollout end their running queries; clients see those runs as failed and can rerun them.
 - Back up PostgreSQL before every upgrade (`pg_dump`, or your managed service's snapshots).
