@@ -35,4 +35,5 @@ release-please's helm updater (`src/updaters/helm/chart-yaml.ts`) sets only `ver
 - `image.tag` and `digest` remain available as overrides.
 - `core` stays on its own version line.
 - Versions in `web/package.json`, `api/pyproject.toml`, `api/uv.lock` and `Chart.yaml` are never edited by hand; `Release-As: X.Y.Z` in a commit footer forces a version.
+- The first linked release is 4.0.0 for web, api and chart, above the legacy 3.x line that `core` carries. A `chore: release 4.0.0` commit with a `Release-As: 4.0.0` footer forces it: the footer applies to a package only when the commit touches files under that package's path or touches no files, and the linked group then takes the highest version, so the commit is empty. Merge it with a merge commit; if the branch is squash-merged, `Release-As: 4.0.0` must be the last paragraph of the squash message. No configuration change is needed and nothing has to be removed after the release.
 - Supersedes the image tag and chart version rules in [0008](0008-helm-chart.md).
