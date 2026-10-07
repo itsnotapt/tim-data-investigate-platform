@@ -32,6 +32,14 @@ export default defineConfig({
   worker: { format: 'es' },
   // @kusto/monaco-kusto's language service bundle references Node's `global`.
   define: { global: 'globalThis' },
+  optimizeDeps: {
+    // Only imported from the worker entry src/lib/monaco/kusto.worker.ts, which the dependency
+    // scan doesn't reach; pre-bundled so Vite doesn't re-optimise and reload the page at first use.
+    include: [
+      '@kusto/monaco-kusto/release/esm/kusto.worker',
+      'monaco-editor/esm/vs/editor/editor.worker',
+    ],
+  },
   server: {
     // Dev loop: forward API calls to the api run locally.
     proxy: {
