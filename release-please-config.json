@@ -12,7 +12,14 @@
         },
         "api": {
             "release-type": "python",
-            "package-name": "api"
+            "package-name": "api",
+            "extra-files": [
+                {
+                    "type": "toml",
+                    "path": "uv.lock",
+                    "jsonpath": "$.package[?(@.name.value=='tim-api')].version"
+                }
+            ]
         },
         "deploy/helm/tim": {
             "release-type": "helm",

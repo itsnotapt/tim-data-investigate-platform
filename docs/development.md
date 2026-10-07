@@ -134,9 +134,11 @@ The api image contains `alembic.ini` and `migrations/`, so the same image runs m
 | ------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `build-api.yml`                 | PR / push to `main` touching `api/**`     | `uv sync --locked`, ruff check, ruff format check, mypy, pytest against a `postgres:17` service; Docker build (no push) |
 | `build-web.yml`                 | PR / push to `main` touching `web/**`     | `npm ci`, `npm audit --omit=dev --audit-level=high`, lint, format check, typecheck, test, build, Playwright e2e; Docker build (no push) |
-| `release-please.yml`            | push to `main`                            | release-please manifest with components `core` (repo root), `web` and `api`; a `web` or `api` release builds and pushes `ghcr.io/<repo>/tim-web` or `ghcr.io/<repo>/tim-api` |
+| `release-please.yml`            | push to `main`                            | release-please manifest with components `core` (repo root), `web`, `api` and `chart` (`deploy/helm/tim`, tag `chart-vX.Y.Z`); a `web` or `api` release builds and pushes `ghcr.io/<repo>/tim-web` or `ghcr.io/<repo>/tim-api`; a `chart` release packages the chart and pushes it to `oci://ghcr.io/<repo>/charts/tim` |
 
 Run the same commands locally before opening a PR.
+
+An api release PR bumps the version in both `api/pyproject.toml` and the `tim-api` entry of `api/uv.lock` (an `extra-files` entry in `release-please-config.json`), so `uv sync --locked` passes on it. That entry matches the package by name: if the `name` in `api/pyproject.toml` changes, change the jsonpath too.
 
 ## Commits and branches
 

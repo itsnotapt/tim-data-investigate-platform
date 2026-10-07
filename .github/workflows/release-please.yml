@@ -21,7 +21,8 @@ jobs:
       api-major: ${{ steps.release.outputs.api--major }}
       api-minor: ${{ steps.release.outputs.api--minor }}
       api-patch: ${{ steps.release.outputs.api--patch }}
-      core-release: ${{ steps.release.outputs.releases_created }}
+      chart-release: ${{ steps.release.outputs['deploy/helm/tim--release_created'] }}
+      chart-version: ${{ steps.release.outputs['deploy/helm/tim--version'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -103,3 +104,31 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  publish-chart:
+    runs-on: ubuntu-latest
+    needs: release-please
+    permissions:
+      contents: read
+      packages: write
+    if: ${{ needs.release-please.outputs.chart-release }}
+    env:
+      CHART_VERSION: ${{ needs.release-please.outputs.chart-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Log into github registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: printf '%s' "$REGISTRY_TOKEN" | helm registry login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      - name: Package chart
+        run: helm package deploy/helm/tim --destination "$RUNNER_TEMP/chart"
+
+      - name: Push chart
+        run: |
+          repo="$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
+          helm push "$RUNNER_TEMP/chart/tim-${CHART_VERSION}.tgz" "oci://${REGISTRY}/${repo}/charts"
