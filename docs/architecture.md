@@ -62,7 +62,7 @@ Key points:
 | Pivot | Choosing a query template from the context menu of a grid row. Creates a child template tab; it runs immediately when every param is filled. |
 | Managed template | `isManaged: true`: maintained outside the UI and read-only in the Query Manager. |
 | Column view | Named, saved AG Grid column state. Global across tabs; browser-only. |
-| Query options | Per-template local options (currently `hide`), stored in IndexedDB `query_options`. |
+| Query options | Per-template local options (`hide`), stored in IndexedDB `query_options`. |
 | Query run | Server-side record of one query execution (`KustoQueryRun`): `created`, then `completed`, `error` or `timedOut`. The SPA polls it. |
 | Saved event | Snapshot of a result row written to `SavedEvent`. A row is saved before it is tagged or commented. |
 | Tagged event | An event with entries in the tag tables. The `getTagEvents` partial adds a `TagEvent` column: `{IsSaved, Tags[], Determination, Comment, Comments[]}`. |
@@ -89,8 +89,12 @@ React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores,
 | `web/src/lib/kql-templates/` | Template engine, escaping, param building, `getTagEvents` partial |
 | `web/src/lib/storage/` | IndexedDB database and DAOs |
 | `web/src/lib/monaco/`, `time-range/` | Editor setup, time range model |
+| `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
+| `web/src/lib/uuid.ts` | `generateUuid` (v4 UUID via `crypto.randomUUID`) |
+| `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
+| `web/e2e/` | Playwright e2e tests: `flows/` specs, `mocks/` (api and editor mocks), fixtures, screenshot helper |
 
-Features may import `lib/*` and `components/*` and the public `index.ts` of other features, not their internals. Exception: code loaded at startup imports `features/grid/rowUpdates` and `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle).
+Features may import `lib/*` and `components/*` and the public `index.ts` of other features, not their internals. Exceptions: code outside `features/grid` imports `features/grid/rowUpdates` directly, and code loaded at startup imports `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle).
 
 ### Routes
 
@@ -176,6 +180,8 @@ Python 3.12, FastAPI on uvicorn, pydantic and pydantic-settings, PyJWT (token va
 | `main.py` | App factory, lifespan, health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
+| `deps.py` | FastAPI dependencies returning the storage and its template and query-run stores |
+| `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `kusto/` | Cluster validation, query client, `POST /api/kusto/schema` |
