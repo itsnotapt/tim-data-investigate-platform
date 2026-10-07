@@ -11,7 +11,7 @@ export function buildTagEventsPartial(tagCluster: string, tagDatabase: string): 
   const cluster = escapeKqlVerbatim(tagCluster);
   const database = escapeKqlVerbatim(tagDatabase);
   return `
-let getTagEvents=(T:(EventId:string)) { 
+let getTagEvents=(T:(EventId:string)) {
   let EventIds=materialize(T | distinct EventId);
   let Events=EventIds
   | join kind=leftouter (
@@ -32,8 +32,8 @@ let getTagEvents=(T:(EventId:string)) {
     cluster('${cluster}').database('${database}').EventComment
     | where EventId in (EventIds)
     | sort by DateTimeUtc desc
-    | summarize arg_max(DateTimeUtc, Determination, IsDeleted, Comment), 
-      Comments=make_list(pack("CreatedBy", CreatedBy, "Comment", Comment, "Determination", Determination, "DateTimeUtc", DateTimeUtc)) 
+    | summarize arg_max(DateTimeUtc, Determination, IsDeleted, Comment),
+      Comments=make_list(pack("CreatedBy", CreatedBy, "Comment", Comment, "Determination", Determination, "DateTimeUtc", DateTimeUtc))
       by EventId
     | where not(IsDeleted)
     | project EventId, Determination, Comment, Comments

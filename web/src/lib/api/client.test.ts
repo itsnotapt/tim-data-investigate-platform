@@ -318,4 +318,26 @@ describe('endpoint modules', () => {
     expect(Object.keys(got).sort()).toEqual(['comments', 'savedEvents', 'tags']);
     expect(got['savedEvents']?.[0]).not.toHaveProperty('createdBy');
   });
+  it.each([
+    [
+      'savedEvents',
+      saveEvents,
+      { eventId: 'e1', eventTime: '2026-01-01T00:00:00Z', eventAsJson: {} },
+    ],
+    ['tags', tagEvents, { eventId: 'e1', tag: 't', isDeleted: false }],
+    ['comments', commentEvents, { eventId: 'e1', determination: 'benign', isDeleted: false }],
+  ] as const)('never sends createdBy or dateTimeUtc when posting %s', async (kind, post, item) => {
+    let body: unknown;
+    server.use(
+      http.post(apiUrl(`/api/taggedevents/${kind}`), async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await (post as (items: unknown[], opts: { client: unknown }) => Promise<void>)(
+      [{ ...item, createdBy: 'mallory', dateTimeUtc: '2001-01-01T00:00:00Z' }],
+      { client: makeClient() },
+    );
+    expect(body).toEqual([item]);
+  });
 });

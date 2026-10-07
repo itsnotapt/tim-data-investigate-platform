@@ -44,8 +44,8 @@ export interface ApiClientOptions {
   timeoutMs?: number;
 }
 
-/** Fields the server owns (SEC-03, BUG-40); never sent, whatever the caller passes. */
-const SERVER_OWNED = new Set(['requestedBy', 'createdBy', 'updatedBy', 'updated']);
+/** Fields the server owns; never sent, whatever the caller passes. */
+const SERVER_OWNED = new Set(['requestedBy', 'createdBy', 'updatedBy', 'updated', 'dateTimeUtc']);
 
 /** Removes server-owned identity fields from a request body (top level, or per array item). */
 export function stripServerOwned<T>(body: T): T {
