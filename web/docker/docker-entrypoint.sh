@@ -2,16 +2,20 @@
 # TIM web container entrypoint: validate env, render /config.js and the nginx conf, exec nginx.
 # See web/README.md for the environment variables.
 #
+# All runtime output goes to TIM_RUNTIME_DIR, so the root filesystem can be read-only. The image
+# serves /config.js from /tmp/tim/config.js and includes /tmp/tim/nginx.conf from
+# /etc/nginx/conf.d/default.conf; those paths are fixed, so changing TIM_RUNTIME_DIR is only
+# useful for tests that do not start nginx.
+#
 # Test/override hooks (all optional):
-#   TIM_HTML_DIR         where config.js is written        (default /usr/share/nginx/html)
+#   TIM_RUNTIME_DIR      where config.js and nginx.conf are written (default /tmp/tim)
 #   TIM_NGINX_TEMPLATE   nginx conf template               (default /opt/tim/nginx.conf.template)
-#   TIM_NGINX_CONF       rendered nginx conf               (default /etc/nginx/conf.d/default.conf)
 #   TIM_ENTRYPOINT_DRY_RUN=1   render files, then exit 0 instead of exec'ing nginx
 set -eu
 
-HTML_DIR=${TIM_HTML_DIR:-/usr/share/nginx/html}
+RUNTIME_DIR=${TIM_RUNTIME_DIR:-/tmp/tim}
 NGINX_TEMPLATE=${TIM_NGINX_TEMPLATE:-/opt/tim/nginx.conf.template}
-NGINX_CONF=${TIM_NGINX_CONF:-/etc/nginx/conf.d/default.conf}
+NGINX_CONF="$RUNTIME_DIR/nginx.conf"
 
 fail() {
     echo "tim-web: $*" >&2
@@ -43,7 +47,7 @@ is_http_url() {
 }
 
 BACKEND_URI=$(printf '%s' "$BACKEND_URI" | sed 's|/*$||')
-# Scheme + host[:port] only. A path would change how nginx forwards /api/ (BUG-10 class).
+# Scheme + host[:port] only. A path would change how nginx forwards /api/.
 printf '%s' "$BACKEND_URI" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' \
     || fail "BACKEND_URI must be http(s)://host[:port] with no path (got '$BACKEND_URI')"
 is_http_url "$REDIRECT_URI" || fail "REDIRECT_URI must be an http(s) URL"
@@ -53,7 +57,7 @@ printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
 
 TAG_DATABASE=${TAG_DATABASE:-Research}
 API_BASEPATH=${API_BASEPATH-}
-# Optional (ADR-0006, amended 2026-09-30): without a key AG Grid Enterprise runs as a trial.
+# Optional: without a key AG Grid Enterprise runs in trial mode.
 AGGRID_LICENSE=${AGGRID_LICENSE-}
 if [ -z "$AGGRID_LICENSE" ]; then
     echo "tim-web: AGGRID_LICENSE not set, AG Grid Enterprise runs in trial mode" >&2
@@ -73,8 +77,8 @@ fi
 # jq does all JSON escaping. "<" is additionally emitted as < so the file stays safe even
 # if it is ever inlined in HTML. Empty optional values are omitted so the app's own defaults
 # apply, except agGridLicenseKey, which is always written (empty = trial mode).
-mkdir -p "$HTML_DIR"
-config_tmp="$HTML_DIR/.config.js.$$"
+mkdir -p "$RUNTIME_DIR"
+config_tmp="$RUNTIME_DIR/.config.js.$$"
 {
     printf 'window.appConfig = '
     jq -n \
@@ -109,7 +113,7 @@ config_tmp="$HTML_DIR/.config.js.$$"
         | sed 's/</\\u003c/g'
     printf ';\n'
 } >"$config_tmp"
-mv "$config_tmp" "$HTML_DIR/config.js"
+mv "$config_tmp" "$RUNTIME_DIR/config.js"
 
 # --- nginx conf -------------------------------------------------------------------------
 # Resolver for the runtime-resolved backend: NGINX_RESOLVER, else the first nameserver in
@@ -139,13 +143,12 @@ case "$API_BASEPATH" in
 esac
 
 # All substituted values were validated above, so they are safe for sed and for nginx.
-mkdir -p "$(dirname "$NGINX_CONF")"
 sed -e "s|@BACKEND_URI@|$BACKEND_URI|g" -e "s|@NGINX_RESOLVER@|$NGINX_RESOLVER|g" \
     -e "s|@CSP_CONNECT_EXTRA@|$CSP_CONNECT_EXTRA|g" \
     "$NGINX_TEMPLATE" >"$NGINX_CONF"
 
 if [ "${TIM_ENTRYPOINT_DRY_RUN:-}" = 1 ]; then
-    echo "tim-web: dry run, wrote $HTML_DIR/config.js and $NGINX_CONF" >&2
+    echo "tim-web: dry run, wrote $RUNTIME_DIR/config.js and $NGINX_CONF" >&2
     exit 0
 fi
 

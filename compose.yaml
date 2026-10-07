@@ -1,4 +1,4 @@
-# Dev stack: postgres + api + web (nginx image). See docs/rewrite/local-dev.md.
+# Dev stack: postgres + api + web (nginx image). See docs/development.md and docs/deployment.md.
 # Variables come from .env at the repo root (copy .env.example); every one has a dev default.
 # Main dev loop is `docker compose up -d postgres` + `uv run uvicorn` + `npm run dev`;
 # `docker compose up --build` runs the full stack as deployed.
@@ -37,6 +37,8 @@ services:
       TIM_AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
       TIM_TAG_CLUSTER_URI: ${TIM_TAG_CLUSTER_URI:-https://example.westeurope.kusto.windows.net}
       TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
+      TIM_AUTH_CLIENT_SECRET: ${TIM_AUTH_CLIENT_SECRET:-}
+      TIM_ALLOWED_KUSTO_HOSTS: ${TIM_ALLOWED_KUSTO_HOSTS:-}
       # uvicorn trusts X-Forwarded-* only from these addresses; the web container proxies here.
       FORWARDED_ALLOW_IPS: "*"
     depends_on:
@@ -67,12 +69,18 @@ services:
       TAG_CLUSTER: ${TIM_TAG_CLUSTER_URI:-https://example.westeurope.kusto.windows.net}
       TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
       AGGRID_LICENSE: ${AGGRID_LICENSE:-}
+      HELP_WIKI_URI: ${HELP_WIKI_URI:-}
+      HELP_ISSUE_URI: ${HELP_ISSUE_URI:-}
+      DEFAULT_CLUSTERS: ${DEFAULT_CLUSTERS:-}
     depends_on:
       api:
         condition: service_healthy
     ports:
       # nginx-unprivileged listens on 8080 inside the container.
       - "${WEB_PORT:-8081}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
 
 volumes:
   postgres-data:

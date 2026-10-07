@@ -1,0 +1,23 @@
+TIM is deployed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+api image: {{ include "tim.image" (list . .Values.api.image) }}
+web image: {{ include "tim.image" (list . .Values.web.image) }}
+
+Public URL: {{ include "tim.publicUrl" . }}
+Register {{ include "tim.publicUrl" . }}/blank.html as a SPA redirect URI in the Entra app registration.
+
+Check the rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "tim.fullname" . }}-api
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "tim.fullname" . }}-web
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+{{- if .Values.secrets.existingSecret }}
+
+Secrets come from the existing Secret "{{ .Values.secrets.existingSecret }}".
+{{- end }}
+{{- if not (or .Values.secrets.agGridLicense .Values.secrets.existingSecret) }}
+
+AGGRID_LICENSE is not set: AG Grid Enterprise runs in trial mode (watermark, console notice).
+{{- end }}
+{{- if .Values.postgresql.enabled }}
+
+The in-cluster PostgreSQL is a single pod without backups. Use a managed PostgreSQL for production.
+{{- end }}

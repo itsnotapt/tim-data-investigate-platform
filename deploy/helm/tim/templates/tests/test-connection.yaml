@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "tim.fullname" . }}-test
+  labels:
+    {{- include "tim.componentLabels" (list . "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    {{- toYaml .Values.web.podSecurityContext | nindent 4 }}
+  containers:
+    - name: test
+      # The web image ships wget; no extra image is pulled.
+      image: {{ include "tim.image" (list . .Values.web.image) | quote }}
+      imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      command: ["sh", "-ec"]
+      args:
+        - |
+          base=http://{{ include "tim.webServiceName" . }}:{{ .Values.web.service.port }}
+          wget -q -O /dev/null "$base/healthz"
+          wget -q -O - "$base/config.js" | grep -q agGridLicenseKey
+          # Through web's /api proxy: 204 when the api reaches PostgreSQL.
+          wget -q -O /dev/null "$base/api/healthChecks/readiness"
+          echo ok
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 64Mi

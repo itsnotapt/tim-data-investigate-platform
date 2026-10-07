@@ -20,7 +20,7 @@ client ── TLS proxy / Ingress ──> web (nginx :8080) ──/api/──> a
 - nginx allows request bodies up to 25 MB and waits up to 620 s for the api (long Kusto runs). A proxy in front of web needs at least the same limits.
 - `web` is the only public port. The api and PostgreSQL stay on the internal network.
 - Schema migrations (`alembic upgrade head`, api image) run before the api starts or is upgraded. The api never migrates on its own.
-- Both containers run as non-root (api uid 10001, web uid 101) and drop all capabilities. The api root filesystem is read-only; web writes `/config.js` and its nginx conf at start.
+- Both containers run as non-root (api uid 10001, web uid 101) and drop all capabilities. Both root filesystems are read-only. web writes `config.js` and its nginx conf to `/tmp/tim` at start, and nginx keeps its pid and temp files in `/tmp`, so web needs a writable `/tmp` (an `emptyDir` in the chart, `tmpfs` in the compose files).
 
 ## Configuration contract
 
@@ -103,7 +103,18 @@ Chart: `deploy/helm/tim` (Kubernetes 1.25+, Helm 3). It deploys:
 
 Pods restart automatically when the chart's ConfigMaps or Secret change (checksum annotations).
 
+### Chart distribution
+
+The chart is published as an OCI artifact to GitHub Container Registry at `oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim`. Chart releases are tagged `chart-vX.Y.Z` and versioned independently of the web and api releases. Image tags are never taken from the chart: set `api.image.tag` and `web.image.tag` (or `digest`) in your values.
+
+```bash
+helm show values oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim --version X.Y.Z > tim-values.yaml
+helm upgrade --install tim oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim --version X.Y.Z -n tim -f tim-values.yaml --wait
+```
+
 ### Install
+
+The commands below install from a checkout; replace `deploy/helm/tim` with the OCI reference and `--version` to install a published chart.
 
 ```bash
 kubectl create namespace tim
@@ -141,7 +152,7 @@ helm upgrade --install tim deploy/helm/tim -n tim -f tim-values.yaml --wait
 helm test tim -n tim
 ```
 
-`deploy/helm/tim/ci/*.yaml` are further examples (minimal, all features, existing Secret). Rendering fails with a message when a required value is missing; `values.schema.json` rejects unknown keys and malformed values.
+`deploy/helm/tim/ci/*.yaml` are further examples (minimal, all features, existing Secret). Rendering fails with a message when a required value is missing, including `api.image.tag` / `web.image.tag` (or the matching `digest`); there is no default tag; `values.schema.json` rejects unknown keys and malformed values.
 
 ### Secrets
 
@@ -191,14 +202,14 @@ The migrations Job runs as a `pre-install,pre-upgrade` hook with an external dat
 | `config.tags.clusterUri` / `database` | required / `Research` | `TIM_TAG_CLUSTER_URI` / `TIM_TAG_DATABASE`, `TAG_CLUSTER` / `TAG_DATABASE` |
 | `secrets.existingSecret` | empty | Use this Secret instead of creating one |
 | `secrets.databaseUrl` / `authClientSecret` / `agGridLicense` | empty | `TIM_DATABASE_URL` / `TIM_AUTH_CLIENT_SECRET` / `AGGRID_LICENSE` |
-| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/tim-api` / `Chart.appVersion` / empty | `digest` wins over `tag` |
+| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/tim-api` / empty / empty | Either `tag` or `digest` is required; `digest` wins over `tag` |
 | `web.image.*` | same, `tim-web` | |
 | `api.replicaCount`, `web.replicaCount` | `2` | Ignored when autoscaling is enabled |
 | `<component>.autoscaling.*` | disabled, 2 to 6 (api) / 2 to 4 (web), CPU 75 % | HPA (`autoscaling/v2`) |
 | `<component>.podDisruptionBudget` | enabled, `minAvailable: 1` | Rendered only with more than one replica |
 | `<component>.resources` | api 100m / 256Mi request, 1Gi limit; web 25m / 32Mi, 128Mi | |
 | `<component>.livenessProbe` / `readinessProbe` | health endpoints above | |
-| `<component>.podSecurityContext` / `securityContext` | non-root, seccomp `RuntimeDefault`, no privilege escalation, all capabilities dropped | api root filesystem read-only |
+| `<component>.podSecurityContext` / `securityContext` | non-root, seccomp `RuntimeDefault`, no privilege escalation, all capabilities dropped, read-only root filesystem | web mounts an `emptyDir` at `/tmp` |
 | `<component>.extraEnv` / `extraEnvFrom` | empty | Further variables, e.g. `TIM_QUERY_TIMEOUT_SECONDS` |
 | `<component>.podLabels`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity`, `topologySpreadConstraints` | empty | Scheduling and metadata |
 | `api.logLevel` | `INFO` | `TIM_LOG_LEVEL` |

@@ -82,7 +82,7 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 
 ## Web container
 
-The image (`web/Dockerfile`, nginx on port 8080) renders its configuration at start. `docker-entrypoint.sh` validates these variables, writes `/usr/share/nginx/html/config.js` (`window.appConfig = {...}`, never cached) and the nginx configuration, then starts nginx. A validation failure prints `tim-web: ...` to stderr and the container exits.
+The image (`web/Dockerfile`, nginx on port 8080) renders its configuration at start. `docker-entrypoint.sh` validates these variables, writes `/tmp/tim/config.js` (`window.appConfig = {...}`, served as `/config.js`, never cached) and the nginx configuration `/tmp/tim/nginx.conf`, then starts nginx. The root filesystem can be read-only; only `/tmp` must be writable. A validation failure prints `tim-web: ...` to stderr and the container exits.
 
 | Variable           | Required | Default                                                   | `window.appConfig` key | Description                                                                                              |
 | ------------------ | -------- | --------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -102,7 +102,7 @@ The image (`web/Dockerfile`, nginx on port 8080) renders its configuration at st
 
 Empty optional values are left out of `config.js` so the app defaults apply; `agGridLicenseKey` is always written (empty means trial).
 
-The entrypoint also honours `TIM_HTML_DIR`, `TIM_NGINX_TEMPLATE`, `TIM_NGINX_CONF` and `TIM_ENTRYPOINT_DRY_RUN=1` (render the files and exit). They exist for tests.
+The entrypoint also honours `TIM_RUNTIME_DIR` (output directory, default `/tmp/tim`), `TIM_NGINX_TEMPLATE` and `TIM_ENTRYPOINT_DRY_RUN=1` (render the files and exit). They exist for tests: the image serves `/config.js` from and includes `nginx.conf` from `/tmp/tim`, so a different `TIM_RUNTIME_DIR` is only useful when nginx is not started.
 
 ### Web (Vite development)
 

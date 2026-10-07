@@ -1,0 +1,100 @@
+name: Deploy check
+
+on:
+  pull_request:
+    paths:
+      - deploy/**
+      - compose.yaml
+      - .env.example
+      - .github/workflows/deploy-check.yml
+  push:
+    branches:
+      - main
+    paths:
+      - deploy/**
+      - compose.yaml
+      - .env.example
+      - .github/workflows/deploy-check.yml
+
+concurrency:
+  group: deploy-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CHART: deploy/helm/tim
+  KUBECONFORM_VERSION: v0.7.0
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes: ["1.29.0", "1.31.0", "1.33.0"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+
+      - name: Install kubeconform
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          kubeconform -v
+
+      - name: Lint
+        run: |
+          for values in "$CHART"/ci/*.yaml; do
+            echo "::group::helm lint ($values)"
+            helm lint "$CHART" --strict -f "$values" --kube-version "${{ matrix.kubernetes }}"
+            echo "::endgroup::"
+          done
+
+      - name: Template and validate against the Kubernetes schema
+        run: |
+          for values in "$CHART"/ci/*.yaml; do
+            echo "::group::helm template | kubeconform ($values)"
+            helm template tim "$CHART" -f "$values" --kube-version "${{ matrix.kubernetes }}" \
+              | kubeconform -strict -summary -kubernetes-version "${{ matrix.kubernetes }}" -
+            echo "::endgroup::"
+          done
+
+      - name: Required values are enforced
+        run: |
+          if helm template tim "$CHART" >/dev/null 2>&1; then
+            echo "rendering without required values must fail" >&2
+            exit 1
+          fi
+
+      - name: Image tags are enforced
+        run: |
+          for component in api web; do
+            if helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" --set "$component.image.tag=" >/dev/null 2>&1; then
+              echo "rendering without $component.image.tag must fail" >&2
+              exit 1
+            fi
+          done
+
+  compose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate dev stack
+        run: docker compose -f compose.yaml config --quiet
+
+      - name: Validate production stack
+        run: |
+          # Required values left empty in the template.
+          sed -e 's|^TIM_AUTH_TENANT_ID=$|TIM_AUTH_TENANT_ID=00000000-0000-0000-0000-000000000000|' \
+              -e 's|^TIM_AUTH_CLIENT_ID=$|TIM_AUTH_CLIENT_ID=00000000-0000-0000-0000-000000000000|' \
+              -e 's|^TIM_AUTH_CLIENT_SECRET=$|TIM_AUTH_CLIENT_SECRET=ci|' \
+              deploy/.env.example > deploy/.env
+          docker compose -f deploy/compose.prod.yaml --env-file deploy/.env config --quiet

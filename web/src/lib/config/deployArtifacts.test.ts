@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
@@ -25,9 +25,8 @@ function runEntrypoint(env: Record<string, string>) {
     env: {
       PATH: process.env['PATH'] ?? '',
       TIM_ENTRYPOINT_DRY_RUN: '1',
-      TIM_HTML_DIR: dir,
+      TIM_RUNTIME_DIR: dir,
       TIM_NGINX_TEMPLATE: join(docker, 'nginx.conf.template'),
-      TIM_NGINX_CONF: join(dir, 'default.conf'),
       NGINX_RESOLVER: '127.0.0.11',
       ...baseEnv,
       ...env,
@@ -39,7 +38,7 @@ function runEntrypoint(env: Record<string, string>) {
     status: r.status,
     stderr: r.stderr,
     config: read('config.js'),
-    conf: read('default.conf'),
+    conf: read('nginx.conf'),
   };
 }
 
@@ -99,6 +98,42 @@ describe.skipIf(!hasTools)('web container entrypoint', () => {
     const bad = runEntrypoint({ API_BASEPATH: 'https://a.example; script-src *' });
     expect(bad.status).not.toBe(0);
     expect(bad.stderr).toContain('API_BASEPATH');
+  });
+});
+
+describe('read-only root filesystem', () => {
+  const tpl = readFileSync(join(docker, 'nginx.conf.template'), 'utf8');
+  const dockerfile = readFileSync(join(docker, '../Dockerfile'), 'utf8');
+
+  it.skipIf(!hasTools)('writes config.js and the nginx conf only under TIM_RUNTIME_DIR', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tim-entry-'));
+    const runtime = join(dir, 'run');
+    const r = spawnSync('sh', [join(docker, 'docker-entrypoint.sh')], {
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TIM_ENTRYPOINT_DRY_RUN: '1',
+        TIM_RUNTIME_DIR: runtime,
+        TIM_NGINX_TEMPLATE: join(docker, 'nginx.conf.template'),
+        NGINX_RESOLVER: '127.0.0.11',
+        ...baseEnv,
+      },
+      encoding: 'utf8',
+    });
+    expect(r.status).toBe(0);
+    expect(readdirSync(dir)).toEqual(['run']);
+    expect(readdirSync(runtime).sort()).toEqual(['config.js', 'nginx.conf']);
+  });
+
+  it('serves /config.js from the runtime dir without caching', () => {
+    const block = /location = \/config\.js \{([^}]*)\}/.exec(tpl)?.[1] ?? '';
+    expect(block).toContain('alias /tmp/tim/config.js;');
+    expect(block).toContain('expires -1;');
+  });
+
+  it('the image includes the rendered conf from the runtime dir', () => {
+    expect(dockerfile).toContain("'include /tmp/tim/nginx.conf;' >/etc/nginx/conf.d/default.conf");
+    expect(dockerfile).not.toMatch(/chown[^\n]*(101|nginx):[^\n]*(conf\.d|html)/);
+    expect(dockerfile).toContain('chown root:root /etc/nginx/conf.d');
   });
 });
 

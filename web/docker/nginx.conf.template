@@ -26,10 +26,10 @@ server {
     # are not lost to add_header inheritance rules.
     add_header X-Content-Type-Options "nosniff" always;
     # SAMEORIGIN, not DENY: MSAL's silent flows load the redirect page (/blank.html) in a hidden
-    # same-origin iframe (S-W05). Cross-origin framing is still refused, see frame-ancestors.
+    # same-origin iframe. Cross-origin framing is still refused, see frame-ancestors.
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Strict-Transport-Security $tim_hsts always;
-    # CSP (S-W02). Why each relaxation exists:
+    # Content-Security-Policy. Why each relaxation exists:
     #  - script-src 'unsafe-eval': Handlebars compiles templates with `new Function` and the Kusto
     #    language-service worker uses eval. Everything else is same-origin ('self'); there are no
     #    inline scripts (config.js is a same-origin file).
@@ -61,8 +61,8 @@ server {
     # Runtime config and the SPA shell must never be cached (config changes per deploy, and
     # index.html references hashed assets).
     location = /config.js {
+        alias /tmp/tim/config.js;
         expires -1;
-        try_files $uri =404;
     }
 
     location = /index.html {
@@ -78,7 +78,7 @@ server {
     # API proxy. The backend is addressed through a variable so nginx starts even if the
     # backend is not resolvable yet, and so re-resolves it (DNS changes in k8s / compose).
     # proxy_pass has no URI part, so the original request URI is forwarded unchanged and the
-    # /api prefix is kept (legacy BUG-10: an ingress rewrite stripped it).
+    # /api prefix is kept (the api serves its routes under /api).
     location /api/ {
         resolver @NGINX_RESOLVER@ valid=10s ipv6=off;
         set $tim_backend "@BACKEND_URI@";
