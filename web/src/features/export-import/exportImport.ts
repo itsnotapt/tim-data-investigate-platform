@@ -70,17 +70,26 @@ export async function exportTabsJson(): Promise<string> {
   await useTabsStore.getState().flush();
   const tabs = await displayComponentsDao.getAll();
   tabs.sort((a, b) => a.displayComponentIndex - b.displayComponentIndex);
-  return JSON.stringify(tabs.map(stripServerFields));
+  return JSON.stringify(tabs.map(stripTemplateFields));
 }
 
-const SERVER_ONLY = ['createdBy', 'updatedBy', 'updated'];
+const EXCLUDED_TEMPLATE_FIELDS = [
+  'name',
+  'isDeleted',
+  'isManaged',
+  'createdBy',
+  'updatedBy',
+  'updated',
+];
 
-/** Template tabs embed the server template; drop author emails and timestamps. */
-function stripServerFields(tab: DisplayComponent): DisplayComponent {
+/** Template tabs embed the server template; drop its author, timestamp, name and status fields. */
+function stripTemplateFields(tab: DisplayComponent): DisplayComponent {
   const params = tab.params as { queryTemplate?: Record<string, unknown> } | undefined;
   const qt = params?.queryTemplate;
   if (tab.componentName !== 'TemplateQueryResult' || !qt) return tab;
-  const clean = Object.fromEntries(Object.entries(qt).filter(([k]) => !SERVER_ONLY.includes(k)));
+  const clean = Object.fromEntries(
+    Object.entries(qt).filter(([k]) => !EXCLUDED_TEMPLATE_FIELDS.includes(k)),
+  );
   return { ...tab, params: { ...params, queryTemplate: clean } } as DisplayComponent;
 }
 

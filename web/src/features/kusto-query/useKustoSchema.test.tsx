@@ -93,6 +93,41 @@ describe('useKustoSchema', () => {
     delete delays['Slow'];
   });
 
+  it('shows the cluster rejection reason, or the generic detail without one', async () => {
+    const reason = 'Invalid cluster URL: host is not in the allowed cluster list.';
+    server.use(
+      http.post(apiUrl('/api/kusto/schema'), () =>
+        problemResponse(400, {
+          type: 'urn:tim:problem:cluster-not-allowed',
+          detail: 'The cluster is not allowed',
+          errors: { cluster: [reason] },
+        }),
+      ),
+    );
+    const { unmount } = renderHook(() => useKustoSchema('evil', 'Db', editor), { wrapper });
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(`Failed to load the Kusto schema: ${reason}`),
+    );
+    expect(document.body.textContent).not.toContain('The cluster is not allowed');
+    unmount();
+
+    clearKustoSchemaCache();
+    server.use(
+      http.post(apiUrl('/api/kusto/schema'), () =>
+        problemResponse(400, {
+          type: 'urn:tim:problem:cluster-not-allowed',
+          detail: 'The cluster is not allowed',
+        }),
+      ),
+    );
+    renderHook(() => useKustoSchema('evil2', 'Db', editor), { wrapper });
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        'Failed to load the Kusto schema: The cluster is not allowed',
+      ),
+    );
+  });
+
   it('notifies on error and does not cache the failure', async () => {
     server.use(
       http.post(apiUrl('/api/kusto/schema'), () => problemResponse(502, { detail: 'Boom' }), {

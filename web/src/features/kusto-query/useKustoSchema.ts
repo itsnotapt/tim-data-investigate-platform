@@ -3,6 +3,7 @@ import { useNotify } from '../../components/useNotify';
 import type { CodeEditorInstance } from '../../components/CodeEditor';
 import { formatCluster } from '../../lib/api';
 import { getKustoWorkerFor } from '../../lib/monaco';
+import { clusterRejectionReason } from './clusterError';
 import { fetchKustoSchema } from './kustoSchema';
 
 /**
@@ -29,7 +30,10 @@ export function useKustoSchema(
         await worker.setSchemaFromShowSchema(schema, formatCluster(cluster), database.trim());
       } catch (e) {
         if (!stale) {
-          notify(`Failed to load the Kusto schema: ${e instanceof Error ? e.message : String(e)}`);
+          const reason = clusterRejectionReason(e);
+          notify(
+            `Failed to load the Kusto schema: ${reason ?? (e instanceof Error ? e.message : String(e))}`,
+          );
         }
       }
     })();

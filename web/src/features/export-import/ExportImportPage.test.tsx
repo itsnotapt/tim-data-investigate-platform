@@ -90,7 +90,7 @@ describe('ExportImportPage', () => {
     expect(useTabsStore.getState().tabs[a]?.parentUuid).toBeNull();
   });
 
-  it('export omits server-only template fields and still re-imports', async () => {
+  it('exports template tabs without name, status and author fields, and the export re-imports', async () => {
     const store = useTabsStore.getState();
     await store.load();
     store.createTab({
@@ -100,7 +100,11 @@ describe('ExportImportPage', () => {
       params: {
         inParams: {},
         queryTemplate: {
+          uuid: 'tpl-1',
+          query: 'T | take 1',
           name: 'q',
+          isDeleted: false,
+          isManaged: true,
           createdBy: 'a@b.c',
           updatedBy: 'd@e.f',
           updated: '2026-01-01Z',
@@ -111,8 +115,17 @@ describe('ExportImportPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Export' }));
     await waitFor(() => expect((box() as HTMLTextAreaElement).value).toContain('Tpl'));
     const json = (box() as HTMLTextAreaElement).value;
-    expect(json).not.toMatch(/createdBy|updatedBy|a@b\.c/);
-    expect(json).toContain('"name":"q"');
+    expect(json).not.toMatch(/a@b\.c|d@e\.f/);
+    const exported = JSON.parse(json) as { params: { queryTemplate: Record<string, unknown> } }[];
+    const qt = exported[0]?.params.queryTemplate ?? {};
+    for (const key of ['name', 'isDeleted', 'isManaged', 'createdBy', 'updatedBy', 'updated']) {
+      expect(qt).not.toHaveProperty(key);
+    }
+    expect(qt).toMatchObject({ uuid: 'tpl-1', query: 'T | take 1' });
+    await userEvent.clear(box());
+    expect(importBtn()).toBeDisabled();
+    await userEvent.click(box());
+    await userEvent.paste(json);
     expect(importBtn()).toBeEnabled();
   });
 
@@ -145,5 +158,23 @@ describe('ExportImportPage', () => {
       ]),
     );
     expect(r.ok && r.tabs[0]?.state.isExecuting).toBe(false);
+  });
+
+  it('parseImport accepts a template tab whose queryTemplate has no name', () => {
+    const r = parseImport(
+      JSON.stringify([
+        {
+          componentUuid: 'u',
+          componentName: 'TemplateQueryResult',
+          title: 't',
+          parentUuid: null,
+          rowDataTrigger: null,
+          displayComponentIndex: 0,
+          state: { isVisited: false, error: null, rowCount: null, isExecuting: false },
+          params: { inParams: {}, queryTemplate: { uuid: 'tpl-1', query: 'T | take 1' } },
+        },
+      ]),
+    );
+    expect(r.ok).toBe(true);
   });
 });

@@ -102,7 +102,7 @@ Hash routes; unknown hashes redirect to `#/`. Pages are lazy-loaded.
 | `#/queries` | Query Manager (template administration) |
 | `#/view/:uuid` | A tab (`uuid` is the tab's component uuid) |
 | `#/share/:uuid?p=...&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it |
-| `#/exportimport` | Export and import of the investigation as JSON |
+| `#/exportimport` | Export and import of the investigation as JSON; template tabs are exported without the template's `name`, `isDeleted`, `isManaged`, `createdBy`, `updatedBy` and `updated` |
 
 ### State and tab model
 
