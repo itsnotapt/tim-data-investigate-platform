@@ -82,13 +82,22 @@ async function setup() {
     </NotifyContext.Provider>,
   );
   await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(2));
-  const user = userEvent.setup();
+  // delay: null skips the per-keystroke setTimeout(0) that stalls under CPU contention.
+  const user = userEvent.setup({ delay: null });
   await user.click(screen.getByText('open-dialog'));
   const dialog = await screen.findByRole('dialog');
   return { user, dialog };
 }
 
-async function choose(user: ReturnType<typeof userEvent.setup>, label: RegExp, option: string) {
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Focus the field and paste the text in one input event (no per-key typing). */
+async function fill(user: User, field: HTMLElement, text: string) {
+  await user.click(field);
+  await user.paste(text);
+}
+
+async function choose(user: User, label: RegExp, option: string) {
   await user.click(screen.getByRole('combobox', { name: label }));
   await user.click(await screen.findByRole('option', { name: option }));
 }
@@ -123,7 +132,8 @@ describe('TagDialog', () => {
   it('previews tag modifications', async () => {
     const { user, dialog } = await setup();
     await choose(user, /tag action/i, 'Append');
-    await user.type(within(dialog).getByRole('combobox', { name: 'Tags' }), 'new{Enter}');
+    await fill(user, within(dialog).getByRole('combobox', { name: 'Tags' }), 'new');
+    await user.keyboard('{Enter}');
     expect(await within(dialog).findByText('Adding new to 2 event(s).')).toBeTruthy();
   });
 
@@ -135,9 +145,10 @@ describe('TagDialog', () => {
     );
     const { user, dialog } = await setup();
     await choose(user, /^determination$/i, 'Malicious');
-    await user.type(within(dialog).getByRole('textbox', { name: 'Comment' }), 'looks bad');
+    await fill(user, within(dialog).getByRole('textbox', { name: 'Comment' }), 'looks bad');
     await choose(user, /tag action/i, 'Append');
-    await user.type(within(dialog).getByRole('combobox', { name: 'Tags' }), 'apt{Enter}');
+    await fill(user, within(dialog).getByRole('combobox', { name: 'Tags' }), 'apt');
+    await user.keyboard('{Enter}');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -167,7 +178,7 @@ describe('TagDialog', () => {
     );
     const { user, dialog } = await setup();
     await choose(user, /^determination$/i, 'Benign');
-    await user.type(within(dialog).getByRole('textbox', { name: 'Comment' }), 'fine');
+    await fill(user, within(dialog).getByRole('textbox', { name: 'Comment' }), 'fine');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     expect(
