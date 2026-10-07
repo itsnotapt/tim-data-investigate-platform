@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import { getDefaultParams } from '../../lib/kql-templates';
+import { getDefaultParams } from '../../lib/kql-templates/params';
 import { defaultNewQuery } from '../kusto-query/defaultQuery';
 import { useTabsStore, type TabsStore } from '../tabs';
 import type { QueryTemplate } from './types';

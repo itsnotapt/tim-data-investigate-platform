@@ -1,5 +1,5 @@
 import type { QueryTemplate, TemplateParams } from '../../lib/kql-templates';
-import { getDefaultParams } from '../../lib/kql-templates';
+import { getDefaultParams } from '../../lib/kql-templates/params';
 
 export const TEMPLATE_NOT_FOUND = 'This query was not found.';
 export const PARAMS_MISSING = 'Parameters are missing.';
