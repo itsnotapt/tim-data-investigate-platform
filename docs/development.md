@@ -114,6 +114,10 @@ Ignored updates, each with a comment in the file:
 - `node` majors in `web/Dockerfile` (move together with `@types/node` and `engines.node`) and `python` major and minor in `api/Dockerfile` (`requires-python` is `>=3.12,<3.13`).
 - `postgres` majors in the compose files and the chart: a PostgreSQL major upgrade needs a dump and restore.
 
+### Editor settings
+
+`.editorconfig` matches the formatters: UTF-8, LF line endings, final newline, 2-space indent, 4 spaces and 100 columns for Python (ruff), 100 columns for TypeScript and JavaScript (Prettier). `.gitattributes` normalises text files to LF in the repository and the working tree.
+
 ## API types
 
 The SPA's API types are generated from the api's OpenAPI document. After changing a route, request or response model:
