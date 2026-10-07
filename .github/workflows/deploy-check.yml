@@ -103,6 +103,50 @@ jobs:
             fi
           done
 
+      - name: Migrations wait-for-postgresql sets PGUSER
+        run: |
+          pguser="$(helm template tim "$CHART" -f "$CHART/ci/full-values.yaml" \
+            | yq 'select(.kind == "Job") | .spec.template.spec.initContainers[] | select(.name == "wait-for-postgresql") | .env[] | select(.name == "PGUSER") | .value')"
+          if [ -z "$pguser" ]; then
+            echo "the migrations wait-for-postgresql init container must set a non-empty PGUSER" >&2
+            exit 1
+          fi
+
+      - name: Test pod is kept after it runs
+        run: |
+          policy="$(helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" \
+            | yq 'select(.kind == "Pod" and .metadata.annotations."helm.sh/hook" == "test") | .metadata.annotations."helm.sh/hook-delete-policy"')"
+          if [ "$policy" != "before-hook-creation" ]; then
+            echo "the test pod's helm.sh/hook-delete-policy must be before-hook-creation, got '$policy'" >&2
+            exit 1
+          fi
+
+      - name: Config checksums are per component
+        run: |
+          checksum() { # <component> <helm template args...>
+            local component="$1"
+            shift
+            helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" "$@" \
+              | yq "select(.kind == \"Deployment\" and .metadata.name == \"*-${component}\") | .spec.template.metadata.annotations.\"checksum/config\""
+          }
+          api="$(checksum api)"
+          web="$(checksum web)"
+          api_log="$(checksum api --set api.logLevel=DEBUG)"
+          web_log="$(checksum web --set api.logLevel=DEBUG)"
+          api_wiki="$(checksum api --set web.helpWikiUri=https://wiki.example.org)"
+          web_wiki="$(checksum web --set web.helpWikiUri=https://wiki.example.org)"
+          for value in "$api" "$web" "$api_log" "$web_log" "$api_wiki" "$web_wiki"; do
+            if [ -z "$value" ] || [ "$value" = null ]; then
+              echo "the api and web Deployments must both have a checksum/config annotation" >&2
+              exit 1
+            fi
+          done
+          if [ "$api" = "$web" ] || [ "$api" = "$api_log" ] || [ "$web" != "$web_log" ] \
+            || [ "$web" = "$web_wiki" ] || [ "$api" != "$api_wiki" ]; then
+            echo "each Deployment's checksum/config must cover only its own ConfigMap" >&2
+            exit 1
+          fi
+
   compose:
     runs-on: ubuntu-latest
 
