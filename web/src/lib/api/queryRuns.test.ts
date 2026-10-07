@@ -21,6 +21,14 @@ import {
 } from './queryRuns';
 
 const server = setupMswServer();
+const realSetTimeout = globalThis.setTimeout;
+/** Lets MSW deliver in-flight mocked responses; fake timers do not advance it. */
+async function flushNetwork(): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await new Promise((resolve) => realSetTimeout(resolve, 10));
+    await vi.advanceTimersByTimeAsync(1);
+  }
+}
 const client = createApiClient({
   baseUrl: TEST_API,
   getToken: () => Promise.resolve('t'),
@@ -78,13 +86,20 @@ describe('runQuery', () => {
     );
     const onPoll = vi.fn();
     const p = runQuery(request, { client, onPoll });
-    await vi.advanceTimersByTimeAsync(499);
+    await flushNetwork(); // the POST answers 202 and the first poll delay starts
+    await vi.advanceTimersByTimeAsync(400);
     expect(gets).toBe(0);
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(150);
+    await flushNetwork();
     expect(gets).toBe(1);
-    await vi.advanceTimersByTimeAsync(500);
+    expect(onPoll).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(gets).toBe(1);
+    await vi.advanceTimersByTimeAsync(150);
+    await flushNetwork();
     expect(gets).toBe(2);
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
+    await flushNetwork();
     await expect(p).resolves.toEqual({ rows: [{ a: 1 }], stats });
     expect(gets).toBe(3);
     expect(onPoll).toHaveBeenCalledTimes(3);
