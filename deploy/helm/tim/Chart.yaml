@@ -2,11 +2,11 @@ apiVersion: v2
 name: tim
 description: TIM web (React SPA behind nginx) and api (FastAPI) on Kubernetes.
 type: application
-# Chart version. Bump on every chart change (SemVer).
+# version and appVersion are set by release-please: web, api and the chart share one release
+# version (docs/decisions/0016-linked-release-version.md). appVersion is the default
+# api.image.tag and web.image.tag.
 version: 0.1.0
-# Informational: the app release this chart was last tested with. Not used for image tags
-# (set api.image.tag / web.image.tag) and not managed by release-please.
-appVersion: "0.1.0"
+appVersion: "0.1.0" # x-release-please-version
 kubeVersion: ">=1.25.0-0"
 keywords:
   - tim

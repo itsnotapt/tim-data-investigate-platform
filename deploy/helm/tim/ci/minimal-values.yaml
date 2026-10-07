@@ -10,9 +10,3 @@ secrets:
   authClientSecret: client-secret
 ingress:
   host: tim.example.com
-api:
-  image:
-    tag: 0.1.0
-web:
-  image:
-    tag: 0.1.0

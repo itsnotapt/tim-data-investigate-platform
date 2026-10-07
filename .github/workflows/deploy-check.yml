@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - deploy/**
+      - .release-please-manifest.json
+      - release-please-config.json
       - compose.yaml
       - .env.example
       - .github/workflows/deploy-check.yml
@@ -12,6 +14,8 @@ on:
       - main
     paths:
       - deploy/**
+      - .release-please-manifest.json
+      - release-please-config.json
       - compose.yaml
       - .env.example
       - .github/workflows/deploy-check.yml
@@ -72,11 +76,29 @@ jobs:
             exit 1
           fi
 
-      - name: Image tags are enforced
+      - name: Release versions are linked
+        shell: python
         run: |
+          import json, re, sys, tomllib
+          chart = open("deploy/helm/tim/Chart.yaml").read()
+          manifest = json.load(open(".release-please-manifest.json"))
+          versions = {
+              "Chart.yaml version": re.search(r"^version: *(\S+)", chart, re.M).group(1),
+              "Chart.yaml appVersion": re.search(r'^appVersion: *"([^"]+)"', chart, re.M).group(1),
+              "web/package.json": json.load(open("web/package.json"))["version"],
+              "api/pyproject.toml": tomllib.load(open("api/pyproject.toml", "rb"))["project"]["version"],
+              **{f"manifest {path}": manifest[path] for path in ("web", "api", "deploy/helm/tim")},
+          }
+          if len(set(versions.values())) != 1:
+              sys.exit(f"web, api and the chart must share one version: {versions}")
+
+      - name: Image tags default to appVersion
+        run: |
+          app_version="$(helm show chart "$CHART" | sed -n 's/^appVersion: *"\{0,1\}\([^" ]*\)"\{0,1\}.*/\1/p')"
+          rendered="$(helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml")"
           for component in api web; do
-            if helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" --set "$component.image.tag=" >/dev/null 2>&1; then
-              echo "rendering without $component.image.tag must fail" >&2
+            if ! grep -q "image: \"ghcr.io/.*/tim-${component}:${app_version}\"" <<<"$rendered"; then
+              echo "the $component image tag must default to appVersion ($app_version)" >&2
               exit 1
             fi
           done

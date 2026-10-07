@@ -58,7 +58,7 @@ serviceAccount:
 api:
   image:
     repository: ghcr.io/itsnotapt/tim-data-investigate-platform/tim-api
-    # Required unless digest is set.
+    # Defaults to the chart appVersion (the release this chart belongs to).
     tag: ""
     # Immutable reference; takes precedence over tag when set (sha256:...).
     digest: ""
@@ -168,7 +168,7 @@ migrations:
 web:
   image:
     repository: ghcr.io/itsnotapt/tim-data-investigate-platform/tim-web
-    # Required unless digest is set.
+    # Defaults to the chart appVersion (the release this chart belongs to).
     tag: ""
     # Immutable reference; takes precedence over tag when set (sha256:...).
     digest: ""

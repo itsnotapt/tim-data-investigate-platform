@@ -23,8 +23,25 @@
         },
         "deploy/helm/tim": {
             "release-type": "helm",
-            "package-name": "chart"
+            "package-name": "chart",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "Chart.yaml"
+                }
+            ]
         }
     },
+    "plugins": [
+        {
+            "type": "linked-versions",
+            "groupName": "tim",
+            "components": [
+                "web",
+                "api",
+                "chart"
+            ]
+        }
+    ],
     "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
 }
