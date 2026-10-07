@@ -104,6 +104,16 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
     headerCheckbox: true,
     selectAll: 'filtered',
   },
+  // Legacy checkboxColDef: checkboxes stay visible while the grid scrolls sideways (F-C01).
+  selectionColumnDef: {
+    pinned: 'left',
+    lockPinned: true,
+    lockPosition: true,
+    suppressMovable: true,
+    width: 42,
+    resizable: false,
+    sortable: false,
+  },
   cellSelection: true,
   sideBar: SIDE_BAR,
   statusBar: { statusPanels: STATUS_PANELS },

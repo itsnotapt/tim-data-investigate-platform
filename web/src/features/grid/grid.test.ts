@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { aggFuncs, dcount } from './aggregation';
 import { buildColumnDefs, collectColumnNames, prepareRows } from './columns';
-import { buildContextMenu, dateComparator, defaultColDef, quickFilterText } from './gridOptions';
+import {
+  buildContextMenu,
+  dateComparator,
+  defaultColDef,
+  quickFilterText,
+  staticGridOptions,
+} from './gridOptions';
 import { getDetermination, rowClassRules } from './rowClasses';
 import { createStatsStore, formatExecutionStats, formatMemoryMb } from './status';
 
@@ -94,6 +100,14 @@ describe('grid options helpers', () => {
     expect(quickFilterText(null)).toBe('');
     expect(quickFilterText(5)).toBe('5');
   });
+  it('pins the selection checkbox column left (F-C01)', () => {
+    expect(staticGridOptions.selectionColumnDef).toMatchObject({
+      pinned: 'left',
+      lockPinned: true,
+      width: 42,
+    });
+  });
+
   it('multi filter defaults', () => {
     const filters = (defaultColDef.filterParams as { filters: { filter: string }[] }).filters;
     expect(defaultColDef.filter).toBe('agMultiColumnFilter');

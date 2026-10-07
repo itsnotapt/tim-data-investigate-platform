@@ -19,8 +19,12 @@ Each difference is **accepted** (with the reason: ADR, question, bug ID, library
 | F-B03 | 27 | Active side-tree item not highlighted | P5-14 (fixed P5-14) |
 | F-B04 | 33, 34 | Last Updated shows locale text; legacy shows the UTC ISO value. Match legacy (parity first) | P5-14 (fixed P5-14) |
 | F-B05 | 34 | Deleted rows not greyed out in Query Manager | P5-14 (fixed P5-14) |
-| F-B06 | 36 | Screenshot taken before the YAML/query editors loaded; re-capture | P5-13 |
+| F-B06 | 36 | Screenshot taken before the YAML/query editors loaded; re-capture | P5-13 (fixed P5-13) |
 | F-B07 | 40 | Export JSON shape differs from legacy; verify export → import round-trip and drop server-only fields | P5-14 (fixed P5-14 (server-only fields stripped, round-trip test; legacy compat accepted per Q-004)) |
+| F-C01 | 25, 26 | Selection checkbox column scrolls away with the grid; legacy pinned it left (`KustoPivot.vue` `checkboxColDef`, `pinned: 'left'`, `lockPinned`, width 42) | P5-17 (fixed P5-17: `selectionColumnDef` in `web/src/features/grid/gridOptions.ts`; screens 21–27 re-captured) |
+| F-C02 | 40 | Exported `queryTemplate` still holds `isDeleted`, `isManaged` and `name` (only `createdBy`/`updatedBy`/`updated` are stripped, `exportImport.ts` `SERVER_ONLY`) | open: strip them or accept (user decision) |
+
+P5-17 (2026-10-01) re-ran the comparison live: the legacy frontend from `8a2ff2e` and the new app served side by side on the same mocks, each screen driven to the same state in both, with pixel diffs and a text/role/position diff (Vuetify and MUI markup can't be compared as trees). The plainer query-help table (no row dividers, inline code without a grey background) is covered by 13 #4. It found F-C01 and F-C02, the on-blur validation difference (32 #3), and verdicts that P5-13 had fixed but this report still showed as "fix" (07 #1, #4; 12 #1; 13 #2; 14 #4; 15 #7; 36 #1). The harness lived in a scratch directory and is not in the repo.
 
 Accepted without a fix: F-A05 (`getTagEvents()` vs legacy `GetTagEvents()`, BUG-41); the account name in the account menu (Q-112); prefilled custom time-range dialogs (Q-113).
 
@@ -72,10 +76,10 @@ Common to every screen (not repeated): MUI vs Vuetify look (filled blue GET STAR
 ### 07 kusto-query-edit
 | # | Difference | Verdict | Reason / follow-up |
 |---|---|---|---|
-| 1 | Query editor shows only a loading spinner; default DeviceProcessEvents query (legacy shows 5 lines) not visible | fix | Screenshot taken before Monaco finished loading. F-A01: wait for editor content in `w02-adhoc-query` flow and re-shoot (web/e2e/flows/w02-*.ts). Default text itself exists (`web/src/features/kusto-query/defaultQuery.ts`). |
+| 1 | Query editor shows only a loading spinner; default DeviceProcessEvents query (legacy shows 5 lines) not visible | fixed (P5-13) | Screenshot taken before Monaco finished loading. F-A01: wait for editor content in `w02-adhoc-query` flow and re-shoot (web/e2e/flows/w02-*.ts). Default text itself exists (`web/src/features/kusto-query/defaultQuery.ts`). |
 | 2 | Validation errors shown only after a failed Save & Run (legacy: immediately) | accepted | Documented in rewrite README (deliberate); the shot forces a failed submit. |
 | 3 | Labels carry asterisk ("Cluster *", "Database *") | accepted | MUI required marker, positive |
-| 4 | Toolbar "Time range: Last 15 minutes" is plain dark text, not upper-case, and looks like a label rather than a button (legacy: TIME RANGE: LAST 15 MINUTES in same style as other toolbar buttons) | fix | F-A02: give the time-range trigger the same button styling/uppercase as NEW / RUN QUERY so it reads as clickable (web/src/components/TimeRange*.tsx, toolbar). Rewrite README only notes the casing, it does not justify the lost affordance. |
+| 4 | Toolbar "Time range: Last 15 minutes" is plain dark text, not upper-case, and looks like a label rather than a button (legacy: TIME RANGE: LAST 15 MINUTES in same style as other toolbar buttons) | fixed (P5-13) | F-A02: give the time-range trigger the same button styling/uppercase as NEW / RUN QUERY so it reads as clickable (web/src/components/TimeRange*.tsx, toolbar). Rewrite README only notes the casing, it does not justify the lost affordance. |
 | 5 | Summary is an outlined field; Query label icon is filled | accepted | styling |
 
 ### 08 time-range-menu
@@ -108,7 +112,7 @@ Common to every screen (not repeated): MUI vs Vuetify look (filled blue GET STAR
 ### 12 kusto-query-edit-filled
 | # | Difference | Verdict | Reason / follow-up |
 |---|---|---|---|
-| 1 | KQL has no syntax colouring and no diagnostics squiggle/scrollbar marker (legacy: coloured tokens, red squiggle under DeviceProcessEvents, red scrollbar marker) | fix | F-A03: verify monaco-kusto tokenizer and schema load (`web/src/lib/monaco/loader.ts`, `web/src/features/kusto-query/useKustoSchema.ts`); if working, delay the shot until tokens render; if not, fix. Editor is also plain text in 13 (background) and 14. |
+| 1 | KQL has no syntax colouring and no diagnostics squiggle/scrollbar marker (legacy: coloured tokens, red squiggle under DeviceProcessEvents, red scrollbar marker) | fixed (P5-13) | F-A03: verify monaco-kusto tokenizer and schema load (`web/src/lib/monaco/loader.ts`, `web/src/features/kusto-query/useKustoSchema.ts`); if working, delay the shot until tokens render; if not, fix. Editor is also plain text in 13 (background) and 14. |
 | 2 | Database field focused with clear (x) button | accepted | MUI Autocomplete |
 | 3 | Cluster/Database values, no validation errors | accepted | parity |
 
@@ -116,17 +120,17 @@ Common to every screen (not repeated): MUI vs Vuetify look (filled blue GET STAR
 | # | Difference | Verdict | Reason / follow-up |
 |---|---|---|---|
 | 1 | Same Required Fields table, Time Range and Tagged Events sections; "Close" button is pinned in a footer (legacy: at end of scroll) | accepted | improvement |
-| 2 | StartTime / EndTime bold emphasis in the query_parameters code block is lost | fix | F-A04 (low): restore bold markup for StartTime/EndTime in the sample (web/src/features/kusto-query/QueryHelperDialog.tsx, queryHelperSamples.ts). |
+| 2 | StartTime / EndTime bold emphasis in the query_parameters code block is lost | fixed (P5-13) | F-A04 (low): restore bold markup for StartTime/EndTime in the sample (web/src/features/kusto-query/QueryHelperDialog.tsx, queryHelperSamples.ts). |
 | 3 | Tagged-events sample shows cluster("https://help.kusto.windows.net") where legacy showed cluster("") | accepted | Legacy interpolated an empty cluster; new fills the selected cluster (better). |
 | 4 | Type cell "Tagging, Queries" (legacy "Tagging,Queries"); table less chrome | accepted | minor text/styling |
 
 ### 14 query-help-dialog-scrolled
 | # | Difference | Verdict | Reason / follow-up |
 |---|---|---|---|
-| 1 | Sample ends `invoke getTagEvents()` (legacy `GetTagEvents()`) | fix | F-A05 (low): check case against legacy source / known-issues; Kusto function names are case-sensitive and the sample defines `getTagEvents`, so the new text is internally consistent and likely the correct one. If confirmed, mark accepted (legacy typo) and note in known-issues. (queryHelperSamples.ts) |
+| 1 | Sample ends `invoke getTagEvents()` (legacy `GetTagEvents()`) | accepted | F-A05 (low): check case against legacy source / known-issues; Kusto function names are case-sensitive and the sample defines `getTagEvents`, so the new text is internally consistent and likely the correct one. If confirmed, mark accepted (legacy typo) and note in known-issues. (queryHelperSamples.ts) |
 | 2 | Examples block lacks the stray trailing "}" that legacy shows after ReportIndex) | accepted | legacy typo not ported |
 | 3 | Dialog title stays pinned while body scrolls | accepted | improvement |
-| 4 | Editor behind dialog not syntax coloured | fix | covered by F-A03 |
+| 4 | Editor behind dialog not syntax coloured | fixed (P5-13) | covered by F-A03 |
 
 ### 15 kusto-query-results
 | # | Difference | Verdict | Reason / follow-up |
@@ -137,7 +141,7 @@ Common to every screen (not repeated): MUI vs Vuetify look (filled blue GET STAR
 | 4 | Quick UI filter is an outlined field whose floating label "Quick UI filter" looks half-clipped at the top edge; Column view label clipped the same way | fixed | F-A06: increase toolbar top padding / remove overflow clipping so floating labels render fully (web/src/features/query-results/ result toolbar component, e.g. QuickFilter/ColumnView). Also affects 17, 18, 19, 20. | ([fixed P5-14])
 | 5 | Tab badge "9+" is a tiny superscript without the grey circle, looks clipped by the tab strip (legacy: full grey pill) | fixed | F-A07: give the tab-strip badge room/overflow visible and a background (web/src/features/tabs/ tab strip / SideQueryTree badge). Affects 15-20. | ([fixed P5-14])
 | 6 | Footer shows Execution Time, CPU Time, Memory, Total Rows; toast "Executing query..." purple info icon instead of blue; toast sits over footer | accepted | README: footer as legacy; toast styling (MUI) |
-| 7 | Time range button looks like plain text | fix | see F-A02 |
+| 7 | Time range button looks like plain text | fixed (P5-13) | see F-A02 |
 
 ### 16 side-tree-expanded
 | # | Difference | Verdict | Reason / follow-up |
@@ -215,6 +219,7 @@ Shared note for screens 21-32 and 41: the new grid screens show header filter/me
 | 1 | Rows 3 and 4 selected (IOWA, FLORIDA) in both | accepted | – |
 | 2 | Child tab in the left strip shows a spinner (new) versus a blue 9+ badge (legacy) | accepted | README note: capture timing, child still loading |
 | 3 | Sidebar open and focused cell differs | accepted | capture sequence |
+| 4 | After the grid scrolls sideways the row checkboxes scroll away (also behind the dialog in 25); legacy keeps the checkbox column pinned left | fixed (P5-17) | F-C01 |
 
 ### 27 side-tree-with-pivot
 | # | Difference | Verdict | Reason / follow-up |
@@ -255,6 +260,7 @@ Shared note for screens 21-32 and 41: the new grid screens show header filter/me
 |---|---|---|---|
 | 1 | Same summary, required EventType, Preview Query, disabled RUN QUERY/CLONE/CONVERT, SAVE & RUN/SAVE/CANCEL | accepted | – |
 | 2 | Tab strip: active new tab has no badge in either | accepted | – |
+| 3 | Legacy shows "Required." as soon as an empty required parameter loses focus; new shows it after Save or Save & Run (also on the template query tab) | accepted | same rule as 07 #2 (P5-17) |
 
 ### 33 query-manager
 | # | Difference | Verdict | Reason / follow-up |
@@ -284,7 +290,7 @@ Shared note for screens 21-32 and 41: the new grid screens show header filter/me
 ### 36 create-query-dialog-scrolled
 | # | Difference | Verdict | Reason / follow-up |
 |---|---|---|---|
-| 1 | New shows Params, Column customisation and Query editors, each with a loading spinner instead of the (empty) editor content | fix (capture only) | F-B06: re-capture after Monaco finishes loading (wait for `.monaco-editor` in the w12-query-manager spec, web/e2e/flows) so the screenshot shows the editors, as legacy did |
+| 1 | New shows Params, Column customisation and Query editors, each with a loading spinner instead of the (empty) editor content | fixed (P5-13) | F-B06: re-capture after Monaco finishes loading (wait for `.monaco-editor` in the w12-query-manager spec, web/e2e/flows) so the screenshot shows the editors, as legacy did |
 | 2 | Editor section labels are the same | accepted | – |
 
 ### 37 edit-query-dialog
@@ -314,6 +320,7 @@ Shared note for screens 21-32 and 41: the new grid screens show header filter/me
 | 2 | Snackbar "All settings have been exported and saved to your clipboard." with DISMISS | accepted | same |
 | 3 | JSON differs: new contains one tab and embeds extra template metadata (`isDeleted`, `isManaged`, `createdBy`, `updatedBy`, `updated`) inside `queryTemplate`, and a new `editQuery` state key. Legacy holds two tabs and only template fields | fixed | F-B07: confirm the export shape against legacy ExportImport.vue (frontend/src/components) and docs/rewrite/api-contract.md. If legacy round-trip files must import in the new app (W13), the schema must be compatible, and server-side fields (createdBy/updatedBy, emails) should not be exported into shared JSON. Files: web/src/features/export-import/ | ([fixed P5-14; legacy-format import accepted per Q-004])
 | 4 | Textarea is narrower (980px) and sits under the heading | accepted | layout |
+| 5 | `queryTemplate` still includes `isDeleted`, `isManaged` and `name` | open | F-C02 (P5-17) |
 
 ### 41 share-link-opened
 | # | Difference | Verdict | Reason / follow-up |
