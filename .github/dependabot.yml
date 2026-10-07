@@ -1,0 +1,124 @@
+# Dependabot version updates. See "Dependency pins" in docs/development.md.
+# Minor and patch updates are grouped into one PR per ecosystem; majors get their own PR.
+# Commit prefixes are Conventional Commits so release-please can parse them.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build(deps)
+      prefix-development: chore(deps)
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Pinned by @kusto/monaco-kusto, which peers on monaco-editor 0.55.x
+      # (docs/development.md, "Dependency pins").
+      - dependency-name: monaco-editor
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+      # typescript-eslint supports TypeScript <6.1.0 only
+      # (docs/development.md, "Dependency pins").
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
+      # Tracks the Node runtime major (Node 24, see web/Dockerfile).
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: uv
+    directory: /api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build(deps)
+      prefix-development: chore(deps)
+    groups:
+      uv-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(deps)
+    groups:
+      docker-web-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Tracks the Node LTS runtime; bump it by hand together with @types/node.
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: docker
+    directory: /api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(deps)
+    groups:
+      docker-api-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Python is held at 3.12 by requires-python in api/pyproject.toml.
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /deploy
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(deps)
+    groups:
+      compose-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # PostgreSQL majors need a dump and restore; upgrade by hand.
+      - dependency-name: postgres
+        update-types:
+          - version-update:semver-major
+
+  # Image tags in values.yaml (the optional evaluation PostgreSQL). The api and web tags are
+  # empty there and follow the chart appVersion.
+  - package-ecosystem: helm
+    directory: /deploy/helm/tim
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: build(deps)
+    groups:
+      helm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # PostgreSQL majors need a dump and restore; upgrade by hand.
+      - dependency-name: "*postgres"
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]

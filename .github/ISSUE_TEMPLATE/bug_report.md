@@ -1,25 +1,25 @@
 ---
 name: Bug report
-about: File a bug report
-title: ''
+about: Report something that is not working as expected
 labels: bug
-assignees: ''
-
 ---
 
 **Describe the bug**
-<!-- Please enter a short, clear description of the bug -->
+<!-- A short, clear description of the bug. -->
 
-**To Reproduce**
-<!-- Please provide any required setup and steps to reproduce the behavior -->
+**To reproduce**
+<!-- Setup and steps to reproduce the behavior. -->
 1. ...
 2. ...
 
 **Expected behavior**
-<!-- Please provide a description of what you expected to happen -->
+<!-- What you expected to happen. -->
 
-**Version Info**
-<!-- Specify version of web, api, deploy (compose), or other relevant info -->
+**Version and deployment**
+<!-- The web, api and Helm chart share one release version (for example 0.1.0). -->
+- TIM version:
+- Deployment: Helm chart / Docker Compose / other
+- Browser (for UI bugs):
 
 **Additional context**
-<!-- Enter any other applicable info here -->
+<!-- Logs, screenshots, or anything else that helps. Remove secrets and tokens. -->
