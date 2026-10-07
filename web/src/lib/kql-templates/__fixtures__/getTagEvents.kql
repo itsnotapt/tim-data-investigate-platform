@@ -1,5 +1,5 @@
 
-let getTagEvents=(T:(EventId:string)) { 
+let getTagEvents=(T:(EventId:string)) {
   let EventIds=materialize(T | distinct EventId);
   let Events=EventIds
   | join kind=leftouter (
@@ -20,8 +20,8 @@ let getTagEvents=(T:(EventId:string)) {
     cluster('https://tags.kusto.windows.net').database('Research').EventComment
     | where EventId in (EventIds)
     | sort by DateTimeUtc desc
-    | summarize arg_max(DateTimeUtc, Determination, IsDeleted, Comment), 
-      Comments=make_list(pack("CreatedBy", CreatedBy, "Comment", Comment, "Determination", Determination, "DateTimeUtc", DateTimeUtc)) 
+    | summarize arg_max(DateTimeUtc, Determination, IsDeleted, Comment),
+      Comments=make_list(pack("CreatedBy", CreatedBy, "Comment", Comment, "Determination", Determination, "DateTimeUtc", DateTimeUtc))
       by EventId
     | where not(IsDeleted)
     | project EventId, Determination, Comment, Comments
