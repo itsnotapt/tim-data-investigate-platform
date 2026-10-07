@@ -94,7 +94,7 @@ query_runs = Table(
     Column("main_error", Text),
     Index("ix_query_runs_requested_by", "requested_by"),
     Index("ix_query_runs_expires_at", "expires_at"),
-    # Startup sweep (BUG-02) only ever looks at runs still in ``created``.
+    # Startup sweep only ever looks at runs still in ``created``.
     Index(
         "ix_query_runs_created_executed",
         "execute_date_time_utc",

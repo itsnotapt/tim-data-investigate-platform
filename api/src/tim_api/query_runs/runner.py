@@ -1,9 +1,9 @@
-"""Query-run lifecycle (P2-09, api-contract 3.3/3.4, ADR-0004).
+"""Query-run lifecycle (ADR-0004).
 
 ``RunManager`` persists a run as ``created``, executes it in a tracked asyncio task and writes
 the terminal state. The task never raises: every outcome (success, Kusto error, limit, timeout,
 unexpected failure, shutdown) is persisted as the run's final state. Errors returned to users
-are sanitised messages only; stack traces are logged with the trace id (SEC-04).
+are sanitised messages only; stack traces are logged with the trace id.
 
 PostgreSQL JSONB and TEXT cannot store U+0000, so NUL characters in result data and error text
 are replaced with U+FFFD before persisting (``sanitise_nul``).
@@ -47,7 +47,7 @@ def sanitise_nul(value: Any) -> Any:
     """Replace U+0000 with U+FFFD in every string (keys and values) of a JSON-like value.
 
     Containers without a NUL are returned as is (no copy), so a large clean result is not
-    duplicated in memory (P5-07).
+    duplicated in memory.
     """
     if isinstance(value, str):
         return value.replace("\x00", NUL_REPLACEMENT) if "\x00" in value else value
@@ -192,7 +192,7 @@ class RunManager:
 
 
 async def mark_stale_runs(store: QueryRunStore, settings: Settings) -> int:
-    """Startup sweep (BUG-02): runs left ``created`` longer than the timeout become ``error``."""
+    """Startup sweep: runs left ``created`` longer than the timeout become ``error``."""
     now = _utcnow()
     try:
         count = await store.mark_stale_created_as_error(

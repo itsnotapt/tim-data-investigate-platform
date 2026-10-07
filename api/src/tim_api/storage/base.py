@@ -1,11 +1,11 @@
-"""Storage interfaces (ADR-0004). Implementations: ``memory.py`` now, ``postgres.py`` in P2-08.
+"""Storage interfaces (ADR-0004). Implementations: ``memory.py`` and ``postgres.py``.
 
 The stores are deliberately thin persistence ports. Business rules (validation, JSON Patch,
 owner identity, retention length) live in the endpoints/services. Timestamps and identities are
 passed in by the caller, so an implementation never reads the clock except where stated, and
 both implementations behave identically. Every method must be safe to call concurrently.
 
-Postgres mapping notes (P2-08): each method is one statement or one short transaction;
+Postgres mapping: each method is one statement or one short transaction;
 ``create`` maps unique violation to ``AlreadyExistsError``; ``replace``/``soft_delete``/
 ``update_result`` map ``UPDATE ... RETURNING`` with zero rows to ``NotFoundError``.
 """
@@ -78,7 +78,7 @@ class QueryRunStore(ABC):
     @abstractmethod
     async def get_for_owner(self, run_id: UUID, owner: str, now: datetime) -> KustoQueryRun | None:
         """The run, or ``None`` when unknown, owned by someone else, or expired
-        (``expires_at <= now``; expired is 404 even before cleanup, SEC-02/BUG-01)."""
+        (``expires_at <= now``; expired is 404 even before cleanup)."""
 
     @abstractmethod
     async def update_result(
@@ -102,7 +102,7 @@ class QueryRunStore(ABC):
     async def mark_stale_created_as_error(
         self, before: datetime, *, message: str, expires_at: datetime
     ) -> int:
-        """Startup sweep (BUG-02): runs still ``created`` with ``execute_date_time_utc < before``
+        """Startup sweep: runs still ``created`` with ``execute_date_time_utc < before``
         become ``error`` with ``main_error=message`` and the given ``expires_at``."""
 
 

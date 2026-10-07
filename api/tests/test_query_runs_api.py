@@ -109,7 +109,7 @@ async def test_fast_query_returns_200_completed(env: Env) -> None:
     assert body["status"] == "completed"
     assert body["resultData"] == [{"a": 1}]
     assert body["executionMetrics"]["execution_time"] == 0.5
-    assert body["kustoQuery"]["requestedBy"] == "alice@example.com"  # SEC-03
+    assert body["kustoQuery"]["requestedBy"] == "alice@example.com"
     assert body["kustoQuery"]["cluster"] == CLUSTER
     assert "stackTrace" not in body
     assert env.obo.calls == [CLUSTER]

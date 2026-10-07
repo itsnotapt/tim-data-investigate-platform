@@ -1,4 +1,4 @@
-"""Entra ID access-token validation (ADR-0005, Q-014).
+"""Entra ID access-token validation (ADR-0005).
 
 Accepts v1 and v2 tokens of the single configured tenant: signature via the tenant JWKS
 (RS256 only), ``aud`` = ``api://{clientId}`` or the bare client id, ``iss`` = the v1 STS issuer

@@ -1,7 +1,7 @@
-"""Tagged event request items (api-contract.md 3.11-3.13, 4).
+"""Tagged event request items.
 
 `createdBy` and `dateTimeUtc` are server-set from the token and clock; they are deliberately not
-fields here, so anything the client sends for them is dropped on parse (SEC-03).
+fields here, so anything the client sends for them is dropped on parse.
 """
 
 import json

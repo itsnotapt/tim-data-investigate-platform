@@ -1,8 +1,8 @@
-"""Problem-details error envelope and exception handlers (api-contract section 1, D17).
+"""Problem-details error envelope and exception handlers .
 
 Every non-2xx response is ``application/problem+json`` with ``type``, ``title``, ``status``,
 ``detail``, ``traceId`` and (validation only) ``errors``. Details are fixed, safe strings:
-never stack traces, paths, SQL, tokens or upstream bodies (SEC-04). The full exception of an
+never stack traces, paths, SQL, tokens or upstream bodies. The full exception of an
 unhandled error is logged server-side together with the ``traceId``.
 """
 
@@ -172,7 +172,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AlreadyExistsError, fixed(409, "Resource already exists"))
     app.add_exception_handler(StorageUnavailableError, fixed(503, "Service unavailable"))
     app.add_exception_handler(
-        # api-contract §1: OBO refused (interaction/consent required) -> 403, SPA re-prompts.
+        # OBO refused (interaction/consent required) -> 403.
         OboAuthError,
         fixed(
             403,

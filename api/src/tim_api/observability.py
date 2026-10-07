@@ -1,4 +1,4 @@
-"""Trace ids, stdlib logging setup, request logging and lazy CORS (SEC-05).
+"""Trace ids, stdlib logging setup, request logging and lazy CORS.
 
 Nothing here logs headers or bodies: a request line contains method, path (no query string),
 status, duration and trace id only, so ``Authorization`` values can never reach the logs.
@@ -39,7 +39,7 @@ _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 
 
 def log_safe(value: str) -> str:
-    """Escape control characters so a request path cannot forge log lines (S-A06)."""
+    """Escape control characters so a request path cannot forge log lines."""
     return _CONTROL.sub(lambda m: f"\\x{ord(m.group()):02x}", value)
 
 
@@ -78,7 +78,7 @@ def configure_logging(level: str) -> None:
 
 
 class BodySizeLimitMiddleware:
-    """Reject request bodies over ``TIM_MAX_REQUEST_BYTES`` with 413 (S-A03).
+    """Reject request bodies over ``TIM_MAX_REQUEST_BYTES`` with 413.
 
     Checks ``Content-Length`` up front and counts streamed bytes (chunked uploads). Sits inside
     the logging middleware so the 413 carries a trace id. Settings are read on first request.
@@ -145,7 +145,7 @@ class RequestLoggingMiddleware:
                 ]
                 headers.append((TRACE_HEADER.encode(), trace_id.encode()))
                 present = {k.lower() for k, _ in headers}
-                for name, value in _SECURITY_HEADERS:  # S-A05
+                for name, value in _SECURITY_HEADERS:
                     if name not in present:
                         headers.append((name, value))
                 message["headers"] = headers

@@ -1,4 +1,4 @@
-"""Periodic deletion of expired query runs (ADR-0004, fixes BUG-01).
+"""Periodic deletion of expired query runs (ADR-0004).
 
 One mechanism for every run, independent of the backing store. Correctness does not depend on
 the loop: ``get_for_owner`` already treats an expired run as missing.

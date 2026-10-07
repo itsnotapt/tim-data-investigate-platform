@@ -210,3 +210,36 @@ def test_delete(client: TestClient) -> None:
 
 def test_delete_missing_404(client: TestClient) -> None:
     assert client.delete(f"{BASE}/{U1}").status_code == 404
+
+
+def test_create_and_replace_return_the_template(client: TestClient) -> None:
+    created = client.post(BASE, json=body())
+    assert created.status_code == 201
+    assert created.json()["uuid"] == U1
+    assert created.headers["location"].endswith(U1)
+    replaced = client.put(f"{BASE}/{U1}", json=body(name="New"))
+    assert replaced.status_code == 200
+    assert replaced.json()["name"] == "New"
+
+
+def test_unauthenticated_create_is_401() -> None:
+    with TestClient(create_app()) as c:
+        assert c.post(BASE, json=body()).status_code == 401
+
+
+def test_deleted_templates_excluded_unless_requested(client: TestClient) -> None:
+    client.post(BASE, json=body(U1))
+    client.post(BASE, json=body(U2))
+    client.delete(f"{BASE}/{U1}")
+    assert [t["uuid"] for t in client.get(BASE).json()] == [U2]
+    everything = client.get(BASE, params={"includeDeleted": "true"}).json()
+    assert {t["uuid"] for t in everything} == {U1, U2}
+
+
+def test_put_does_not_upsert_and_ignores_client_audit_fields(client: TestClient) -> None:
+    assert client.put(f"{BASE}/{U1}", json=body()).status_code == 404
+    assert client.get(f"{BASE}/{U1}").status_code == 404
+    client.post(BASE, json=body())
+    r = client.put(f"{BASE}/{U1}", json=body(createdBy="mallory", isDeleted=True))
+    assert r.json()["createdBy"] == PRINCIPAL.name
+    assert r.json()["isDeleted"] is False

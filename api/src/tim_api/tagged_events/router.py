@@ -1,7 +1,7 @@
-"""Tagged event endpoints (api-contract 3.11-3.13, D16, SEC-03, Q-020, Q-101).
+"""Tagged event endpoints.
 
 Row keys are the camelCase JSON paths of the ``<Table>Mapping`` ingestion mappings, listed in
-the column order of the legacy Kusto tables (backend-api.md#kusto-tables).
+the column order of the Kusto tables.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Regression tests named with the P5-09 security-review finding IDs (S-A..)."""
+"""Request size limits, security headers and log-injection safety."""
 
 import logging
 from collections.abc import Iterator
@@ -23,14 +23,14 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         yield c
 
 
-def test_s_a03_oversized_content_length_is_413(client: TestClient) -> None:
+def test_oversized_content_length_is_413(client: TestClient) -> None:
     response = client.post("/api/taggedevents/tags", content=b"x" * 5000)
     assert response.status_code == 413
     assert response.headers["content-type"].startswith("application/problem+json")
     assert response.json()["traceId"]
 
 
-def test_s_a03_chunked_body_over_limit_is_413(client: TestClient) -> None:
+def test_chunked_body_over_limit_is_413(client: TestClient) -> None:
     def chunks() -> Iterator[bytes]:
         for _ in range(10):
             yield b"x" * 500
@@ -41,12 +41,12 @@ def test_s_a03_chunked_body_over_limit_is_413(client: TestClient) -> None:
     assert response.status_code == 413
 
 
-def test_s_a03_body_under_limit_is_processed(client: TestClient) -> None:
+def test_body_under_limit_is_processed(client: TestClient) -> None:
     response = client.post("/api/taggedevents/tags", json=[])
     assert response.status_code == 400  # validation (empty batch), not 413
 
 
-def test_s_a05_security_headers_on_every_response(client: TestClient) -> None:
+def test_security_headers_on_every_response(client: TestClient) -> None:
     for response in (
         client.get("/api/healthChecks/liveness"),
         client.get("/api/templates/queries/not-a-uuid"),
@@ -56,7 +56,7 @@ def test_s_a05_security_headers_on_every_response(client: TestClient) -> None:
         assert response.headers["cache-control"] == "no-store"
 
 
-def test_s_a06_control_characters_cannot_forge_log_lines(
+def test_control_characters_cannot_forge_log_lines(
     client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
     assert log_safe("a\nb\r\x1b") == "a\\x0ab\\x0d\\x1b"

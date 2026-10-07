@@ -1,16 +1,14 @@
-"""Kusto query client (P2-05).
+"""Kusto query client.
 
 Layers:
 
 * ``parse_v2_frames`` is a pure function over raw Kusto REST v2 frames (JSON dicts). It
   concatenates every ``PrimaryResult`` table, extracts the ``QueryCompletionInformation``
-  stats row, serialises values like the legacy backend and enforces the Q-021 limits.
+  stats row, serialises datetime/timespan values (``_datetime``, ``_timespan``) and
+  enforces the row/byte limits.
 * ``AzureKustoQueryClient`` runs the query with ``azure-kusto-data`` (sync client in a worker
   thread; the aio client needs the extra ``aiohttp`` dependency) and feeds the parser.
 * ``KustoQueryClient`` is the protocol callers (query runner, schema endpoint) depend on.
-
-Legacy reference (removed in P5-12, see git history):
-``backend/Tim.Backend/Providers/Kusto/KustoQueryClient.cs:77-204``.
 """
 
 from __future__ import annotations
@@ -47,11 +45,11 @@ class KustoForbiddenError(KustoQueryError):
 
 
 class KustoResultLimitError(KustoQueryError):
-    """The result exceeded ``max_rows`` or ``max_bytes`` (Q-021; no truncation)."""
+    """The result exceeded ``max_rows`` or ``max_bytes`` (no truncation)."""
 
 
 class KustoUnexpectedFrameError(KustoQueryError):
-    """A progressive or otherwise unexpected V2 frame was received (legacy UnexpectedFrame)."""
+    """A progressive or otherwise unexpected V2 frame was received."""
 
 
 @dataclass(frozen=True)
@@ -64,7 +62,7 @@ class ResultLimits:
 class QueryResult:
     rows: list[dict[str, Any]] = field(default_factory=list)
     execution_metrics: KustoQueryStats | None = None
-    # Limits raise KustoResultLimitError (api-contract 3.3, no truncation), so this stays False.
+    # Limits raise KustoResultLimitError (no truncation), so this stays False.
     truncated: bool = False
 
 
@@ -94,7 +92,7 @@ _DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z?
 
 
 def _datetime(value: str) -> str:
-    """.NET/Newtonsoft round-trip form: fraction trimmed of trailing zeros, ``Z`` suffix."""
+    """ISO 8601 form with the fraction trimmed of trailing zeros and a ``Z`` suffix."""
     match = _DATETIME_RE.match(value)
     if not match:
         return value
@@ -104,7 +102,7 @@ def _datetime(value: str) -> str:
 
 
 def _timespan(value: str) -> str:
-    """.NET ``TimeSpan.ToString()`` (constant format): ``[-][d.]hh:mm:ss[.fffffff]``."""
+    """Normalise to ``[-][d.]hh:mm:ss[.fffffff]``: days omitted when zero, 7-digit fraction."""
     match = _TIMESPAN_RE.match(value)
     if not match:
         return value
@@ -188,7 +186,7 @@ def _stats_from_table(table: Mapping[str, Any]) -> KustoQueryStats | None:
             return None
         if not isinstance(payload, dict):
             return None
-        # Kusto sends "ExecutionTime"; legacy read "execution_time" and so always got 0.
+        # Kusto sends "ExecutionTime"; it is mapped to ``execution_time``.
         execution_time = payload.pop("ExecutionTime", None)
         payload.setdefault("execution_time", execution_time if execution_time is not None else 0.0)
         return KustoQueryStats.model_validate(payload)
@@ -271,7 +269,7 @@ def _default_factory(cluster_url: str, token: str) -> SdkClient:
 
 
 def format_query_parameter(value: datetime) -> str:
-    """ISO 8601 round-trip ("o") UTC string, as legacy passes it (KustoQueryClient.cs:84,89)."""
+    """UTC ISO 8601 string with a 7-digit fraction and ``Z`` suffix."""
     utc = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
     return utc.strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 

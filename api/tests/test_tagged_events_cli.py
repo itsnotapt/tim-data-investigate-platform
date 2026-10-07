@@ -64,8 +64,8 @@ def test_golden_commands() -> None:
     assert ks.all_commands() == GOLDEN
 
 
-def test_columns_match_backend_api_doc() -> None:
-    doc = (Path(__file__).parents[2] / "docs/current-system/backend-api.md").read_text("utf-8")
+def test_columns_match_architecture_doc() -> None:
+    doc = (Path(__file__).parents[2] / "docs/architecture.md").read_text("utf-8")
     section = doc.split("## Kusto tables", 1)[1].split("\n---", 1)[0]
     for spec in ks.TABLES:
         row = re.search(rf"\| `{spec.name}` \| (.+?) \|", section)

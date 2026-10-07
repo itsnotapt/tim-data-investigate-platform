@@ -1,4 +1,4 @@
-"""Query run models (api-contract.md 3.3, 3.4, 4)."""
+"""Query run models."""
 
 from enum import StrEnum
 from typing import Any

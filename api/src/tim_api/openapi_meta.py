@@ -1,11 +1,11 @@
 """OpenAPI metadata that FastAPI cannot derive from the route signatures.
 
 Applied as a post-processing step so the published spec (``/api/openapi.json`` and
-``web/src/lib/api/openapi.json``) matches ``docs/rewrite/api-contract.md``:
+``web/src/lib/api/openapi.json``) carries:
 
 * stable ``operationId`` values (they become the function names of the generated web client);
 * the documented problem-details responses (FastAPI's default ``422`` is replaced by ``400``,
-  because validation failures are rendered as ``400 validation``, contract section 1);
+  because validation failures are rendered as ``400 validation``);
 * the Bearer security scheme on every authenticated operation.
 
 Only the documentation changes here; runtime behaviour is untouched.

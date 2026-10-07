@@ -1,4 +1,4 @@
-"""Query template models (api-contract.md section 4, "QueryTemplate")."""
+"""Query template models."""
 
 import re
 from enum import StrEnum
