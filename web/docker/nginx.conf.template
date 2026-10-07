@@ -61,8 +61,8 @@ server {
     # Runtime config and the SPA shell must never be cached (config changes per deploy, and
     # index.html references hashed assets).
     location = /config.js {
+        alias /tmp/tim/config.js;
         expires -1;
-        try_files $uri =404;
     }
 
     location = /index.html {

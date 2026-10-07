@@ -58,7 +58,7 @@ serviceAccount:
 api:
   image:
     repository: ghcr.io/itsnotapt/tim-data-investigate-platform/tim-api
-    # Empty = Chart.appVersion.
+    # Required unless digest is set.
     tag: ""
     # Immutable reference; takes precedence over tag when set (sha256:...).
     digest: ""
@@ -168,8 +168,9 @@ migrations:
 web:
   image:
     repository: ghcr.io/itsnotapt/tim-data-investigate-platform/tim-web
-    # Empty = Chart.appVersion.
+    # Required unless digest is set.
     tag: ""
+    # Immutable reference; takes precedence over tag when set (sha256:...).
     digest: ""
     pullPolicy: IfNotPresent
 
@@ -233,11 +234,11 @@ web:
     runAsGroup: 101
     seccompProfile:
       type: RuntimeDefault
-  # The entrypoint writes /usr/share/nginx/html/config.js and the nginx conf at start, so the
-  # root filesystem stays writable.
+  # The entrypoint writes config.js and the nginx conf to /tmp/tim, and nginx keeps its pid and
+  # temp files in /tmp; the chart mounts an emptyDir there.
   securityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     capabilities:
       drop: [ALL]
 

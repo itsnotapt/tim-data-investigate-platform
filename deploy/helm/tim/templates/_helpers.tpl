@@ -54,15 +54,27 @@ app.kubernetes.io/component: {{ index . 1 }}
 {{- end }}
 {{- end }}
 
-{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image) */}}
+{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image)
+Requires a digest or a tag; there is no default tag. */}}
 {{- define "tim.image" -}}
 {{- $ := index . 0 -}}
 {{- $img := index . 1 -}}
+{{- include "tim.validateImages" $ -}}
 {{- if $img.digest -}}
 {{- printf "%s@%s" $img.repository $img.digest -}}
 {{- else -}}
-{{- printf "%s:%s" $img.repository (default $.Chart.AppVersion $img.tag | toString) -}}
+{{- printf "%s:%s" $img.repository ($img.tag | toString) -}}
 {{- end -}}
+{{- end }}
+
+{{/* Fails unless the api and web images each have a digest or a tag. */}}
+{{- define "tim.validateImages" -}}
+{{- if not (or .Values.api.image.digest .Values.api.image.tag) }}
+{{- fail "api.image.tag or api.image.digest is required" }}
+{{- end }}
+{{- if not (or .Values.web.image.digest .Values.web.image.tag) }}
+{{- fail "web.image.tag or web.image.digest is required" }}
+{{- end }}
 {{- end }}
 
 {{- define "tim.secretName" -}}
@@ -94,6 +106,7 @@ app.kubernetes.io/component: {{ index . 1 }}
 
 {{/* Required-value checks, rendered once from the api ConfigMap. */}}
 {{- define "tim.validate" -}}
+{{- include "tim.validateImages" . }}
 {{- $_ := required "config.auth.tenantId is required" .Values.config.auth.tenantId }}
 {{- $_ := required "config.auth.clientId is required" .Values.config.auth.clientId }}
 {{- $_ := required "config.tags.clusterUri is required" .Values.config.tags.clusterUri }}

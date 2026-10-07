@@ -48,6 +48,7 @@ spec:
           command: ["alembic", "upgrade", "head"]
           securityContext:
             {{- toYaml .Values.api.securityContext | nindent 12 }}
+          # The Job only needs the database URL.
           env:
             {{- include "tim.databaseUrlEnv" . | nindent 12 }}
           resources:

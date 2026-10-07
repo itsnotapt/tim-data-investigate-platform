@@ -91,6 +91,9 @@ services:
         condition: service_healthy
     ports:
       - "${WEB_PORT:-8080}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     networks: [tim]

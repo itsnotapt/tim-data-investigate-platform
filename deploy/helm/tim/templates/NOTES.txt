@@ -1,4 +1,6 @@
-TIM {{ .Chart.AppVersion }} is deployed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+TIM is deployed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+api image: {{ include "tim.image" (list . .Values.api.image) }}
+web image: {{ include "tim.image" (list . .Values.web.image) }}
 
 Public URL: {{ include "tim.publicUrl" . }}
 Register {{ include "tim.publicUrl" . }}/blank.html as a SPA redirect URI in the Entra app registration.

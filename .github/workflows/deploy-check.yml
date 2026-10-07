@@ -72,6 +72,15 @@ jobs:
             exit 1
           fi
 
+      - name: Image tags are enforced
+        run: |
+          for component in api web; do
+            if helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" --set "$component.image.tag=" >/dev/null 2>&1; then
+              echo "rendering without $component.image.tag must fail" >&2
+              exit 1
+            fi
+          done
+
   compose:
     runs-on: ubuntu-latest
 

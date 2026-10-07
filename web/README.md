@@ -69,7 +69,7 @@ docker run --rm -p 8080:8080 \
   -e TAG_CLUSTER=https://<cluster>.kusto.windows.net -e AGGRID_LICENSE=<key> tim-web
 ```
 
-Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine` serves on port 8080 as uid 101. `docker/docker-entrypoint.sh` validates the env (exit 1 listing every missing variable), writes `/usr/share/nginx/html/config.js` (values JSON-escaped with `jq`), renders the nginx conf from `docker/nginx.conf.template` and execs nginx. nginx proxies `/api/` to `BACKEND_URI` keeping the `/api` path (do not strip it in an ingress), resolves the backend at request time, sends gzip and security headers (CSP, `X-Frame-Options: SAMEORIGIN`, nosniff, Referrer-Policy, HSTS when `X-Forwarded-Proto: https`; the CSP allows `'unsafe-eval'` for Handlebars and the Kusto worker, and a cross-origin `API_BASEPATH` origin is added to `connect-src` automatically), and serves `config.js` and `index.html` with `no-cache`. `GET /healthz` returns 200.
+Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine` serves on port 8080 as uid 101. `docker/docker-entrypoint.sh` validates the env (exit 1 listing every missing variable), writes `/tmp/tim/config.js` (values JSON-escaped with `jq`), renders the nginx conf from `docker/nginx.conf.template` to `/tmp/tim/nginx.conf` (included by the static `/etc/nginx/conf.d/default.conf`) and execs nginx. The root filesystem can be read-only; only `/tmp` must be writable. nginx proxies `/api/` to `BACKEND_URI` keeping the `/api` path (do not strip it in an ingress), resolves the backend at request time, sends gzip and security headers (CSP, `X-Frame-Options: SAMEORIGIN`, nosniff, Referrer-Policy, HSTS when `X-Forwarded-Proto: https`; the CSP allows `'unsafe-eval'` for Handlebars and the Kusto worker, and a cross-origin `API_BASEPATH` origin is added to `connect-src` automatically), and serves `config.js` and `index.html` with `no-cache`. `GET /healthz` returns 200.
 
 | Env var                            | Required | Maps to / notes                                                                  |
 | ---------------------------------- | -------- | -------------------------------------------------------------------------------- |
@@ -85,7 +85,7 @@ Multi-stage: `node:24-alpine` builds, `nginxinc/nginx-unprivileged:stable-alpine
 | `DEFAULT_CLUSTERS`                 | no       | JSON array; default is one group from `TAG_CLUSTER`/`TAG_DATABASE`               |
 | `NGINX_RESOLVER`                   | no       | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`   |
 
-The entrypoint also honours `TIM_HTML_DIR`, `TIM_NGINX_TEMPLATE`, `TIM_NGINX_CONF` and `TIM_ENTRYPOINT_DRY_RUN=1` (render files and exit) for testing without Docker.
+The entrypoint also honours `TIM_RUNTIME_DIR` (default `/tmp/tim`), `TIM_NGINX_TEMPLATE` and `TIM_ENTRYPOINT_DRY_RUN=1` (render files and exit) for testing without Docker.
 
 ## Browser storage
 
