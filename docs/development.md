@@ -98,10 +98,25 @@ Set `E2E_SHOTS=1` to also write screenshots to `web/e2e/.screenshots` (git-ignor
 | `overrides.openapi-typescript.typescript` | `openapi-typescript` declares the peer `typescript@^5.x`; the override (`$typescript`) makes it use the project's TypeScript.                                                                     | `openapi-typescript` widens its TypeScript peer range to cover the version in use.                               |
 | `monaco-editor` `^0.55.1`                 | `@kusto/monaco-kusto` 15.0.1, the latest release, peers on `monaco-editor@^0.55.0` (0.55.x only). Its language service is built against that editor, so a newer `monaco-editor` is not installed. | `@kusto/monaco-kusto` releases a version that accepts a newer `monaco-editor`.                                   |
 | `overrides.dompurify` `^3.4.15`           | `monaco-editor` 0.55 depends on exactly `dompurify` 3.2.7, which `npm audit --omit=dev` flags (CI runs `npm audit`). The override installs a 3.4.x release instead.                               | The `monaco-editor` pin is lifted: `monaco-editor` 0.57 depends on `dompurify` 3.4.15, which passes `npm audit`. |
+| `@types/node` `^24`                       | Matches the Node 24 runtime (`engines.node`, `web/Dockerfile`), so Node APIs newer than 24 are a type error.                                                                                       | The runtime moves to a newer Node major.                                                                         |
 
 `npm ls` reports `msw` as invalid: `@vitest/mocker` (used by `vitest`) declares an optional peer `msw@^2.4.9`, and the project uses `msw` 3. Only Vitest browser-mode mocking uses that peer, and TIM's tests run in jsdom, so `npm ci` and the tests are unaffected. It clears once `vitest` accepts `msw` 3.
 
 The api has no version pins or overrides beyond the Python range `>=3.12,<3.13` in `api/pyproject.toml`; `uv.lock` fixes the rest.
+
+### Dependabot
+
+`.github/dependabot.yml` opens weekly version-update PRs for npm (`web/`), uv (`api/`), Docker (`web/Dockerfile`, `api/Dockerfile`), Docker Compose (`compose.yaml`, `deploy/compose.prod.yaml`), Helm (image tags in `deploy/helm/tim/values.yaml`) and GitHub Actions. Minor and patch updates are grouped into one PR per ecosystem; each major update gets its own PR. Commit titles are Conventional Commits so release-please reads them: `build(deps)` for shipped dependencies, `chore(deps)` for npm and uv dev dependencies, `ci(deps)` for actions.
+
+Ignored updates, each with a comment in the file:
+
+- The npm pins above: `monaco-editor` major and minor, `typescript` `>=6.1.0`, `@types/node` majors. Remove a rule when its pin is lifted. `msw` is not ignored: the Vitest peer warning does not affect installs or tests.
+- `node` majors in `web/Dockerfile` (move together with `@types/node` and `engines.node`) and `python` major and minor in `api/Dockerfile` (`requires-python` is `>=3.12,<3.13`).
+- `postgres` majors in the compose files and the chart: a PostgreSQL major upgrade needs a dump and restore.
+
+### Editor settings
+
+`.editorconfig` matches the formatters: UTF-8, LF line endings, final newline, 2-space indent, 4 spaces and 100 columns for Python (ruff), 100 columns for TypeScript and JavaScript (Prettier). `.gitattributes` normalises text files to LF in the repository and the working tree.
 
 ## API types
 
