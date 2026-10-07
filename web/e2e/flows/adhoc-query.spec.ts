@@ -2,8 +2,7 @@ import { test, expect } from '../fixtures';
 import { shot } from '../shot';
 import { tokenClasses, waitForEditor } from '../mocks/editor';
 
-// W2: Ad-hoc Kusto query (legacy screens 05, 07, 08, 09, 10, 11, 12, 15)
-test('W2: new query, time range, cluster/database, run', async ({ page, api }) => {
+test('new query, time range, cluster/database, run', async ({ page, api }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /get started/i }).click();
   await expect(page.getByText('New query').first()).toBeVisible();
@@ -11,7 +10,7 @@ test('W2: new query, time range, cluster/database, run', async ({ page, api }) =
   await shot(page, '05-new-query-menu');
 
   await page.getByRole('menuitem', { name: 'New query' }).click();
-  // New app shows the required-field errors only after a failed submit (legacy shows them at once).
+  // Required-field errors appear only after a failed submit.
   await expect(page.getByText('Cluster is required')).toHaveCount(0);
   await page.getByRole('button', { name: /save changes & run/i }).click();
   await expect(page.getByText('Cluster is required')).toBeVisible();

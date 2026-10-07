@@ -27,7 +27,7 @@ const titles = (nodes: MenuNode[]): string[] =>
   nodes.map((x) => (x.kind === 'folder' ? `${x.title}/` : x.template.menu));
 
 describe('buildTemplateMenuTree', () => {
-  it('keeps same segment name under different paths apart (BUG-35)', () => {
+  it('keeps same segment name under different paths apart', () => {
     const tree = buildTemplateMenuTree(
       [
         tpl({ menu: 'A1', path: ['Machine', 'Windows'] }),

@@ -79,7 +79,6 @@ describe('useAuth', () => {
     expect(state()).toBe('signedOut:-:-');
   });
 
-  // BUG-22
   it('a failed login shows an error and can be retried', async () => {
     const login = vi
       .fn()

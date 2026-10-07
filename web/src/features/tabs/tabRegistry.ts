@@ -15,7 +15,3 @@ export const tabRegistry: TabRegistry = {
   KustoQueryResult: KustoQueryTab,
   TemplateQueryResult: TemplateQueryTab,
 };
-
-export function registerTabComponent(kind: TabKind, component: ComponentType<TabComponentProps>) {
-  tabRegistry[kind] = component;
-}

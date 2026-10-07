@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
-// Security regression tests for the container entrypoint and the nginx template (P5-09).
+// Security regression tests for the container entrypoint and the nginx template.
 const docker = resolve(import.meta.dirname, '../../../docker');
 const hasTools = spawnSync('sh', ['-c', 'command -v jq']).status === 0;
 
@@ -43,8 +43,8 @@ function runEntrypoint(env: Record<string, string>) {
   };
 }
 
-describe.skipIf(!hasTools)('web container entrypoint (S-W03, S-W02)', () => {
-  it('S-W03: hostile env values cannot break out of config.js', () => {
+describe.skipIf(!hasTools)('web container entrypoint', () => {
+  it('hostile env values cannot break out of config.js', () => {
     const evil = `a"b</script><script>alert(1)//\\ ${String.fromCharCode(0x2028)} </ScRiPt>`;
     const { status, config } = runEntrypoint({
       AUTH_CLIENT_ID: evil,
@@ -60,7 +60,7 @@ describe.skipIf(!hasTools)('web container entrypoint (S-W03, S-W02)', () => {
     expect(sandbox.appConfig?.agGridLicenseKey).toBe(evil);
   });
 
-  it('ADR-0006: AGGRID_LICENSE is optional; without it config.js has an empty agGridLicenseKey', () => {
+  it('AGGRID_LICENSE is optional; without it config.js has an empty agGridLicenseKey', () => {
     for (const env of <Record<string, string>[]>[
       { AGGRID_LICENSE: '' },
       { AGGRID_LICENSE: '', TIM_ENVIRONMENT: 'production' },
@@ -75,7 +75,7 @@ describe.skipIf(!hasTools)('web container entrypoint (S-W03, S-W02)', () => {
     }
   });
 
-  it('S-W02: renders a CSP without script unsafe-inline and with same-origin connect-src', () => {
+  it('renders a CSP without script unsafe-inline and with same-origin connect-src', () => {
     const { status, conf } = runEntrypoint({});
     expect(status).toBe(0);
     const csp = /add_header Content-Security-Policy "([^"]+)"/.exec(conf)?.[1] ?? '';
@@ -93,7 +93,7 @@ describe.skipIf(!hasTools)('web container entrypoint (S-W03, S-W02)', () => {
     expect(conf).not.toContain('@CSP_CONNECT_EXTRA@');
   });
 
-  it('S-W02: a cross-origin API_BASEPATH is allowed in connect-src, junk is refused', () => {
+  it('a cross-origin API_BASEPATH is allowed in connect-src, junk is refused', () => {
     const ok = runEntrypoint({ API_BASEPATH: 'https://api.example.com:8443/base' });
     expect(ok.conf).toContain('https://login.microsoftonline.com https://api.example.com:8443;');
     const bad = runEntrypoint({ API_BASEPATH: 'https://a.example; script-src *' });
@@ -102,7 +102,7 @@ describe.skipIf(!hasTools)('web container entrypoint (S-W03, S-W02)', () => {
   });
 });
 
-describe('nginx template headers (S-W02, S-W05)', () => {
+describe('nginx template headers', () => {
   const tpl = readFileSync(join(docker, 'nginx.conf.template'), 'utf8');
 
   it('sets the baseline security headers and hides the version', () => {
@@ -112,12 +112,12 @@ describe('nginx template headers (S-W02, S-W05)', () => {
     expect(tpl).toContain('add_header Strict-Transport-Security $tim_hsts always;');
   });
 
-  it('S-W05: framing is same-origin only (MSAL silent iframe needs /blank.html)', () => {
+  it('allows framing from the same origin only', () => {
     expect(tpl).toContain('add_header X-Frame-Options "SAMEORIGIN" always;');
     expect(tpl).not.toContain('X-Frame-Options "DENY"');
   });
 
-  it('does not use add_header inside locations (would drop the server-level headers)', () => {
+  it('does not use add_header inside locations', () => {
     const locations = tpl.slice(tpl.indexOf('location '));
     expect(locations).not.toMatch(/add_header/);
   });

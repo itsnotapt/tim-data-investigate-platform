@@ -8,7 +8,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { detailEntries } from './detailText';
 
-export const DETAIL_PANEL_WIDTH = 900;
+const DETAIL_PANEL_WIDTH = 900;
 
 export interface DetailPanelProps {
   open: boolean;
@@ -17,9 +17,9 @@ export interface DetailPanelProps {
 }
 
 /**
- * Right-hand drawer with the fields of one row (legacy `DetailSidePanel.vue`, screen 24).
+ * Right-hand drawer with the fields of one row.
  * Persistent (no overlay, the grid stays usable) and absolutely positioned in the grid's
- * container, so a hidden tab hides it too. BUG-41: the close icon is visible here.
+ * container, so a hidden tab hides it too.
  */
 export function DetailPanel({ open, data, onClose }: DetailPanelProps) {
   const entries = detailEntries(data);

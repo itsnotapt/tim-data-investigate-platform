@@ -1,12 +1,9 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { ColumnView, DisplayComponent, QueryOption, RowResult } from './types';
 
-/**
- * The new app's own database. It never opens or reads the legacy `localforage`
- * database (Q-004: no migration).
- */
-export const TIM_DB_NAME = 'tim';
-export const TIM_DB_VERSION = 1;
+/** The app's IndexedDB database. */
+const TIM_DB_NAME = 'tim';
+const TIM_DB_VERSION = 1;
 
 export const STORE = {
   displayComponents: 'display_components',
@@ -15,7 +12,7 @@ export const STORE = {
   queryOptions: 'query_options',
 } as const;
 
-export interface TimDbSchema extends DBSchema {
+interface TimDbSchema extends DBSchema {
   display_components: { key: string; value: DisplayComponent };
   /** Key = display component uuid; out-of-line key, value is the row array. */
   row_results: { key: string; value: RowResult[] };

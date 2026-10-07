@@ -14,7 +14,7 @@ export class TagSubmitError extends Error {
   }
 }
 
-/** Server problem detail for API errors (legacy showed the 400 `title`), else the message. */
+/** Server problem detail for API errors, else the message. */
 export function tagErrorMessage(err: unknown): string {
   if (isApiError(err)) return err.detail || err.title;
   return err instanceof Error ? err.message : String(err);
@@ -30,7 +30,7 @@ async function stage(name: TagStage, call: () => Promise<void>): Promise<void> {
 
 /**
  * Sends saved events, then comments, then tags, sequentially (comments reference the saved
- * event, legacy order). Empty lists are skipped. Chunking at 1000 lives in the API client.
+ * event). Empty lists are skipped. Chunking at 1000 lives in the API client.
  * Throws `TagSubmitError`; `onStage` is called before each request that will be sent.
  */
 export async function submitTagRequests(

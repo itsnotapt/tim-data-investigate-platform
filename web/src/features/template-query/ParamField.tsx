@@ -17,13 +17,13 @@ export interface ParamFieldProps {
   field: FormField;
   value: unknown;
   onChange: (value: unknown) => void;
-  /** Suggestions for `match` / `multiple`: the value when edit mode started (legacy cache). */
+  /** Suggestions for `match` / `multiple`: the value when edit mode started. */
   initialValue?: unknown;
   /** Error text to show (validation failed). */
   error?: string;
 }
 
-/** Above this many selections the select shows "first, (+N others)" (legacy). */
+/** Above this many selections the select shows "first, (+N others)". */
 const MAX_LISTED = 5;
 const SELECT_ALL = '\u0000select-all';
 
@@ -53,7 +53,7 @@ function Label({ name, required }: { name: string; required: boolean }) {
 }
 
 /**
- * One input of the template form. Widget by type (legacy TemplateQueryResult.vue): `array`
+ * One input of the template form. Widget by type: `array`
  * select (optionally `multiple` with Select All), `match` select of `{column, value}`,
  * `multiple` chips combobox (`,` / `;` delimit), `boolean` switch, anything else a trimmed
  * text field.

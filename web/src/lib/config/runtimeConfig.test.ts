@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadRuntimeConfig } from './runtimeConfig';
 
@@ -106,8 +108,7 @@ describe('loadRuntimeConfig', () => {
     ).toBe('https://x.com/api');
   });
 
-  // BUG-33: tag cluster/db were not VITE_-prefixed (undefined in dev) and nodeEnv was always 'production'.
-  it('regression BUG-33: VITE_TAG_* env vars work and nodeEnv is not part of the config', () => {
+  it('VITE_TAG_* env vars work and nodeEnv is not part of the config', () => {
     const { tagCluster: _t, tagDatabase: _d, ...rest } = fullWindow;
     void _t;
     void _d;
@@ -123,8 +124,7 @@ describe('loadRuntimeConfig', () => {
     );
   });
 
-  // BUG-41: issueUri had an 'ttps://' typo; .env.example misspelled LICENCE.
-  it('regression BUG-41: default issueUri is valid https and the LICENSE env spelling is read', () => {
+  it('default wiki and issue URIs are valid https and the license env var is read', () => {
     const { issueUri: _i, ...rest } = fullWindow;
     void _i;
     const c = loadRuntimeConfig(rest, { VITE_AGGRID_LICENSE_KEY: 'lic' });
@@ -134,5 +134,28 @@ describe('loadRuntimeConfig', () => {
     expect(() => loadRuntimeConfig({ ...fullWindow, issueUri: 'ttps://x.com' }, {})).toThrow(
       /issueUri/,
     );
+  });
+});
+
+describe('.env.example', () => {
+  const example = readFileSync(resolve(import.meta.dirname, '../../../.env.example'), 'utf8');
+  const documented = [...example.matchAll(/^#?\s*(VITE_[A-Z0-9_]+)=/gm)].map((m) => m[1]);
+  const source = ['runtimeConfig.ts', '../auth/index.ts']
+    .map((f) => readFileSync(resolve(import.meta.dirname, f), 'utf8'))
+    .join('\n');
+
+  it('lists variables', () => {
+    expect(documented.length).toBeGreaterThan(0);
+  });
+
+  it.each(documented)('documents %s, which the app reads', (name) => {
+    expect(source).toContain(name);
+  });
+
+  it('names the AG Grid licence key VITE_AGGRID_LICENSE_KEY', () => {
+    expect(documented).toContain('VITE_AGGRID_LICENSE_KEY');
+    expect(
+      loadRuntimeConfig({}, { ...fullEnv, VITE_AGGRID_LICENSE_KEY: 'key-1' }).agGridLicenseKey,
+    ).toBe('key-1');
   });
 });

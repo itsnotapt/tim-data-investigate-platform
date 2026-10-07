@@ -1,8 +1,7 @@
 import { test, expect } from '../fixtures';
 import { shot } from '../shot';
 
-// W1: Sign in & bootstrap (legacy screens 01, 04)
-test('W1: welcome page and account menu', async ({ page, api }) => {
+test('welcome page and account menu', async ({ page, api }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
   await expect(page.getByText('The triage and investigation experience.')).toBeVisible();

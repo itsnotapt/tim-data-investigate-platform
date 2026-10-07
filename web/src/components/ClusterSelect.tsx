@@ -29,9 +29,9 @@ interface ClusterOption {
 }
 
 /**
- * Cluster + database comboboxes (legacy ClusterSelection.vue, screen 11). Both accept free text.
+ * Cluster + database comboboxes. Both accept free text.
  * The cluster is normalised on blur/selection (`https://` prepended when missing; no forced
- * `.kusto.windows.net`, BUG-29).
+ * `.kusto.windows.net`).
  */
 export function ClusterSelect({
   cluster,

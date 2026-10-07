@@ -36,7 +36,7 @@ export interface ResultsGridProps {
   /**
    * Extra context menu items, placed above copy / export. An array is a list of groups: the first
    * group is followed by "Show details" (tagging), each later non-empty group comes after a
-   * separator (pivots), as legacy.
+   * separator (pivots).
    */
   getContextMenuItems?: GetExtraContextMenuItems | GetExtraContextMenuItems[];
   /** Exposes the grid api (column state save/restore, transactions). */
@@ -44,11 +44,11 @@ export interface ResultsGridProps {
   onCellEditRequest?: (event: CellEditRequestEvent<GridRowWithId>) => void;
   /** Rendered right of the quick filter (column view bar). */
   toolbarExtra?: ReactNode;
-  /** CSS height of the grid; legacy used `calc(100vh - 200px)`. */
+  /** CSS height of the grid. */
   height?: string | number;
-  /** Column view bar beside the quick filter (P4-16). Default on. */
+  /** Column view bar beside the quick filter. Default on. */
   columnViews?: boolean;
-  /** Detail drawer, "Show details" context menu item, follows the focused cell (P4-25). Default on. */
+  /** Detail drawer, "Show details" context menu item, follows the focused cell. Default on. */
   detailPanel?: boolean;
   /**
    * Identifies the grid (the tab uuid) so its column state survives the tab being hidden or
@@ -122,7 +122,7 @@ export function ResultsGrid({
   }, [detailPanel, getContextMenuItems]);
   const menu = useMemo(() => makeGetContextMenuItems(extraMenuItems), [extraMenuItems]);
 
-  // The open panel follows the focused cell's row (legacy `onCellFocused`).
+  // The open panel follows the focused cell's row.
   const onCellFocused = useCallback((e: CellFocusedEvent<GridRowWithId>) => {
     if (!detailOpenRef.current || e.rowIndex === null) return;
     const node = e.api.getDisplayedRowAtIndex(e.rowIndex);

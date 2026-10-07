@@ -1,4 +1,4 @@
-/** Row shape helpers and set arithmetic for tags (port of legacy `helpers/tags.js`). */
+/** Row shape helpers and set arithmetic for tags. */
 export type TagRow = Record<string, unknown>;
 
 /** The `TagEvent` object the Kusto join adds to a row (and the grid colours by). */
@@ -29,7 +29,7 @@ export function tagsDiff(a: readonly string[], b: readonly string[]): string[] {
   return [...new Set(a)].filter((t) => !drop.has(t));
 }
 
-/** Elements of `a` that are also in `b`, unique, in `b` order (legacy iterated `b`). */
+/** Elements of `a` that are also in `b`, unique, in `b` order. */
 export function tagsIntersect(a: readonly string[], b: readonly string[]): string[] {
   const have = new Set(a);
   return [...new Set(b)].filter((t) => have.has(t));
@@ -44,18 +44,8 @@ export function existingTagCounts(rows: readonly TagRow[]): Map<string, number> 
   return counts;
 }
 
-/** Recent tags are a stub in legacy (`retrieveRecentTags` returns `[]`). */
-export const retrieveRecentTags = (): Promise<string[]> => Promise.resolve([]);
-
-/**
- * Options offered by the tag autocomplete: selected + existing (+ recent unless removing), unique.
- */
-export function tagOptions(
-  rows: readonly TagRow[],
-  selected: readonly string[],
-  recent: readonly string[],
-  removing: boolean,
-): string[] {
+/** Options offered by the tag autocomplete: selected + existing tags, unique. */
+export function tagOptions(rows: readonly TagRow[], selected: readonly string[]): string[] {
   const existing = rows.flatMap(tagsFromRow);
-  return [...new Set([...selected, ...existing, ...(removing ? [] : recent)])];
+  return [...new Set([...selected, ...existing])];
 }

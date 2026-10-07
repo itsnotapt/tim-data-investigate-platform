@@ -110,6 +110,16 @@ describe('TagDialog', () => {
     expect(calls).toEqual([]);
   });
 
+  it('disables the Tags field only while the tag action is Ignore', async () => {
+    const { user, dialog } = await setup();
+    const tags = () => within(dialog).getByRole('combobox', { name: 'Tags' });
+    expect(tags()).toBeDisabled();
+    await choose(user, /tag action/i, 'Append');
+    expect(tags()).toBeEnabled();
+    await choose(user, /tag action/i, 'Ignore');
+    expect(tags()).toBeDisabled();
+  });
+
   it('previews tag modifications', async () => {
     const { user, dialog } = await setup();
     await choose(user, /tag action/i, 'Append');
@@ -117,7 +127,7 @@ describe('TagDialog', () => {
     expect(await within(dialog).findByText('Adding new to 2 event(s).')).toBeTruthy();
   });
 
-  it('submits, updates the grid rows and closes (BUG-25)', async () => {
+  it('submits, updates the grid rows and closes', async () => {
     server.use(
       record('/api/taggedevents/savedEvents'),
       record('/api/taggedevents/comments'),
@@ -148,7 +158,7 @@ describe('TagDialog', () => {
     expect(notify).toHaveBeenLastCalledWith('Tag events successfully customised.');
   });
 
-  it('keeps the dialog open and shows the error when a request fails (BUG-26)', async () => {
+  it('keeps the dialog open and shows the error when a request fails', async () => {
     server.use(
       record('/api/taggedevents/savedEvents'),
       http.post(apiUrl('/api/taggedevents/comments'), () =>

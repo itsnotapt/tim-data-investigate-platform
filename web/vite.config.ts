@@ -19,7 +19,7 @@ export default defineConfig({
   // @kusto/monaco-kusto's language service bundle references Node's `global`.
   define: { global: 'globalThis' },
   server: {
-    // Dev loop: forward API calls to the api run locally (see docs/rewrite/local-dev.md).
+    // Dev loop: forward API calls to the api run locally.
     proxy: {
       '/api': 'http://localhost:8080',
     },

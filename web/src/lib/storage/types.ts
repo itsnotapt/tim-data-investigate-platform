@@ -1,14 +1,12 @@
 /**
  * Entities persisted in the browser (IndexedDB database `tim`).
- * Source: docs/current-system/data-models.md "Browser entities";
- * store layout: docs/rewrite/target-architecture.md section 3.7.
  */
 
 import type { TimeRange } from '../time-range';
 
 export type DisplayComponentName = 'KustoQueryResult' | 'TemplateQueryResult';
 
-/** Serialisable error only (BUG-38); never store Error instances. */
+/** Serialisable error only; never store Error instances. */
 export interface StoredError {
   message: string;
   code?: string;
@@ -78,7 +76,7 @@ export interface ColumnView {
   columnState: unknown[];
 }
 
-/** Per-template options, keyed by template uuid. Other keys are allowed (legacy shallow-merge). */
+/** Per-template options, keyed by template uuid. Other keys are allowed. */
 export interface QueryOption {
   hide?: boolean;
   [key: string]: unknown;

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 export interface ExecutionStats {
-  /** Raw `queryInfo.execution_time` (any in legacy). */
+  /** Raw `queryInfo.execution_time`. */
   executionTime?: number | string | null;
   /** Raw `resource_usage.cpu['total cpu']`. */
   cpuUsage?: string | null;
@@ -9,7 +9,7 @@ export interface ExecutionStats {
   memoryUsage?: number | string | null;
 }
 
-/** Bytes to whole MB; null when absent/zero/not a number (legacy hid the row then). */
+/** Bytes to whole MB; null when absent/zero/not a number. */
 export function formatMemoryMb(bytes: number | string | null | undefined): string | null {
   const n = typeof bytes === 'string' ? Number(bytes) : bytes;
   if (!n || !Number.isFinite(n)) return null;

@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 
-const SHOT_DIR = resolve(import.meta.dirname, '../../docs/rewrite/screenshots');
+/** Screenshot output directory (gitignored). */
+export const SHOT_DIR = resolve(import.meta.dirname, '.screenshots');
 
 /**
- * Screenshot into docs/rewrite/screenshots/NN-name.png. Only writes when `E2E_SHOTS=1`, so a plain
+ * Screenshot into e2e/.screenshots/NN-name.png. Only writes when `E2E_SHOTS=1`, so a plain
  * `npm run e2e` leaves the repo clean. The mouse is parked away from the content so no hover
  * state leaks into the picture.
  */

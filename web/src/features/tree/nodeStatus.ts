@@ -2,11 +2,11 @@ import type { Tab } from '../tabs';
 
 export type NodeStatus = 'executing' | 'error' | 'results' | 'draft';
 
-/** Legacy `isDraft`: never run, not running, no error. */
-export const isDraft = (t: Tab): boolean =>
+/** Draft: never run, not running, no error. */
+const isDraft = (t: Tab): boolean =>
   t.state.rowCount === null && !t.state.isExecuting && t.state.error === null;
 
-/** Legacy `isNew`: has results that were not visited yet, no error. */
+/** New: has results that were not visited yet, no error. */
 export const isNew = (t: Tab): boolean =>
   t.state.rowCount !== null && !t.state.isVisited && t.state.error === null;
 

@@ -5,12 +5,12 @@ import { defaultNewQuery } from '../kusto-query/defaultQuery';
 import { useTabsStore, type TabsStore } from '../tabs';
 import type { QueryTemplate } from './types';
 
-export const NEW_QUERY_TITLE = 'New query';
+const NEW_QUERY_TITLE = 'New query';
 
 export interface NewQueryActions {
   /** New root ad-hoc query with the default KQL; navigates to it. Returns the new uuid. */
   createAdHoc: () => string;
-  /** New root template tab in edit mode (not auto-run, legacy `createNewTemplateQueryComponent`). */
+  /** New root template tab in edit mode (not auto-run). */
   createFromTemplate: (template: QueryTemplate) => string;
 }
 
@@ -30,7 +30,7 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
 
   const createFromTemplate = useCallback(
     (template: QueryTemplate) => {
-      // Deep clone: the tab keeps its own snapshot (legacy JSON round-trip).
+      // Deep clone: the tab keeps its own snapshot.
       const snapshot = JSON.parse(JSON.stringify(template)) as QueryTemplate;
       const inParams = JSON.parse(JSON.stringify(getDefaultParams(snapshot))) as Record<
         string,

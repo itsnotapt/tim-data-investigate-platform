@@ -2,8 +2,7 @@ import type { QueryTemplate, Row, TemplateParams } from './types';
 
 /**
  * Defaults for every declared param. Falsy defaults (`false`, `0`) are kept; only a missing
- * (undefined/null) default becomes '' (BUG-34: legacy `default || ''` turned them into '' while
- * `buildParams` kept them raw).
+ * (undefined/null) default becomes ''.
  */
 export function getDefaultParams(template: QueryTemplate): TemplateParams {
   const out: TemplateParams = {};
@@ -59,7 +58,7 @@ export function buildParams(
 
 /**
  * True when every declared field has a usable value: `multiple` needs at least one entry,
- * `match` exactly one matching column (legacy `length === 1`), others a non-blank value.
+ * `match` exactly one matching column, others a non-blank value.
  */
 export function isDataComplete(template: QueryTemplate, data: TemplateParams): boolean {
   return Object.entries(template.fields ?? {}).every(([name, field]) => {

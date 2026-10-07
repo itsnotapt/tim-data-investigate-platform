@@ -22,7 +22,7 @@ const resize = (width: number, height: number) =>
     ),
   );
 
-describe('column state survives tab switching (P4-16)', () => {
+describe('column state survives tab switching', () => {
   beforeEach(() => {
     callbacks = [];
     tabColumnState.clear();

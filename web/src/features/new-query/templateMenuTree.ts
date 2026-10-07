@@ -1,13 +1,13 @@
 import type { QueryOptions, QueryTemplate, QueryType } from './types';
 
-export interface MenuFolderNode {
+interface MenuFolderNode {
   kind: 'folder';
-  /** Full path joined with a separator that cannot occur in a segment; unique per path (BUG-35). */
+  /** Full path joined with a separator that cannot occur in a segment; unique per path. */
   key: string;
   title: string;
   children: MenuNode[];
 }
-export interface MenuItemNode {
+interface MenuItemNode {
   kind: 'item';
   key: string;
   template: QueryTemplate;
@@ -16,8 +16,8 @@ export type MenuNode = MenuFolderNode | MenuItemNode;
 
 const SEP = '\u0000';
 
-/** Case-insensitive substring match over menu text + summary (legacy `JSON.stringify([menu, summary])`). */
-export function matchesSearch(t: QueryTemplate, search: string): boolean {
+/** Case-insensitive substring match over menu text + summary. */
+function matchesSearch(t: QueryTemplate, search: string): boolean {
   const needle = search.trim().toLowerCase();
   if (!needle) return true;
   return `${t.menu}\n${t.summary}`.toLowerCase().includes(needle);
@@ -31,9 +31,9 @@ export interface BuildMenuOptions {
 
 /**
  * Nested menu for one template type. Folders are keyed by the FULL path, so the same segment
- * name under different parents yields separate folders (BUG-35; legacy keyed by name only).
+ * name under different parents yields separate folders.
  * Hidden templates (`queryOptions[uuid].hide === true`) are excluded; insertion order is kept.
- * Within a folder, subfolders come first, then templates (as legacy renders them).
+ * Within a folder, subfolders come first, then templates.
  */
 export function buildTemplateMenuTree(
   templates: readonly QueryTemplate[],

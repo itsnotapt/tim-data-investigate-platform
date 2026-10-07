@@ -32,8 +32,7 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v,
 
 /**
  * MUI Dialog draggable by its title bar, kept inside the viewport. Uses pointer events (with
- * pointer capture) and a single window resize listener; no polling (legacy used a 100 ms
- * interval, BUG-37).
+ * pointer capture) and a single window resize listener; no polling.
  */
 export function DraggableDialog({
   title,

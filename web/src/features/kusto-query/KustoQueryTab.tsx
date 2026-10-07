@@ -41,8 +41,7 @@ interface Draft {
 const Sep = () => <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 0.5 }} />;
 
 /**
- * Ad-hoc Kusto query tab (legacy KustoQueryResult.vue, W2, W10). Starts in edit mode (as
- * legacy, also after a reload). Edits live in a local draft until Save / Save & Run.
+ * Ad-hoc Kusto query tab Starts in edit mode (also after a reload). Edits live in a local draft until Save / Save & Run.
  */
 export function KustoQueryTab({ uuid, onRun }: KustoQueryTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
@@ -61,7 +60,7 @@ export function KustoQueryTab({ uuid, onRun }: KustoQueryTabProps) {
     setEditor(e);
     e.onDidDispose(() => setEditor((cur) => (cur === e ? null : cur)));
   }, []);
-  // Schema for IntelliSense follows the (draft) cluster and database while editing (BUG-28).
+  // Schema for IntelliSense follows the (draft) cluster and database while editing.
   const stored = tab?.componentName === 'KustoQueryResult' ? tab.params : null;
   useKustoSchema(
     editing ? (draft?.cluster ?? stored?.cluster ?? '') : '',

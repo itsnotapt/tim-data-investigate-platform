@@ -3,8 +3,7 @@ import type { RowClassRules } from 'ag-grid-community';
 export const DETERMINATIONS = ['malicious', 'suspicious', 'benign'] as const;
 export type Determination = (typeof DETERMINATIONS)[number];
 
-/** Class names match the legacy CSS (`KustoPivot.vue` style block). */
-export const determinationClass = (d: Determination) => `ag-tag-${d}`;
+const determinationClass = (d: Determination) => `ag-tag-${d}`;
 
 /** Reads `TagEvent.Determination` (lower-cased by the tagging code) from a row. */
 export function getDetermination(data: unknown): Determination | null {

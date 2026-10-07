@@ -9,7 +9,7 @@ export interface ClusterGroup {
 export const CLUSTER_REQUIRED = 'Cluster is required';
 export const DATABASE_REQUIRED = 'Database is required';
 
-/** Required rules of the legacy form (ClusterSelection.vue). Empty array when valid. */
+/** Required-field rules. Empty array when valid. */
 export function validateClusterSelection(cluster: string, database: string): string[] {
   const errors: string[] = [];
   if (cluster.trim() === '') errors.push(CLUSTER_REQUIRED);
@@ -17,7 +17,7 @@ export function validateClusterSelection(cluster: string, database: string): str
   return errors;
 }
 
-/** Databases of the group that lists `cluster` (compared after normalisation). Legacy getDatabases. */
+/** Databases of the group that lists `cluster` (compared after normalisation). */
 export function databasesFor(groups: ClusterGroup[], cluster: string): string[] {
   const wanted = normalizeClusterUrl(cluster);
   if (wanted === '') return [];

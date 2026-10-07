@@ -18,7 +18,7 @@ export interface TemplateSubMenuProps {
   depth?: number;
 }
 
-/** Recursive collapsible list; folders are keyed by full path (BUG-35). */
+/** Recursive collapsible list; folders are keyed by full path. */
 export function TemplateSubMenu({
   title,
   nodes,

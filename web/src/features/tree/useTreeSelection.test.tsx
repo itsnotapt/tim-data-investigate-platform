@@ -76,7 +76,7 @@ describe('useTreeSelection.removeSelected', () => {
     expect(hook.result.current.checked.size).toBe(0);
   });
 
-  it('navigates to / when the active tab was removed (W11)', async () => {
+  it('navigates to / when the active tab was removed', async () => {
     const { hook, loc } = setup('/view/c');
     act(() => hook.result.current.toggle('a', true));
     await act(() => hook.result.current.removeSelected());

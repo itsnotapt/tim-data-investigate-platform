@@ -44,7 +44,7 @@ describe('ClusterSelect', () => {
     expect(value().database).toBe('Db2');
   });
 
-  it('accepts free text and normalises without forcing .kusto.windows.net (BUG-29)', async () => {
+  it('accepts free text and normalises without forcing .kusto.windows.net', async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.type(screen.getByRole('combobox', { name: /Cluster/ }), 'other.example.org');

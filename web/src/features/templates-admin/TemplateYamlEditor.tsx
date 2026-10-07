@@ -15,7 +15,7 @@ export interface TemplateYamlEditorProps {
   path: string;
 }
 
-/** Labelled 200 px dotted-border editor with an error alert under it (legacy CreateQueryDialog). */
+/** Labelled 200 px dotted-border editor with an error alert under it. */
 export function TemplateYamlEditor({
   label,
   value,

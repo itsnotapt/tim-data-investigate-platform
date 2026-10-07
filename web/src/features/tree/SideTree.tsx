@@ -18,7 +18,7 @@ import { TreeNodeLabel } from './TreeNodeLabel';
 import { useTreeSelection } from './useTreeSelection';
 
 export const SIDE_TREE_COLLAPSED_WIDTH = 56;
-export const SIDE_TREE_EXPANDED_WIDTH = 700;
+const SIDE_TREE_EXPANDED_WIDTH = 700;
 
 export interface SideTreeProps {
   templates: NewQueryMenuProps['templates'];
@@ -31,7 +31,7 @@ export interface SideTreeProps {
 
 /**
  * Query tree drawer (mini variant, expands on hover). The active node comes straight from the
- * route (`/view/:uuid`) on every render, so it is highlighted after a hard load too (BUG-21).
+ * route (`/view/:uuid`) on every render, so it is highlighted after a hard load too.
  */
 export function SideTree({
   templates,
@@ -60,7 +60,7 @@ export function SideTree({
     return { roots: selectRoots(data), children: byParent };
   }, [tabs, order]);
 
-  // A new tab opens its ancestors (legacy `new:display-component`). State adjusted during render.
+  // A new tab opens its ancestors. State adjusted during render.
   const [seenSeq, setSeenSeq] = useState(lastCreated?.seq ?? 0);
   if (lastCreated && lastCreated.seq !== seenSeq) {
     setSeenSeq(lastCreated.seq);
@@ -72,7 +72,7 @@ export function SideTree({
     }
   }
 
-  // Results arriving on the active tab count as seen (legacy `update:kusto-results`), and
+  // Results arriving on the active tab count as seen, and
   // opening a tab by URL marks it visited.
   const active = activeUuid ? tabs[activeUuid] : undefined;
   useEffect(() => {

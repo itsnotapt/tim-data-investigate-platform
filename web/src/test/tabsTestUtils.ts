@@ -6,7 +6,7 @@ import {
 } from '../features/tabs';
 
 /** In-memory persistence so component tests do not touch IndexedDB. */
-export const memoryPersistence: TabPersistence = {
+const memoryPersistence: TabPersistence = {
   loadAll: () => Promise.resolve([]),
   save: () => Promise.resolve(),
   remove: () => Promise.resolve(),

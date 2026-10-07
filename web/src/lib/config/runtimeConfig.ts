@@ -29,7 +29,7 @@ const configSchema = z.object({
     .string()
     .default('')
     .transform((v) => v.replace(/\/+$/, '')),
-  /** Optional in development (trial); production deployments must supply it (ADR-0006). */
+  /** Optional; without it AG Grid runs as a trial (watermark). */
   agGridLicenseKey: z.string().optional(),
   wikiUri: httpUrl.default(DEFAULT_WIKI_URI),
   issueUri: httpUrl.default(DEFAULT_ISSUE_URI),

@@ -6,7 +6,7 @@ import {
   isDataComplete,
   type QueryTemplate,
 } from './index';
-import legacy from './__fixtures__/getTagEvents.legacy.kql?raw';
+import tagEventsKql from './__fixtures__/getTagEvents.kql?raw';
 import { escapeKqlString, escapeKqlVerbatim, kqlVerbatimList } from './escape';
 
 const engine = createTemplateEngine({
@@ -26,7 +26,7 @@ describe('getDefaultParams', () => {
     expect(getDefaultParams(t)).toEqual({ a: 'x', b: '' });
   });
 
-  it('keeps falsy defaults (BUG-34)', () => {
+  it('keeps falsy defaults', () => {
     const t = tpl({
       params: {
         f: { type: 'boolean', default: false },
@@ -140,7 +140,7 @@ describe('isDataComplete', () => {
     expect(isDataComplete(t, { ...full, Users: [] })).toBe(false);
     expect(isDataComplete(t, { ...full, Users: undefined })).toBe(false);
   });
-  it('match needs exactly one column (legacy)', () => {
+  it('match needs exactly one column', () => {
     expect(isDataComplete(t, { ...full, Ip: [] })).toBe(false);
     expect(
       isDataComplete(t, {
@@ -171,7 +171,7 @@ describe('escaping helpers', () => {
 });
 
 describe('rendering', () => {
-  it('array helper matches legacy output for ordinary values', () => {
+  it('array helper renders ordinary values as verbatim literals', () => {
     expect(engine.render('in ({{array Users}})', { Users: ['a', 'b'] })).toBe("in (@'a',@'b')");
   });
 
@@ -180,7 +180,7 @@ describe('rendering', () => {
     expect(engine.render('in ({{array Users}})', {})).toBe('in ()');
   });
 
-  it('array helper escapes quotes (SEC-06)', () => {
+  it('array helper escapes quotes', () => {
     expect(engine.render('{{array xs}}', { xs: ["a'b"] })).toBe("@'a''b'");
   });
 
@@ -214,7 +214,7 @@ describe('rendering', () => {
     expect(engine.render('{{kql v}}', { v: "\\' or 1==1 //" })).toBe("'\\\\\\' or 1==1 //'");
   });
 
-  it('raw {{x}} is substituted unchanged, not HTML-escaped (Q-024)', () => {
+  it('raw {{x}} is substituted unchanged, not HTML-escaped', () => {
     expect(engine.render('where A == "{{v}}" & <b>', { v: `<a> & 'q'` })).toBe(
       `where A == "<a> & 'q'" & <b>`,
     );
@@ -287,13 +287,13 @@ describe('buildSummary / buildCluster / buildQuery', () => {
 });
 
 describe('getTagEvents partial', () => {
-  it('renders exactly the legacy KQL text', () => {
-    expect(engine.render('{{> getTagEvents}}', {})).toBe(legacy);
+  it('renders exactly the fixture KQL text', () => {
+    expect(engine.render('{{> getTagEvents}}', {})).toBe(tagEventsKql);
   });
 
-  it('is unchanged inside a query (standalone partial swallows its own newline, as legacy)', () => {
+  it('is unchanged inside a query (standalone partial swallows its own newline)', () => {
     const q = engine.render('let T = X;\n{{> getTagEvents}}\ngetTagEvents(T)', {});
-    expect(q).toBe(`let T = X;\n${legacy}getTagEvents(T)`);
+    expect(q).toBe(`let T = X;\n${tagEventsKql}getTagEvents(T)`);
   });
 
   it('escapes quotes in configured cluster and database', () => {

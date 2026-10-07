@@ -101,7 +101,7 @@ describe('ColumnViewBar', () => {
     expect((await columnViewsDao.list()).map((v) => v.name)).toEqual(['Beta', 'Zulu']);
   });
 
-  it('confirms deletion with corrected text (BUG-41) and clears the selection', async () => {
+  it('confirms deletion with corrected text and clears the selection', async () => {
     await seed();
     render(<ColumnViewBar api={makeApi()} />);
     await pick('Alpha');

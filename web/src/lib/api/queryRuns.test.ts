@@ -128,7 +128,7 @@ describe('runQuery', () => {
     expect(gets).toBe(seen); // stopped polling
   });
 
-  it('aborts while waiting between polls and stops polling (BUG-30)', async () => {
+  it('aborts while waiting between polls and stops polling', async () => {
     let gets = 0;
     server.use(
       http.post(apiUrl('/api/kusto/query'), () => HttpResponse.json(makeRun(), { status: 202 })),
@@ -186,5 +186,18 @@ describe('formatCluster', () => {
     ['x.kusto.fabric.microsoft.com', 'https://x.kusto.fabric.microsoft.com'],
   ])('%s', (input, expected) => {
     expect(formatCluster(input)).toBe(expected);
+  });
+});
+
+describe('runQuery start response', () => {
+  it('rejects when a 202 response has no queryRunId', async () => {
+    server.use(
+      http.post(apiUrl('/api/kusto/query'), () =>
+        HttpResponse.json({ ...makeRun(), queryRunId: undefined }, { status: 202 }),
+      ),
+    );
+    await expect(runQuery(request, { client })).rejects.toThrow(
+      'queryRunId missing from response.',
+    );
   });
 });

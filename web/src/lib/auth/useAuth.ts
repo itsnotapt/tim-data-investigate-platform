@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { AuthContext, type UseAuth } from './authContext';
 
-export type { AuthStatus, UseAuth } from './authContext';
+export type { UseAuth } from './authContext';
 
 export function useAuth(): UseAuth {
   const ctx = useContext(AuthContext);

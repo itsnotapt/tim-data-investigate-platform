@@ -2,8 +2,7 @@ import { Navigate, type RouteObject } from 'react-router';
 import { AppShell } from './AppShell';
 import { ExportImportPage, QueryManagerPage, ShareQueryPage, ViewPage, Welcome } from './lazyPages';
 
-// Hash routes mirror the legacy app so existing share links keep working.
-// Pages are lazy; AppShell provides the Suspense boundary. Unlike legacy, unknown hashes go home.
+// Hash routes. Pages are lazy; AppShell provides the Suspense boundary. Unknown hashes go home.
 export const routes: RouteObject[] = [
   {
     path: '/',

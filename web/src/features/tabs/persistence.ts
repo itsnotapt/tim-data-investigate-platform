@@ -13,7 +13,7 @@ export const indexedDbTabPersistence: TabPersistence = {
   loadAll: () => displayComponentsDao.getAll(),
   save: (tab) => displayComponentsDao.put(tab),
   async remove(uuids) {
-    // BUG-32: row results of every removed tab go too.
+    // Row results of every removed tab go too.
     await Promise.all([displayComponentsDao.deleteMany(uuids), rowResultsDao.deleteMany(uuids)]);
   },
 };

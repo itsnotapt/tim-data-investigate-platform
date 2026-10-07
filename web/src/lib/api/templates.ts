@@ -10,7 +10,7 @@ export type ListTemplatesQuery = NonNullable<operations['listTemplates']['parame
 const BASE = '/api/templates/queries';
 const item = (uuid: string) => `${BASE}/${encodeURIComponent(uuid)}`;
 
-/** `includeDeleted` defaults to false server-side (BUG-05); the Query Manager passes true. */
+/** `includeDeleted` defaults to false server-side; the Query Manager passes true. */
 export async function listTemplates(
   query: ListTemplatesQuery = {},
   { client = getApiClient(), ...rest }: CallOptions = {},

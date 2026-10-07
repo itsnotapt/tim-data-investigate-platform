@@ -19,9 +19,9 @@ export interface EngineOptions {
 
 /**
  * An isolated Handlebars environment (never the global one, so other code registering helpers
- * cannot change KQL output). Output is not HTML-escaped (`noEscape`, as legacy: this is KQL, not
- * HTML). Escaping happens in literal helpers only (Q-024):
- * - `{{array xs}}`: `@'a','b'` with quotes doubled (legacy output for ordinary values);
+ * cannot change KQL output). Output is not HTML-escaped (`noEscape`; this is KQL, not
+ * HTML). Escaping happens in literal helpers only:
+ * - `{{array xs}}`: `@'a','b'` with quotes doubled;
  * - `{{str x}}`: one `@'x'` verbatim literal, quotes doubled;
  * - `{{kql x}}`: one regular `'x'` literal, backslash/quotes/newlines escaped;
  * - raw `{{x}}` is substituted unchanged (templates relying on it keep working; authors are
@@ -51,16 +51,12 @@ export function createTemplateEngine(options: EngineOptions): TemplateEngine {
 let defaultEngine: TemplateEngine | undefined;
 
 /** Engine configured from runtime config (tag cluster/database), created on first use. */
-export function getTemplateEngine(): TemplateEngine {
+function getTemplateEngine(): TemplateEngine {
   if (!defaultEngine) {
     const { tagCluster, tagDatabase } = getConfig();
     defaultEngine = createTemplateEngine({ tagCluster, tagDatabase });
   }
   return defaultEngine;
-}
-
-export function resetTemplateEngine(): void {
-  defaultEngine = undefined;
 }
 
 export const buildSummary = (t: QueryTemplate, p: TemplateParams): string =>

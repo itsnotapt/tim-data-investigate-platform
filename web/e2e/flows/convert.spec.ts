@@ -1,8 +1,8 @@
 import { test, expect } from '../fixtures';
 import { shot } from '../shot';
-import { openRunTemplateTab } from '../mocks/flows-b';
+import { openRunTemplateTab } from '../mocks/templates';
 
-test('W9 convert a template tab to a custom KQL query (screen 30)', async ({ page }) => {
+test('convert a template tab to a custom KQL query', async ({ page }) => {
   await openRunTemplateTab(page);
   await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
 

@@ -1,5 +1,5 @@
 /**
- * Cluster URL normalisation for the ad-hoc query form (BUG-29). Single implementation lives in
+ * Cluster URL normalisation for the ad-hoc query form. Single implementation lives in
  * `lib/api` (`formatCluster`): trims, strips trailing slashes and prepends `https://` when no
  * scheme was typed; never appends `.kusto.windows.net`.
  */

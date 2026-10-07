@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeClusterUrl } from './clusterUrl';
 
 describe('normalizeClusterUrl', () => {
-  it('prepends https:// but never forces a kusto domain (BUG-29)', () => {
+  it('prepends https:// but never forces a kusto domain', () => {
     expect(normalizeClusterUrl('contoso')).toBe('https://contoso');
     expect(normalizeClusterUrl('x.kusto.fabric.microsoft.com')).toBe(
       'https://x.kusto.fabric.microsoft.com',

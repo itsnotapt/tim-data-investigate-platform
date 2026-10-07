@@ -8,7 +8,7 @@ import { useBootstrap, type BootstrapSteps } from './useBootstrap';
 
 /**
  * Renders the routes only when signed in and bootstrapped (templates, column views, tabs);
- * otherwise the legacy sign-in / loading / error states.
+ * otherwise the sign-in / loading / error states.
  */
 export function AuthGate({ children, steps }: { children: ReactNode; steps?: BootstrapSteps }) {
   const { status, error, login, retry } = useBootstrap(steps);
@@ -34,7 +34,7 @@ export function AuthGate({ children, steps }: { children: ReactNode; steps?: Boo
         </Container>
       );
     case 'error':
-      // BUG-22: the failure is shown with an explicit Retry that starts a fresh sign-in.
+      // The failure is shown with an explicit Retry that starts a fresh sign-in.
       return (
         <Container sx={{ mt: 2 }}>
           <Alert

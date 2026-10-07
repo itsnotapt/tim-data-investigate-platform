@@ -111,7 +111,7 @@ describe('TemplateDialog', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
-  it('shows the problem detail from the API (BUG-40)', async () => {
+  it('shows the problem detail from the API', async () => {
     server.use(
       http.put(apiUrl('/api/templates/queries/:uuid'), () =>
         problemResponse(400, { detail: 'Validation failed', errors: { name: ['is bad'] } }),
@@ -124,7 +124,7 @@ describe('TemplateDialog', () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
-  it('shows a network error without crashing (BUG-40)', async () => {
+  it('shows a network error without crashing', async () => {
     server.use(http.put(apiUrl('/api/templates/queries/:uuid'), () => HttpResponse.error()));
     const { user } = setup(existing);
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -137,5 +137,26 @@ describe('TemplateDialog', () => {
     expect(await screen.findByText(/Fields are required/)).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'View' }));
     expect(screen.queryByLabelText('Fields')).not.toBeInTheDocument();
+  });
+
+  it('shows the problem detail when creating fails', async () => {
+    server.use(
+      http.post(apiUrl('/api/templates/queries'), () =>
+        problemResponse(400, { detail: 'Validation failed', errors: { name: ['is bad'] } }),
+      ),
+    );
+    const { user, onSaved } = setup(null);
+    await user.type(screen.getByLabelText(/^Name/), 'New');
+    await user.type(screen.getByLabelText(/^Menu text/), 'Menu');
+    await user.type(screen.getByLabelText(/^Summary text/), 'Sum');
+    await user.type(screen.getByLabelText(/^Cluster/), 'c.kusto.windows.net');
+    await user.type(screen.getByLabelText(/^Database/), 'Db');
+    await user.type(screen.getByLabelText('Path'), 'a{Enter}');
+    await user.type(screen.getByRole('textbox', { name: 'Query' }), 'T');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    const alert = await screen.findByText(/Validation failed/);
+    expect(alert).toHaveTextContent('name: is bad');
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled();
   });
 });

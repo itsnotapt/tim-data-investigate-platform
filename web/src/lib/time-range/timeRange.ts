@@ -1,6 +1,5 @@
 /**
- * Pure time-range model for ad-hoc Kusto queries (legacy: frontend/src/helpers/utils.js:11-84 (removed in P5-12),
- * frontend/src/components/TimeSelection.vue (removed in P5-12)). All values are UTC.
+ * Pure time-range model for ad-hoc Kusto queries. All values are UTC.
  *
  * A range is either absolute (fixed start/end) or relative ("ago" offsets evaluated at
  * execution time via {@link resolveTimeRange}). Ranges are plain JSON-serialisable data.
@@ -8,7 +7,7 @@
 
 export type TimeUnit = 'minutes' | 'hours' | 'days';
 
-export const TIME_UNITS: readonly TimeUnit[] = ['minutes', 'hours', 'days'];
+const TIME_UNITS: readonly TimeUnit[] = ['minutes', 'hours', 'days'];
 
 /** An offset into the past, e.g. 15 minutes ago. */
 export interface AgoOffset {
@@ -46,7 +45,7 @@ const UNIT_MS: Record<TimeUnit, number> = {
   days: 24 * 60 * MINUTE_MS,
 };
 
-export const START_BEFORE_END_ERROR = 'Start time must be prior to end time';
+const START_BEFORE_END_ERROR = 'Start time must be prior to end time';
 
 export const relativeRange = (
   start: AgoOffset,
@@ -91,26 +90,24 @@ export function validateTimeRange(range: TimeRange, now: Date = new Date()): str
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
 
-/** `YYYY-MM-DD` in UTC (legacy getDateString). */
+/** `YYYY-MM-DD` in UTC. */
 export const formatUtcDate = (d: Date): string =>
   `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 
-/** `HH:MM` in UTC (legacy getTimeString). */
+/** `HH:MM` in UTC. */
 export const formatUtcTime = (d: Date): string =>
   `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
 
-/** `YYYY-MM-DDTHH:MMZ` in UTC, as in the legacy absolute label. */
+/** `YYYY-MM-DDTHH:MMZ` in UTC. */
 export const formatUtcMinute = (d: Date): string => `${d.toISOString().substring(0, 16)}Z`;
 
 // ---------------------------------------------------------------------------------------
 // Labels
 
-/**
- * Legacy `shortForm`: "<n> <unit>". Legacy quirk kept for parity: no singular ("1 hours").
- */
+/** "<n> <unit>"; no singular ("1 hours"). */
 const offsetText = (o: AgoOffset): string => `${o.amount} ${o.unit}`;
 
-/** Label shown on the picker button / menu (legacy `getText`). */
+/** Label shown on the picker button / menu. */
 export function timeRangeLabel(range: TimeRange): string {
   if (range.kind === 'absolute') {
     const start = new Date(range.start);
@@ -123,10 +120,10 @@ export function timeRangeLabel(range: TimeRange): string {
 }
 
 // ---------------------------------------------------------------------------------------
-// Custom period parsing (BUG-39: legacy accepted NaN / <= 0)
+// Custom period parsing
 
 /** Parse "amount + unit". Rejects empty, non-numeric, NaN, Infinity, zero and negatives. */
-export function parseAgoOffset(
+function parseAgoOffset(
   input: string | number | null | undefined,
   unit: TimeUnit,
 ): Parsed<AgoOffset> {
@@ -142,7 +139,7 @@ export function parseAgoOffset(
 export interface CustomPeriodInput {
   startAmount: string | number | null | undefined;
   startUnit: TimeUnit;
-  /** `'now'` (legacy default) or a unit. */
+  /** `'now'` or a unit. */
   endUnit: TimeUnit | 'now';
   endAmount?: string | number | null;
 }
@@ -172,7 +169,7 @@ export function parseCustomPeriod(
 // ---------------------------------------------------------------------------------------
 // Custom absolute date range parsing
 
-/** Legacy time regex (TimeSelection.vue datetimeRegex): H:MM or HH:MM with optional trailing Z. */
+/** Time regex: H:MM or HH:MM with optional trailing Z. */
 const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)Z?$/;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 

@@ -66,7 +66,7 @@ describe('CodeEditor', () => {
     expect(props).toMatchObject({ value: 'a: 1', language: 'yaml', path: 't.yaml' });
     const opts = props.options as Record<string, unknown>;
     expect(opts).toMatchObject({ readOnly: true, tabSize: 2, automaticLayout: true });
-    expect(opts.suggest).toBeUndefined(); // Q-017: suggestions stay enabled
+    expect(opts.suggest).toBeUndefined(); // suggestions stay enabled
     (props.onChange as (v: string | undefined) => void)(undefined);
     expect(onChange).toHaveBeenCalledWith('');
     expect(onMount).toHaveBeenCalledWith(h.editor, { fake: true });

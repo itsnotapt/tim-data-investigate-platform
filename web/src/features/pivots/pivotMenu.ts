@@ -4,7 +4,7 @@ import type { QueryTemplate } from '../../lib/api';
 import { buildTemplateMenuTree, type MenuNode } from '../new-query/templateMenuTree';
 
 /** What the menu reports when a pivot item is chosen. */
-export interface PivotChoice {
+interface PivotChoice {
   template: QueryTemplate;
   row: Record<string, unknown>;
   selectedRows: Record<string, unknown>[];
@@ -20,7 +20,7 @@ export interface PivotActionParams {
 
 const byText = (a: string, b: string) => a.localeCompare(b);
 
-/** Legacy order: by path (joined), then by menu text. */
+/** Order: by path (joined), then by menu text. */
 function sortTemplates(templates: readonly QueryTemplate[]): QueryTemplate[] {
   return [...templates].sort(
     (a, b) => byText(a.path.join(','), b.path.join(',')) || byText(a.menu, b.menu),
@@ -35,7 +35,7 @@ function sortNodes(nodes: MenuNode[]): MenuNode[] {
 }
 
 /** Targets of a menu action: selected rows, or the clicked row when nothing is selected. */
-export function pivotTargets(params: PivotActionParams): {
+function pivotTargets(params: PivotActionParams): {
   row: Record<string, unknown>;
   selectedRows: Record<string, unknown>[];
 } {
@@ -48,8 +48,8 @@ export function pivotTargets(params: PivotActionParams): {
 }
 
 /**
- * Nested context menu of the non-hidden `query` templates (legacy KustoPivot `buildContextMenu`),
- * folders by path (keyed by the full path, BUG-35), sorted, never disabled. Empty when no
+ * Nested context menu of the non-hidden `query` templates,
+ * folders by path (keyed by the full path), sorted, never disabled. Empty when no
  * templates qualify.
  */
 export function buildPivotMenuItems(

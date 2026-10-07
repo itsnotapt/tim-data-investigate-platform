@@ -1,9 +1,8 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery, shotKeepMouse } from '../mocks/flows-a-helpers';
+import { rightClickState, runAdhocQuery, shotKeepMouse } from '../mocks/adhoc-grid';
 import { shot } from '../shot';
 
-// W6: Tag events (legacy screens 22, 25)
-test('W6: quick tag submenu, then the customise dialog', async ({ page, api }) => {
+test('quick tag submenu, then the customise dialog', async ({ page, api }) => {
   await runAdhocQuery(page);
 
   await rightClickState(page, 1);

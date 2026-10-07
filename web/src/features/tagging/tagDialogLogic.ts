@@ -5,7 +5,7 @@ import type { TagEventData, TagRow } from './tagSets';
 export type TagAction = 'Ignore' | 'Override' | 'Append' | 'Remove';
 export const DETERMINATION_CHOICES = ['Malicious', 'Suspicious', 'Benign'] as const;
 
-/** Actions offered by each field's select, in legacy order. */
+/** Actions offered by each field's select. */
 export const DETERMINATION_ACTIONS: readonly TagAction[] = ['Ignore', 'Override', 'Remove'];
 export const COMMENT_ACTIONS: readonly TagAction[] = ['Ignore', 'Override', 'Append'];
 export const TAG_ACTIONS: readonly TagAction[] = ['Ignore', 'Append', 'Remove', 'Override'];
@@ -20,7 +20,7 @@ export interface TagDialogInput {
   tagAction: TagAction;
 }
 
-/** Legacy defaults: determination and comment Override, tags Ignore. */
+/** Defaults: determination and comment Override, tags Ignore. */
 export const defaultTagDialogInput = (): TagDialogInput => ({
   determination: null,
   determinationAction: 'Override',
@@ -46,13 +46,13 @@ export const isDeterminationDisabled = (i: TagDialogInput): boolean =>
 export const isCommentDisabled = (i: TagDialogInput): boolean => i.commentAction === 'Ignore';
 export const isTagsDisabled = (i: TagDialogInput): boolean => i.tagAction === 'Ignore';
 
-export interface FieldErrors {
+interface FieldErrors {
   determination?: string;
   comment?: string;
 }
 
-/** Per-field rules (legacy `v-form` rules). */
-export function validateFields(input: TagDialogInput): FieldErrors {
+/** Per-field rules. */
+function validateFields(input: TagDialogInput): FieldErrors {
   const errors: FieldErrors = {};
   if (!isDeterminationDisabled(input) && !input.determination) {
     errors.determination = MSG.determinationEmpty;
@@ -61,8 +61,8 @@ export function validateFields(input: TagDialogInput): FieldErrors {
   return errors;
 }
 
-/** Cross-field rules, in legacy order. */
-export function validateActions(input: TagDialogInput, rows: readonly TagRow[]): string[] {
+/** Cross-field rules. */
+function validateActions(input: TagDialogInput, rows: readonly TagRow[]): string[] {
   const errors: string[] = [];
   if (
     input.commentAction === 'Ignore' &&
@@ -88,7 +88,7 @@ export function validateActions(input: TagDialogInput, rows: readonly TagRow[]):
 export interface TagValidation {
   ok: boolean;
   fieldErrors: FieldErrors;
-  /** Cross-field messages. Like legacy, only computed once the field rules pass. */
+  /** Cross-field messages. Only computed once the field rules pass. */
   errors: string[];
 }
 
@@ -142,13 +142,13 @@ export interface TagRequests {
 }
 
 /** The row as the event payload: the client-only `_id` is not part of the event. */
-export function eventPayload(row: TagRow): Record<string, unknown> {
+function eventPayload(row: TagRow): Record<string, unknown> {
   const rest = { ...row };
   delete rest['_id'];
   return rest;
 }
 
-export function toSavedEvent(row: TagRow): SavedEvent {
+function toSavedEvent(row: TagRow): SavedEvent {
   return {
     eventId: String(row['EventId']),
     eventTime: String(row['EventTime']),
@@ -186,7 +186,7 @@ function newDetermination(action: TagAction, old: string, input: string | null):
 }
 
 /**
- * Builds the requests for a validated dialog (legacy `onSaveTagEvent`):
+ * Builds the requests for a validated dialog:
  * - Remove determination: one deleted comment `removed`/`removed` per row, `TagEvent` cleared.
  * - otherwise saved events for unsaved rows (only when determination is Override), comments when
  *   determination or comment is not Ignore (determination lower-cased), then tag rows for

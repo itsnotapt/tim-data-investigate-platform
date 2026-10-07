@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { shot } from '../shot';
-import { templateStoreHandlers } from '../mocks/flows-b';
+import { templateStoreHandlers } from '../mocks/templates';
 
 const store = templateStoreHandlers();
 test.use({ apiOptions: { handlers: store.handlers } });
@@ -14,7 +14,7 @@ const scrollToBottom = (page: Page) =>
     el.scrollTop = el.scrollHeight;
   });
 
-test('W12 hamburger menu opens the Query Manager list (screens 02, 33)', async ({ page }) => {
+test('hamburger menu opens the Query Manager list', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
   await page.getByRole('button', { name: 'Menu' }).click();
@@ -32,7 +32,7 @@ test('W12 hamburger menu opens the Query Manager list (screens 02, 33)', async (
   await expect(table.getByText('Storm events by state')).toBeVisible();
   await expect(table.getByText('Damage by event type')).toBeVisible();
   await expect(table.getByText('Recent storm triage view')).toBeVisible();
-  await expect(table.getByText('Old deleted query')).toHaveCount(0);
+  await expect(table.getByText('Deleted query')).toHaveCount(0);
   await expect(page.getByText(/1.3 of 3/)).toBeVisible();
   await shot(page, '33-query-manager');
 
@@ -43,27 +43,24 @@ test('W12 hamburger menu opens the Query Manager list (screens 02, 33)', async (
   await page.getByLabel('Filter').fill('');
 });
 
-test('W12 show deleted adds Restore and the greyed row (screen 34), restore works', async ({
-  page,
-  api,
-}) => {
+test('show deleted adds Restore and the greyed row, restore works', async ({ page, api }) => {
   await page.goto('/#/queries');
   await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
   await page.getByLabel('Show deleted').check();
   await expect(page.getByRole('button', { name: 'Restore (0)' })).toBeDisabled();
-  await expect(page.getByText('Old deleted query')).toBeVisible();
+  await expect(page.getByText('Deleted query', { exact: true })).toBeVisible();
   await expect(page.getByText('Archive')).toBeVisible();
   await expect(page.getByText(/1.4 of 4/)).toBeVisible();
   await shot(page, '34-query-manager-show-deleted');
 
-  await page.getByRole('checkbox', { name: 'Select Old deleted query' }).check();
+  await page.getByRole('checkbox', { name: 'Select Deleted query' }).check();
   await page.getByRole('button', { name: 'Restore (1)' }).click();
   await expect.poll(() => api.callsTo('PATCH', /\/api\/templates\/queries\//).length).toBe(1);
-  expect(store.state.find((t) => t.name === 'Old deleted query')?.isDeleted).toBe(false);
+  expect(store.state.find((t) => t.name === 'Deleted query')?.isDeleted).toBe(false);
   await expect(page.getByRole('button', { name: 'Restore (0)' })).toBeVisible();
 });
 
-test('W12 create dialog (screens 35, 36) validates required fields', async ({ page, api }) => {
+test('create dialog validates required fields', async ({ page, api }) => {
   await page.goto('/#/queries');
   await page.getByRole('button', { name: 'Create' }).click();
   const dialog = page.getByRole('dialog', { name: 'Create Query' });
@@ -103,7 +100,7 @@ test('W12 create dialog (screens 35, 36) validates required fields', async ({ pa
   await expect(dialog).toBeHidden();
 });
 
-test('W12 edit dialog shows the stored query (screens 37, 38)', async ({ page }) => {
+test('edit dialog shows the stored query', async ({ page }) => {
   await page.goto('/#/queries');
   await page.getByRole('button', { name: 'Storm events by state' }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit Query' });
@@ -126,7 +123,7 @@ test('W12 edit dialog shows the stored query (screens 37, 38)', async ({ page })
   await shot(page, '38-edit-query-dialog-scrolled');
 });
 
-test('W12 managed query is read-only (screen 39)', async ({ page }) => {
+test('managed query is read-only', async ({ page }) => {
   await page.goto('/#/queries');
   await page.getByRole('button', { name: 'Damage by event type' }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit Query' });
@@ -139,10 +136,7 @@ test('W12 managed query is read-only (screen 39)', async ({ page }) => {
   await shot(page, '39-edit-query-dialog-managed');
 });
 
-test('W12 bulk delete removes the row, managed queries cannot be deleted', async ({
-  page,
-  api,
-}) => {
+test('bulk delete removes the row, managed queries cannot be deleted', async ({ page, api }) => {
   await page.goto('/#/queries');
   await page.getByRole('checkbox', { name: 'Select Damage by event type' }).check();
   await expect(page.getByRole('button', { name: 'Delete (1)' })).toBeDisabled();

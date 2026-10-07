@@ -6,15 +6,15 @@ import InfoIcon from '@mui/icons-material/Info';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { NotifyContext, type Notify, type NotifyOptions } from './notifyContext';
 
-/** Legacy DefaultSnackbar: default timeout and the pause between consecutive messages. */
-export const DEFAULT_TIMEOUT_MS = 5000;
-export const PAUSE_MS = 200;
+/** Default timeout and the pause between consecutive messages. */
+const DEFAULT_TIMEOUT_MS = 5000;
+const PAUSE_MS = 200;
 
 type Item = NotifyOptions & { timeout: number };
 
 /**
  * Provides `useNotify()` and renders one snackbar at a time from a FIFO queue.
- * Mirrors legacy DefaultSnackbar.vue: hide after `timeout`, next message after a 200 ms pause;
+ * Hides after `timeout`, next message after a 200 ms pause;
  * Dismiss hides immediately, then the same pause.
  */
 export function SnackbarHost({ children }: { children?: ReactNode }) {

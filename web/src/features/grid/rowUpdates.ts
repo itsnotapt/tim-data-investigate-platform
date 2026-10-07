@@ -3,7 +3,7 @@ import { prepareRows, ROW_ID_FIELD } from './columns';
 import type { GridRow, GridRowWithId } from './columns';
 
 /** Persists changed rows into the tab's stored rows, matched by the grid row id (`_id`). */
-export async function persistRowUpdates(
+async function persistRowUpdates(
   uuid: string,
   updates: readonly GridRowWithId[],
   columnId?: string | null,
@@ -23,8 +23,7 @@ export async function persistRowUpdates(
 
 /**
  * Applies changed rows to the grid (transaction by `_id`, so formatting and row classes refresh)
- * and to the stored rows of tab `uuid`. Legacy mutated the rows in place and called
- * `applyTransaction({update})`; the stored copy is new (a reload would otherwise lose the change).
+ * and to the stored rows of tab `uuid`. The stored copy is updated too so a reload keeps the change.
  */
 export async function applyRowUpdates(
   api: { applyTransaction(tx: { update: GridRowWithId[] }): unknown },

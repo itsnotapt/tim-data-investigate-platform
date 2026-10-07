@@ -30,4 +30,10 @@ describe('DetailPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close details' }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('renders the close icon inside the close button', () => {
+    render(<DetailPanel open data={{ Name: 'alpha' }} onClose={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'Close details' });
+    expect(button.querySelector('svg[data-testid="CloseIcon"]')).not.toBeNull();
+  });
 });

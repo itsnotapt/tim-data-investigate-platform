@@ -5,7 +5,7 @@ export interface AuthAccount {
   tenantId: string;
 }
 
-/** The single auth surface for the app (RULES.md section 6). MSAL implements it in P3-01. */
+/** The single auth surface for the app. */
 export interface AuthClient {
   /** The signed-in account, or `null` when signed out. */
   getAccount(): Promise<AuthAccount | null>;

@@ -12,7 +12,7 @@ const MESSAGES: Record<AuthErrorCode, string> = {
   unknown: 'Sign-in failed.',
 };
 
-/** Typed sign-in/token failure. Always retryable: no client state is left stuck (BUG-22). */
+/** Typed sign-in/token failure. Always retryable: no client state is left stuck. */
 export class AuthClientError extends Error {
   readonly code: AuthErrorCode;
 

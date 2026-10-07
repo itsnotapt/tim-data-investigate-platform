@@ -2,7 +2,7 @@ import { test, expect } from '../fixtures';
 import { shot } from '../shot';
 import { tokenClasses, waitForEditor } from '../mocks/editor';
 
-test('W14 help menu lists the wiki and bug report links (screen 03)', async ({ page }) => {
+test('help menu lists the wiki and bug report links', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
   await page.getByRole('button', { name: 'Help' }).click();
@@ -16,7 +16,7 @@ test('W14 help menu lists the wiki and bug report links (screen 03)', async ({ p
   await shot(page, '03-menu-help');
 });
 
-test('W14 Query Help dialog (screens 13, 14)', async ({ page }) => {
+test('Query Help dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /get started/i }).click();
   await page.getByRole('menuitem', { name: 'New query' }).click();

@@ -73,7 +73,7 @@ describe('touchLru', () => {
 });
 
 describe('TabHost', () => {
-  it('renders the tab on a hard load once tabs are loaded (BUG-20)', async () => {
+  it('renders the tab on a hard load once tabs are loaded', async () => {
     const router = renderAt('/view/a');
     // Not loaded yet: no redirect, nothing rendered.
     expect(router.state.location.pathname).toBe('/view/a');

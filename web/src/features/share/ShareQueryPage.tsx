@@ -30,9 +30,8 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const asRecord = (v: object) => v as Record<string, unknown>;
 
 /**
- * `#/share/:uuid?p=...&execute=0|1` (legacy ShareQuery.vue): recreates the tab as a root
- * `TemplateQueryResult` and opens it. `execute=1` runs it immediately (as legacy; trusted
- * users, Q-030), `execute=0` opens it in edit mode.
+ * `#/share/:uuid?p=...&execute=0|1`: recreates the tab as a root `TemplateQueryResult` and
+ * opens it. `execute=1` runs it immediately, `execute=0` opens it in edit mode.
  */
 export default function ShareQueryPage() {
   const { uuid = '' } = useParams();

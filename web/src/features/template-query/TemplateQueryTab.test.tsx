@@ -100,7 +100,7 @@ beforeEach(() => {
   resetConfigCache();
 });
 
-describe('TemplateQueryTab param widgets (legacy cases)', () => {
+describe('TemplateQueryTab param widgets', () => {
   it('renders a param with no type as a text field', () => {
     setup();
     expect(screen.getByRole('textbox', { name: /^user/ })).toBeInTheDocument();

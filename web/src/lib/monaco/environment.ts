@@ -3,7 +3,7 @@ import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import KustoWorker from './kusto.worker?worker';
 
 /** Maps a Monaco worker label to a worker constructor (Vite `?worker` bundles). */
-export function createMonacoWorker(label: string): Worker {
+function createMonacoWorker(label: string): Worker {
   switch (label) {
     case 'kusto':
       return new KustoWorker();

@@ -119,7 +119,7 @@ describe('TimeRangePicker', () => {
     ).toBeVisible();
   });
 
-  it('validates custom periods (BUG-39)', async () => {
+  it('validates custom periods', async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await open(user, 'Custom Time Period');

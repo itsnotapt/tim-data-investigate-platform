@@ -56,7 +56,7 @@ describe('openTimDb', () => {
     expect(b).not.toBe(a);
   });
 
-  it('only ever opens the "tim" database (never legacy localforage)', async () => {
+  it('only ever opens the "tim" database', async () => {
     const spy = vi.spyOn(indexedDB, 'open');
     await displayComponentsDao.getAll();
     await rowResultsDao.get('x');
@@ -96,7 +96,7 @@ describe('displayComponentsDao', () => {
 });
 
 describe('rowResultsDao', () => {
-  it('returns [] when missing (BUG-27)', async () => {
+  it('returns [] when missing', async () => {
     expect(await rowResultsDao.get('missing')).toEqual([]);
   });
 

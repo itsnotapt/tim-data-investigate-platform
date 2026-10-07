@@ -61,7 +61,7 @@ function safeBuild(fn: () => string): string {
 }
 
 /**
- * Template query tab (legacy TemplateQueryResult.vue, W5, screens 28, 29, 32). Edit mode is
+ * Template query tab Edit mode is
  * persisted in the tab's `state.editQuery` (new template tabs and incomplete pivots open in it);
  * edits live in a local draft until Save / Save & Run.
  */
@@ -86,7 +86,7 @@ export function TemplateQueryTab({
   const share = onShare ?? defaultShare;
 
   const [draft, setDraft] = useState<Draft | null>(null);
-  /** Params when edit mode started: suggestions for `match` / `multiple` (legacy cacheVariable). */
+  /** Params when edit mode started: suggestions for `match` / `multiple`. */
   const [initial, setInitial] = useState<TemplateParams | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [viewQuery, setViewQuery] = useState(false);

@@ -1,6 +1,5 @@
 /**
- * Tab model (target-architecture 3.4). Same shape as the legacy DisplayComponent so
- * Export/Import JSON stays trivial; `children` is derived by selectors, never stored.
+ * Tab model. Same shape as the exported/imported JSON; `children` is derived by selectors, never stored.
  * The shapes are shared with the IndexedDB layer (`src/lib/storage`).
  */
 import type {
@@ -22,23 +21,23 @@ export type {
   TemplateQueryParams,
 };
 
-export type KustoQueryTab = KustoQueryDisplayComponent;
+type KustoQueryTab = KustoQueryDisplayComponent;
 export type TemplateQueryTab = TemplateQueryDisplayComponent;
 /** Discriminated on `componentName`. */
 export type Tab = KustoQueryTab | TemplateQueryTab;
 
-export interface CreateTabInput {
+interface CreateTabInput {
   /** Generated when omitted. */
   componentUuid?: string;
   parentUuid: string | null;
   title: string;
   state?: Partial<DisplayComponentState>;
 }
-export type CreateKustoTabInput = CreateTabInput & {
+type CreateKustoTabInput = CreateTabInput & {
   componentName: 'KustoQueryResult';
   params: KustoQueryParams;
 };
-export type CreateTemplateTabInput = CreateTabInput & {
+type CreateTemplateTabInput = CreateTabInput & {
   componentName: 'TemplateQueryResult';
   params: TemplateQueryParams;
 };

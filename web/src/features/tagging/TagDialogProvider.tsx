@@ -27,7 +27,7 @@ export function TagDialogProvider({ children, call }: { children: ReactNode; cal
           call={call}
           onClose={() => setOpen(null)}
           onApply={async (updated) => {
-            // Rows keep their client `_id`, so the transaction replaces them (BUG-25).
+            // Rows keep their client `_id`, so the transaction replaces them.
             await applyRowUpdates(open.api, open.uuid, updated as GridRowWithId[], open.columnId);
             open.api.deselectAll?.();
           }}

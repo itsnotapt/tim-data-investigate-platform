@@ -2,7 +2,7 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { listTemplates, type QueryTemplate } from '../../lib/api';
 import { queryOptionsDao, type QueryOptions, type QueryOption } from '../../lib/storage';
 
-export interface TemplatesState {
+interface TemplatesState {
   /** Non-deleted templates as returned by the API (each satisfies the kql-templates `QueryTemplate`). */
   templates: QueryTemplate[];
   /** Per-template local options (IndexedDB `query_options`). */
@@ -11,9 +11,9 @@ export interface TemplatesState {
   loading: boolean;
   error: string | null;
 
-  /** Fetch once; later calls resolve immediately (legacy `loadQueries`). Throws on failure. */
+  /** Fetch once; later calls resolve immediately Throws on failure. */
   load(): Promise<void>;
-  /** Force a refetch (legacy `reloadQueries`). Throws on failure. */
+  /** Force a refetch Throws on failure. */
   reload(): Promise<void>;
   upsert(template: QueryTemplate): void;
   remove(uuid: string): void;

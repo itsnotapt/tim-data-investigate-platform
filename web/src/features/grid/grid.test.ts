@@ -14,7 +14,7 @@ import { createStatsStore, formatExecutionStats, formatMemoryMb } from './status
 describe('columns', () => {
   const rows = [{ A: 1 }, { A: 2, B: 'x' }, { C: true }];
 
-  it('derives columns from the union of all rows (BUG-36)', () => {
+  it('derives columns from the union of all rows', () => {
     expect(collectColumnNames(rows)).toEqual(['A', 'B', 'C']);
     expect(buildColumnDefs(rows).map((c) => c.field)).toEqual([
       'A',
@@ -100,7 +100,7 @@ describe('grid options helpers', () => {
     expect(quickFilterText(null)).toBe('');
     expect(quickFilterText(5)).toBe('5');
   });
-  it('pins the selection checkbox column left (F-C01)', () => {
+  it('pins the selection checkbox column left', () => {
     expect(staticGridOptions.selectionColumnDef).toMatchObject({
       pinned: 'left',
       lockPinned: true,

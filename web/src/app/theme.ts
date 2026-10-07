@@ -1,7 +1,7 @@
 import { createTheme } from '@mui/material/styles';
 
-// Legacy (Vuetify light) look, from screenshots 01-04: white dense toolbar with a 1px hairline
-// border and no shadow, Vuetify default blue primary, Roboto.
+// Light look: white dense toolbar with a 1px hairline
+// border and no shadow, blue primary, Roboto.
 export const theme = createTheme({
   palette: {
     mode: 'light',

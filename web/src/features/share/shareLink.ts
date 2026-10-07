@@ -5,7 +5,7 @@ export const TEMPLATE_NOT_FOUND = 'This query was not found.';
 export const PARAMS_MISSING = 'Parameters are missing.';
 export const PARAMS_INVALID = 'Parameters are invalid.';
 
-/** base64url of the UTF-8 bytes (BUG-31: legacy `btoa` threw on non-Latin1 input). */
+/** base64url of the UTF-8 bytes of the JSON. */
 export function encodeShareParams(params: TemplateParams): string {
   const bytes = new TextEncoder().encode(JSON.stringify(params));
   let bin = '';
@@ -13,24 +13,14 @@ export function encodeShareParams(params: TemplateParams): string {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/**
- * Decodes `p`: new links (base64url of UTF-8 JSON) and legacy `btoa` links (standard base64 of
- * Latin-1 JSON). A URL query parser may have turned `+` into a space. Throws on garbage.
- */
+/** Decodes `p` (base64url of UTF-8 JSON). Throws on garbage. */
 export function decodeShareParams(p: string): unknown {
-  const b64 = p.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
-  const bin = atob(b64);
+  const bin = atob(p.replace(/-/g, '+').replace(/_/g, '/'));
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  let text: string;
-  try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    text = bin; // legacy Latin-1 characters
-  }
-  return JSON.parse(text);
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
 }
 
-/** `<origin><path>#/share/<uuid>?p=...&execute=0|1` (legacy `generateURL`). */
+/** `<origin><path>#/share/<uuid>?p=...&execute=0|1`. */
 export function buildShareUrl(
   templateUuid: string,
   params: TemplateParams,
@@ -45,9 +35,9 @@ const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
- * Validates decoded params against the template (SEC-06): must be an object; only params and
- * fields the template declares are kept (merged over its defaults); a legacy bare-string `match`
- * value becomes `[{column: '', value}]` (Q-109). Returns null when the payload is not an object.
+ * Validates decoded params against the template: must be an object; only params and fields the
+ * template declares are kept (merged over its defaults); a bare-string `match` value becomes
+ * `[{column: '', value}]`. Returns null when the payload is not an object.
  */
 export function sanitizeShareParams(template: QueryTemplate, raw: unknown): TemplateParams | null {
   if (!isObject(raw)) return null;

@@ -38,7 +38,7 @@ interface Option {
 const CREATE_UUID = '__create__';
 const filter = createFilterOptions<Option>();
 
-/** Legacy `ColumnView.vue`: pick / create a view, apply, rename, delete and save it (screen 20). */
+/** Pick / create a view, apply, rename, delete and save it. */
 export function ColumnViewBar({ api }: ColumnViewBarProps) {
   const views = useColumnViewsStore((s) => s.views);
   const actions = useColumnViewsStore.getState();
@@ -131,7 +131,7 @@ export function ColumnViewBar({ api }: ColumnViewBarProps) {
         getOptionDisabled={(o) => o.create === true && !o.name.trim()}
         filterOptions={(options, params) => {
           const filtered = filter(options, params);
-          // Legacy prepend item: shows the typed text, or a hint while the field is empty.
+          // Prepended item: shows the typed text, or a hint while the field is empty.
           // While the field just echoes the selected view, nothing new is being typed.
           const typed = selected && params.inputValue === selected.name ? '' : params.inputValue;
           return [{ uuid: CREATE_UUID, name: typed, create: true }, ...filtered];
@@ -223,7 +223,6 @@ export function ColumnViewBar({ api }: ColumnViewBarProps) {
       <Dialog open={dialog === 'delete'} onClose={() => setDialog(null)} fullWidth maxWidth="sm">
         <DialogTitle>Delete column view</DialogTitle>
         <DialogContent>
-          {/* BUG-41: legacy read "Are you should you wish to delete". */}
           <DialogContentText>
             Are you sure you wish to delete &quot;{selected?.name}&quot;?
           </DialogContentText>

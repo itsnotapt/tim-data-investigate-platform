@@ -1,8 +1,7 @@
 import { test, expect } from '../fixtures';
-import { openRunTemplateTab } from '../mocks/flows-b';
+import { openRunTemplateTab } from '../mocks/templates';
 
-// W10 has no legacy screen: behaviour only.
-test('W10 cloning a template tab opens a sibling "Copy of ..." in edit mode', async ({ page }) => {
+test('cloning a template tab opens a sibling "Copy of ..." in edit mode', async ({ page }) => {
   await openRunTemplateTab(page);
   const original = page.url();
 
@@ -21,7 +20,7 @@ test('W10 cloning a template tab opens a sibling "Copy of ..." in edit mode', as
   await expect(page.getByRole('checkbox', { name: /Select /i })).toHaveCount(2);
 });
 
-test('W10 cloning a Kusto tab opens a new root tab with the same query', async ({ page }) => {
+test('cloning a Kusto tab opens a new root tab with the same query', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /get started/i }).click();
   await page.getByRole('menuitem', { name: 'New query' }).click();
