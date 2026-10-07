@@ -1,6 +1,6 @@
 # 0016. Linked release version for web, api and chart
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-07
 - **Deciders:** the user
 - **Related:** [0008](0008-helm-chart.md), [deployment.md](../deployment.md), [development.md](../development.md)
