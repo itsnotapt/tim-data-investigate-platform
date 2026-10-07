@@ -36,6 +36,11 @@ spec:
           image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
           command: ["sh", "-c", "until pg_isready -h {{ include "tim.postgresqlServiceName" . }} -p 5432; do sleep 2; done"]
+          # The pod's uid has no passwd entry in the postgres image; without a user name
+          # pg_isready reports "no attempt" and never connects.
+          env:
+            - name: PGUSER
+              value: {{ .Values.postgresql.auth.username | quote }}
           securityContext:
             {{- toYaml .Values.api.securityContext | nindent 12 }}
           resources:
