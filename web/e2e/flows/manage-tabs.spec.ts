@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import { shotHovering } from '../mocks/templates';
+import { shotHovering } from '../shot';
 
 async function runNewQuery(page: import('@playwright/test').Page) {
   await page.goto('/');

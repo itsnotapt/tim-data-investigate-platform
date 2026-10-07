@@ -15,3 +15,15 @@ export async function shot(page: Page, name: string): Promise<void> {
   await page.waitForTimeout(400);
   await page.screenshot({ path: resolve(SHOT_DIR, `${name}.png`) });
 }
+
+/**
+ * Like `shot()` but leaves the mouse where it is: for states that only exist while hovering
+ * (the expanded side tree). Same directory and `E2E_SHOTS` gate as `shot()`.
+ */
+export async function shotHovering(page: Page, name: string): Promise<void> {
+  if (process.env['E2E_SHOTS'] !== '1') return;
+  await page.waitForTimeout(500);
+  await page.screenshot({
+    path: resolve(SHOT_DIR, `${name}.png`),
+  });
+}

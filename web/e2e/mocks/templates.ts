@@ -1,10 +1,8 @@
-import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect } from '../fixtures';
 import type { ApiHandler } from './api';
 import { json, problem } from './api';
 import { templates as baseTemplates, type MockTemplate } from './data';
-import { SHOT_DIR } from '../shot';
 
 export const STORM_UUID = '11111111-1111-1111-1111-111111111111';
 
@@ -101,16 +99,4 @@ export function templateStoreHandlers(): {
       state.splice(0, state.length, ...initial());
     },
   };
-}
-
-/**
- * Like `shot()` but leaves the mouse where it is: for states that only exist while hovering
- * (the expanded side tree). Same directory and E2E_SHOTS gate as shot.ts.
- */
-export async function shotHovering(page: Page, name: string): Promise<void> {
-  if (process.env['E2E_SHOTS'] !== '1') return;
-  await page.waitForTimeout(500);
-  await page.screenshot({
-    path: resolve(SHOT_DIR, `${name}.png`),
-  });
 }
