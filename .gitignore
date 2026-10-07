@@ -15,6 +15,7 @@ test-results/
 # Editors
 .idea
 .vs/
+*.code-workspace
 
 # Local environment and tooling
 **/.env

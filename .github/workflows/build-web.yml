@@ -40,8 +40,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Fails on high/critical advisories in shipped dependencies (S-W07). Moderate ones are
-      # tracked in docs/rewrite/security-review.md.
+      # Fails on high/critical advisories in shipped dependencies (moderate ones do not fail the build).
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
