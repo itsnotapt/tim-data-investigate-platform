@@ -101,7 +101,7 @@ Chart: `deploy/helm/tim` (Kubernetes 1.34 or newer, `kubeVersion: >=1.34.0-0`; H
 - Optionally a single-pod PostgreSQL StatefulSet (`postgresql.enabled`).
 - A `helm test` pod that checks `/healthz`, `/config.js` and `/api/healthChecks/readiness` through web.
 
-Pods restart automatically when the chart's ConfigMaps or Secret change (checksum annotations).
+The api and web pods restart automatically when their own ConfigMap or the Secret changes (checksum annotations); a change to one component's ConfigMap does not restart the other.
 
 ### Chart distribution
 
@@ -143,8 +143,10 @@ ingress:
 EOF
 
 helm upgrade --install tim deploy/helm/tim -n tim -f tim-values.yaml --wait
-helm test tim -n tim
+helm test tim -n tim --logs
 ```
+
+`helm test --logs` prints the test pod's output. The test pod has delete policy `before-hook-creation`: the next `helm test` replaces it, and the last one stays in the namespace (`kubectl logs <release>-tim-test`).
 
 `deploy/helm/tim/ci/*.yaml` are further examples (minimal, all features, existing Secret). Rendering fails with a message when a required value is missing; image tags default to the chart's `appVersion`; `values.schema.json` rejects unknown keys and malformed values.
 
@@ -185,6 +187,19 @@ Other api limits (`TIM_MAX_REQUEST_BYTES`, `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESUL
 Production uses an external (managed) PostgreSQL via `TIM_DATABASE_URL`. For evaluation, `postgresql.enabled: true` runs a single-pod `postgres:17-alpine` StatefulSet with an 8 Gi PVC (no HA, no backups); the chart builds `TIM_DATABASE_URL` from `postgresql.auth` (use a URL-safe password). Its PVC (`data-<release>-tim-postgresql-0`) survives `helm uninstall`; delete it before reinstalling with a different password, because an existing data directory keeps its original password.
 
 The migrations Job runs as a `pre-install,pre-upgrade` hook with an external database, and as `post-install,pre-upgrade` with the in-cluster PostgreSQL (it waits for PostgreSQL to accept connections). A failed migration fails the install or upgrade and the api is not rolled out. Logs: `kubectl logs job/<release>-tim-migrate` (kept for `migrations.ttlSecondsAfterFinished`).
+
+### Uninstall
+
+```bash
+helm uninstall tim -n tim
+```
+
+`helm uninstall` removes the Deployments, Services, ConfigMaps, Ingress, PostgreSQL StatefulSet and the other release resources. These remain:
+
+- the chart-created Secret `<release>-tim` (a hook): `kubectl delete secret <release>-tim`;
+- the PostgreSQL PVC `data-<release>-tim-postgresql-0`: `kubectl delete pvc data-<release>-tim-postgresql-0`;
+- completed migrations Jobs and their pods, until `migrations.ttlSecondsAfterFinished` (default 3600 s) after they finish: `kubectl delete job <release>-tim-migrate`;
+- the last `helm test` pod (delete policy `before-hook-creation`): `kubectl delete pod <release>-tim-test`.
 
 ### Values reference
 
