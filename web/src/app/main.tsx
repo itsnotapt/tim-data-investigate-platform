@@ -3,15 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { ConfigError } from './ConfigError';
 import { getAuthClient } from '../lib/auth';
-import { initAgGrid } from '../features/grid';
-import { getConfig } from '../lib/config/runtimeConfig';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element #root not found');
 
 let element;
 try {
-  initAgGrid(getConfig());
   // Also throws for e.g. VITE_AUTH_STUB=true in a production build, shown as a config error.
   element = <App authClient={getAuthClient()} />;
 } catch (e) {

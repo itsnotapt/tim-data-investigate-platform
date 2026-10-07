@@ -4,7 +4,7 @@ import { TagDialogContext } from './TagDialogContext';
 import type { MenuItemDef } from 'ag-grid-community';
 import type { CallOptions } from '../../lib/api';
 import { NotifyContext } from '../../components/notifyContext';
-import { applyRowUpdates } from '../grid';
+import { applyRowUpdates } from '../grid/rowUpdates';
 import type { GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import { useTabsStore } from '../tabs';
 import type { TabsStore } from '../tabs';
