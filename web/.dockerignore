@@ -7,3 +7,5 @@ coverage/
 !.env.example
 Dockerfile
 .dockerignore
+test-results/
+playwright-report/
