@@ -195,7 +195,7 @@ The trace id is a valid W3C `traceparent`, else a sane `x-request-id`, else gene
 
 ### Kusto client and cluster validation
 
-`validate_cluster_url` runs before any token exchange and returns the normalised `https://<host>`. The rules are listed in [api.md](api.md#cluster-validation). The allow-list is `TIM_ALLOWED_KUSTO_HOSTS` (exact hosts) when set, else `TIM_ALLOWED_KUSTO_SUFFIXES` (default `.kusto.windows.net`, `.kusto.fabric.microsoft.com`). A rejected cluster gives `400 cluster-not-allowed`.
+`validate_cluster_url` runs before any token exchange and returns the normalised `https://<host>`. The rules are listed in [api.md](api.md#cluster-validation). The allow-list is `TIM_ALLOWED_KUSTO_HOSTS`, a list of host patterns (exact, `*.domain`, `**.domain`; default `**.kusto.windows.net`). A rejected cluster gives `400 cluster-not-allowed`.
 
 `AzureKustoQueryClient` runs the synchronous `azure-kusto-data` client in a worker thread with the user's token. Result values are serialised (datetime, timespan, decimal, dynamic, guid), and every `PrimaryResult` table is concatenated. `StartTime` and `EndTime` are passed as query parameters, so KQL must `declare query_parameters(StartTime:datetime, EndTime:datetime)` to use them. Kusto errors become sanitised messages (stack-trace lines removed, capped at 2000 characters).
 

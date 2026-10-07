@@ -1,6 +1,6 @@
 """Kusto schema request/response models.
 
-Cluster policy (https, host suffix/allow-list) is enforced by `kusto/validation.py`,
+Cluster policy (https, host allow-list patterns) is enforced by `kusto/validation.py`,
 not here; the models only require a non-blank string.
 """
 

@@ -16,9 +16,11 @@ from urllib.parse import urlparse
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from tim_api.kusto.validation import normalise_host_pattern
+
 ENV_PREFIX = "TIM_"
 
-_DEFAULT_SUFFIXES = [".kusto.windows.net", ".kusto.fabric.microsoft.com"]
+DEFAULT_ALLOWED_KUSTO_HOSTS = ("**.kusto.windows.net",)
 
 
 def _split_list(value: object) -> object:
@@ -62,10 +64,10 @@ class Settings(BaseSettings):
     tag_ingest_fake: bool = False
 
     # --- cluster allow-list --------------------------------------------
-    allowed_kusto_suffixes: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: list(_DEFAULT_SUFFIXES)
+    # Host patterns (`host`, `*.domain`, `**.domain`); empty means DEFAULT_ALLOWED_KUSTO_HOSTS.
+    allowed_kusto_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: list(DEFAULT_ALLOWED_KUSTO_HOSTS)
     )
-    allowed_kusto_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # --- storage (ADR-0004) ------------------------------------------------------------
     database_url: SecretStr
@@ -84,9 +86,7 @@ class Settings(BaseSettings):
     # Runs executing at once in this process; further runs wait in `created`.
     max_concurrent_runs: int = Field(default=16, gt=0)
 
-    @field_validator(
-        "allowed_kusto_suffixes", "allowed_kusto_hosts", "cors_allowed_origins", mode="before"
-    )
+    @field_validator("allowed_kusto_hosts", "cors_allowed_origins", mode="before")
     @classmethod
     def _parse_lists(cls, value: object) -> object:
         return _split_list(value)
@@ -97,10 +97,12 @@ class Settings(BaseSettings):
         """Compose/Helm pass unset optional variables as empty strings."""
         return None if isinstance(value, str) and not value.strip() else value
 
-    @field_validator("allowed_kusto_suffixes", "allowed_kusto_hosts")
+    @field_validator("allowed_kusto_hosts")
     @classmethod
-    def _lowercase(cls, value: list[str]) -> list[str]:
-        return [item.lower() for item in value]
+    def _normalise_allowed_hosts(cls, value: list[str]) -> list[str]:
+        if not value:
+            return list(DEFAULT_ALLOWED_KUSTO_HOSTS)
+        return [normalise_host_pattern(item) for item in value]
 
     @field_validator("tag_cluster_uri", "tag_ingest_url", "auth_authority_host")
     @classmethod

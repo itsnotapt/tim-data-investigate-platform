@@ -36,8 +36,43 @@ Note: unless `TIM_AUTH_DISABLED=true`, the api needs an OBO credential at startu
 | `TIM_TAG_DATABASE`           | `Research`                                       | no       | Database on the tag cluster.                                                                                                          |
 | `TIM_TAG_INGEST_URL`         | derived from `TIM_TAG_CLUSTER_URI`               | no       | https ingestion endpoint for tag writes.                                                                                              |
 | `TIM_TAG_INGEST_FAKE`        | `false`                                          | no       | Development only. Uses an in-memory fake instead of Kusto ingestion. Ignored unless `TIM_ENVIRONMENT=development`.                    |
-| `TIM_ALLOWED_KUSTO_SUFFIXES` | `.kusto.windows.net,.kusto.fabric.microsoft.com` | no       | Cluster hostname suffixes users may query. Clusters must be https. Compared lowercase. Ignored when `TIM_ALLOWED_KUSTO_HOSTS` is set. |
-| `TIM_ALLOWED_KUSTO_HOSTS`    | empty                                            | no       | Exact hostnames users may query. When set, only these hosts are allowed and `TIM_ALLOWED_KUSTO_SUFFIXES` is not used.                 |
+| `TIM_ALLOWED_KUSTO_HOSTS` | `**.kusto.windows.net` | no | Comma separated patterns for the Kusto clusters users may query; see [Cluster allow-list](#cluster-allow-list). Unset or blank uses the default. Clusters must be https. Invalid patterns stop the api at startup. |
+
+### Cluster allow-list
+
+`TIM_ALLOWED_KUSTO_HOSTS` is one list of patterns. A cluster host is allowed when it matches any pattern. Patterns are trimmed, lowercased and converted to punycode; one trailing dot is ignored. Matching is on whole labels.
+
+| Pattern kind | Matches | Does not match |
+|---|---|---|
+| `help.kusto.windows.net` (exact host) | that host only | `a.help.kusto.windows.net` |
+| `*.kusto.windows.net` | exactly one label before the domain | `kusto.windows.net`, `a.b.kusto.windows.net` |
+| `**.kusto.windows.net` | one or more labels before the domain | `kusto.windows.net` |
+
+| Pattern | Host | Result |
+|---|---|---|
+| `**.kusto.windows.net` | `help.kusto.windows.net` | match |
+| `**.kusto.windows.net` | `contoso.westus2.kusto.windows.net` | match |
+| `**.kusto.windows.net` | `kusto.windows.net` | no match (bare domain) |
+| `**.kusto.windows.net` | `evilkusto.windows.net` | no match (not a label boundary) |
+| `**.kusto.windows.net` | `x.kusto.fabric.microsoft.com` | no match |
+| `*.kusto.windows.net` | `help.kusto.windows.net` | match |
+| `*.kusto.windows.net` | `contoso.westus2.kusto.windows.net` | no match (two labels) |
+| `help.kusto.windows.net` | `help.kusto.windows.net` | match |
+
+A wildcard is allowed only as the whole first label (`*` or `**`) followed by a domain. Bare wildcards, wildcards elsewhere, empty labels, IP addresses, schemes, ports and paths are rejected at startup.
+
+Examples:
+
+```
+# Default: public Azure, including regional clusters (<name>.<region>.kusto.windows.net)
+TIM_ALLOWED_KUSTO_HOSTS=**.kusto.windows.net
+# Public Azure plus Microsoft Fabric
+TIM_ALLOWED_KUSTO_HOSTS=**.kusto.windows.net,**.kusto.fabric.microsoft.com
+# Locked down: two exact clusters
+TIM_ALLOWED_KUSTO_HOSTS=help.kusto.windows.net,contoso.westeurope.kusto.windows.net
+```
+
+A set value replaces the default rather than adding to it, so keep `**.kusto.windows.net` in the list when adding other domains. Fabric and sovereign clouds are not in the default; list them explicitly. A host that matches no pattern gives `400 cluster-not-allowed`.
 
 ### Storage
 
@@ -162,7 +197,7 @@ Further pass-throughs, not in `.env.example`:
 | Variable                                              | Default | Used for                                                                                    |
 | ----------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- |
 | `TIM_AUTH_CLIENT_SECRET`                              | empty   | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
-| `TIM_ALLOWED_KUSTO_HOSTS`                             | empty   | Passed to `migrate` and `api`.                                                              |
+| `TIM_ALLOWED_KUSTO_HOSTS`                             | empty   | Passed to `migrate` and `api`. Empty uses the api default.                                  |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | empty   | Passed to `web`.                                                                            |
 
 Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http://api:8080` for `web` and `FORWARDED_ALLOW_IPS=*` for the api; these do not come from `.env`. `TIM_CORS_ALLOWED_ORIGINS` is not passed by the dev stack.
@@ -197,7 +232,7 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 
 The chart in `deploy/helm/tim` sets the same variable names; the install procedure, the full values reference and workload identity are in [deployment.md](deployment.md#kubernetes-helm).
 
-- Non-secret variables come from two ConfigMaps (api and web), rendered from values: `config.environment` (`TIM_ENVIRONMENT`), `config.auth.tenantId` / `clientId`, `config.tags.clusterUri` / `database`, `api.logLevel` (`TIM_LOG_LEVEL`), `api.allowedKustoSuffixes` (`TIM_ALLOWED_KUSTO_SUFFIXES`, omitted when empty so the api default applies), `api.allowedKustoHosts`, `api.corsAllowedOrigins`, `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`), `web.helpWikiUri`, `web.helpIssueUri`, `web.defaultClusters` (rendered as JSON) and `web.apiBasePath` (`API_BASEPATH`). `REDIRECT_URI` is `config.publicUrl` (default `https://<ingress.host>`) plus `/blank.html`, and `BACKEND_URI` is the api Service address.
+- Non-secret variables come from two ConfigMaps (api and web), rendered from values: `config.environment` (`TIM_ENVIRONMENT`), `config.auth.tenantId` / `clientId`, `config.tags.clusterUri` / `database`, `api.logLevel` (`TIM_LOG_LEVEL`), `api.allowedKustoHosts` (`TIM_ALLOWED_KUSTO_HOSTS`; an empty list gives the api default), `api.corsAllowedOrigins`, `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`), `web.helpWikiUri`, `web.helpIssueUri`, `web.defaultClusters` (rendered as JSON) and `web.apiBasePath` (`API_BASEPATH`). `REDIRECT_URI` is `config.publicUrl` (default `https://<ingress.host>`) plus `/blank.html`, and `BACKEND_URI` is the api Service address.
 - Sensitive variables come from one Secret whose keys are the variable names: `TIM_DATABASE_URL` (required), `TIM_AUTH_CLIENT_SECRET` (optional) and `AGGRID_LICENSE` (optional), plus `POSTGRES_PASSWORD` with the in-cluster PostgreSQL. Either the chart creates it from `secrets.databaseUrl`, `secrets.authClientSecret` and `secrets.agGridLicense`, or `secrets.existingSecret` names a Secret you manage (then the chart creates none). The api reads `TIM_AUTH_CLIENT_SECRET` and the web container reads `AGGRID_LICENSE` as optional keys; when a key is absent the variable is not set.
 - Any other api variable (`TIM_MAX_RESULT_ROWS`, `TIM_QUERY_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) is set through `api.extraEnv` / `api.extraEnvFrom`, and web variables through `web.extraEnv` / `web.extraEnvFrom`.
 - OBO credential: the chart does not require `TIM_AUTH_CLIENT_SECRET` the way production compose does. In production mode rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret) or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`). With workload identity, the webhook injects `AZURE_FEDERATED_TOKEN_FILE` into the api pod and the api uses it when `TIM_AUTH_CLIENT_SECRET` is unset.

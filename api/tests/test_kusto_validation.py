@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from tim_api.config import Settings
-from tim_api.kusto.validation import InvalidClusterError, validate_cluster_url
+from tim_api.kusto.validation import (
+    InvalidClusterError,
+    normalise_host_pattern,
+    validate_cluster_url,
+)
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -26,7 +30,6 @@ OK = [
     ("https://c.kusto.windows.net:443", "https://c.kusto.windows.net"),
     ("  https://c.kusto.windows.net\n", "https://c.kusto.windows.net"),
     ("HTTPS://c.kusto.windows.net", "https://c.kusto.windows.net"),
-    ("https://x.kusto.fabric.microsoft.com", "https://x.kusto.fabric.microsoft.com"),
     ("https://münchen.kusto.windows.net", "https://xn--mnchen-3ya.kusto.windows.net"),
 ]
 
@@ -71,6 +74,8 @@ BAD = [
     "https://evil.com",
     "https://c.kusto.windows.net@evil.com",
     "https://xn--zz-.kusto.windows.net",
+    "https://evilkusto.windows.net",
+    "https://x.kusto.fabric.microsoft.com",
 ]
 
 
@@ -82,51 +87,126 @@ def test_rejects(url: str) -> None:
     assert "Invalid cluster URL" in str(info.value)
 
 
+def test_not_in_list_reason() -> None:
+    with pytest.raises(InvalidClusterError) as info:
+        validate_cluster_url("https://evil.com", DEFAULT)
+    assert str(info.value) == "Invalid cluster URL: host is not in the allowed cluster list."
+
+
 def test_error_message_does_not_echo_input() -> None:
     with pytest.raises(InvalidClusterError) as info:
         validate_cluster_url("https://secret-host.evil.com", DEFAULT)
     assert "secret-host" not in str(info.value)
 
 
-STRICT = make_settings(allowed_kusto_hosts="Only.Kusto.Windows.Net")
+def allowed(url: str, patterns: str) -> bool:
+    try:
+        validate_cluster_url(url, make_settings(allowed_kusto_hosts=patterns))
+    except InvalidClusterError:
+        return False
+    return True
+
+
+@pytest.mark.parametrize(
+    ("patterns", "url", "ok"),
+    [
+        # exact
+        ("Only.Kusto.Windows.Net", "https://only.kusto.windows.net", True),
+        ("only.kusto.windows.net", "https://ONLY.kusto.windows.net/", True),
+        ("only.kusto.windows.net", "https://other.kusto.windows.net", False),
+        ("only.kusto.windows.net", "https://x.only.kusto.windows.net", False),
+        # single-label wildcard
+        ("*.d.example", "https://a.d.example", True),
+        ("*.d.example", "https://a.b.d.example", False),
+        ("*.d.example", "https://d.example", False),
+        ("*.kusto.windows.net", "https://evilkusto.windows.net", False),
+        ("*.kusto.windows.net", "https://help.kusto.windows.net", True),
+        # multi-label wildcard
+        ("**.d.example", "https://a.d.example", True),
+        ("**.d.example", "https://a.b.d.example", True),
+        ("**.d.example", "https://a.b.c.d.example", True),
+        ("**.d.example", "https://d.example", False),
+        ("**.d.example", "https://ad.example", False),
+        ("**.kusto.windows.net", "https://evilkusto.windows.net", False),
+        ("**.kusto.windows.net", "https://kusto.windows.net", False),
+        # multiple entries, any match wins
+        ("a.example, *.b.example", "https://a.example", True),
+        ("a.example, *.b.example", "https://x.b.example", True),
+        ("a.example, *.b.example", "https://x.c.example", False),
+        # trailing-dot patterns
+        ("*.kusto.windows.net.", "https://help.kusto.windows.net", True),
+        ("exact.example.", "https://exact.example", True),
+        # case and IDN
+        ("*.MÜNCHEN.example", "https://x.münchen.example", True),
+        ("*.MÜNCHEN.example", "https://X.XN--MNCHEN-3YA.example", True),
+        ("*.xn--mnchen-3ya.example", "https://x.münchen.example", True),
+        ("*.MÜNCHEN.example", "https://x.berlin.example", False),
+        # opt-in Fabric
+        (
+            "**.kusto.windows.net,**.kusto.fabric.microsoft.com",
+            "https://x.kusto.fabric.microsoft.com",
+            True,
+        ),
+        ("**.kusto.windows.net", "https://x.kusto.fabric.microsoft.com", False),
+    ],
+)
+def test_pattern_matching(patterns: str, url: str, ok: bool) -> None:
+    assert allowed(url, patterns) is ok
 
 
 @pytest.mark.parametrize(
     ("url", "ok"),
     [
-        ("https://only.kusto.windows.net", True),
-        ("https://ONLY.kusto.windows.net/", True),
-        ("https://other.kusto.windows.net", False),
-        ("https://x.only.kusto.windows.net", False),
+        ("https://help.kusto.windows.net", True),
+        ("https://contoso.westus2.kusto.windows.net", True),
+        ("https://kusto.windows.net", False),
+        ("https://x.kusto.fabric.microsoft.com", False),
     ],
 )
-def test_strict_host_list(url: str, ok: bool) -> None:
+def test_default_list(url: str, ok: bool) -> None:
+    assert allowed(url, "") is ok
     if ok:
-        assert validate_cluster_url(url, STRICT) == "https://only.kusto.windows.net"
-    else:
-        with pytest.raises(InvalidClusterError):
-            validate_cluster_url(url, STRICT)
-
-
-def test_strict_list_overrides_suffixes() -> None:
-    with pytest.raises(InvalidClusterError):
-        validate_cluster_url("https://c.kusto.fabric.microsoft.com", STRICT)
+        assert validate_cluster_url(url, DEFAULT) == url
 
 
 @pytest.mark.parametrize(
-    ("suffixes", "url", "ok"),
+    ("entry", "normalised"),
     [
-        ("corp.example", "https://a.corp.example", True),  # no leading dot configured
-        (".corp.example", "https://a.corp.example", True),
-        (".corp.example", "https://acorp.example", False),
-        (".corp.example", "https://c.kusto.windows.net", False),  # default replaced
-        ("", "https://c.kusto.windows.net", False),  # empty list allows nothing
+        ("  Host.Example ", "host.example"),
+        ("*.Example.COM.", "*.example.com"),
+        ("**.münchen.example", "**.xn--mnchen-3ya.example"),
     ],
 )
-def test_custom_suffixes(suffixes: str, url: str, ok: bool) -> None:
-    s = make_settings(allowed_kusto_suffixes=suffixes)
-    if ok:
-        assert validate_cluster_url(url, s) == url
-    else:
-        with pytest.raises(InvalidClusterError):
-            validate_cluster_url(url, s)
+def test_normalise_host_pattern(entry: str, normalised: str) -> None:
+    assert normalise_host_pattern(entry) == normalised
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "*foo.com",
+        "a.*.com",
+        "***.com",
+        "f*.com",
+        "a.b.*",
+        "*",
+        "**",
+        "*.",
+        "a..com",
+        ".a.com",
+        "*..com",
+        "a.com..",
+        "10.0.0.1",
+        "*.10.0.0.1",
+        "https://x.com",
+        "x.com:443",
+        "x.com/path",
+        "u@x.com",
+        "-bad.com",
+        "bad_label.com",
+        "",
+    ],
+)
+def test_normalise_host_pattern_rejects(entry: str) -> None:
+    with pytest.raises(ValueError, match="invalid host pattern"):
+        normalise_host_pattern(entry)

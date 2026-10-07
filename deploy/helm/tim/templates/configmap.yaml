@@ -12,9 +12,6 @@ data:
   TIM_AUTH_CLIENT_ID: {{ .Values.config.auth.clientId | quote }}
   TIM_TAG_CLUSTER_URI: {{ .Values.config.tags.clusterUri | quote }}
   TIM_TAG_DATABASE: {{ .Values.config.tags.database | quote }}
-  {{- with .Values.api.allowedKustoSuffixes }}
-  TIM_ALLOWED_KUSTO_SUFFIXES: {{ join "," . | quote }}
-  {{- end }}
   TIM_ALLOWED_KUSTO_HOSTS: {{ join "," .Values.api.allowedKustoHosts | quote }}
   TIM_CORS_ALLOWED_ORIGINS: {{ join "," .Values.api.corsAllowedOrigins | quote }}
   FORWARDED_ALLOW_IPS: {{ .Values.api.forwardedAllowIps | quote }}

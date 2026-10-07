@@ -113,7 +113,7 @@ input fields ignored, serialised by alias): `templates/models.py`, `query_runs/m
 - Validation error locs use Python attribute names when a value is missing and defaulted:
   `QueryField.from` appears as `from_`. The error handler (400 problem envelope) must map it back
   to `from`. Batch types (`SavedEventBatch`, ...) enforce 1 to 1000 items.
-- Cluster policy is not in the models; it lives in `kusto/validation.py` (`validate_cluster_url`, raises `InvalidClusterError`; https only, no userinfo/port/path/query/IP literal, strict `TIM_ALLOWED_KUSTO_HOSTS` when set, else label-boundary `TIM_ALLOWED_KUSTO_SUFFIXES`); `KustoQueryStats` allows extra Kusto keys.
+- Cluster policy is not in the models; it lives in `kusto/validation.py` (`validate_cluster_url`, raises `InvalidClusterError`; https only, no userinfo/port/path/query/IP literal, host patterns from `TIM_ALLOWED_KUSTO_HOSTS`, default `DEFAULT_ALLOWED_KUSTO_HOSTS`); `KustoQueryStats` allows extra Kusto keys.
 
 ## Kusto query client
 
