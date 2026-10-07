@@ -15,7 +15,7 @@ import type {
 import { ColumnViewBar } from '../column-views';
 import { DetailPanel } from './DetailPanel';
 import { useTabColumnState } from './useTabColumnState';
-import { registerAgGridModules } from './agGridSetup';
+import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs, prepareRows } from './columns';
 import type { GridRow, GridRowWithId, TemplateColumns } from './columns';
 import { makeGetContextMenuItems, staticGridOptions } from './gridOptions';
@@ -24,7 +24,8 @@ import { createStatsStore } from './status';
 import type { ExecutionStats, StatsStore } from './status';
 import './grid.css';
 
-registerAgGridModules();
+// Registers modules and applies the licence key before any grid renders (this chunk is lazy).
+initAgGridFromConfig();
 
 export interface ResultsGridProps {
   rows: readonly GridRow[];

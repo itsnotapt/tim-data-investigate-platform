@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import type { CallOptions } from '../../lib/api';
-import { applyRowUpdates } from '../grid';
+import { applyRowUpdates } from '../grid/rowUpdates';
 import type { GridRowWithId } from '../grid';
 import { TagDialogContext } from './TagDialogContext';
 import type { OpenTagDialog, OpenTagDialogRequest } from './TagDialogContext';

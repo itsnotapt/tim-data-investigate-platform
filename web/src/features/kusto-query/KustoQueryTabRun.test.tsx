@@ -8,7 +8,7 @@ import { SnackbarHost } from '../../components/SnackbarHost';
 import { resetConfigCache } from '../../lib/config/runtimeConfig';
 import { apiUrl, makeRun, TEST_API } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
-import { initAgGrid } from '../grid';
+import { initAgGrid } from '../grid/agGridSetup';
 import { useTabsStore } from '../tabs/tabStore';
 import { KustoQueryTab } from './KustoQueryTab';
 
