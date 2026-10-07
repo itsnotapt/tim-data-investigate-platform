@@ -3,10 +3,10 @@
 - **Status:** Proposed | Accepted | Superseded by NNNN | Deprecated
 - **Date:** YYYY-MM-DD
 - **Deciders:** (the user / agent that proposed it)
-- **Related:** Q-xxx, SEC-xx / BUG-xx, other ADRs
+- **Related:** other ADRs, issues, docs
 
 ## Context
-What forces are at play? What legacy behaviour is involved (cite `docs/current-system/...` or `path:line`)?
+What forces are at play? Cite relevant code (`path:line`) or docs.
 
 ## Decision
 What we will do, stated plainly.
@@ -16,4 +16,4 @@ What we will do, stated plainly.
 |---|---|---|
 
 ## Consequences
-What becomes easier or harder. Any follow-up tasks (IDs in `rewrite/work-breakdown.md`).
+What becomes easier or harder. Any follow-up work.

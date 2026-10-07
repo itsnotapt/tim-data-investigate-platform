@@ -6,7 +6,7 @@
 - **Related:** Q-003, Q-011, Q-013, Q-014, Q-025 (moot), SEC-03, SEC-07, BUG-09, BUG-22, BUG-23
 
 ## Context
-Legacy: one Entra app registration serves both the SPA and the API (`api://<clientId>/user_impersonation`). The SPA signs in with an MSAL popup. The backend exchanges the user's token On-Behalf-Of for a Kusto token so queries run as the user. See [backend-api.md § Auth](../current-system/backend-api.md#auth) and [frontend-architecture.md § Auth](../current-system/frontend-architecture.md#auth-helpersauthjs).
+Legacy: one Entra app registration serves both the SPA and the API (`api://<clientId>/user_impersonation`). The SPA signs in with an MSAL popup. The backend exchanges the user's token On-Behalf-Of for a Kusto token so queries run as the user. See `docs/current-system/backend-api.md` § Auth and `docs/current-system/frontend-architecture.md` § Auth (preserved at git tag `migration-complete`).
 
 ## Decision
 - **Keep the single app registration and OBO.** User queries and schema calls run with the user's delegated Kusto token. Tag ingestion stays under the app identity, with `createdBy` taken from the token (Q-020 default).

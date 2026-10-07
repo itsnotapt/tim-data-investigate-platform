@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-29
 - **Deciders:** the user (Q-019)
-- **Related:** Q-019, Q-016, [target-architecture.md](../rewrite/target-architecture.md)
+- **Related:** Q-019, Q-016, [architecture.md](../architecture.md)
 
 ## Context
 The legacy apps live in `frontend/` (Vue) and `backend/` (.NET), and release-please manages them as separate packages. The rewrite needs room to grow alongside them until cut-over.
