@@ -92,7 +92,7 @@ The dev stack (`compose.yaml`, root `.env`) is described in [development.md](dev
 
 ## Kubernetes (Helm)
 
-Chart: `deploy/helm/tim` (Kubernetes 1.25+, Helm 3). It deploys:
+Chart: `deploy/helm/tim` (Kubernetes 1.34 or newer, `kubeVersion: >=1.34.0-0`; Helm 3). CI validates the chart against Kubernetes 1.34 to 1.37. It deploys:
 
 - `<release>-tim-api` and `<release>-tim-web` Deployments and ClusterIP Services (port 8080), with liveness/readiness probes, resource requests/limits, non-root security contexts, optional HPAs and PodDisruptionBudgets.
 - ConfigMaps `<release>-tim-api` / `<release>-tim-web` with the non-secret variables, and a Secret `<release>-tim` (unless `secrets.existingSecret` is set).

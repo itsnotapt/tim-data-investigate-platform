@@ -95,7 +95,7 @@ updates:
           - version-update:semver-major
 
   # Image tags in values.yaml (the optional evaluation PostgreSQL). The api and web tags are
-  # empty there and follow the chart appVersion.
+  # empty there; release-please pins them in image-tags.yaml.
   - package-ecosystem: helm
     directory: /deploy/helm/tim
     schedule:

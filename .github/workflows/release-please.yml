@@ -5,6 +5,9 @@ on:
 
 name: release-please
 
+# Least privilege by default; each job below grants what it needs.
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -12,8 +15,13 @@ env:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     outputs:
-      # web, api and the chart are a linked-versions group: they release together with one version.
+      # frontend (web), backend (api) and the chart (deploy/helm/tim) release independently. See
+      # docs/decisions/0016-release-versions.md.
       web-release: ${{ steps.release.outputs.web--release_created }}
       web-version: ${{ steps.release.outputs.web--version }}
       api-release: ${{ steps.release.outputs.api--release_created }}
@@ -21,10 +29,63 @@ jobs:
       chart-release: ${{ steps.release.outputs['deploy/helm/tim--release_created'] }}
       chart-version: ${{ steps.release.outputs['deploy/helm/tim--version'] }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Without it the action targets the default branch, which is development.
+          target-branch: main
+
+  # Merges main back into development with a merge commit once no release PR is open, so the
+  # version files and CHANGELOGs do not diverge. Merge commits are ignored by release-please
+  # (the repository's merge commit message is blank). See docs/RULES.md section 6.
+  sync-development:
+    runs-on: ubuntu-latest
+    needs: release-please
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+    concurrency:
+      group: sync-development
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TITLE: "chore: merge main into development"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Merge main into development
+        run: |
+          if [ "$(git rev-list --count origin/development..origin/main)" = 0 ]; then
+            echo "development already contains main."
+            exit 0
+          fi
+          pending="$(gh pr list --base main --state open --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--"))] | length')"
+          if [ "$pending" != 0 ]; then
+            echo "A release PR is open; development is synced after it is merged."
+            exit 0
+          fi
+          pr="$(gh pr list --base development --head main --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr" ]; then
+            gh pr create --base development --head main --title "$TITLE" \
+              --body "Merges main back into development after a release. Created by release-please.yml; merge it with a merge commit, never squash."
+            pr="$(gh pr list --base development --head main --state open --json number --jq '.[0].number')"
+          fi
+          head="$(gh pr view "$pr" --json headRefOid --jq .headRefOid)"
+          # No workflow runs on a PR opened by GITHUB_TOKEN, so run the required check here.
+          if python3 .github/scripts/pr_conventions.py pr origin/development "$head" \
+            --base-ref development --head-ref main --title "$TITLE"; then state=success; else state=failure; fi
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${head}" -f state="$state" -f context=pr-conventions \
+            -f description="main -> development sync, checked by release-please.yml"
+          [ "$state" = success ]
+          gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${pr}/merge" -f merge_method=merge -f sha="$head" \
+            -f commit_title="Merge pull request #${pr} from ${GITHUB_REPOSITORY_OWNER}/main" \
+            -f commit_message="Sync after a release." \
+            || { echo "::error::Could not merge PR #${pr}; resolve it and merge it with a merge commit."; exit 1; }
 
   build-web:
     runs-on: ubuntu-latest
@@ -34,10 +95,10 @@ jobs:
       packages: write
     if: ${{ needs.release-please.outputs.web-release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log into github docker
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -45,19 +106,19 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tim-web
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
           tags: |
             type=semver,pattern={{version}},value=${{ needs.release-please.outputs.web-version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.web-version }}
             type=semver,pattern={{major}},value=${{ needs.release-please.outputs.web-version }}
             type=sha
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./web
           push: true
@@ -72,10 +133,10 @@ jobs:
       packages: write
     if: ${{ needs.release-please.outputs.api-release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log into github docker
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -83,19 +144,19 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tim-api
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
           tags: |
             type=semver,pattern={{version}},value=${{ needs.release-please.outputs.api-version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.api-version }}
             type=semver,pattern={{major}},value=${{ needs.release-please.outputs.api-version }}
             type=sha
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./api
           push: true
@@ -104,26 +165,49 @@ jobs:
 
   publish-chart:
     runs-on: ubuntu-latest
-    # The chart's appVersion is the default image tag, so publish it only after both images.
+    # The chart pins image tags from image-tags.yaml. When a component releases in the same run,
+    # wait for its image; a skipped image build (no release this run) does not block the chart.
     needs: [release-please, build-web, build-api]
     permissions:
       contents: read
       packages: write
-    if: ${{ needs.release-please.outputs.chart-release }}
+    if: ${{ !cancelled() && !failure() && needs.release-please.outputs.chart-release }}
     env:
       CHART_VERSION: ${{ needs.release-please.outputs.chart-version }}
-      WEB_VERSION: ${{ needs.release-please.outputs.web-version }}
-      API_VERSION: ${{ needs.release-please.outputs.api-version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Check the chart matches the image versions
+      - name: Check the chart version and pinned images
         run: |
+          chart_version="$(sed -n 's/^version: *\([^ ]*\).*/\1/p' deploy/helm/tim/Chart.yaml)"
           app_version="$(sed -n 's/^appVersion: *"\([^"]*\)".*/\1/p' deploy/helm/tim/Chart.yaml)"
-          if [ "$app_version" != "$CHART_VERSION" ] || [ "$WEB_VERSION" != "$CHART_VERSION" ] || [ "$API_VERSION" != "$CHART_VERSION" ]; then
-            echo "chart $CHART_VERSION, appVersion $app_version, web $WEB_VERSION, api $API_VERSION must be equal" >&2
+          if [ "$chart_version" != "$CHART_VERSION" ] || [ "$app_version" != "$CHART_VERSION" ]; then
+            echo "Chart.yaml version $chart_version and appVersion $app_version must equal the release $CHART_VERSION" >&2
             exit 1
           fi
+          frontend="$(yq '.frontend' deploy/helm/tim/image-tags.yaml)"
+          backend="$(yq '.backend' deploy/helm/tim/image-tags.yaml)"
+          web_version="$(jq -r .version web/package.json)"
+          api_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' api/pyproject.toml)"
+          if [ "$frontend" != "$web_version" ] || [ "$backend" != "$api_version" ]; then
+            echo "image-tags.yaml (frontend $frontend, backend $backend) must match web $web_version and api $api_version" >&2
+            exit 1
+          fi
+
+      - name: Log into github docker
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check the pinned images exist
+        run: |
+          repo="$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
+          for component in frontend backend; do
+            tag="$(yq ".${component}" deploy/helm/tim/image-tags.yaml)"
+            docker buildx imagetools inspect "${REGISTRY}/${repo}/${component}:${tag}" >/dev/null
+          done
 
       - uses: azure/setup-helm@v4
 

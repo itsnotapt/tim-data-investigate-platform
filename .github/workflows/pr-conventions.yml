@@ -1,0 +1,53 @@
+# Enforces the PR rules in docs/RULES.md (sections 6 and 7); rationale in docs/decisions/0016-release-versions.md.
+# The pr-conventions job is the required status check on development. The main -> development
+# back-sync PR is opened by GITHUB_TOKEN, so no workflow runs on it: release-please.yml runs the
+# same script for it and sets the pr-conventions status itself.
+name: PR conventions
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: pr-conventions-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pr-conventions:
+    name: pr-conventions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      # fetch-depth 0 also fetches every branch (origin/main for the release freeze) and the release tags.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Count open release PRs
+        id: release-prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count="$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--"))] | length')"
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+
+      - name: Check PR conventions
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          OPEN_RELEASE_PRS: ${{ steps.release-prs.outputs.count }}
+        run: |
+          python3 .github/scripts/pr_conventions.py pr "$BASE" "$HEAD" \
+            --base-ref "$BASE_REF" --head-ref "$HEAD_REF" --title "$TITLE" \
+            --labels "$LABELS" --open-release-prs "$OPEN_RELEASE_PRS"
