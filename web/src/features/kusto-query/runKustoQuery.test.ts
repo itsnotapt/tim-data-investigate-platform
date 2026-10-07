@@ -102,6 +102,22 @@ describe('runKustoQuery', () => {
     expect(tab().state.error?.message).toBe('Cluster not allowed');
   });
 
+  it('stores the cluster rejection reason when the server gives one', async () => {
+    server.use(
+      http.post(apiUrl('/api/kusto/query'), () =>
+        problemResponse(400, {
+          type: 'urn:tim:problem:cluster-not-allowed',
+          detail: 'The cluster is not allowed',
+          errors: { cluster: ['Invalid cluster URL: host is not in the allowed cluster list.'] },
+        }),
+      ),
+    );
+    await runKustoQuery('a', range, { store });
+    expect(tab().state.error?.message).toBe(
+      'Invalid cluster URL: host is not in the allowed cluster list.',
+    );
+  });
+
   it('aborts and writes nothing when the tab is removed', async () => {
     let aborted = false;
     server.use(

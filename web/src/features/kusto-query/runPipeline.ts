@@ -2,6 +2,7 @@ import { runQuery, type KustoQueryStats } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
 import { resolveTimeRange, type TimeRange } from '../../lib/time-range';
 import { useTabsStore, type TabsStore } from '../tabs';
+import { withClusterReason } from './clusterError';
 
 export interface RunPipelineOptions {
   store?: TabsStore;
@@ -85,7 +86,7 @@ export async function runTabQuery(
     store.getState().triggerRowData(uuid);
   } catch (e) {
     if (!alive()) return;
-    store.getState().updateState(uuid, { isExecuting: false, error: e });
+    store.getState().updateState(uuid, { isExecuting: false, error: withClusterReason(e) });
     await rowResultsDao.delete(uuid).catch(() => undefined);
     if (alive()) store.getState().triggerRowData(uuid);
   } finally {
