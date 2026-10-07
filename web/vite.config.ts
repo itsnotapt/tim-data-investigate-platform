@@ -12,6 +12,20 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         blank: resolve(import.meta.dirname, 'blank.html'),
       },
+      output: {
+        // AG Grid (lazy, only loaded with a results grid) in its own chunk, so app releases don't
+        // invalidate it in the browser cache. Monaco is already split by its dynamic imports.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'ag-grid',
+              test: /[\\/]node_modules[\\/](ag-grid-|ag-stack)/,
+              // Shared deps (React, ...) stay where they are, so the group isn't loaded eagerly.
+              includeDependenciesRecursively: false,
+            },
+          ],
+        },
+      },
     },
   },
   // Monaco workers import each other / share chunks; IIFE workers can't code-split.

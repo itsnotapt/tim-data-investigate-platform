@@ -90,7 +90,7 @@ React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores,
 | `web/src/lib/storage/` | IndexedDB database and DAOs |
 | `web/src/lib/monaco/`, `time-range/` | Editor setup, time range model |
 
-Features may import `lib/*` and `components/*` and the public `index.ts` of other features, not their internals.
+Features may import `lib/*` and `components/*` and the public `index.ts` of other features, not their internals. Exception: code loaded at startup imports `features/grid/rowUpdates` and `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle).
 
 ### Routes
 
@@ -103,6 +103,14 @@ Hash routes; unknown hashes redirect to `#/`. Pages are lazy-loaded.
 | `#/view/:uuid` | A tab (`uuid` is the tab's component uuid) |
 | `#/share/:uuid?p=...&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it |
 | `#/exportimport` | Export and import of the investigation as JSON; template tabs are exported without the template's `name`, `isDeleted`, `isManaged`, `createdBy`, `updatedBy` and `updated` |
+
+### Bundle
+
+The startup bundle (`index.html`'s script and module preloads) holds React, MUI, MSAL, react-router, zod and the app shell. Everything else loads on demand:
+- Pages are lazy (`web/src/app/lazyPages.ts`).
+- AG Grid loads with the first results grid. `features/grid/ResultsGrid.tsx` registers the modules listed in `features/grid/agGridSetup.ts` and applies the licence key; `vite.config.ts` puts AG Grid in its own `ag-grid` chunk. A grid feature whose module is not registered logs AG Grid console error #200, and the e2e fixture fails on AG Grid console errors.
+- Monaco, `@kusto/monaco-kusto` and their workers load when the first editor mounts (`web/src/lib/monaco/loader.ts`).
+- Handlebars and js-yaml load with the pages that use them.
 
 ### State and tab model
 
