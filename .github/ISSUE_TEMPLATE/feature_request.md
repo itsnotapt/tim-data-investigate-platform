@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Suggest a new feature or idea
-labels: enhancement
+labels: [enhancement, needs-triage]
 ---
 
 ## Summary

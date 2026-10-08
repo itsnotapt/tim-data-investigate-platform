@@ -38,7 +38,8 @@ jobs:
 
   # Merges main back into development with a merge commit once no release PR is open, so the
   # version files and CHANGELOGs do not diverge. Merge commits are ignored by release-please
-  # (the repository's merge commit message is blank). See docs/RULES.md section 6.
+  # (the merge below sets its own commit message, "Sync after a release.", instead of the
+  # repository default, which is the PR title). See docs/RULES.md section 6.
   sync-development:
     runs-on: ubuntu-latest
     needs: release-please
@@ -209,7 +210,7 @@ jobs:
             docker buildx imagetools inspect "${REGISTRY}/${repo}/${component}:${tag}" >/dev/null
           done
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
 
       - name: Log into github registry
         env:
