@@ -6,9 +6,9 @@ TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explo
 |---|---|---|
 | Web | `web/` | React SPA served by nginx |
 | API | `api/` | Python 3.12, FastAPI |
-| Persistence | PostgreSQL | templates and query runs ([ADR-0004](decisions/0004-postgresql-persistence.md)) |
+| Persistence | PostgreSQL | templates and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
-Layout rationale: [ADR-0003](decisions/0003-repo-layout.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
+Layout rationale: [ADR-0003](adr/0003-repo-layout.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
 
 ## System overview
 
@@ -74,7 +74,7 @@ Key points:
 
 ### Stack
 
-React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores, MUI 9, AG Grid 36 Enterprise ([ADR-0006](decisions/0006-ag-grid-enterprise.md)), Monaco with `@kusto/monaco-kusto`, Handlebars (KQL templates), js-yaml (template editor), `idb` (IndexedDB), `@azure/msal-browser` / `@azure/msal-react`.
+React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores, MUI 9, AG Grid 36 Enterprise ([ADR-0006](adr/0006-ag-grid-enterprise.md)), Monaco with `@kusto/monaco-kusto`, Handlebars (KQL templates), js-yaml (template editor), `idb` (IndexedDB), `@azure/msal-browser` / `@azure/msal-react`.
 
 ### Source layout
 
@@ -126,7 +126,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 
 ### Data flow: run, poll, pivot, tag
 
-1. Run. A tab calls `runQuery` (`lib/api`): `POST /api/kusto/query` with cluster, database and query. Kusto tabs also send `startTime`/`endTime` from their time range. Template tabs render cluster, database and query with the template engine first and send no time range; the template's KQL does its own time filtering ([ADR-0015](decisions/0015-kql-templating.md)). One run per tab; starting a new run aborts the previous one, and removing the tab aborts it.
+1. Run. A tab calls `runQuery` (`lib/api`): `POST /api/kusto/query` with cluster, database and query. Kusto tabs also send `startTime`/`endTime` from their time range. Template tabs render cluster, database and query with the template engine first and send no time range; the template's KQL does its own time filtering ([ADR-0015](adr/0015-kql-templating.md)). One run per tab; starting a new run aborts the previous one, and removing the tab aborts it.
 2. Poll. A `200` response is final. On `202` the client polls `GET /api/kusto/query/{id}`, starting at 500 ms and doubling every three polls up to 30 s, and gives up after 11 minutes. `completed` returns rows and stats; `error` and `timedOut` become errors on the tab.
 3. Store. Rows go to IndexedDB `row_results` (keyed by tab uuid); the tab state records row count and execution stats; the grid reloads rows from IndexedDB.
 4. Pivot. A context-menu pivot builds params from the clicked or selected rows (`fields`), creates a child template tab with a template snapshot and runs it when the data is complete.
@@ -165,7 +165,7 @@ Database `tim` (version 1):
 
 ### Authentication
 
-MSAL popup flow with a `localStorage` token cache. The SPA requests the scope `api://<clientId>/user_impersonation` (one app registration serves SPA and API). `/blank.html` is the redirect page; MSAL silent flows load it in a same-origin hidden iframe. Tokens are acquired silently for every API call, with `ssoSilent` or a popup as fallback; a `401` triggers one retry with a fresh token. See [ADR-0005](decisions/0005-auth-entra-popup-obo.md). A development stub (`VITE_AUTH_STUB=true`) exists and throws in a production build.
+MSAL popup flow with a `localStorage` token cache. The SPA requests the scope `api://<clientId>/user_impersonation` (one app registration serves SPA and API). `/blank.html` is the redirect page; MSAL silent flows load it in a same-origin hidden iframe. Tokens are acquired silently for every API call, with `ssoSilent` or a popup as fallback; a `401` triggers one retry with a fresh token. See [ADR-0005](adr/0005-auth-entra-popup-obo.md). A development stub (`VITE_AUTH_STUB=true`) exists and throws in a production build.
 
 ## API architecture
 

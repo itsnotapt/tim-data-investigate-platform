@@ -21,7 +21,7 @@ jobs:
       pull-requests: write
     outputs:
       # frontend (web), backend (api) and the chart (deploy/helm/tim) release independently. See
-      # docs/decisions/0016-release-versions.md.
+      # docs/adr/0016-release-versions.md.
       web-release: ${{ steps.release.outputs.web--release_created }}
       web-version: ${{ steps.release.outputs.web--version }}
       api-release: ${{ steps.release.outputs.api--release_created }}

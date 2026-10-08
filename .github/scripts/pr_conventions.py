@@ -11,7 +11,7 @@
   read as a commit.
 
 `commits`, `branch` and `release-as` run single checks.
-See docs/RULES.md and docs/decisions/0016-release-versions.md.
+See docs/RULES.md and docs/adr/0016-release-versions.md.
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@ TIM ships as two container images and runs on Docker Compose or Kubernetes (Helm
 | `tim-api`        | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13) | `ghcr.io/<owner>/<repo>/backend:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
 | `tim-web`        | `web/Dockerfile` (context `web/`) | `nginxinc/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` | `ghcr.io/<owner>/<repo>/frontend:<version>` (same tag set) |
 
-Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a release. The frontend (`web/`), the backend (`api/`) and the Helm chart are versioned independently; the chart pins one frontend and one backend version ([ADR-0016](decisions/0016-release-versions.md)).
+Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a release. The frontend (`web/`), the backend (`api/`) and the Helm chart are versioned independently; the chart pins one frontend and one backend version ([ADR-0016](adr/0016-release-versions.md)).
 
 ## Topology
 
@@ -41,7 +41,7 @@ Compose fills these from `deploy/.env`; Helm fills them from values and one Secr
 
 ### AG Grid Enterprise licence
 
-The result grids use AG Grid Enterprise only ([ADR-0006](decisions/0006-ag-grid-enterprise.md)). The licence key is optional and is passed to web as `AGGRID_LICENSE` (Compose: `deploy/.env`; Helm: `secrets.agGridLicense` or the `AGGRID_LICENSE` key of `secrets.existingSecret`). Without a key the grid runs in AG Grid's trial mode: a watermark over the grid and a console notice. `/config.js` always contains `agGridLicenseKey` (empty in trial mode).
+The result grids use AG Grid Enterprise only ([ADR-0006](adr/0006-ag-grid-enterprise.md)). The licence key is optional and is passed to web as `AGGRID_LICENSE` (Compose: `deploy/.env`; Helm: `secrets.agGridLicense` or the `AGGRID_LICENSE` key of `secrets.existingSecret`). Without a key the grid runs in AG Grid's trial mode: a watermark over the grid and a console notice. `/config.js` always contains `agGridLicenseKey` (empty in trial mode).
 
 ### Entra app registration
 
