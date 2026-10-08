@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 import jwt
 import pytest
+from app_factory import create_test_app
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -20,7 +21,6 @@ from tim_api.auth import (
 )
 from tim_api.auth.jwt import JwksCache, fetch_jwks_http
 from tim_api.config import Settings, get_settings
-from tim_api.main import create_app
 
 TENANT = "tenant-id"
 CLIENT = "client-id"
@@ -292,7 +292,7 @@ async def test_username_fallback_order(
 
 @pytest.fixture
 def client(validator: TokenValidator) -> Iterator[TestClient]:
-    app: FastAPI = create_app()
+    app: FastAPI = create_test_app()
     app.dependency_overrides[get_token_validator] = lambda: validator
 
     @app.get("/test/whoami")
@@ -336,7 +336,7 @@ def test_endpoint_invalid_token_is_generic_and_does_not_echo(
 
 
 def test_default_validator_is_cached_on_app_state() -> None:
-    app = create_app()
+    app = create_test_app()
 
     @app.get("/test/whoami")
     def whoami(principal: Annotated[Principal, Depends(get_current_principal)]) -> dict[str, str]:

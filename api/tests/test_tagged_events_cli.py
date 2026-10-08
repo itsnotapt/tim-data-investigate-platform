@@ -4,11 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
-from tim_api.auth import Principal, get_current_principal
-from tim_api.main import create_app
 from tim_api.tagged_events import kusto_schema as ks
 from tim_api.tagged_events.cli import main
 from tim_api.tagged_events.ingest import FakeTagIngestClient, get_tag_ingest_client
@@ -87,20 +85,17 @@ def test_mapping_escaping() -> None:
         assert json.loads(ks.mapping_json(spec))
 
 
-PRINCIPAL = Principal(oid="o", name="alice@example.com", tenant_id="t", token=SecretStr("x"))
-
-
-def test_router_row_keys_in_mapping() -> None:
+def test_router_row_keys_in_mapping(auth: AuthKit) -> None:
     fake = FakeTagIngestClient()
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
+    app = create_test_app()
+    auth.install(app)
     app.dependency_overrides[get_tag_ingest_client] = lambda: fake
     bodies: dict[str, list[dict[str, Any]]] = {
         "savedEvents": [{"eventId": "e", "eventTime": "2026-01-01T00:00:00Z", "eventAsJson": {}}],
         "tags": [{"eventId": "e", "tag": "t"}],
         "comments": [{"eventId": "e", "comment": "c", "determination": "d"}],
     }
-    with TestClient(app) as c:
+    with TestClient(app, headers=auth.headers()) as c:
         for path, body in bodies.items():
             assert c.post(f"/api/taggedevents/{path}", json=body).status_code == 204
     assert len(fake.calls) == 3

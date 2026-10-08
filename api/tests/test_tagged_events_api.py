@@ -2,18 +2,15 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
-from tim_api.auth import Principal, get_current_principal
-from tim_api.main import create_app
 from tim_api.tagged_events.ingest import (
     FakeTagIngestClient,
     TagIngestError,
     get_tag_ingest_client,
 )
 
-PRINCIPAL = Principal(oid="oid-1", name="alice@example.com", tenant_id="t", token=SecretStr("x"))
 ISO = r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{3})?Z$"
 
 
@@ -23,11 +20,11 @@ def fake() -> FakeTagIngestClient:
 
 
 @pytest.fixture
-def client(fake: FakeTagIngestClient) -> Iterator[TestClient]:
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
+def client(fake: FakeTagIngestClient, auth: AuthKit) -> Iterator[TestClient]:
+    app = create_test_app()
+    auth.install(app)
     app.dependency_overrides[get_tag_ingest_client] = lambda: fake
-    with TestClient(app) as c:
+    with TestClient(app, headers=auth.headers()) as c:
         yield c
 
 
@@ -122,7 +119,7 @@ def test_all_or_nothing_invalid_item(client: TestClient, fake: FakeTagIngestClie
 
 
 def test_unauthenticated_401(fake: FakeTagIngestClient) -> None:
-    app = create_app()
+    app = create_test_app()
     app.dependency_overrides[get_tag_ingest_client] = lambda: fake
     with TestClient(app) as c:
         r = c.post("/api/taggedevents/tags", json=[{"eventId": "e", "tag": "t"}])
@@ -130,12 +127,12 @@ def test_unauthenticated_401(fake: FakeTagIngestClient) -> None:
     assert fake.calls == []
 
 
-def test_ingest_failure_502() -> None:
+def test_ingest_failure_502(auth: AuthKit) -> None:
     fake = FakeTagIngestClient(error=TagIngestError("boom secret"))
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
+    app = create_test_app()
+    auth.install(app)
     app.dependency_overrides[get_tag_ingest_client] = lambda: fake
-    with TestClient(app) as c:
+    with TestClient(app, headers=auth.headers()) as c:
         r = c.post("/api/taggedevents/tags", json=[{"eventId": "e", "tag": "t"}])
     assert r.status_code == 502
     assert r.headers["content-type"].startswith("application/problem+json")
@@ -145,12 +142,12 @@ def test_ingest_failure_502() -> None:
     assert "secret" not in r.text
 
 
-def test_default_client_fake_in_development(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_client_fake_in_development(monkeypatch: pytest.MonkeyPatch, auth: AuthKit) -> None:
     monkeypatch.setenv("TIM_ENVIRONMENT", "development")
     monkeypatch.setenv("TIM_TAG_INGEST_FAKE", "true")
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
-    with TestClient(app) as c:
+    app = create_test_app()
+    auth.install(app)
+    with TestClient(app, headers=auth.headers()) as c:
         r = c.post("/api/taggedevents/tags", json=[{"eventId": "e", "tag": "t"}])
         assert r.status_code == 204
         assert (

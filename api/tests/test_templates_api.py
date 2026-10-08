@@ -2,13 +2,10 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
-from tim_api.auth import Principal, get_current_principal
-from tim_api.main import create_app
-
-PRINCIPAL = Principal(oid="oid-1", name="alice@example.com", tenant_id="t", token=SecretStr("x"))
+CALLER = "alice@example.com"
 BASE = "/api/templates/queries"
 U1 = "3f0c2a52-6d0e-4a1b-9a57-0d2d6b8f1c11"
 U2 = "3f0c2a52-6d0e-4a1b-9a57-0d2d6b8f1c22"
@@ -30,15 +27,15 @@ def body(uuid: str = U1, **over: Any) -> dict[str, Any]:
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
-    with TestClient(app) as c:
+def client(auth: AuthKit) -> Iterator[TestClient]:
+    app = create_test_app()
+    auth.install(app)
+    with TestClient(app, headers=auth.headers(CALLER)) as c:
         yield c
 
 
 def test_auth_required() -> None:
-    with TestClient(create_app()) as c:
+    with TestClient(create_test_app()) as c:
         for method, url in [
             ("get", BASE),
             ("get", f"{BASE}/{U1}"),
@@ -223,7 +220,7 @@ def test_create_and_replace_return_the_template(client: TestClient) -> None:
 
 
 def test_unauthenticated_create_is_401() -> None:
-    with TestClient(create_app()) as c:
+    with TestClient(create_test_app()) as c:
         assert c.post(BASE, json=body()).status_code == 401
 
 
@@ -241,5 +238,5 @@ def test_put_does_not_upsert_and_ignores_client_audit_fields(client: TestClient)
     assert client.get(f"{BASE}/{U1}").status_code == 404
     client.post(BASE, json=body())
     r = client.put(f"{BASE}/{U1}", json=body(createdBy="mallory", isDeleted=True))
-    assert r.json()["createdBy"] == PRINCIPAL.name
+    assert r.json()["createdBy"] == CALLER
     assert r.json()["isDeleted"] is False

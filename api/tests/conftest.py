@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from app_factory import AuthKit
+from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -39,13 +41,14 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
-@pytest.fixture(autouse=True)
-def _memory_storage_for_app(monkeypatch: pytest.MonkeyPatch) -> None:
-    """App lifespans in unit tests use the in-memory store even with the Postgres DSN above.
+@pytest.fixture(scope="session")
+def _auth_key() -> rsa.RSAPrivateKey:
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
-    Tests that exercise the real selection call ``tim_api.storage.build_storage`` directly.
-    """
-    monkeypatch.setattr("tim_api.main.build_storage", lambda _settings: MemoryStorage())
+
+@pytest.fixture
+def auth(_auth_key: rsa.RSAPrivateKey) -> AuthKit:
+    return AuthKit(_auth_key)
 
 
 def _asyncpg_url(url: str) -> str:
