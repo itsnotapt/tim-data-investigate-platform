@@ -1,13 +1,13 @@
 # Triage labels
 
-The engineering skills speak in terms of five canonical triage roles. This file maps those roles to the label strings used in TIM's GitHub Issues.
+Every open issue in TIM's GitHub Issues is in one triage state, shown by its label.
 
-| Label in mattpocock/skills | Label in our tracker | Meaning |
+| State | Label | Meaning |
 |---|---|---|
-| `needs-triage` | `needs-triage` | Maintainer needs to evaluate this issue |
-| `needs-info` | `needs-info` | Waiting on the reporter for more information |
-| `ready-for-agent` | `ready-for-agent` | Fully specified, ready for an AFK agent |
-| `ready-for-human` | `ready-for-human` | Requires human implementation |
-| `wontfix` | `wontfix` | Will not be actioned |
+| Needs triage | `needs-triage` | A maintainer needs to evaluate this issue |
+| Needs info | `needs-info` | Waiting on the reporter for more information |
+| Ready for agent | `ready-for-agent` | Fully specified; an agent can implement it without further input |
+| Ready for human | `ready-for-human` | Needs a human to implement it |
+| Won't fix | `wontfix` | Will not be actioned |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table. To use different label names, edit the "Label in our tracker" column.
+New issues start as `needs-triage`. Change the state with `gh issue edit <number> --add-label ... --remove-label ...` ([issue tracker](issue-tracker.md)).

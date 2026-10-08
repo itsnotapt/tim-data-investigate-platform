@@ -1,6 +1,6 @@
 # Domain docs
 
-How the engineering skills consume TIM's domain documentation when exploring the codebase. TIM is a single-context repo.
+How TIM's domain vocabulary and decisions are recorded, and how to use them. TIM has one domain context: one glossary and one set of ADRs.
 
 ## Before exploring, read these
 
@@ -24,11 +24,11 @@ How the engineering skills consume TIM's domain documentation when exploring the
 
 ## Updating GLOSSARY.md
 
-When `/domain-modeling` resolves a term, update `GLOSSARY.md` in the same change, in the skill's format. Keep implementation details (stores, tables, field names, environment variables) out of it; put them in the [Domain terms in code](../architecture.md#domain-terms-in-code) table in `docs/architecture.md`. If `GLOSSARY.md` disagrees with the code, the code wins ([RULES.md §2](../RULES.md#2-sources-of-truth)); fix the doc in the same change.
+When a term is settled (a new concept, a renamed one, or a synonym to retire), update `GLOSSARY.md` in the same change. Each entry is a bold term, a definition of one or two sentences saying what it is, and an optional `_Avoid_:` line listing synonyms not to use; group entries under subheadings. Keep implementation details (stores, tables, field names, environment variables) out of it; put them in the [Domain terms in code](../architecture.md#domain-terms-in-code) table in `docs/architecture.md`. If `GLOSSARY.md` disagrees with the code, the code wins ([RULES.md §2](../RULES.md#2-sources-of-truth)); fix the doc in the same change.
 
 ## Writing ADRs
 
-Write ADRs the way [RULES.md §3](../RULES.md#3-documentation) describes, not in the `/domain-modeling` skill's own ADR format:
+Write ADRs the way [RULES.md §3](../RULES.md#3-documentation) describes:
 
 1. Copy `docs/adr/0000-template.md` to `NNNN-short-title.md` with the next free number. Numbers are never reused or renumbered.
 2. Fill in context, decision, alternatives and consequences.
@@ -40,7 +40,7 @@ Write ADRs the way [RULES.md §3](../RULES.md#3-documentation) describes, not in
 
 When your output names a domain concept (an issue title, a refactor proposal, a hypothesis, a test name), use the term as `GLOSSARY.md` defines it. Don't drift to synonyms the glossary lists under `_Avoid_`.
 
-If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
+If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (propose the term and add it to `GLOSSARY.md`).
 
 ## Flag ADR conflicts
 

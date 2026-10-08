@@ -14,5 +14,5 @@ TIM is a Kusto investigation platform: analysts run KQL, pivot between data sour
 | [configuration.md](configuration.md) | Environment variables for api, web and the local stack, incl. the AG Grid licence key |
 | [deployment.md](deployment.md) | Production deployment |
 | [operations.md](operations.md) | Runbook: health checks, logs, common tasks and failures |
-| [agents/](agents/issue-tracker.md) | Configuration for the agent engineering skills: [issue tracker](agents/issue-tracker.md), [triage labels](agents/triage-labels.md), [domain docs](agents/domain.md) |
+| [agents/](agents/issue-tracker.md) | Issue tracking, triage labels and domain-doc conventions: [issue tracker](agents/issue-tracker.md), [triage labels](agents/triage-labels.md), [domain docs](agents/domain.md) |
 | [adr/](adr/README.md) | Architecture decision records (the place for rationale and history) |
