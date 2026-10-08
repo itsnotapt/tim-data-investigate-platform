@@ -5,7 +5,19 @@ The files the PR changes decide which package it releases, not the scope. A `!` 
 
 ## Summary
 
-<!-- What changes and why. Link related issues. -->
+<!-- The smallest diagram, diff sketch, call tree or file tree that shows the change. Link related issues. -->
+
+## Evidence
+
+<!-- Output, test run or screenshot, before and after the change. -->
+
+- **Before:**
+  **After:**
+
+## Merge Danger
+
+**Door:** <!-- one-way or two-way: can the merge be walked back cheaply? -->
+**Blast Radius:** <!-- one word, then optional ramifications -->
 
 ## Checklist
 

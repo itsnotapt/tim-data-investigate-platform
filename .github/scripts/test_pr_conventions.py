@@ -1,6 +1,7 @@
 """Tests for pr_conventions.py: pure functions plus the CLI against temporary git repos."""
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,26 @@ import pr_conventions as pc
 
 SCRIPT = Path(__file__).resolve().parent / "pr_conventions.py"
 CONFIG = Path(__file__).resolve().parents[2] / "release-please-config.json"
+TEMPLATE = Path(__file__).resolve().parents[2] / ".github" / "pull_request_template.md"
+
+GOOD_BODY = """## Summary
+
+Adds x.
+
+## Evidence
+
+- **Before:** 500
+  **After:** 200
+
+## Merge Danger
+
+**Door:** two-way
+**Blast Radius:** Low, one endpoint
+
+## Checklist
+
+- [x] Tests
+"""
 
 
 class PureFunctions(unittest.TestCase):
@@ -443,6 +464,91 @@ class ReleaseAs(RepoCase):
         self.commit("build(deps): bump x from 1 to 2", "web/package.json")
         self.assertEqual(self.run_cli("commits", self.base, self.head())[0], 0)
         self.assertEqual(self.release_as()[0], 0)
+
+
+class BodyChecks(unittest.TestCase):
+    def test_good_body_passes(self):
+        self.assertEqual(pc.check_body(GOOD_BODY), [])
+
+    def test_door_values_and_case(self):
+        for door in ["one-way", "One-Way", "TWO-WAY", "one-way (migration)"]:
+            body = GOOD_BODY.replace("two-way", door)
+            self.assertEqual(pc.check_body(body), [], door)
+        for door in ["", "maybe", "oneway"]:
+            body = GOOD_BODY.replace("**Door:** two-way", f"**Door:** {door}")
+            self.assertEqual(len(pc.check_body(body)), 1, door)
+
+    def test_blast_radius_needs_text(self):
+        body = GOOD_BODY.replace("Low, one endpoint", "")
+        self.assertIn("Blast Radius", "\n".join(pc.check_body(body)))
+        self.assertIn("Blast Radius", "\n".join(pc.check_body(body + "x")))
+
+    def test_missing_sections(self):
+        failures = pc.check_body("## Summary\n\nx\n")
+        self.assertEqual(len(failures), 2)
+        self.assertIn("Evidence", failures[0])
+        self.assertIn("Merge Danger", failures[1])
+        self.assertEqual(len(pc.check_body("")), 3)
+
+    def test_order(self):
+        body = (
+            "## Evidence\n\ne\n\n## Summary\n\ns\n\n## Merge Danger\n\n"
+            "**Door:** one-way\n**Blast Radius:** wide\n"
+        )
+        self.assertIn("order", "\n".join(pc.check_body(body)))
+
+    def test_empty_sections(self):
+        body = GOOD_BODY.replace("Adds x.", "<!-- nothing -->")
+        self.assertEqual(pc.check_body(body), ["The '## Summary' section is empty."])
+        body = re.sub(r"- \*\*Before.*\n.*\n", "", GOOD_BODY)
+        self.assertEqual(pc.check_body(body), ["The '## Evidence' section is empty."])
+
+    def test_comments_are_ignored(self):
+        body = GOOD_BODY.replace("## Evidence", "<!--\n## Evidence\n-->\n## Other")
+        self.assertIn("Evidence", "\n".join(pc.check_body(body)))
+
+    def test_unfilled_template_fails_and_filled_passes(self):
+        template = TEMPLATE.read_text()
+        failures = pc.check_body(template)
+        self.assertEqual(len(failures), 3, failures)
+        self.assertIn("Summary", failures[0])
+        self.assertIn("Door", failures[1])
+        self.assertIn("Blast Radius", failures[2])
+        filled = template.replace("## Summary\n", "## Summary\n\nAdds x.\n")
+        filled = re.sub(r"(\*\*Door:\*\*) <!--.*?-->", r"\1 one-way", filled)
+        filled = re.sub(r"(\*\*Blast Radius:\*\*) <!--.*?-->", r"\1 api", filled)
+        self.assertEqual(pc.check_body(filled), [])
+
+
+class BodyCli(RepoCase):
+    def body(self, text, base_ref="development", head_ref="feat/x"):
+        path = self.repo / "body.md"
+        path.write_text(text)
+        return self.run_cli(
+            "body", "--body-file", str(path), "--base-ref", base_ref, "--head-ref", head_ref
+        )
+
+    def test_good_and_bad(self):
+        self.assertEqual(self.body(GOOD_BODY)[0], 0)
+        code, out = self.body("")
+        self.assertEqual(code, 1)
+        self.assertIn("## Summary", out)
+
+    def test_does_not_apply(self):
+        for base_ref, head_ref in [
+            ("main", "development"),
+            ("development", "main"),
+            ("development", "dependabot/npm_and_yarn/x"),
+            ("development", "release-please--branches--main"),
+            ("development", "feature/x"),
+        ]:
+            code, out = self.body("", base_ref, head_ref)
+            self.assertEqual(code, 0, f"{head_ref}: {out}")
+            self.assertIn("does not apply", out)
+
+    def test_branch_prefixes_apply(self):
+        for prefix in ["feat", "fix", "docs", "chore", "refactor"]:
+            self.assertEqual(self.body("", head_ref=f"{prefix}/x")[0], 1, prefix)
 
 
 if __name__ == "__main__":

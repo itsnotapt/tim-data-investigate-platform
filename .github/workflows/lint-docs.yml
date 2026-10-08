@@ -1,0 +1,30 @@
+# Documentation conventions (links, ADRs, glossary, tooling names, docs index; ADR format as warnings); run locally with
+# python3 .github/scripts/docs_conventions.py. No paths filter, so it can become a required check.
+name: Lint docs
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: lint-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  docs-conventions:
+    name: docs-conventions
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check docs conventions
+        run: python3 .github/scripts/docs_conventions.py
+
+      - name: Check ADR format (advisory)
+        run: python3 .github/scripts/docs_conventions.py --advisory adr-format
