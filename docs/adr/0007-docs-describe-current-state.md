@@ -5,7 +5,7 @@ date: 2026-10-06
 
 # Docs describe the current system; rationale lives in ADRs
 
-`docs/` describes only the current system, rationale and history live in ADRs, and the working documents of the previous Vue 2 + .NET 6 app (task board, question log, archive of its behaviour) are not in the tree. Mixing them into the working docs made it hard to tell what the system does today.
+`docs/` describes only the current system, rationale and history live in ADRs, and the working documents of the previous Vue 2 + .NET 6 app (task board, question log, archive of its behaviour) are not in the tree. Mixing them into the working docs made it hard to tell what the system does today. The old working documents remain available at the [`migration-complete` tag](https://github.com/itsnotapt/tim-data-investigate-platform/tree/migration-complete).
 
 The previous app is gone, there is no data to carry over and no compatibility to keep.
 
