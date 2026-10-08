@@ -10,6 +10,7 @@ These rules apply to everyone working on TIM, human or agent. Read this file bef
 | `api/` | FastAPI service (Python 3.12, uv) |
 | `deploy/` | Deployment assets (see [deployment.md](deployment.md)) |
 | `docs/` | Project documentation and architecture decision records |
+| `GLOSSARY.md` | Domain vocabulary (definitions of domain terms only) |
 
 New features go in `web/` or `api/`; see [architecture.md](architecture.md) for how they fit together.
 
@@ -17,7 +18,7 @@ New features go in `web/` or `api/`; see [architecture.md](architecture.md) for 
 
 1. The code. If a doc disagrees with the code, the code wins; fix the doc in the same change.
 2. Accepted ADRs in [`docs/adr/`](adr/README.md). Changing something an ADR decided needs a new ADR that supersedes it.
-3. The docs in `docs/`.
+3. The docs in `docs/` and the domain vocabulary in [`GLOSSARY.md`](../GLOSSARY.md).
 
 When a change involves a choice that is expensive to reverse (datastore, auth model, licensing, breaking API change, dropping a feature), ask the user before implementing it and record the outcome in an ADR.
 
@@ -31,6 +32,7 @@ When a change involves a choice that is expensive to reverse (datastore, auth mo
   3. Add a row to the table in [`adr/README.md`](adr/README.md).
   4. If it replaces an earlier ADR, set the old one to **Superseded by NNNN**. Don't delete ADRs.
 - A code comment may link to an ADR (`# See docs/adr/0004-postgresql-persistence.md`) where the code would otherwise look surprising.
+- Domain terms are defined in [`GLOSSARY.md`](../GLOSSARY.md), without implementation details; [architecture.md](architecture.md#domain-terms-in-code) maps them to the code.
 - Configuration changes are documented in [configuration.md](configuration.md); deployment changes in [deployment.md](deployment.md).
 - Dates are `YYYY-MM-DD`.
 

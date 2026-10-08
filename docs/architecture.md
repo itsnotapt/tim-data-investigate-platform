@@ -8,7 +8,7 @@ TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explo
 | API | `api/` | Python 3.12, FastAPI |
 | Persistence | PostgreSQL | templates and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
-Layout rationale: [ADR-0003](adr/0003-repo-layout.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
+Layout rationale: [ADR-0003](adr/0003-repo-layout.md). Domain vocabulary: [GLOSSARY.md](../GLOSSARY.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
 
 ## System overview
 
@@ -50,25 +50,27 @@ Key points:
 - Queries run on the API: it exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run that the SPA polls.
 - Tag data is written through the API (app identity) and read back with KQL, inside the user's own queries.
 
-## Glossary
+## Domain terms in code
 
-| Term | Meaning |
+The domain vocabulary is defined in [GLOSSARY.md](../GLOSSARY.md). This table lists how each term is implemented.
+
+| Term | Implementation |
 |---|---|
-| Tab | One node in the side tree. Either a Kusto tab (free KQL, cluster, database, time range) or a template tab (a template snapshot plus the input params). Stored in IndexedDB `display_components`; result rows in `row_results`. |
-| Query template | Shared, server-stored definition: Handlebars KQL, summary, cluster and database (both may be templated), params, fields, column overrides and a menu path. |
-| View / query (`queryType`) | `view` templates are start points in the New menu. `query` templates appear in the grid context menu as pivots and require `fields`. |
-| Param | Template input the user fills in a form (`type` string by default, `array` with `values`, boolean). Has `default`, `optional`, `multiple`, `hint`. |
-| Field | Template input filled from the clicked or selected grid rows when pivoting. `multiple` takes the `from` column across selected rows; `match` takes columns whose name matches `regex`; other types copy the clicked row's value. |
-| Pivot | Choosing a query template from the context menu of a grid row. Creates a child template tab; it runs immediately when every param is filled. |
-| Managed template | `isManaged: true`: maintained outside the UI and read-only in the Query Manager. |
-| Column view | Named, saved AG Grid column state. Global across tabs; browser-only. |
-| Query options | Per-template local options (`hide`), stored in IndexedDB `query_options`. |
-| Query run | Server-side record of one query execution (`KustoQueryRun`): `created`, then `completed`, `error` or `timedOut`. The SPA polls it. |
-| Saved event | Snapshot of a result row written to `SavedEvent`. A row is saved before it is tagged or commented. |
-| Tagged event | An event with entries in the tag tables. The `getTagEvents` partial adds a `TagEvent` column: `{IsSaved, Tags[], Determination, Comment, Comments[]}`. |
-| Determination | Verdict on a comment: `malicious`, `suspicious` or `benign`. `removed` (with `isDeleted`) clears it. It drives the row colour. |
+| Tab | IndexedDB `display_components` (name `KustoQueryResult` for a Kusto tab, `TemplateQueryResult` for a template tab); result rows in `row_results`. See [IndexedDB](#indexeddb). |
+| Query template | `QueryTemplate` in `api/src/tim_api/templates/models.py`, stored in PostgreSQL `query_templates`: Handlebars KQL (`query`), `summary`, `cluster` and `database` (both may be templated), `params`, `fields`, column overrides (`columns`) and a menu path (`path`). |
+| View / query | `queryType`: `view` or `query`. `query` templates require `fields`. The New menu lists both, in its Views and Queries submenus. |
+| Param | Entry in `params`: `type` (string by default, `array` with `values`, boolean), `default`, `optional`, `multiple`, `hint`. |
+| Field | Entry in `fields`: type `multiple` takes the `from` column across selected rows; `match` takes columns whose name matches `regex`; other types copy the clicked row's value. |
+| Managed template | `isManaged: true`. |
+| Column view | AG Grid column state, stored in IndexedDB `column_views` (browser-only). |
+| Query options | `hide` (removes the template from the menus), stored in IndexedDB `query_options` (browser-only). |
+| Query run | `KustoQueryRun`, stored in PostgreSQL `query_runs`; status `created`, then `completed`, `error` or `timedOut`. The SPA polls it. See [Query-run lifecycle](#query-run-lifecycle). |
+| Saved event | Row in the Kusto table `SavedEvent`. |
+| Tag, comment | Rows in the Kusto tables `EventTag` and `EventComment`. |
+| Tagged event | The `getTagEvents` partial adds a `TagEvent` column: `{IsSaved, Tags[], Determination, Comment, Comments[]}`. See [Kusto tables](#kusto-tables). |
+| Determination | `EventComment.Determination`: `malicious`, `suspicious` or `benign`. `removed` (with `isDeleted`) clears it. The grid sets a row class per value (`web/src/features/grid/rowClasses.ts`). |
 | Share link | `#/share/<templateUuid>?p=<base64url params>&execute=0\|1`. |
-| Tag cluster / database | Where the tag tables live (`TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE` on the API; `TAG_CLUSTER`, `TAG_DATABASE` on the web container). |
+| Tag cluster / database | `TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE` on the API; `TAG_CLUSTER`, `TAG_DATABASE` on the web container. |
 
 ## Web architecture
 
