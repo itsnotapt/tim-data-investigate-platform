@@ -1,4 +1,7 @@
 # Enforces the PR rules in docs/RULES.md (sections 6 and 7); rationale in docs/decisions/0016-release-versions.md.
+# The pr-conventions job is the required status check on development. The main -> development
+# back-sync PR is opened by GITHUB_TOKEN, so no workflow runs on it: release-please.yml runs the
+# same script for it and sets the pr-conventions status itself.
 name: PR conventions
 
 on:
@@ -13,71 +16,38 @@ permissions:
   contents: read
 
 jobs:
-  title:
-    name: Title
+  pr-conventions:
+    name: pr-conventions
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
 
     steps:
-      - uses: amannn/action-semantic-pull-request@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            feat
-            fix
-            docs
-            chore
-            refactor
-            test
-            build
-            ci
-            perf
-            style
-            revert
-          requireScope: false
-
-  branch:
-    name: Branch name
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check branch name
-        env:
-          BRANCH: ${{ github.head_ref }}
-        run: python3 .github/scripts/pr_conventions.py branch "$BRANCH"
-
-  commits:
-    name: Commit subjects
-    runs-on: ubuntu-latest
-
-    steps:
+      # fetch-depth 0 also fetches every branch (origin/main for the release freeze) and the release tags.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Check commit subjects
+      - name: Count open release PRs
+        id: release-prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count="$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--"))] | length')"
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+
+      - name: Check PR conventions
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-        run: python3 .github/scripts/pr_conventions.py commits "$BASE" "$HEAD"
-
-  breaking:
-    name: Breaking changes
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Check breaking changes and Release-As footers
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: python3 .github/scripts/pr_conventions.py breaking "$BASE" "$HEAD" --labels "$LABELS"
+          OPEN_RELEASE_PRS: ${{ steps.release-prs.outputs.count }}
+        run: |
+          python3 .github/scripts/pr_conventions.py pr "$BASE" "$HEAD" \
+            --base-ref "$BASE_REF" --head-ref "$HEAD_REF" --title "$TITLE" \
+            --labels "$LABELS" --open-release-prs "$OPEN_RELEASE_PRS"
