@@ -8,7 +8,7 @@ TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explo
 | API | `api/` | Python 3.12, FastAPI |
 | Persistence | PostgreSQL | templates and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
-Layout rationale: [ADR-0003](adr/0003-repo-layout.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
+Layout rationale: [ADR-0003](adr/0003-repo-layout.md). Domain vocabulary: [GLOSSARY.md](../GLOSSARY.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
 
 ## System overview
 
@@ -50,26 +50,6 @@ Key points:
 - Queries run on the API: it exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run that the SPA polls.
 - Tag data is written through the API (app identity) and read back with KQL, inside the user's own queries.
 
-## Glossary
-
-| Term | Meaning |
-|---|---|
-| Tab | One node in the side tree. Either a Kusto tab (free KQL, cluster, database, time range) or a template tab (a template snapshot plus the input params). Stored in IndexedDB `display_components`; result rows in `row_results`. |
-| Query template | Shared, server-stored definition: Handlebars KQL, summary, cluster and database (both may be templated), params, fields, column overrides and a menu path. |
-| View / query (`queryType`) | `view` templates are start points in the New menu. `query` templates appear in the grid context menu as pivots and require `fields`. |
-| Param | Template input the user fills in a form (`type` string by default, `array` with `values`, boolean). Has `default`, `optional`, `multiple`, `hint`. |
-| Field | Template input filled from the clicked or selected grid rows when pivoting. `multiple` takes the `from` column across selected rows; `match` takes columns whose name matches `regex`; other types copy the clicked row's value. |
-| Pivot | Choosing a query template from the context menu of a grid row. Creates a child template tab; it runs immediately when every param is filled. |
-| Managed template | `isManaged: true`: maintained outside the UI and read-only in the Query Manager. |
-| Column view | Named, saved AG Grid column state. Global across tabs; browser-only. |
-| Query options | Per-template local options (`hide`), stored in IndexedDB `query_options`. |
-| Query run | Server-side record of one query execution (`KustoQueryRun`): `created`, then `completed`, `error` or `timedOut`. The SPA polls it. |
-| Saved event | Snapshot of a result row written to `SavedEvent`. A row is saved before it is tagged or commented. |
-| Tagged event | An event with entries in the tag tables. The `getTagEvents` partial adds a `TagEvent` column: `{IsSaved, Tags[], Determination, Comment, Comments[]}`. |
-| Determination | Verdict on a comment: `malicious`, `suspicious` or `benign`. `removed` (with `isDeleted`) clears it. It drives the row colour. |
-| Share link | `#/share/<templateUuid>?p=<base64url params>&execute=0\|1`. |
-| Tag cluster / database | Where the tag tables live (`TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE` on the API; `TAG_CLUSTER`, `TAG_DATABASE` on the web container). |
-
 ## Web architecture
 
 ### Stack
@@ -94,7 +74,7 @@ React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores,
 | `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
 | `web/e2e/` | Playwright e2e tests: `flows/` specs, `mocks/` (api and editor mocks), fixtures, screenshot helper |
 
-Features may import `lib/*` and `components/*` and the public `index.ts` of other features, not their internals. Exceptions: code outside `features/grid` imports `features/grid/rowUpdates` directly, and code loaded at startup imports `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle).
+Features import `lib/*` and `components/*`. Eight features (`new-query`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid`, `column-views`) have a public `index.ts`, and most imports between features go through it. About twenty imports reach into another feature's modules directly, for example `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery`, `share/shareLink` and `grid/rowUpdates`. Code outside `features/grid` imports `features/grid/rowUpdates` directly, and code loaded at startup imports `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle). `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs`, `share` and `export-import` directly.
 
 ### Routes
 
@@ -105,7 +85,7 @@ Hash routes; unknown hashes redirect to `#/`. Pages are lazy-loaded.
 | `#/` | Welcome |
 | `#/queries` | Query Manager (template administration) |
 | `#/view/:uuid` | A tab (`uuid` is the tab's component uuid) |
-| `#/share/:uuid?p=...&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it |
+| `#/share/:uuid?p=<base64url params>&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it |
 | `#/exportimport` | Export and import of the investigation as JSON; template tabs are exported without the template's `name`, `isDeleted`, `isManaged`, `createdBy`, `updatedBy` and `updated` |
 
 ### Bundle
@@ -146,6 +126,16 @@ Database `tim` (version 1):
 ### Template engine
 
 `lib/kql-templates` creates an isolated Handlebars environment with HTML escaping off (the output is KQL). Literal helpers do the escaping: `{{array xs}}` (verbatim string list), `{{str x}}` (one verbatim `@'...'` literal), `{{kql x}}` (one escaped `'...'` literal). A plain `{{x}}` is substituted unchanged. The partial `{{> getTagEvents}}` is built from the configured tag cluster and database (see [Kusto tables](#kusto-tables)).
+
+### Templates in the SPA
+
+`templatesStore` holds the shared templates (`QueryTemplate`, fields in [api.md](api.md#querytemplate)) and the browser-only query options.
+
+- `queryType` places a template: the New menu lists `view` templates in its Views submenu and `query` templates in its Queries submenu, following each template's `path`; `query` templates, which require `fields`, are also the pivots in the grid's context menu.
+- `params` entries are filled in a form. `type` is a string by default, `array` (choices in `values`) or boolean; an entry may set `default`, `optional`, `multiple` and `hint`.
+- `fields` entries are filled from grid rows when pivoting: `type: multiple` takes the `from` column across the selected rows, `type: match` takes the columns whose name matches `regex`, and any other type copies the clicked row's value.
+- `isManaged: true` makes a template read-only in the Query Manager.
+- Query options are per template in IndexedDB `query_options`; `hide` leaves the template out of the menus.
 
 ### Runtime configuration
 
@@ -215,7 +205,7 @@ The trace id is a valid W3C `traceparent`, else a sane `x-request-id`, else gene
 
 ### Query-run lifecycle
 
-1. `POST /api/kusto/query` validates the cluster, exchanges the token (auth errors are returned synchronously, before a run exists), and `RunManager` stores a run as `created` with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`.
+1. `POST /api/kusto/query` validates the cluster, exchanges the token (auth errors are returned synchronously, before a run exists), and `RunManager` stores a run (`KustoQueryRun`, table `query_runs`) as `created` with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`.
 2. A tracked asyncio task executes the query. At most `TIM_MAX_CONCURRENT_RUNS` run at once per process; the rest stay `created`.
 3. The request waits up to about 1 second for the task. If it finished, the response is `200` with the terminal run; otherwise `202` with the `created` run.
 4. The task always writes a final state and refreshes `expiresAt`: `completed` (rows and `executionMetrics`), `error` (`mainError`; Kusto error, limit exceeded, shutdown, or a generic message for unexpected failures) or `timedOut` (after `TIM_QUERY_TIMEOUT_SECONDS`).
@@ -231,7 +221,7 @@ Housekeeping:
 
 ### Templates
 
-Stored in PostgreSQL, shared by all users. `GET` returns the list (optionally `since` an `updated` timestamp and `includeDeleted`), `POST` creates (`201`, `Location` header), `PUT` replaces the editable fields, `PATCH` applies an RFC 6902 JSON Patch (`add`, `replace`, `remove`, `test`) and re-validates the result, `DELETE` is a soft delete (`isDeleted: true`, idempotent, `204`). `PATCH {"op":"replace","path":"/isDeleted","value":false}` restores a template. `uuid`, `createdBy`, `updatedBy` and `updated` cannot be patched; `updatedBy` and `updated` are set by the server on every write.
+Stored in PostgreSQL (`query_templates`), shared by all users. The model is `QueryTemplate` in `templates/models.py`: Handlebars KQL (`query`), `summary`, `cluster` and `database` (both may be templated), `params`, `fields`, column overrides (`columns`) and a menu path (`path`). `GET` returns the list (optionally `since` an `updated` timestamp and `includeDeleted`), `POST` creates (`201`, `Location` header), `PUT` replaces the editable fields, `PATCH` applies an RFC 6902 JSON Patch (`add`, `replace`, `remove`, `test`) and re-validates the result, `DELETE` is a soft delete (`isDeleted: true`, idempotent, `204`). `PATCH {"op":"replace","path":"/isDeleted","value":false}` restores a template. `uuid`, `createdBy`, `updatedBy` and `updated` cannot be patched; `updatedBy` and `updated` are set by the server on every write.
 
 ### Tagged events
 
@@ -265,13 +255,15 @@ Every non-2xx response is `application/problem+json` with `type` (`urn:tim:probl
 
 ## Kusto tables
 
-Tag data lives in three tables in the tag database (`TIM_TAG_DATABASE`, default `Research`) of the tag cluster. They are append-only; the latest row per key wins when read.
+Tag data lives in three tables in the tag database of the tag cluster: `TIM_TAG_CLUSTER_URI` and `TIM_TAG_DATABASE` (default `Research`) on the API, `TAG_CLUSTER` and `TAG_DATABASE` on the web container ([configuration.md](configuration.md)). They are append-only; the latest row per key wins when read.
 
 | Table | Columns |
 |---|---|
 | `SavedEvent` | EventId:string, EventTime:datetime, DateTimeUtc:datetime, CreatedBy:string, EventAsJson:dynamic |
 | `EventTag` | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Tag:string, IsDeleted:bool |
 | `EventComment` | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Comment:string, Determination:string, IsDeleted:bool |
+
+`EventComment.Determination` is `malicious`, `suspicious` or `benign`; a comment with `removed` and `IsDeleted` clears it. The grid sets a row class per value (`web/src/features/grid/rowClasses.ts`).
 
 The schema is defined in `api/src/tim_api/tagged_events/kusto_schema.py`. Each table has a JSON ingestion mapping (`<Table>Mapping`, column `X` maps from `$.x`) and streaming ingestion enabled.
 
