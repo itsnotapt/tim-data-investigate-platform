@@ -4,8 +4,11 @@
 `pr` runs every check that applies to a PR's target branch:
 - into `development` (squash-merged): Conventional Commit title, branch name, breaking
   changes by the title and every file the PR changes, and the release freeze;
-- into `main` (merge commit): head `development` or `release-please--*`, every commit
-  subject, breaking changes and Release-As footers per commit, and release order.
+- into `main` (merge commit): a title release-please does not read as a commit, head
+  `development` or `release-please--*`, every commit subject, breaking changes and
+  Release-As footers per commit, and release order;
+- `main` into `development` (the back-sync, merge commit): a title release-please does not
+  read as a commit.
 
 `commits`, `branch` and `breaking` run single checks.
 See docs/RULES.md and docs/decisions/0016-release-versions.md.
@@ -25,6 +28,10 @@ CONVENTIONAL = re.compile(
 )
 BREAKING_SUBJECT = re.compile(r"^\w+(\([^()\s]+\))?!:")
 BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
+# release-please reads every message paragraph that starts like this as a commit.
+READ_AS_COMMIT = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.*?\))?: "
+)
 RELEASE_AS = re.compile(r"^release-as:[ \t]*\S", re.MULTILINE | re.IGNORECASE)
 BRANCH = re.compile(r"^(feat|fix|docs|chore|refactor)/.+")
 BRANCH_PREFIXES = ("release-please--", "dependabot/")
@@ -122,6 +129,18 @@ def check_title(title: str) -> list[str]:
     return [
         f"PR title '{title}' is not a Conventional Commit "
         "(type(scope)!: description, e.g. 'feat(web): add export')."
+    ]
+
+
+def check_merge_title(title: str) -> list[str]:
+    """A merge commit's message is 'Merge pull request #N from ...' and then the PR title."""
+    if READ_AS_COMMIT.match(title) is None:
+        return []
+    return [
+        f"PR title '{title}' becomes the body of the merge commit, and release-please reads it "
+        "as a commit with every file of the merge.\n"
+        "    Fix: use a title that does not start with a Conventional Commit type, "
+        "e.g. 'Release: web export and api fixes'."
     ]
 
 
@@ -223,9 +242,14 @@ def check_freeze(remote: str, open_release_prs: int) -> list[str]:
 def check_pr(args: argparse.Namespace) -> list[str]:
     labels = set(json.loads(args.labels))
     packages = repo_packages()
-    failures = check_title(args.title)
+    release_pr = args.head_ref.startswith(RELEASE_BRANCH_PREFIX)
+    sync = args.base_ref == DEVELOPMENT and args.head_ref == MAIN
+    if args.base_ref == MAIN or sync:
+        failures = [] if release_pr else check_merge_title(args.title)
+    else:
+        failures = check_title(args.title)
     if args.base_ref == MAIN:
-        if args.head_ref != DEVELOPMENT and not args.head_ref.startswith(RELEASE_BRANCH_PREFIX):
+        if args.head_ref != DEVELOPMENT and not release_pr:
             failures.append(
                 f"PRs into {MAIN} come from {DEVELOPMENT} or release-please--* only, "
                 f"not '{args.head_ref}'. Open the PR against {DEVELOPMENT}."
@@ -234,7 +258,6 @@ def check_pr(args: argparse.Namespace) -> list[str]:
         failures += check_breaking_commits(args.base, args.head, labels, packages)
         failures += check_release_order(args.base, args.head, packages)
         return failures
-    sync = args.base_ref == DEVELOPMENT and args.head_ref == MAIN
     if not sync:
         failures += check_branch(args.head_ref)
     failures += check_breaking_squash(args.title, args.base, args.head, labels, packages)

@@ -243,9 +243,12 @@ class IntoDevelopment(FlowCase):
         self.git("checkout", "-q", "main")
         self.commit("chore: release main", "web/package.json", "deploy/helm/tim/image-tags.yaml")
         code, out = self.pr(
-            "development", "main", "chore: merge main into development", open_release_prs=1
+            "development", "main", "Merge main into development", open_release_prs=1
         )
         self.assertEqual(code, 0, out)
+        code, out = self.pr("development", "main", "chore: merge main into development")
+        self.assertEqual(code, 1)
+        self.assertIn("merge commit", out)
 
     def test_other_targets_are_not_frozen(self):
         self.branch("feat/base", "development")
@@ -264,8 +267,18 @@ class IntoMain(FlowCase):
     def test_development_passes(self):
         self.squash("feat(web): a (#2)", "web/src/a.ts")
         self.squash("build(deps): bump x from 1 to 2 (#3)", "web/package.json")
-        code, out = self.pr("main", "development", "feat: release")
+        code, out = self.pr("main", "development", "Release: x")
         self.assertEqual(code, 0, out)
+
+    def test_title_must_not_be_read_as_a_commit(self):
+        self.squash("feat(web): a (#2)", "web/src/a.ts")
+        for title, code in [
+            ("feat: release", 1),
+            ("fix(web): release", 1),
+            ("Release: web export", 0),
+            ("feat!: TIM v4", 0),
+        ]:
+            self.assertEqual(self.pr("main", "development", title)[0], code, title)
 
     def test_only_development_and_release_branches(self):
         self.branch("feat/x", "main")
@@ -280,23 +293,23 @@ class IntoMain(FlowCase):
 
     def test_per_commit_subjects(self):
         self.squash("Update stuff", "web/src/a.ts")
-        code, out = self.pr("main", "development", "feat: release")
+        code, out = self.pr("main", "development", "Release: x")
         self.assertEqual(code, 1)
         self.assertIn("Update stuff", out)
 
     def test_per_commit_breaking_needs_labels_not_the_title(self):
         self.squash("feat(api)!: drop y (#2)", "api/src/a.py")
         self.squash("feat(web): x (#3)", "web/src/a.ts")
-        code, out = self.pr("main", "development", "feat!: release")
+        code, out = self.pr("main", "development", "Release: x")
         self.assertEqual(code, 1)
         self.assertIn("release:major-backend", out)
         self.assertNotIn("release:major-frontend", out)
-        code, out = self.pr("main", "development", "feat!: release", ["release:major-backend"])
+        code, out = self.pr("main", "development", "Release: x", ["release:major-backend"])
         self.assertEqual(code, 0, out)
 
     def test_release_as_without_package_files_fails(self):
         self.squash("chore: x (#2)\n\nRelease-As: 2.0.0", "docs/a.md")
-        self.assertEqual(self.pr("main", "development", "chore: release")[0], 1)
+        self.assertEqual(self.pr("main", "development", "Release: x")[0], 1)
 
     def test_back_sync_merge_commits_are_ignored(self):
         self.squash("feat(web): a (#2)", "web/src/a.ts")
@@ -306,7 +319,7 @@ class IntoMain(FlowCase):
         self.git("tag", "frontend-v1.6.0")
         self.merge("development", "main", "Merge pull request #4 from o/main")
         self.squash("fix(web): b (#5)", "web/src/b.ts")
-        code, out = self.pr("main", "development", "fix: release")
+        code, out = self.pr("main", "development", "Release: x")
         self.assertEqual(code, 0, out)
 
     def test_commit_older_than_the_last_release_fails(self):
@@ -320,7 +333,7 @@ class IntoMain(FlowCase):
         self.git("tag", "backend-v4.0.0")
         self.merge("development", "main", "Merge pull request #5 from o/main")
         self.squash("feat(web): c (#6)", "web/src/c.ts")
-        code, out = self.pr("main", "development", "feat: release")
+        code, out = self.pr("main", "development", "Release: x")
         self.assertEqual(code, 1)
         self.assertIn("landed while the release PR was open", out)
         self.assertIn("backend release", out)

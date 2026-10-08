@@ -1,7 +1,7 @@
 <!-- Open feature PRs against `development`; they are squash-merged, so the PR title is the commit release-please reads.
 The title must be a Conventional Commit: `feat(web): ...`, `fix(api): ...`, `feat(api)!: ...` for breaking changes.
 The files the PR changes decide which package it releases, not the scope. A `!` title bumps the major of every package whose files the PR changes (frontend `web/`, backend `api/`, chart `deploy/helm/tim`) and needs the label `release:major-<package>`.
-`development` -> `main` PRs are merged with a merge commit; keep its message as GitHub proposes it. -->
+`development` -> `main` PRs are merged with a merge commit: their title must not start with a Conventional Commit type (use `Release: ...`), and keep the merge message as GitHub proposes it. -->
 
 ## Summary
 
