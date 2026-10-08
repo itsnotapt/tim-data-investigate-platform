@@ -1,0 +1,19 @@
+{{- range $component := list "api" "web" }}
+{{- $v := index $.Values $component }}
+{{- $minReplicas := ternary $v.autoscaling.minReplicas $v.replicaCount $v.autoscaling.enabled }}
+{{- /* With a single replica, minAvailable 1 would block node drains. */}}
+{{- if and $v.podDisruptionBudget.enabled (gt (int $minReplicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tim.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "tim.componentLabels" (list $ $component) | nindent 4 }}
+spec:
+  minAvailable: {{ $v.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tim.selectorLabels" (list $ $component) | nindent 6 }}
+{{- end }}
+{{- end }}

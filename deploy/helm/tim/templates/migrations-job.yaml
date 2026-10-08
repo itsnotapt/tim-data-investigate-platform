@@ -1,0 +1,75 @@
+{{- if .Values.migrations.enabled }}
+{{- /* Before install with an external database; after install with the in-cluster PostgreSQL,
+which does not exist yet at pre-install time. Always before upgrade. */}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tim.fullname" . }}-migrate
+  labels:
+    {{- include "tim.componentLabels" (list . "migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ ternary "post-install,pre-upgrade" "pre-install,pre-upgrade" .Values.postgresql.enabled }}
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "tim.componentLabels" (list . "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /* The release ServiceAccount does not exist yet before install; the Job needs no
+      Kubernetes or Azure identity. */}}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          command: ["sh", "-c", "until pg_isready -h {{ include "tim.postgresqlServiceName" . }} -p 5432; do sleep 2; done"]
+          # The pod's uid has no passwd entry in the postgres image; without a user name
+          # pg_isready reports "no attempt" and never connects.
+          env:
+            - name: PGUSER
+              value: {{ .Values.postgresql.auth.username | quote }}
+          securityContext:
+            {{- toYaml .Values.api.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: {{ include "tim.image" (list . .Values.api.image "backend") | quote }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          securityContext:
+            {{- toYaml .Values.api.securityContext | nindent 12 }}
+          # The Job only needs the database URL.
+          env:
+            {{- include "tim.databaseUrlEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

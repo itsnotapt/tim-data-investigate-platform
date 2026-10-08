@@ -1,0 +1,10 @@
+{
+  "kustoQuery": { "cluster": "https://contoso.westus2.kusto.windows.net", "database": "SecurityLogs", "requestedBy": "alice@contoso.com", "startTime": "2026-03-13T00:00:00Z", "endTime": "2026-03-14T00:00:00Z", "query": "SignInLogs | take 2" },
+  "executeDateTimeUtc": "2026-03-14T09:31:02.114Z",
+  "queryRunId": "c1b7f1f6-9a34-4a52-8c1e-5f2e0f7b2a90",
+  "status": "created",
+  "resultData": null,
+  "executionMetrics": null,
+  "mainError": null,
+  "expiresAt": "2026-03-15T09:31:02.114Z"
+}

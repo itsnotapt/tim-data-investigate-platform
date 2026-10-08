@@ -1,0 +1,186 @@
+name: Deploy check
+
+on:
+  pull_request:
+    paths:
+      - deploy/**
+      - .release-please-manifest.json
+      - release-please-config.json
+      - compose.yaml
+      - .env.example
+      - web/package.json
+      - api/pyproject.toml
+      - api/uv.lock
+      - .github/workflows/deploy-check.yml
+  push:
+    branches:
+      - main
+    paths:
+      - deploy/**
+      - .release-please-manifest.json
+      - release-please-config.json
+      - compose.yaml
+      - .env.example
+      - web/package.json
+      - api/pyproject.toml
+      - api/uv.lock
+      - .github/workflows/deploy-check.yml
+
+concurrency:
+  group: deploy-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CHART: deploy/helm/tim
+  KUBECONFORM_VERSION: v0.8.0
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes: ["1.34.0", "1.35.0", "1.36.0", "1.37.0"]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v3.22.0
+
+      - name: Install kubeconform
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          kubeconform -v
+
+      - name: Lint
+        run: |
+          for values in "$CHART"/ci/*.yaml; do
+            echo "::group::helm lint ($values)"
+            helm lint "$CHART" --strict -f "$values" --kube-version "${{ matrix.kubernetes }}"
+            echo "::endgroup::"
+          done
+
+      - name: Template and validate against the Kubernetes schema
+        run: |
+          for values in "$CHART"/ci/*.yaml; do
+            echo "::group::helm template | kubeconform ($values)"
+            helm template tim "$CHART" -f "$values" --kube-version "${{ matrix.kubernetes }}" \
+              | kubeconform -strict -summary -kubernetes-version "${{ matrix.kubernetes }}" -
+            echo "::endgroup::"
+          done
+
+      - name: Required values are enforced
+        run: |
+          if helm template tim "$CHART" >/dev/null 2>&1; then
+            echo "rendering without required values must fail" >&2
+            exit 1
+          fi
+
+      - name: Release versions are consistent
+        shell: python
+        run: |
+          import json, re, sys, tomllib
+          chart = open("deploy/helm/tim/Chart.yaml").read()
+          tags = dict(re.findall(r"^(frontend|backend): *['\"]?([^'\"\s]+)", open("deploy/helm/tim/image-tags.yaml").read(), re.M))
+          manifest = json.load(open(".release-please-manifest.json"))
+          lock = tomllib.load(open("api/uv.lock", "rb"))
+          groups = {
+              "chart": {
+                  "manifest deploy/helm/tim": manifest["deploy/helm/tim"],
+                  "Chart.yaml version": re.search(r"^version: *(\S+)", chart, re.M).group(1),
+                  "Chart.yaml appVersion": re.search(r'^appVersion: *"([^"]+)"', chart, re.M).group(1),
+              },
+              "frontend": {
+                  "manifest web": manifest["web"],
+                  "web/package.json": json.load(open("web/package.json"))["version"],
+                  "image-tags.yaml frontend": tags.get("frontend"),
+              },
+              "backend": {
+                  "manifest api": manifest["api"],
+                  "api/pyproject.toml": tomllib.load(open("api/pyproject.toml", "rb"))["project"]["version"],
+                  "api/uv.lock tim-api": next(p["version"] for p in lock["package"] if p["name"] == "tim-api"),
+                  "image-tags.yaml backend": tags.get("backend"),
+              },
+          }
+          errors = [f"{name} versions differ: {versions}" for name, versions in groups.items() if len(set(versions.values())) != 1]
+          if errors:
+              sys.exit("\n".join(errors))
+
+      - name: Image tags default to the pinned versions
+        run: |
+          rendered="$(helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml")"
+          for component in frontend backend; do
+            tag="$(yq ".${component}" "$CHART/image-tags.yaml")"
+            if ! grep -q "image: \"ghcr.io/itsnotapt/tim-data-investigate-platform/${component}:${tag}\"" <<<"$rendered"; then
+              echo "the $component image must default to ghcr.io/itsnotapt/tim-data-investigate-platform/${component}:${tag} (image-tags.yaml)" >&2
+              exit 1
+            fi
+          done
+
+      - name: Migrations wait-for-postgresql sets PGUSER
+        run: |
+          pguser="$(helm template tim "$CHART" -f "$CHART/ci/full-values.yaml" \
+            | yq 'select(.kind == "Job") | .spec.template.spec.initContainers[] | select(.name == "wait-for-postgresql") | .env[] | select(.name == "PGUSER") | .value')"
+          if [ -z "$pguser" ]; then
+            echo "the migrations wait-for-postgresql init container must set a non-empty PGUSER" >&2
+            exit 1
+          fi
+
+      - name: Test pod is kept after it runs
+        run: |
+          policy="$(helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" \
+            | yq 'select(.kind == "Pod" and .metadata.annotations."helm.sh/hook" == "test") | .metadata.annotations."helm.sh/hook-delete-policy"')"
+          if [ "$policy" != "before-hook-creation" ]; then
+            echo "the test pod's helm.sh/hook-delete-policy must be before-hook-creation, got '$policy'" >&2
+            exit 1
+          fi
+
+      - name: Config checksums are per component
+        run: |
+          checksum() { # <component> <helm template args...>
+            local component="$1"
+            shift
+            helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" "$@" \
+              | yq "select(.kind == \"Deployment\" and .metadata.name == \"*-${component}\") | .spec.template.metadata.annotations.\"checksum/config\""
+          }
+          api="$(checksum api)"
+          web="$(checksum web)"
+          api_log="$(checksum api --set api.logLevel=DEBUG)"
+          web_log="$(checksum web --set api.logLevel=DEBUG)"
+          api_wiki="$(checksum api --set web.helpWikiUri=https://wiki.example.org)"
+          web_wiki="$(checksum web --set web.helpWikiUri=https://wiki.example.org)"
+          for value in "$api" "$web" "$api_log" "$web_log" "$api_wiki" "$web_wiki"; do
+            if [ -z "$value" ] || [ "$value" = null ]; then
+              echo "the api and web Deployments must both have a checksum/config annotation" >&2
+              exit 1
+            fi
+          done
+          if [ "$api" = "$web" ] || [ "$api" = "$api_log" ] || [ "$web" != "$web_log" ] \
+            || [ "$web" = "$web_wiki" ] || [ "$api" != "$api_wiki" ]; then
+            echo "each Deployment's checksum/config must cover only its own ConfigMap" >&2
+            exit 1
+          fi
+
+  compose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate dev stack
+        run: docker compose -f compose.yaml config --quiet
+
+      - name: Validate production stack
+        run: |
+          # Required values left empty in the template.
+          sed -e 's|^TIM_AUTH_TENANT_ID=$|TIM_AUTH_TENANT_ID=00000000-0000-0000-0000-000000000000|' \
+              -e 's|^TIM_AUTH_CLIENT_ID=$|TIM_AUTH_CLIENT_ID=00000000-0000-0000-0000-000000000000|' \
+              -e 's|^TIM_AUTH_CLIENT_SECRET=$|TIM_AUTH_CLIENT_SECRET=ci|' \
+              deploy/.env.example > deploy/.env
+          docker compose -f deploy/compose.prod.yaml --env-file deploy/.env config --quiet

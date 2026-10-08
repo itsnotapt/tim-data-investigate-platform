@@ -1,0 +1,39 @@
+[
+  {
+    "FrameType": "DataSetHeader",
+    "IsProgressive": false,
+    "Version": "v2.0"
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 0,
+    "TableKind": "PrimaryResult",
+    "TableName": "PrimaryResult",
+    "Columns": [
+      {
+        "ColumnName": "A",
+        "ColumnType": "long"
+      }
+    ],
+    "Rows": [
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataSetCompletion",
+    "HasErrors": true,
+    "Cancelled": false,
+    "OneApiErrors": [
+      {
+        "error": {
+          "code": "LimitsExceeded",
+          "message": "Request is invalid",
+          "@type": "Kusto.Data.Exceptions.KustoServicePartialQueryFailureLimitsExceededException",
+          "@message": "Query execution has exceeded the allowed limits (80DA0003): Partial query failure: Query result set has exceeded the internal record count limit."
+        }
+      }
+    ]
+  }
+]

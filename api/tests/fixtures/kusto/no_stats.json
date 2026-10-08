@@ -1,0 +1,29 @@
+[
+  {
+    "FrameType": "DataSetHeader",
+    "IsProgressive": false,
+    "Version": "v2.0"
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 0,
+    "TableKind": "PrimaryResult",
+    "TableName": "PrimaryResult",
+    "Columns": [
+      {
+        "ColumnName": "A",
+        "ColumnType": "long"
+      }
+    ],
+    "Rows": [
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataSetCompletion",
+    "HasErrors": false,
+    "Cancelled": false
+  }
+]

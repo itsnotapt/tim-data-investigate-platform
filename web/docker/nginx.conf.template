@@ -1,0 +1,105 @@
+# Rendered by docker-entrypoint.sh. @BACKEND_URI@, @NGINX_RESOLVER@ and @CSP_CONNECT_EXTRA@ are
+# validated before substitution. Do not add other placeholders without extending the entrypoint.
+
+map $http_x_forwarded_proto $tim_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
+# HSTS only when the request arrived over https at the TLS-terminating proxy in front of us
+# (a browser ignores the header on plain http anyway). No includeSubDomains: the host may share
+# a parent domain with unrelated sites.
+map $tim_forwarded_proto $tim_hsts {
+    https   "max-age=31536000";
+    default "";
+}
+
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Security headers. Only `expires` (not add_header) is used in locations below, so these
+    # are not lost to add_header inheritance rules.
+    add_header X-Content-Type-Options "nosniff" always;
+    # SAMEORIGIN, not DENY: MSAL's silent flows load the redirect page (/blank.html) in a hidden
+    # same-origin iframe. Cross-origin framing is still refused, see frame-ancestors.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Strict-Transport-Security $tim_hsts always;
+    # Content-Security-Policy. Why each relaxation exists:
+    #  - script-src 'unsafe-eval': Handlebars compiles templates with `new Function` and the Kusto
+    #    language-service worker uses eval. Everything else is same-origin ('self'); there are no
+    #    inline scripts (config.js is a same-origin file).
+    #  - style-src 'unsafe-inline': emotion (MUI) and AG Grid inject <style> tags / style attributes.
+    #  - worker-src 'self' blob:: Monaco workers are same-origin Vite chunks; blob: is kept for
+    #    Monaco/AG Grid fallbacks.
+    #  - img-src data: blob: / font-src data:: inlined icons and codicon font.
+    #  - connect-src: this origin (/api), Entra ID (MSAL authority/token endpoints) and, if
+    #    API_BASEPATH is a cross-origin URL, that origin (@CSP_CONNECT_EXTRA@).
+    #  - frame-src: MSAL hidden iframe (ssoSilent) navigates to Entra ID, then back to /blank.html.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com@CSP_CONNECT_EXTRA@; worker-src 'self' blob:; frame-src 'self' https://login.microsoftonline.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/javascript application/javascript application/json
+               application/wasm image/svg+xml font/ttf font/otf;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Runtime config and the SPA shell must never be cached (config changes per deploy, and
+    # index.html references hashed assets).
+    location = /config.js {
+        alias /tmp/tim/config.js;
+        expires -1;
+    }
+
+    location = /index.html {
+        expires -1;
+    }
+
+    # Vite output is content-hashed.
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # API proxy. The backend is addressed through a variable so nginx starts even if the
+    # backend is not resolvable yet, and so re-resolves it (DNS changes in k8s / compose).
+    # proxy_pass has no URI part, so the original request URI is forwarded unchanged and the
+    # /api prefix is kept (the api serves its routes under /api).
+    location /api/ {
+        resolver @NGINX_RESOLVER@ valid=10s ipv6=off;
+        set $tim_backend "@BACKEND_URI@";
+        proxy_pass $tim_backend;
+
+        proxy_http_version 1.1;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $tim_forwarded_proto;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Connection "";
+
+        client_max_body_size 25m;
+        # Kusto runs can take up to TIM_QUERY_TIMEOUT_SECONDS (default 600).
+        proxy_read_timeout 620s;
+        proxy_send_timeout 620s;
+    }
+
+    # Hash routing: no SPA fallback needed.
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

@@ -1,0 +1,313 @@
+# TIM Helm chart values. Reference: docs/deployment.md.
+# Container environment variable names are identical to the compose stacks (compose.yaml,
+# deploy/compose.prod.yaml); the comment on each value names the variable it sets.
+
+nameOverride: ""
+fullnameOverride: ""
+# Kubernetes cluster DNS domain. web's nginx resolves the api Service by its FQDN.
+clusterDomain: cluster.local
+
+imagePullSecrets: []
+#  - name: ghcr-pull
+
+# --- Application configuration (shared by web and api) ---------------------------------------
+config:
+  # TIM_ENVIRONMENT (api and web). "production" refuses TIM_AUTH_DISABLED and memory:// storage.
+  environment: production
+  # Public origin users open, scheme://host[:port] without a trailing slash. Empty = derived from
+  # ingress.host (https://<host>). REDIRECT_URI (web) = <publicUrl>/blank.html; register it as a
+  # SPA redirect URI in the Entra app registration.
+  publicUrl: ""
+  auth:
+    # TIM_AUTH_TENANT_ID (api), AUTH_TENANT_ID (web). Required.
+    tenantId: ""
+    # TIM_AUTH_CLIENT_ID (api), AUTH_CLIENT_ID (web). Required.
+    clientId: ""
+  tags:
+    # TIM_TAG_CLUSTER_URI (api), TAG_CLUSTER (web). https Kusto cluster for tags. Required.
+    clusterUri: ""
+    # TIM_TAG_DATABASE (api), TAG_DATABASE (web).
+    database: Research
+
+# --- Secrets ---------------------------------------------------------------------------------
+# One Secret holds every sensitive variable. Its keys are the environment variable names:
+#   TIM_DATABASE_URL        required  postgresql+asyncpg://user:password@host:5432/db
+#   TIM_AUTH_CLIENT_SECRET  optional  Entra client secret for OBO; absent = federated/workload identity
+#   AGGRID_LICENSE          optional  AG Grid Enterprise licence key; absent = Enterprise trial mode
+#   POSTGRES_PASSWORD       only with postgresql.enabled
+# With existingSecret set the chart creates no Secret and the values below are ignored.
+secrets:
+  existingSecret: ""
+  # TIM_DATABASE_URL. Ignored when postgresql.enabled (the chart builds the URL).
+  databaseUrl: ""
+  # TIM_AUTH_CLIENT_SECRET
+  authClientSecret: ""
+  # AGGRID_LICENSE
+  agGridLicense: ""
+
+# --- Service account (shared by all pods) ----------------------------------------------------
+serviceAccount:
+  create: true
+  # Name to create or use. Empty = <fullname>.
+  name: ""
+  # e.g. azure.workload.identity/client-id: <app id> for Entra workload identity.
+  annotations: {}
+  automountServiceAccountToken: false
+
+# --- api ---------------------------------------------------------------------------------------
+api:
+  image:
+    repository: ghcr.io/itsnotapt/tim-data-investigate-platform/backend
+    # Empty = the version this chart release pins in image-tags.yaml.
+    tag: ""
+    # Immutable reference; takes precedence over tag when set (sha256:...).
+    digest: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  # TIM_LOG_LEVEL
+  logLevel: INFO
+  # TIM_ALLOWED_KUSTO_HOSTS (comma separated patterns). Empty list = api default
+  # (**.kusto.windows.net). Pattern kinds: exact host (help.kusto.windows.net),
+  # "*.domain" (exactly one label before the domain), "**.domain" (one or more labels).
+  # Fabric is opt-in: add "**.kusto.fabric.microsoft.com".
+  allowedKustoHosts: []
+  # TIM_CORS_ALLOWED_ORIGINS (comma separated). Not needed when the SPA is served by web.
+  corsAllowedOrigins: []
+  # FORWARDED_ALLOW_IPS: addresses uvicorn trusts for X-Forwarded-*. The api Service is
+  # ClusterIP-only and reached through web's nginx (or the ingress controller); narrow this to
+  # the pod CIDR if other workloads can reach it.
+  forwardedAllowIps: "*"
+  # Further variables, e.g. TIM_QUERY_TIMEOUT_SECONDS, TIM_MAX_RESULT_ROWS, AZURE_CLIENT_ID.
+  # Standard EnvVar entries (value or valueFrom).
+  extraEnv: []
+  # Extra envFrom sources (ConfigMap/Secret refs).
+  extraEnvFrom: []
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+    # targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  livenessProbe:
+    httpGet:
+      path: /api/healthChecks/liveness
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/healthChecks/readiness
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  podAnnotations: {}
+  # e.g. azure.workload.identity/use: "true"
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  # Seconds a pod has to finish in-flight requests after SIGTERM. Running Kusto queries are
+  # pod-local and are cut off when the pod stops.
+  terminationGracePeriodSeconds: 30
+
+# --- Database migrations ---------------------------------------------------------------------
+# A Job running `alembic upgrade head` with the api image, as a Helm hook: before the api rolls
+# out on upgrade, and before install (external database) or after install (postgresql.enabled).
+migrations:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  # Seconds a finished Job is kept (inspect logs with kubectl logs job/<fullname>-migrate).
+  ttlSecondsAfterFinished: 3600
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# --- web ---------------------------------------------------------------------------------------
+web:
+  image:
+    repository: ghcr.io/itsnotapt/tim-data-investigate-platform/frontend
+    # Empty = the version this chart release pins in image-tags.yaml.
+    tag: ""
+    # Immutable reference; takes precedence over tag when set (sha256:...).
+    digest: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  # HELP_WIKI_URI, HELP_ISSUE_URI
+  helpWikiUri: ""
+  helpIssueUri: ""
+  # DEFAULT_CLUSTERS, rendered as a JSON array. Empty = one entry built from config.tags.
+  #  - name: Research
+  #    clusters: [https://<cluster>.kusto.windows.net]
+  #    databases: [Research]
+  defaultClusters: []
+  # API_BASEPATH. Leave empty: the SPA calls /api on its own origin.
+  apiBasePath: ""
+  extraEnv: []
+  extraEnvFrom: []
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+    # targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 2
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  # The entrypoint writes config.js and the nginx conf to /tmp/tim, and nginx keeps its pid and
+  # temp files in /tmp; the chart mounts an emptyDir there.
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  terminationGracePeriodSeconds: 30
+
+# --- Ingress -----------------------------------------------------------------------------------
+# All paths go to web; web's nginx serves the SPA and proxies /api/ to the api Service with the
+# /api prefix unchanged (same topology as deploy/compose.prod.yaml). Do not add a path rewrite.
+ingress:
+  enabled: true
+  className: ""
+  # Public host name. Required when ingress.enabled.
+  host: ""
+  # Controller-specific settings. For ingress-nginx, match web's nginx limits:
+  #   nginx.ingress.kubernetes.io/proxy-body-size: 25m
+  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "620"
+  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "620"
+  # For cert-manager: cert-manager.io/cluster-issuer: <issuer>
+  annotations: {}
+  tls:
+    enabled: true
+    # TLS Secret (kubernetes.io/tls) for host. Empty = <fullname>-tls (e.g. issued by cert-manager).
+    secretName: ""
+
+# --- In-cluster PostgreSQL ---------------------------------------------------------------------
+# Single-pod PostgreSQL StatefulSet for evaluation and small installations (no HA, no backups).
+# Production should use a managed PostgreSQL and set secrets.databaseUrl / existingSecret.
+postgresql:
+  enabled: false
+  image:
+    repository: docker.io/library/postgres
+    tag: 17-alpine
+    pullPolicy: IfNotPresent
+  auth:
+    username: tim
+    database: tim
+    # POSTGRES_PASSWORD. Required when enabled and secrets.existingSecret is empty. Use URL-safe
+    # characters: it is embedded in TIM_DATABASE_URL.
+    password: ""
+  persistence:
+    size: 8Gi
+    # Empty = cluster default StorageClass.
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    # uid/gid of the postgres user in the alpine image.
+    runAsUser: 70
+    runAsGroup: 70
+    fsGroup: 70
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop: [ALL]
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

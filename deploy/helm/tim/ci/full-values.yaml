@@ -1,0 +1,50 @@
+# Every optional feature on: in-cluster PostgreSQL, HPA, licence key, workload identity, image
+# tag and digest overrides.
+config:
+  publicUrl: https://tim.example.com
+  auth:
+    tenantId: 11111111-1111-1111-1111-111111111111
+    clientId: 22222222-2222-2222-2222-222222222222
+  tags:
+    clusterUri: https://tags.westeurope.kusto.windows.net
+    database: Tags
+secrets:
+  agGridLicense: licence-key
+serviceAccount:
+  annotations:
+    azure.workload.identity/client-id: 33333333-3333-3333-3333-333333333333
+imagePullSecrets:
+  - name: ghcr-pull
+api:
+  image:
+    tag: 0.2.0
+  allowedKustoHosts: [help.kusto.windows.net]
+  podLabels:
+    azure.workload.identity/use: "true"
+  extraEnv:
+    - name: TIM_QUERY_TIMEOUT_SECONDS
+      value: "300"
+  autoscaling:
+    enabled: true
+    targetMemoryUtilizationPercentage: 80
+web:
+  image:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  helpWikiUri: https://wiki.example.com/tim
+  defaultClusters:
+    - name: Research
+      clusters: [https://help.kusto.windows.net]
+      databases: [Samples]
+  autoscaling:
+    enabled: true
+ingress:
+  className: nginx
+  host: tim.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "620"
+    cert-manager.io/cluster-issuer: letsencrypt
+postgresql:
+  enabled: true
+  auth:
+    password: change-me

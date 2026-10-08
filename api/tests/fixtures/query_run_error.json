@@ -1,0 +1,17 @@
+{
+  "queryRunId": "0a4d6a1e-3b7c-4f0e-b1d2-77c9e8a5d411",
+  "status": "error",
+  "resultData": null,
+  "executionMetrics": null,
+  "mainError": "Semantic error: 'where' operator: Failed to resolve scalar expression named 'NoSuchColumn'",
+  "kustoQuery": {
+    "cluster": "https://contoso.westus2.kusto.windows.net",
+    "database": "SecurityLogs",
+    "requestedBy": "alice@contoso.com",
+    "startTime": null,
+    "endTime": null,
+    "query": "SignInLogs | where NoSuchColumn == 1"
+  },
+  "executeDateTimeUtc": "2026-03-14T09:35:47.902Z",
+  "expiresAt": "2026-03-15T09:35:48.610Z"
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "FrameType": "DataSetHeader",
+    "IsProgressive": false,
+    "Version": "v2.0"
+  },
+  {
+    "FrameType": "TableProgress",
+    "TableId": 0,
+    "TableProgress": 50.0
+  }
+]

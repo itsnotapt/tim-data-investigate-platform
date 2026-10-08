@@ -1,0 +1,86 @@
+# Dev stack: postgres + api + web (nginx image). See docs/development.md and docs/deployment.md.
+# Variables come from .env at the repo root (copy .env.example); every one has a dev default.
+# Main dev loop is `docker compose up -d postgres` + `uv run uvicorn` + `npm run dev`;
+# `docker compose up --build` runs the full stack as deployed.
+name: tim
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tim}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tim}
+      POSTGRES_DB: ${POSTGRES_DB:-tim}
+    ports:
+      # Loopback only, so a locally run api can reach it.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: applies Alembic migrations, then exits. The api starts only after it succeeds.
+  migrate:
+    build: ./api
+    command: ["alembic", "upgrade", "head"]
+    environment: &api-env
+      TIM_ENVIRONMENT: development
+      TIM_LOG_LEVEL: ${TIM_LOG_LEVEL:-INFO}
+      TIM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tim}:${POSTGRES_PASSWORD:-tim}@postgres:5432/${POSTGRES_DB:-tim}
+      TIM_AUTH_DISABLED: ${TIM_AUTH_DISABLED:-true}
+      TIM_AUTH_TENANT_ID: ${TIM_AUTH_TENANT_ID:-00000000-0000-0000-0000-000000000000}
+      TIM_AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
+      TIM_TAG_CLUSTER_URI: ${TIM_TAG_CLUSTER_URI:-https://example.westeurope.kusto.windows.net}
+      TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
+      TIM_AUTH_CLIENT_SECRET: ${TIM_AUTH_CLIENT_SECRET:-}
+      TIM_ALLOWED_KUSTO_HOSTS: ${TIM_ALLOWED_KUSTO_HOSTS:-}
+      # uvicorn trusts X-Forwarded-* only from these addresses; the web container proxies here.
+      FORWARDED_ALLOW_IPS: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${API_PORT:-8080}:8080"
+    # Health check comes from the image's HEALTHCHECK (/api/healthChecks/liveness).
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    environment:
+      TIM_ENVIRONMENT: development
+      BACKEND_URI: http://api:8080
+      REDIRECT_URI: ${REDIRECT_URI:-http://localhost:8081/blank.html}
+      AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
+      AUTH_TENANT_ID: ${TIM_AUTH_TENANT_ID:-00000000-0000-0000-0000-000000000000}
+      TAG_CLUSTER: ${TIM_TAG_CLUSTER_URI:-https://example.westeurope.kusto.windows.net}
+      TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
+      AGGRID_LICENSE: ${AGGRID_LICENSE:-}
+      HELP_WIKI_URI: ${HELP_WIKI_URI:-}
+      HELP_ISSUE_URI: ${HELP_ISSUE_URI:-}
+      DEFAULT_CLUSTERS: ${DEFAULT_CLUSTERS:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # nginx-unprivileged listens on 8080 inside the container.
+      - "${WEB_PORT:-8081}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+
+volumes:
+  postgres-data:

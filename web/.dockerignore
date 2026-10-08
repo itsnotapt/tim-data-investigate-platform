@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+test-results/
+playwright-report/

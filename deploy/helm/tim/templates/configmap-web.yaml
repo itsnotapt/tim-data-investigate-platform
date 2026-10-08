@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tim.fullname" . }}-web
+  labels:
+    {{- include "tim.componentLabels" (list . "web") | nindent 4 }}
+data:
+  TIM_ENVIRONMENT: {{ .Values.config.environment | quote }}
+  BACKEND_URI: {{ printf "http://%s.%s.svc.%s:%v" (include "tim.apiServiceName" .) .Release.Namespace .Values.clusterDomain .Values.api.service.port | quote }}
+  REDIRECT_URI: {{ printf "%s/blank.html" (include "tim.publicUrl" .) | quote }}
+  AUTH_CLIENT_ID: {{ .Values.config.auth.clientId | quote }}
+  AUTH_TENANT_ID: {{ .Values.config.auth.tenantId | quote }}
+  TAG_CLUSTER: {{ .Values.config.tags.clusterUri | quote }}
+  TAG_DATABASE: {{ .Values.config.tags.database | quote }}
+  API_BASEPATH: {{ .Values.web.apiBasePath | quote }}
+  HELP_WIKI_URI: {{ .Values.web.helpWikiUri | quote }}
+  HELP_ISSUE_URI: {{ .Values.web.helpIssueUri | quote }}
+  {{- with .Values.web.defaultClusters }}
+  DEFAULT_CLUSTERS: {{ toJson . | quote }}
+  {{- end }}

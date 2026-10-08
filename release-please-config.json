@@ -1,33 +1,62 @@
 {
     "bootstrap-sha": "02ad822a14e1a6cd75b87065061302672da46004",
     "packages": {
-      ".": {
-        "changelog-path": "CHANGELOG.md",
-        "release-type": "simple",
-        "package-name": "core"
-      },
-      "frontend": {
-        "release-type": "simple",
-        "package-name": "frontend",
-        "extra-files": [
-            {
-                "type": "yaml",
-                "path": "helm/Chart.yaml",
-                "jsonpath": "$.version"
-            }
-        ]
-      },
-      "backend": {
-        "release-type": "simple",
-        "package-name": "backend",
-        "extra-files": [
-            {
-                "type": "yaml",
-                "path": "helm/Chart.yaml",
-                "jsonpath": "$.version"
-            }
-        ]
-      }
+        "web": {
+            "release-type": "node",
+            "package-name": "frontend",
+            "release-as": "1.6.0",
+            "exclude-paths": [
+                "web/e2e"
+            ],
+            "extra-files": [
+                {
+                    "type": "yaml",
+                    "path": "/deploy/helm/tim/image-tags.yaml",
+                    "jsonpath": "$.frontend"
+                }
+            ]
+        },
+        "api": {
+            "release-type": "python",
+            "package-name": "backend",
+            "release-as": "4.0.0",
+            "exclude-paths": [
+                "api/tests"
+            ],
+            "extra-files": [
+                {
+                    "type": "toml",
+                    "path": "uv.lock",
+                    "jsonpath": "$.package[?(@.name.value=='tim-api')].version"
+                },
+                {
+                    "type": "yaml",
+                    "path": "/deploy/helm/tim/image-tags.yaml",
+                    "jsonpath": "$.backend"
+                }
+            ]
+        },
+        "deploy/helm/tim": {
+            "release-type": "helm",
+            "package-name": "chart",
+            "release-as": "1.0.0",
+            "exclude-paths": [
+                "deploy/helm/tim/ci"
+            ],
+            "changelog-sections": [
+                { "type": "feat", "section": "Features" },
+                { "type": "fix", "section": "Bug Fixes" },
+                { "type": "perf", "section": "Performance Improvements" },
+                { "type": "revert", "section": "Reverts" },
+                { "type": "chore", "section": "Image updates and chores" }
+            ],
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "Chart.yaml"
+                }
+            ]
+        }
     },
     "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
 }

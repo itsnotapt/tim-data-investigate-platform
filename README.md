@@ -1,22 +1,41 @@
 # TIM
 
-TIM is a Kusto investigation platform that enables an analyst to quickly pivot between data sources; annotate their findings; and promotes collaboration through shared queries (pivots) and centralized tagged events.
+TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explorer clusters, pivot between data sources with shared query templates, and tag and comment on events so findings are shared with the team.
 
-## Getting Started
+- **`web/`**: React single-page app (TypeScript, Vite, AG Grid Enterprise, Monaco), served by nginx.
+- **`api/`**: FastAPI service (Python 3.12) that runs Kusto queries on behalf of the signed-in user, stores query templates and query runs in PostgreSQL, and records tagged events in Kusto.
+- Sign-in is Microsoft Entra ID.
 
-### Docker Compose
+## Quickstart
 
-1. Download the docker compose YAML file.
+Run the whole stack (PostgreSQL, api, web) in containers:
+
 ```bash
-curl -LO https://github.com/microsoft/tim-data-investigate-platform/raw/main/.docker/compose.yaml
+cp .env.example .env        # optional; every variable has a development default
+docker compose up --build
 ```
 
-2. Create or set the environment variables (refer to [Environment Variables](.docker/README.md#environment-variables)).
+Open http://localhost:8081. The api runs with authentication disabled, but the web container signs in with Entra ID, so the UI needs a real app registration (see [docs/configuration.md](docs/configuration.md)). To work on the UI without one, use the edit-reload loop with stub sign-in described in [docs/development.md](docs/development.md), which also covers tests and linting.
 
-3. Run docker compose to download the latest images and deploy TIM locally.
-```bash
-docker compose up
-```
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| [`web/`](web/) | React single-page app |
+| [`api/`](api/) | FastAPI service, Alembic migrations |
+| [`deploy/`](deploy/) | Production deployment assets |
+| [`docs/`](docs/README.md) | Documentation and architecture decision records |
+| `compose.yaml` | Local development stack (PostgreSQL, migrations, api, web) |
+| `.github/workflows/` | CI and release automation |
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Architecture](docs/architecture.md) and [HTTP API](docs/api.md)
+- [Development](docs/development.md): local setup, tests, linting
+- [Configuration](docs/configuration.md): environment variables
+- [Deployment](docs/deployment.md) and [Operations](docs/operations.md)
+- [Working rules](docs/RULES.md) for contributors and agents
 
 ## Contributing
 
@@ -34,8 +53,8 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ## Trademarks
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+trademarks or logos is subject to and must follow
 [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party's policies.

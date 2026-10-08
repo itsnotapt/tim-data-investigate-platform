@@ -1,0 +1,159 @@
+[
+  {
+    "FrameType": "DataSetHeader",
+    "IsProgressive": false,
+    "Version": "v2.0"
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 0,
+    "TableKind": "PrimaryResult",
+    "TableName": "PrimaryResult",
+    "Columns": [
+      {
+        "ColumnName": "b",
+        "ColumnType": "bool"
+      },
+      {
+        "ColumnName": "i",
+        "ColumnType": "int"
+      },
+      {
+        "ColumnName": "l",
+        "ColumnType": "long"
+      },
+      {
+        "ColumnName": "r",
+        "ColumnType": "real"
+      },
+      {
+        "ColumnName": "s",
+        "ColumnType": "string"
+      },
+      {
+        "ColumnName": "dt",
+        "ColumnType": "datetime"
+      },
+      {
+        "ColumnName": "dt2",
+        "ColumnType": "datetime"
+      },
+      {
+        "ColumnName": "ts",
+        "ColumnType": "timespan"
+      },
+      {
+        "ColumnName": "ts2",
+        "ColumnType": "timespan"
+      },
+      {
+        "ColumnName": "ts3",
+        "ColumnType": "timespan"
+      },
+      {
+        "ColumnName": "dyn",
+        "ColumnType": "dynamic"
+      },
+      {
+        "ColumnName": "dyn2",
+        "ColumnType": "dynamic"
+      },
+      {
+        "ColumnName": "dyn3",
+        "ColumnType": "dynamic"
+      },
+      {
+        "ColumnName": "g",
+        "ColumnType": "guid"
+      },
+      {
+        "ColumnName": "d",
+        "ColumnType": "decimal"
+      },
+      {
+        "ColumnName": "d2",
+        "ColumnType": "decimal"
+      },
+      {
+        "ColumnName": "n",
+        "ColumnType": "string"
+      },
+      {
+        "ColumnName": "nd",
+        "ColumnType": "datetime"
+      }
+    ],
+    "Rows": [
+      [
+        true,
+        5,
+        9007199254740993,
+        1.5,
+        "hi",
+        "2026-03-13T10:20:30.1200000Z",
+        "2026-03-13T10:20:30Z",
+        "00:00:05",
+        "1.02:03:04.5000000",
+        "-00:01:00",
+        {
+          "a": [
+            1,
+            {
+              "b": null
+            }
+          ]
+        },
+        "{\"k\":1}",
+        "not json",
+        "74be27de-1e4e-49d9-b579-fe0b331d3642",
+        "1.25",
+        "0.1234567890123456789012345",
+        null,
+        null
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 9,
+    "TableKind": "QueryCompletionInformation",
+    "TableName": "QueryCompletionInformation",
+    "Columns": [
+      {
+        "ColumnName": "Timestamp",
+        "ColumnType": "datetime"
+      },
+      {
+        "ColumnName": "Level",
+        "ColumnType": "int"
+      },
+      {
+        "ColumnName": "LevelName",
+        "ColumnType": "string"
+      },
+      {
+        "ColumnName": "Payload",
+        "ColumnType": "string"
+      }
+    ],
+    "Rows": [
+      [
+        "2026-09-29T10:00:00Z",
+        4,
+        "Info",
+        "{\"Text\":\"started\"}"
+      ],
+      [
+        "2026-09-29T10:00:01Z",
+        4,
+        "Stats",
+        "{\"ExecutionTime\": 0.0156, \"resource_usage\": {\"cache\": {\"memory\": {\"hits\": 1}}}, \"input_dataset_statistics\": {\"extents\": {\"total\": 2}}, \"dataset_statistics\": [{\"table_row_count\": 3, \"table_size\": 120}]}"
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataSetCompletion",
+    "HasErrors": false,
+    "Cancelled": false
+  }
+]

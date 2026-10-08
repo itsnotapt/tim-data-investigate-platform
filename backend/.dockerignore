@@ -1,8 +1,0 @@
-Dockerfile
-helm
-
-# Ignore build files
-**/[Bb]in/
-**/[Oo]bj/
-
-Tim.Backend.Tests

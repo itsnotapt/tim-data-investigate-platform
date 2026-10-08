@@ -1,0 +1,115 @@
+[
+  {
+    "FrameType": "DataSetHeader",
+    "IsProgressive": false,
+    "Version": "v2.0"
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 0,
+    "TableKind": "PrimaryResult",
+    "TableName": "PrimaryResult",
+    "Columns": [
+      {
+        "ColumnName": "A",
+        "ColumnType": "long"
+      },
+      {
+        "ColumnName": "B",
+        "ColumnType": "string"
+      }
+    ],
+    "Rows": [
+      [
+        1,
+        "x"
+      ],
+      [
+        2,
+        "y"
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 1,
+    "TableKind": "PrimaryResult",
+    "TableName": "PrimaryResult",
+    "Columns": [
+      {
+        "ColumnName": "A",
+        "ColumnType": "long"
+      },
+      {
+        "ColumnName": "B",
+        "ColumnType": "string"
+      }
+    ],
+    "Rows": [
+      [
+        3,
+        "z"
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 2,
+    "TableKind": "QueryProperties",
+    "TableName": "@ExtendedProperties",
+    "Columns": [
+      {
+        "ColumnName": "Key",
+        "ColumnType": "string"
+      }
+    ],
+    "Rows": [
+      [
+        "Visualization"
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataTable",
+    "TableId": 9,
+    "TableKind": "QueryCompletionInformation",
+    "TableName": "QueryCompletionInformation",
+    "Columns": [
+      {
+        "ColumnName": "Timestamp",
+        "ColumnType": "datetime"
+      },
+      {
+        "ColumnName": "Level",
+        "ColumnType": "int"
+      },
+      {
+        "ColumnName": "LevelName",
+        "ColumnType": "string"
+      },
+      {
+        "ColumnName": "Payload",
+        "ColumnType": "string"
+      }
+    ],
+    "Rows": [
+      [
+        "2026-09-29T10:00:00Z",
+        4,
+        "Info",
+        "{\"Text\":\"started\"}"
+      ],
+      [
+        "2026-09-29T10:00:01Z",
+        4,
+        "Stats",
+        "{\"ExecutionTime\": 0.0156, \"resource_usage\": {\"cache\": {\"memory\": {\"hits\": 1}}}, \"input_dataset_statistics\": {\"extents\": {\"total\": 2}}, \"dataset_statistics\": [{\"table_row_count\": 3, \"table_size\": 120}]}"
+      ]
+    ]
+  },
+  {
+    "FrameType": "DataSetCompletion",
+    "HasErrors": false,
+    "Cancelled": false
+  }
+]

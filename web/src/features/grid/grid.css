@@ -1,0 +1,13 @@
+/* Determination row colours. */
+.ag-tag-malicious {
+  background-color: #fbbbb9 !important;
+}
+.ag-tag-suspicious {
+  background-color: #ffecae !important;
+}
+.ag-tag-benign {
+  background-color: #d4f3cd !important;
+}
+.ag-text-area-input {
+  font-family: monospace;
+}
