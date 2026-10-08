@@ -23,7 +23,7 @@ Process rules for everyone working on TIM, human or agent.
 ## 7. Releases
 
 - Keep a breaking change in its own PR, out of any package that should not go major. Its title's scope names every package whose files the PR changes: `frontend` (`web/`), `backend` (`api/`), `chart` (`deploy/helm/tim`), e.g. `feat(backend,chart)!: …`.
-- To force a version, add a `Release-As: X.Y.Z` footer in the squash-merge dialog of a PR that changes only that package.
+- Versions come from the commit types; `Release-As: X.Y.Z` is an optional exception, typed as a footer in the squash-merge dialog of a PR that changes only that package, to force or correct a version for the next release only.
 - Never edit versions by hand; release-please owns them.
 
 [ADR-0016](adr/0016-release-versions.md) describes the packages and which commits bump them.
