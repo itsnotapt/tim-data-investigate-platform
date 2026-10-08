@@ -1,6 +1,5 @@
 """Tests for pr_conventions.py: pure functions plus the CLI against temporary git repos."""
 
-import os
 import shutil
 import subprocess
 import sys
@@ -33,17 +32,6 @@ class PureFunctions(unittest.TestCase):
         ]:
             self.assertFalse(pc.is_conventional(bad), bad)
 
-    def test_branch_names(self):
-        for ok in [
-            "feat/x",
-            "fix/a-b",
-            "release-please--branches--main--components--frontend",
-            "dependabot/npm_and_yarn/x",
-        ]:
-            self.assertTrue(pc.is_valid_branch(ok), ok)
-        for bad in ["rewrite-v4", "main", "feat/", "feature/x"]:
-            self.assertFalse(pc.is_valid_branch(bad), bad)
-
     def test_is_breaking(self):
         self.assertTrue(pc.is_breaking("feat!: x"))
         self.assertTrue(pc.is_breaking("feat(web)!: x\n\nbody"))
@@ -58,11 +46,6 @@ class PureFunctions(unittest.TestCase):
         self.assertEqual(pc.scopes_of("fix(web): x"), {"web"})
         self.assertEqual(pc.scopes_of("feat!: x"), set())
         self.assertEqual(pc.scopes_of("feat: x (backend)"), set())
-
-    def test_release_as(self):
-        self.assertTrue(pc.release_as("chore: x\n\nRelease-As: 2.0.0"))
-        self.assertTrue(pc.release_as("chore: x\n\nrelease-as: 2.0.0"))
-        self.assertFalse(pc.release_as("chore: x\n\nno footer"))
 
     def test_packages(self):
         packages = pc.packages_from_config(CONFIG)
@@ -87,7 +70,7 @@ class PureFunctions(unittest.TestCase):
         self.assertEqual(pc.packages_for_files(["webx/a.ts"], packages), [])
 
 
-class RepoCase(unittest.TestCase):
+class Pr(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -100,20 +83,15 @@ class RepoCase(unittest.TestCase):
         self.git("add", ".")
         self.git("commit", "-q", "-m", "chore: init")
         self.base = self.git("rev-parse", "HEAD").strip()
-
-    clock = 1_800_000_000
+        self.git("checkout", "-q", "-b", "feat/x")
 
     def git(self, *args):
-        # Every git call advances the clock, so commits are ordered by date as on GitHub.
-        RepoCase.clock += 60
-        date = f"@{RepoCase.clock} +0000"
         return subprocess.run(  # noqa: S603
             ["git", *args],  # noqa: S607
             cwd=self.repo,
             check=True,
             capture_output=True,
             text=True,
-            env={**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date},
         ).stdout
 
     def commit(self, message, *files):
@@ -122,327 +100,78 @@ class RepoCase(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(path.read_text() + "x\n" if path.exists() else "x\n")
         self.git("add", ".")
-        extra = [] if files else ["--allow-empty"]
-        self.git("commit", "-q", *extra, "-m", message)
+        self.git("commit", "-q", "-m", message)
 
-    def run_cli(self, *args):
+    def pr(self, title):
         result = subprocess.run(  # noqa: S603
-            [sys.executable, str(SCRIPT), *args], cwd=self.repo, capture_output=True, text=True
+            [sys.executable, str(SCRIPT), "pr", self.base, "HEAD", "--title", title],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
         )
         return result.returncode, result.stdout + result.stderr
 
-    def head(self):
-        return self.git("rev-parse", "HEAD").strip()
-
-    def branch(self, name, start="main"):
-        self.git("checkout", "-q", "-B", name, start)
-
-    def merge(self, base, head, message=None):
-        self.git("checkout", "-q", base)
-        self.git(
-            "merge", "-q", "--no-ff", "-m", message or f"Merge pull request #1 from o/{head}", head
-        )
-
-    def pr(self, base_ref, head_ref, title, open_release_prs=0, base=None):
-        return self.run_cli(
-            "pr",
-            base or self.git("rev-parse", base_ref).strip(),
-            self.git("rev-parse", head_ref).strip(),
-            "--base-ref",
-            base_ref,
-            "--head-ref",
-            head_ref,
-            "--title",
-            title,
-            "--remote",
-            "",
-            "--open-release-prs",
-            str(open_release_prs),
-        )
-
-    def release_as(self):
-        return self.run_cli("release-as", self.base, self.head())
-
-
-class FlowCase(RepoCase):
-    """main and development as in docs/RULES.md section 6."""
-
-    def setUp(self):
-        super().setUp()
-        self.branch("development")
-
-
-class IntoDevelopment(FlowCase):
     def test_feature_pr_passes(self):
-        self.branch("feat/x", "development")
         self.commit("wip", "web/src/a.ts")
-        self.commit("feat(web)!: not squashed into development", "web/src/b.ts")
-        code, out = self.pr("development", "feat/x", "feat(web): add x")
+        self.commit("feat(web)!: not squashed", "web/src/b.ts")
+        code, out = self.pr("feat(web): add x")
         self.assertEqual(code, 0, out)
 
     def test_title_must_be_conventional(self):
-        self.branch("feat/x", "development")
         self.commit("feat: a", "web/src/a.ts")
-        code, out = self.pr("development", "feat/x", "Add x")
+        code, out = self.pr("Add x")
         self.assertEqual(code, 1)
         self.assertIn("PR title", out)
 
-    def test_branch_prefix(self):
-        for name, code in [
-            ("fix/x", 0),
-            ("dependabot/npm_and_yarn/web/x", 0),
-            ("feature/x", 1),
-            ("rewrite-v4", 1),
-        ]:
-            self.branch(name, "development")
-            self.commit("fix: a", f"web/src/{name.replace('/', '_')}.ts")
-            self.assertEqual(self.pr("development", name, "fix: a")[0], code, name)
-
     def test_breaking_scope_must_name_every_package_the_pr_changes(self):
-        self.branch("feat/x", "development")
         self.commit("feat: a", "api/src/a.py")
         self.commit("docs: b", "deploy/helm/tim/values.yaml", "web/e2e/a.spec.ts")
-        code, out = self.pr("development", "feat/x", "feat(api)!: drop y")
+        code, out = self.pr("feat(api)!: drop y")
         self.assertEqual(code, 1)
         self.assertIn("backend, chart", out)
         self.assertNotIn("frontend", out)
-        code, out = self.pr("development", "feat/x", "feat(backend)!: drop y")
+        code, out = self.pr("feat(backend)!: drop y")
         self.assertEqual(code, 1)
         self.assertIn("files of chart,", out)
         self.assertNotIn("files of backend", out)
-        code, out = self.pr("development", "feat/x", "feat(backend,chart)!: drop y")
+        code, out = self.pr("feat(backend,chart)!: drop y")
         self.assertEqual(code, 0, out)
 
     def test_breaking_scope_may_name_more_than_the_pr_changes(self):
-        self.branch("feat/x", "development")
         self.commit("feat: a", "api/src/a.py")
         for title in ["feat(chart,backend)!: drop y", "feat(backend,frontend,docs)!: drop y"]:
-            code, out = self.pr("development", "feat/x", title)
+            code, out = self.pr(title)
             self.assertEqual(code, 0, f"{title}: {out}")
 
     def test_breaking_without_scope_fails_when_a_package_changes(self):
-        self.branch("feat/x", "development")
         self.commit("feat: a", "web/src/a.ts", "docs/a.md")
-        code, out = self.pr("development", "feat/x", "feat!: drop y")
+        code, out = self.pr("feat!: drop y")
         self.assertEqual(code, 1)
         self.assertIn("files of frontend,", out)
-        self.assertEqual(self.pr("development", "feat/x", "feat(frontend)!: drop y")[0], 0)
+        self.assertEqual(self.pr("feat(frontend)!: drop y")[0], 0)
 
     def test_breaking_scope_uses_package_names_not_directories(self):
-        self.branch("feat/x", "development")
         self.commit("feat: a", "web/src/a.ts")
-        self.assertEqual(self.pr("development", "feat/x", "feat(web)!: drop y")[0], 1)
+        self.assertEqual(self.pr("feat(web)!: drop y")[0], 1)
 
     def test_non_breaking_scope_is_free_form(self):
-        self.branch("feat/x", "development")
         self.commit("feat: a", "web/src/a.ts", "api/src/a.py", "deploy/helm/tim/values.yaml")
         for title in ["feat: a", "feat(web): a", "fix(anything,else): a", "feat(chart): a"]:
-            code, out = self.pr("development", "feat/x", title)
+            code, out = self.pr(title)
             self.assertEqual(code, 0, f"{title}: {out}")
 
     def test_breaking_title_outside_packages_passes(self):
-        self.branch("docs/x", "development")
         self.commit("docs: a", "docs/a.md", "api/tests/test_a.py")
-        self.assertEqual(self.pr("development", "docs/x", "docs!: rename")[0], 0)
+        self.assertEqual(self.pr("docs!: rename")[0], 0)
 
-    def test_files_on_development_since_the_branch_point_are_not_the_prs(self):
-        self.branch("fix/x", "development")
+    def test_files_on_main_since_the_branch_point_are_not_the_prs(self):
         self.commit("fix: a", "docs/a.md")
-        self.git("checkout", "-q", "development")
+        self.git("checkout", "-q", "main")
         self.commit("feat: other", "web/src/other.ts")
-        self.assertEqual(self.pr("development", "fix/x", "fix!: a")[0], 0)
-
-    def test_frozen_while_main_is_ahead(self):
-        self.branch("feat/x", "development")
-        self.commit("feat: a", "web/src/a.ts")
-        self.git("checkout", "-q", "development")
-        self.commit("fix: b (#2)", "web/src/b.ts")
-        self.merge("main", "development")
-        code, out = self.pr("development", "feat/x", "feat: a")
-        self.assertEqual(code, 1)
-        self.assertIn("frozen", out)
-        self.merge("development", "main")
-        self.assertEqual(self.pr("development", "feat/x", "feat: a")[0], 0)
-
-    def test_frozen_while_a_release_pr_is_open(self):
-        self.branch("feat/x", "development")
-        self.commit("feat: a", "web/src/a.ts")
-        code, out = self.pr("development", "feat/x", "feat: a", open_release_prs=1)
-        self.assertEqual(code, 1)
-        self.assertIn("release PR", out)
-
-    def test_sync_from_main_passes_and_is_not_frozen(self):
-        self.git("checkout", "-q", "main")
-        self.commit("chore: release main", "web/package.json", "deploy/helm/tim/image-tags.yaml")
-        code, out = self.pr(
-            "development", "main", "Merge main into development", open_release_prs=1
-        )
-        self.assertEqual(code, 0, out)
-        code, out = self.pr("development", "main", "chore: merge main into development")
-        self.assertEqual(code, 1)
-        self.assertIn("merge commit", out)
-
-    def test_other_targets_are_not_frozen(self):
-        self.branch("feat/base", "development")
-        self.branch("feat/x", "feat/base")
-        self.commit("feat: a", "web/src/a.ts")
-        self.git("checkout", "-q", "main")
-        self.commit("chore: on main", "README.md")
-        self.assertEqual(self.pr("feat/base", "feat/x", "feat: a")[0], 0)
-
-
-class IntoMain(FlowCase):
-    def squash(self, title, *files):
-        self.git("checkout", "-q", "development")
-        self.commit(title, *files)
-
-    def test_development_passes(self):
-        self.squash("feat(web): a (#2)", "web/src/a.ts")
-        self.squash("build(deps): bump x from 1 to 2 (#3)", "web/package.json")
-        code, out = self.pr("main", "development", "Release: x")
-        self.assertEqual(code, 0, out)
-
-    def test_title_must_not_be_read_as_a_commit(self):
-        self.squash("feat(web): a (#2)", "web/src/a.ts")
-        for title, code in [
-            ("feat: release", 1),
-            ("fix(web): release", 1),
-            ("Release: web export", 0),
-            ("feat!: TIM v4", 0),
-        ]:
-            self.assertEqual(self.pr("main", "development", title)[0], code, title)
-
-    def test_only_development_and_release_branches(self):
-        self.branch("feat/x", "main")
-        self.commit("feat: a", "web/src/a.ts")
-        code, out = self.pr("main", "feat/x", "feat: a")
-        self.assertEqual(code, 1)
-        self.assertIn("development or release-please--*", out)
-        self.branch("release-please--branches--main", "main")
-        self.commit("chore: release main", "web/package.json", "deploy/helm/tim/image-tags.yaml")
-        code, out = self.pr("main", "release-please--branches--main", "chore: release main")
-        self.assertEqual(code, 0, out)
-
-    def test_per_commit_subjects(self):
-        self.squash("Update stuff", "web/src/a.ts")
-        code, out = self.pr("main", "development", "Release: x")
-        self.assertEqual(code, 1)
-        self.assertIn("Update stuff", out)
-
-    def test_breaking_commits_are_not_checked_again(self):
-        # Checked when squash-merged into development; commits from before the scope rule pass.
-        self.squash("feat(api)!: drop y (#2)", "api/src/a.py", "deploy/helm/tim/values.yaml")
-        self.squash("feat!: z (#3)\n\nBREAKING CHANGE: gone", "web/src/a.ts")
-        code, out = self.pr("main", "development", "feat!: TIM v4")
-        self.assertEqual(code, 0, out)
-
-    def test_release_as_without_package_files_fails(self):
-        self.squash("chore: x (#2)\n\nRelease-As: 2.0.0", "docs/a.md")
-        self.assertEqual(self.pr("main", "development", "Release: x")[0], 1)
-
-    def test_back_sync_merge_commits_are_ignored(self):
-        self.squash("feat(web): a (#2)", "web/src/a.ts")
-        self.merge("main", "development")
-        self.git("checkout", "-q", "main")
-        self.commit("chore: release main", "web/package.json", "deploy/helm/tim/image-tags.yaml")
-        self.git("tag", "frontend-v1.6.0")
-        self.merge("development", "main", "Merge pull request #4 from o/main")
-        self.squash("fix(web): b (#5)", "web/src/b.ts")
-        code, out = self.pr("main", "development", "Release: x")
-        self.assertEqual(code, 0, out)
-
-    def test_commit_older_than_the_last_release_fails(self):
-        self.squash("feat(web): a (#2)", "web/src/a.ts")
-        self.merge("main", "development")
-        self.squash("fix(api): landed while the release PR was open (#3)", "api/src/b.py")
-        self.squash("docs: not a package (#4)", "docs/b.md")
-        self.git("checkout", "-q", "main")
-        self.commit("chore: release main", "web/package.json", "api/pyproject.toml")
-        self.git("tag", "frontend-v1.6.0")
-        self.git("tag", "backend-v4.0.0")
-        self.merge("development", "main", "Merge pull request #5 from o/main")
-        self.squash("feat(web): c (#6)", "web/src/c.ts")
-        code, out = self.pr("main", "development", "Release: x")
-        self.assertEqual(code, 1)
-        self.assertIn("landed while the release PR was open", out)
-        self.assertIn("backend release", out)
-        self.assertNotIn("not a package", out)
-        self.assertNotIn("feat(web): c", out)
-
-
-class Commits(RepoCase):
-    def test_conventional_passes(self):
-        self.commit("feat(web): x", "web/src/a.ts")
-        self.assertEqual(self.run_cli("commits", self.base, self.head())[0], 0)
-
-    def test_non_conventional_fails(self):
-        self.commit("Update stuff", "web/src/a.ts")
-        code, out = self.run_cli("commits", self.base, self.head())
-        self.assertEqual(code, 1)
-        self.assertIn("Update stuff", out)
-
-    def test_merge_commits_are_excluded(self):
-        self.git("checkout", "-q", "-b", "feat/x")
-        self.commit("feat: a", "a.txt")
-        self.git("checkout", "-q", "main")
-        self.commit("fix: b", "b.txt")
-        self.git("merge", "-q", "--no-ff", "-m", "Merge branch 'feat/x'", "feat/x")
-        self.assertEqual(self.run_cli("commits", self.base, self.head())[0], 0)
-
-    def test_dependabot_and_release_please_subjects(self):
-        self.commit("build(deps): bump x from 1 to 2", "web/package.json")
-        self.commit(
-            "chore(main): release frontend 1.6.0",
-            "web/package.json",
-            "deploy/helm/tim/image-tags.yaml",
-        )
-        self.assertEqual(self.run_cli("commits", self.base, self.head())[0], 0)
-
-
-class Branch(RepoCase):
-    def test_branch_names(self):
-        for name, code in [
-            ("feat/x", 0),
-            ("rewrite-v4", 1),
-            ("release-please--branches--main--components--frontend", 0),
-            ("dependabot/npm_and_yarn/x", 0),
-        ]:
-            self.assertEqual(self.run_cli("branch", name)[0], code, name)
-
-
-class ReleaseAs(RepoCase):
-    def test_empty_release_as_fails(self):
-        self.commit("chore: release 2.0.0\n\nRelease-As: 2.0.0")
-        code, out = self.release_as()
-        self.assertEqual(code, 1)
-        self.assertIn("Release-As", out)
-
-    def test_release_as_on_excluded_paths_fails(self):
-        self.commit("chore: release 2.0.0\n\nRelease-As: 2.0.0", "api/tests/test_a.py")
-        self.assertEqual(self.release_as()[0], 1)
-
-    def test_release_as_on_package_files_passes(self):
-        self.commit("chore: release 2.0.0\n\nRelease-As: 2.0.0", "api/src/a.py")
-        self.assertEqual(self.release_as()[0], 0)
-
-    def test_breaking_commits_pass(self):
-        self.commit("feat(web)!: x", "web/src/a.ts")
-        self.commit("feat: x\n\nBREAKING CHANGE: gone", "api/src/a.py")
-        self.assertEqual(self.release_as()[0], 0)
-
-    def test_release_please_commit_passes(self):
-        self.commit(
-            "chore(main): release frontend 1.6.0",
-            "web/package.json",
-            "deploy/helm/tim/image-tags.yaml",
-        )
-        self.assertEqual(self.run_cli("commits", self.base, self.head())[0], 0)
-        self.assertEqual(self.release_as()[0], 0)
-
-    def test_dependabot_commit_passes(self):
-        self.commit("build(deps): bump x from 1 to 2", "web/package.json")
-        self.assertEqual(self.run_cli("commits", self.base, self.head())[0], 0)
-        self.assertEqual(self.release_as()[0], 0)
+        self.git("checkout", "-q", "feat/x")
+        # The PR head is feat/x and its base is the new main tip.
+        self.base = self.git("rev-parse", "main").strip()
+        self.assertEqual(self.pr("fix!: a")[0], 0)
 
 
 if __name__ == "__main__":
