@@ -1,11 +1,13 @@
-# NNNN. Title
+---
+status: proposed
+date: YYYY-MM-DD
+---
 
-- **Status:** Proposed | Accepted | Superseded by NNNN | Deprecated
-- **Date:** YYYY-MM-DD
+# Short title of the decision
 
 One to three sentences: the context, what was decided, and why.
 
-## Considered options
+## Considered Options
 
 Optional: only when the rejected alternatives are worth remembering.
 

@@ -1,11 +1,12 @@
-# 0016. Release versions for frontend, backend and the Helm chart
+---
+status: accepted
+date: 2026-10-07
+---
 
-- **Status:** Accepted
-- **Date:** 2026-10-07
-- **Deciders:** the user
-- **Related:** [0003](0003-repo-layout.md), [0008](0008-helm-chart.md), [deployment.md](../deployment.md), [development.md](../development.md)
+# Release versions for frontend, backend and the Helm chart
 
-## Context
+release-please owns all versioning, and the Helm chart pins one frontend and one backend image tag per version. TIM releases `web`, `api` and `deploy/helm/tim` as three independent release-please packages that continue the legacy frontend and backend version lines, with image tags pinned in `deploy/helm/tim/image-tags.yaml` and the chart patched in the release PR after a component release. This uses only native release-please features, within the constraints listed below.
+
 release-please owns all versioning. Before the rewrite, `main` had three release-please packages: `frontend` (1.5.6, tags `frontend-vX.Y.Z`), `backend` (3.0.4, tags `backend-vX.Y.Z`) and a repo-root `core` (3.0.7, tags `core-vX.Y.Z`, root `CHANGELOG.md`). It published the images `ghcr.io/itsnotapt/tim-data-investigate-platform/frontend`, `/frontend-enterprise` and `/backend`. The legacy combined chart (`helm/tim`, 0.0.2) was never published.
 
 The rewrite replaces `frontend/` with `web/` and `backend/` with `api/`. Most changes are in the frontend and are usually not breaking; the backend changes rarely. The Helm chart (`deploy/helm/tim`) is the deployable unit: it decides which frontend works with which backend, so each chart version pins one frontend image tag and one backend image tag.
@@ -18,7 +19,8 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 - Commits are read newest first in GitHub's history order, which is by commit date (as `git log`), and each package stops at the commit of its last release. On a branch that receives merge commits, a commit older than the last release commit is never released, even if it reaches the branch later.
 - A commit that touches no files is applied to every package, except packages with `exclude-paths`: those skip it. The pushed empty commit `chore: release 4.0.0` (footer `Release-As: 4.0.0`) would otherwise force every package to 4.0.0.
 
-## Decision
+The decision:
+
 - **Three independent packages, no linked group.**
   | Path | `package-name` (tags) | `release-type` | Continues |
   |---|---|---|---|
@@ -45,7 +47,10 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 - **Publishing.** `publish-chart` in `release-please.yml` runs when the chart releases. It waits for `build-web` and `build-api` when they run in the same workflow, and runs when they are skipped. Before pushing it checks that `Chart.yaml` `version` and `appVersion` equal the release, that `image-tags.yaml` matches `web/package.json` and `api/pyproject.toml`, and that both pinned images exist in the registry.
 - **CI guard.** `deploy-check.yml` checks that the manifest, `Chart.yaml` `version` and `appVersion` agree for the chart; the manifest, `web/package.json` and `image-tags.yaml` for frontend; and the manifest, `api/pyproject.toml`, `api/uv.lock` and `image-tags.yaml` for backend. It also checks that rendering `ci/minimal-values.yaml` uses the pinned tags.
 
-## Alternatives considered
+Decided by the user. Related: [0003](0003-repo-layout.md), [0008](0008-helm-chart.md), [deployment.md](../deployment.md), [development.md](../development.md).
+
+## Considered Options
+
 | Option | Pros | Cons |
 |---|---|---|
 | Linked group for web, api and chart, image tags defaulting to `appVersion` | One version, one PR | Breaks the legacy lines; a frontend fix releases an unchanged backend |
@@ -63,6 +68,7 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 | Independent packages, pinned `image-tags.yaml`, chart picking up the release commit as a `chore` (chosen) | Native release-please only; legacy lines continue; chart patch on any image change; chart CC for its own changes | Chart patch arrives one release PR later; other chart `chore` commits also release a patch |
 
 ## Consequences
+
 - A frontend-only fix needs two release PRs: the first releases the frontend image, the second releases a chart patch that pins it. Until the second is merged, `image-tags.yaml` on `main` is ahead of the latest published chart.
 - A published chart version is never overwritten: a chart is pushed only when release-please releases the chart, with a new version.
 - Commit types that release-please hides (`build`, `ci`, `docs`, `refactor`, `test`, `style`) in `web/` or `api/` build no image; in `deploy/helm/tim` they ship with the next chart release.
