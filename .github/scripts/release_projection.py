@@ -4,7 +4,7 @@
 
 Reads the output of `release-please release-pr --dry-run --target-branch development` and prints
 a Markdown comment with the versions release-please would propose once the PR is merged.
-See docs/RULES.md section 7 and docs/decisions/0016-release-versions.md.
+See docs/RULES.md section 7 and docs/adr/0016-release-versions.md.
 """
 
 from __future__ import annotations

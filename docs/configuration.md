@@ -15,7 +15,7 @@ Settings are read by pydantic-settings from the process environment and from a `
 
 ### Authentication
 
-See [ADR-0005](decisions/0005-auth-entra-popup-obo.md) for the design.
+See [ADR-0005](adr/0005-auth-entra-popup-obo.md) for the design.
 
 | Variable                  | Default                             | Required | Description                                                                                                                                                                                          |
 | ------------------------- | ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -76,7 +76,7 @@ A set value replaces the default rather than adding to it, so keep `**.kusto.win
 
 ### Storage
 
-See [ADR-0004](decisions/0004-postgresql-persistence.md).
+See [ADR-0004](adr/0004-postgresql-persistence.md).
 
 | Variable                          | Default | Required | Description                                                                                                            |
 | --------------------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -167,7 +167,7 @@ The entrypoint also honours `TIM_RUNTIME_DIR` (output directory, default `/tmp/t
 
 ### AG Grid Enterprise licence
 
-Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](decisions/0006-ag-grid-enterprise.md)). The licence key is optional.
+Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](adr/0006-ag-grid-enterprise.md)). The licence key is optional.
 
 - Container: `AGGRID_LICENSE` (Compose `.env`, or the Helm Secret key of the same name) becomes `agGridLicenseKey` in `/config.js`. Development: `VITE_AGGRID_LICENSE_KEY`, or `agGridLicenseKey` in `web/public/config.js`.
 - When a key is set, the SPA applies it at startup with `LicenseManager.setLicenseKey`.

@@ -16,7 +16,7 @@ New features go in `web/` or `api/`; see [architecture.md](architecture.md) for 
 ## 2. Sources of truth
 
 1. The code. If a doc disagrees with the code, the code wins; fix the doc in the same change.
-2. Accepted ADRs in [`docs/decisions/`](decisions/README.md). Changing something an ADR decided needs a new ADR that supersedes it.
+2. Accepted ADRs in [`docs/adr/`](adr/README.md). Changing something an ADR decided needs a new ADR that supersedes it.
 3. The docs in `docs/`.
 
 When a change involves a choice that is expensive to reverse (datastore, auth model, licensing, breaking API change, dropping a feature), ask the user before implementing it and record the outcome in an ADR.
@@ -25,12 +25,12 @@ When a change involves a choice that is expensive to reverse (datastore, auth mo
 
 - **Update docs in the same change as the code.** A change isn't done until the docs describe the new behaviour (configuration, commands, endpoints, architecture).
 - Docs and code comments describe the system **as it is now**. No history ("previously", "used to", "was changed to"), no task or ticket IDs, no justification essays.
-- Rationale and history belong in an ADR in [`docs/decisions/`](decisions/README.md):
-  1. Copy [`0000-template.md`](decisions/0000-template.md) to `NNNN-short-title.md` using the next free number. Numbers are never reused or renumbered.
+- Rationale and history belong in an ADR in [`docs/adr/`](adr/README.md):
+  1. Copy [`0000-template.md`](adr/0000-template.md) to `NNNN-short-title.md` using the next free number. Numbers are never reused or renumbered.
   2. Fill in context, decision, alternatives and consequences. Set the status to **Proposed**, or **Accepted** once the user agrees.
-  3. Add a row to the table in [`decisions/README.md`](decisions/README.md).
+  3. Add a row to the table in [`adr/README.md`](adr/README.md).
   4. If it replaces an earlier ADR, set the old one to **Superseded by NNNN**. Don't delete ADRs.
-- A code comment may link to an ADR (`# See docs/decisions/0004-postgresql-persistence.md`) where the code would otherwise look surprising.
+- A code comment may link to an ADR (`# See docs/adr/0004-postgresql-persistence.md`) where the code would otherwise look surprising.
 - Configuration changes are documented in [configuration.md](configuration.md); deployment changes in [deployment.md](deployment.md).
 - Dates are `YYYY-MM-DD`.
 
@@ -43,7 +43,7 @@ When a change involves a choice that is expensive to reverse (datastore, auth mo
 **Web (`web/`)**
 - TypeScript in strict mode, function components and hooks.
 - All API calls go through the typed client in `web/src/lib/api/`; all auth goes through the auth module. When the API changes, regenerate the types (`npm run gen:api`).
-- The grid is AG Grid Enterprise; there is no Community build (see [ADR-0006](decisions/0006-ag-grid-enterprise.md)).
+- The grid is AG Grid Enterprise; there is no Community build (see [ADR-0006](adr/0006-ag-grid-enterprise.md)).
 - `npm run lint`, `npm run format:check`, `npm run typecheck` and `npm test` must pass.
 
 **API (`api/`)**
@@ -87,4 +87,4 @@ See [development.md](development.md) for the exact commands.
 - `Release-As: X.Y.Z` must be on a commit that touches that package's files; empty commits are ignored. To force a version, add the footer in the squash-merge dialog of a PR that changes only that package.
 - Never edit versions by hand; release-please owns them.
 
-See [development.md](development.md#ci-and-releases) and [ADR-0016](decisions/0016-release-versions.md).
+See [development.md](development.md#ci-and-releases) and [ADR-0016](adr/0016-release-versions.md).

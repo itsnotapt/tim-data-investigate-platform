@@ -1,4 +1,4 @@
-# Enforces the PR rules in docs/RULES.md (sections 6 and 7); rationale in docs/decisions/0016-release-versions.md.
+# Enforces the PR rules in docs/RULES.md (sections 6 and 7); rationale in docs/adr/0016-release-versions.md.
 # The pr-conventions job is the required status check on development. The main -> development
 # back-sync PR is opened by GITHUB_TOKEN, so no workflow runs on it: release-please.yml runs the
 # same script for it and sets the pr-conventions status itself.

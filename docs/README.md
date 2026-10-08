@@ -13,4 +13,4 @@ TIM is a Kusto investigation platform: analysts run KQL, pivot between data sour
 | [configuration.md](configuration.md) | Environment variables for api, web and the local stack, incl. the AG Grid licence key |
 | [deployment.md](deployment.md) | Production deployment |
 | [operations.md](operations.md) | Runbook: health checks, logs, common tasks and failures |
-| [decisions/](decisions/README.md) | Architecture decision records (the place for rationale and history) |
+| [adr/](adr/README.md) | Architecture decision records (the place for rationale and history) |
