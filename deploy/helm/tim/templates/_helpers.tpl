@@ -54,15 +54,18 @@ app.kubernetes.io/component: {{ index . 1 }}
 {{- end }}
 {{- end }}
 
-{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image)
-The digest wins over the tag; the tag defaults to the chart appVersion. */}}
+{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image "backend")
+The digest wins over the tag; an empty tag uses the version pinned for the component
+("frontend" or "backend") in image-tags.yaml, which release-please updates. */}}
 {{- define "tim.image" -}}
 {{- $ := index . 0 -}}
 {{- $img := index . 1 -}}
+{{- $component := index . 2 -}}
 {{- if $img.digest -}}
 {{- printf "%s@%s" $img.repository $img.digest -}}
 {{- else -}}
-{{- printf "%s:%s" $img.repository (default $.Chart.AppVersion ($img.tag | toString)) -}}
+{{- $pinned := index ($.Files.Get "image-tags.yaml" | fromYaml) $component | toString -}}
+{{- printf "%s:%s" $img.repository (default $pinned ($img.tag | toString)) -}}
 {{- end -}}
 {{- end }}
 

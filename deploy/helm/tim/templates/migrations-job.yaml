@@ -48,7 +48,7 @@ spec:
       {{- end }}
       containers:
         - name: migrate
-          image: {{ include "tim.image" (list . .Values.api.image) | quote }}
+          image: {{ include "tim.image" (list . .Values.api.image "backend") | quote }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           command: ["alembic", "upgrade", "head"]
           securityContext:

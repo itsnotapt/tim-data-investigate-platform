@@ -19,7 +19,7 @@ spec:
   containers:
     - name: test
       # The web image ships wget; no extra image is pulled.
-      image: {{ include "tim.image" (list . .Values.web.image) | quote }}
+      image: {{ include "tim.image" (list . .Values.web.image "frontend") | quote }}
       imagePullPolicy: {{ .Values.web.image.pullPolicy }}
       securityContext:
         allowPrivilegeEscalation: false

@@ -1,6 +1,6 @@
 TIM is deployed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
-api image: {{ include "tim.image" (list . .Values.api.image) }}
-web image: {{ include "tim.image" (list . .Values.web.image) }}
+api image: {{ include "tim.image" (list . .Values.api.image "backend") }}
+web image: {{ include "tim.image" (list . .Values.web.image "frontend") }}
 
 Public URL: {{ include "tim.publicUrl" . }}
 Register {{ include "tim.publicUrl" . }}/blank.html as a SPA redirect URI in the Entra app registration.
