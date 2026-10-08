@@ -1,26 +1,18 @@
-import { render, screen } from '@testing-library/react';
+import 'fake-indexeddb/auto';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetConfigCache } from '../../lib/config/runtimeConfig';
+import { HttpResponse, http } from 'msw';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { apiUrl, makeRun } from '../../test/msw/handlers';
+import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
 import ShareQueryPage from './ShareQueryPage';
 import { encodeShareParams } from './shareLink';
 
-vi.mock('../tabs/tabStore', async (importOriginal) => {
-  const m = await importOriginal<typeof import('../tabs/tabStore')>();
-  const store = m.createTabsStore({
-    persistence: {
-      loadAll: () => Promise.resolve([]),
-      save: () => Promise.resolve(),
-      remove: () => Promise.resolve(),
-    },
-    debounceMs: 1,
-  });
-  return { ...m, useTabsStore: store };
-});
-const run = vi.hoisted(() => vi.fn(() => Promise.resolve()));
-vi.mock('../template-query/runTemplateQuery', () => ({ runTemplateQuery: run }));
+const server = setupMswServer();
+const queries: Record<string, unknown>[] = [];
 
 const template = {
   uuid: 't1',
@@ -29,7 +21,7 @@ const template = {
   path: 'p',
   cluster: 'c',
   database: 'Db',
-  query: 'T',
+  query: 'T | where User == {{str user}}',
   params: { user: { default: '' } },
 };
 
@@ -52,16 +44,18 @@ const link = (params: Record<string, unknown>, execute = 0, uuid = 't1') =>
   `/share/${uuid}?p=${encodeURIComponent(encodeShareParams(params))}&execute=${execute}`;
 
 beforeEach(() => {
-  window.appConfig = {
-    auth: { clientId: 'id', authority: 'https://login.example.com/t' },
-    redirectUri: 'https://tim.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
-  };
-  resetConfigCache();
-  run.mockClear();
+  configureTestApp();
+  queries.length = 0;
+  server.use(
+    http.post(apiUrl('/api/kusto/query'), async ({ request }) => {
+      queries.push((await request.json()) as Record<string, unknown>);
+      return HttpResponse.json(makeRun({ status: 'completed', resultData: [{ a: 1 }] }));
+    }),
+  );
   useTabsStore.reset();
   useTemplatesStore.setState({ templates: [template] as never, loaded: true });
 });
+afterEach(resetTestApp);
 
 describe('ShareQueryPage', () => {
   it('shows the not-found error', async () => {
@@ -92,7 +86,8 @@ describe('ShareQueryPage', () => {
       user: 'bob 😀',
     });
     expect(tab.state.editQuery).toBe(true);
-    expect(run).not.toHaveBeenCalled();
+    expect(queries).toHaveLength(0);
+    expect(tab.state.isExecuting).toBe(false);
   });
 
   it('execute=1 creates the tab and runs it immediately, without a dialog', async () => {
@@ -100,7 +95,12 @@ describe('ShareQueryPage', () => {
     await screen.findByTestId('loc');
     expect(screen.queryByText('Run shared query?')).not.toBeInTheDocument();
     const tab = Object.values(useTabsStore.getState().tabs)[0]!;
-    expect(run).toHaveBeenCalledWith(tab.componentUuid);
     expect(tab.state.editQuery).toBe(false);
+    await waitFor(() =>
+      expect(useTabsStore.getState().tabs[tab.componentUuid]?.state.rowCount).toBe(1),
+    );
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toMatchObject({ database: 'Db' });
+    expect(queries[0]?.['query']).toContain('bob');
   });
 });

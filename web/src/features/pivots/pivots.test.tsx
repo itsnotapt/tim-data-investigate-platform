@@ -1,13 +1,16 @@
+import 'fake-indexeddb/auto';
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { HttpResponse, http } from 'msw';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MenuItemDef } from 'ag-grid-community';
 import type { QueryTemplate } from '../../lib/api';
-import { resetConfigCache } from '../../lib/config/runtimeConfig';
+import { apiUrl, makeRun } from '../../test/msw/handlers';
+import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { newTestStore } from '../../test/tabsTestUtils';
 import { useTemplatesStore } from '../templates';
-import * as runModule from '../template-query/runTemplateQuery';
 import { createPivotTab } from './createPivotTab';
 import { buildPivotMenuItems, type OnPivot, type PivotActionParams } from './pivotMenu';
 import { usePivotMenu } from './usePivotMenu';
@@ -48,18 +51,12 @@ const fakeParams = (row: object, selected: object[] = []): PivotActionParams => 
 const act1 = (item: MenuItemDef | undefined, p: PivotActionParams) =>
   (item?.action as ((p: PivotActionParams) => void) | undefined)?.(p);
 
-vi.mock('../template-query/runTemplateQuery', () => ({
-  runTemplateQuery: vi.fn(() => Promise.resolve()),
-}));
+const server = setupMswServer();
 
 beforeEach(() => {
-  window.appConfig = {
-    auth: { clientId: 'id', authority: 'https://login.example.com/t' },
-    redirectUri: 'https://tim.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
-  };
-  resetConfigCache();
+  configureTestApp();
 });
+afterEach(resetTestApp);
 
 describe('buildPivotMenuItems', () => {
   it('nests by path, sorted, skipping hidden and non-query templates', () => {
@@ -165,12 +162,19 @@ describe('createPivotTab', () => {
 });
 
 describe('usePivotMenu shift handling', () => {
+  const queries: Record<string, unknown>[] = [];
   const store = newTestStore();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <MemoryRouter>{children}</MemoryRouter>
   );
   beforeEach(() => {
-    vi.mocked(runModule.runTemplateQuery).mockClear();
+    queries.length = 0;
+    server.use(
+      http.post(apiUrl('/api/kusto/query'), async ({ request }) => {
+        queries.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(makeRun({ status: 'completed', resultData: [{ a: 1 }] }));
+      }),
+    );
     store.reset();
     store.getState().createTab({
       componentUuid: 'parent',
@@ -201,7 +205,10 @@ describe('usePivotMenu shift handling', () => {
     act1(items()[0], fakeParams({ user: 'b' }));
     await vi.waitFor(() => expect(children()).toHaveLength(2));
     expect(children()[1]?.state.editQuery).toBe(false);
-    expect(runModule.runTemplateQuery).toHaveBeenCalledTimes(1);
+    // Only the child created without Shift is run.
+    await vi.waitFor(() => expect(children()[1]?.state.rowCount).toBe(1));
+    expect(children()[0]?.state.rowCount).toBeNull();
+    expect(queries).toHaveLength(1);
   });
 });
 
