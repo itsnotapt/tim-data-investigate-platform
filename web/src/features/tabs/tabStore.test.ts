@@ -70,18 +70,24 @@ describe('create', () => {
 
 describe('persistence', () => {
   it('debounces writes and coalesces updates', async () => {
-    vi.useFakeTimers();
-    const put = vi.spyOn(displayComponentsDao, 'put');
+    // Only the debounce timer is faked; fake-indexeddb needs the real setImmediate.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const idbPut = vi.spyOn(IDBObjectStore.prototype, 'put');
+    const tabWrites = () =>
+      idbPut.mock.contexts.filter(
+        (store) => (store as IDBObjectStore).name === 'display_components',
+      ).length;
     const a = store.getState().createTab(kusto(null));
     store.getState().updateTitle(a, 'x');
     store.getState().updateTitle(a, 'y');
-    expect(put).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5);
+    expect(tabWrites()).toBe(0);
+    expect(await displayComponentsDao.get(a)).toBeUndefined();
     await vi.advanceTimersByTimeAsync(20);
-    vi.useRealTimers();
     await store.getState().flush();
-    expect(put).toHaveBeenCalledTimes(1);
+    expect(tabWrites()).toBe(1);
     expect((await displayComponentsDao.get(a))?.title).toBe('y');
-    put.mockRestore();
+    idbPut.mockRestore();
   });
 
   it('reload preserves order, parents, titles and state', async () => {

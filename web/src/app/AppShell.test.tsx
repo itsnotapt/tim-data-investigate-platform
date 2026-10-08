@@ -1,21 +1,29 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from '../lib/auth';
-import { getConfig } from '../lib/config/runtimeConfig';
+import { getConfig, resetConfigCache } from '../lib/config/runtimeConfig';
 import { AppShell } from './AppShell';
 
-vi.mock('../lib/config/runtimeConfig', () => ({
-  getConfig: vi.fn(() => ({
+beforeEach(() => {
+  stubBootstrap();
+  window.appConfig = {
+    auth: { clientId: 'id', authority: 'https://login.example.com/t' },
+    redirectUri: 'https://tim.example.com/blank.html',
+    tagCluster: 'https://tags.kusto.windows.net',
     wikiUri: 'https://wiki.example/tim',
     issueUri: 'https://issues.example/new',
-  })),
-}));
-
-beforeEach(stubBootstrap);
+    defaultClusters: [],
+  };
+  resetConfigCache();
+});
+afterEach(() => {
+  delete window.appConfig;
+  resetConfigCache();
+});
 
 const ACCOUNT: AuthAccount = { id: 'u', name: 'jo@example.com', tenantId: 't' };
 

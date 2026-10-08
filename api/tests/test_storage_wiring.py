@@ -1,10 +1,10 @@
 import pytest
+from app_factory import create_test_app
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from tim_api.config import Settings, SettingsError, get_settings
 from tim_api.deps import get_run_store, get_template_store
-from tim_api.main import create_app
 from tim_api.storage import (
     MemoryStorage,
     PostgresStorage,
@@ -33,7 +33,7 @@ async def test_postgres_url_selects_postgres() -> None:
 
 
 def test_dependencies_resolve_from_lifespan() -> None:
-    app: FastAPI = create_app()
+    app: FastAPI = create_test_app()
 
     @app.get("/_probe")
     def probe(

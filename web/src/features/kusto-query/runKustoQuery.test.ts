@@ -1,27 +1,13 @@
 import 'fake-indexeddb/auto';
 import { HttpResponse, http } from 'msw';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { rowResultsDao } from '../../lib/storage';
-import {
-  apiUrl,
-  makeRun,
-  problemResponse,
-  queryRunHandlers,
-  TEST_API,
-} from '../../test/msw/handlers';
+import { apiUrl, makeRun, problemResponse, queryRunHandlers } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { newTestStore, kusto } from '../../test/tabsTestUtils';
 import { relativeRange } from '../../lib/time-range';
 import { runKustoQuery } from './runKustoQuery';
-
-vi.mock('../../lib/api/client', async (orig) => {
-  const m = await orig<typeof import('../../lib/api/client')>();
-  return {
-    ...m,
-    getApiClient: () =>
-      m.createApiClient({ baseUrl: TEST_API, getToken: () => Promise.resolve('t'), timeoutMs: 0 }),
-  };
-});
 
 const server = setupMswServer();
 const store = newTestStore();
@@ -32,6 +18,7 @@ const stats = {
 };
 
 beforeEach(() => {
+  configureTestApp();
   store.reset();
   store.getState().createTab(
     kusto('a', null, {
@@ -41,6 +28,7 @@ beforeEach(() => {
 });
 
 const tab = () => store.getState().tabs['a']!;
+afterEach(resetTestApp);
 
 describe('runKustoQuery', () => {
   it('stores rows, stats and rowCount, marks unvisited and triggers row data', async () => {

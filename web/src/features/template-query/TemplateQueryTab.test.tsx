@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -6,19 +7,6 @@ import { SnackbarHost } from '../../components/SnackbarHost';
 import { resetConfigCache } from '../../lib/config/runtimeConfig';
 import { useTabsStore } from '../tabs/tabStore';
 import { TemplateQueryTab, VALIDATION_MESSAGE } from './TemplateQueryTab';
-
-vi.mock('../tabs/tabStore', async (importOriginal) => {
-  const m = await importOriginal<typeof import('../tabs/tabStore')>();
-  const store = m.createTabsStore({
-    persistence: {
-      loadAll: () => Promise.resolve([]),
-      save: () => Promise.resolve(),
-      remove: () => Promise.resolve(),
-    },
-    debounceMs: 1,
-  });
-  return { ...m, useTabsStore: store };
-});
 
 // Monaco cannot run in jsdom.
 vi.mock('../../components/CodeEditor', () => ({

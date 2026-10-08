@@ -3,36 +3,16 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SnackbarHost } from '../../components/SnackbarHost';
-import { resetConfigCache } from '../../lib/config/runtimeConfig';
-import { apiUrl, makeRun, TEST_API } from '../../test/msw/handlers';
+import { apiUrl, makeRun } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { initAgGrid } from '../grid/agGridSetup';
 import { decodeShareParams } from '../share/shareLink';
 import { useTabsStore } from '../tabs/tabStore';
 import { TemplateQueryTab } from './TemplateQueryTab';
 
-vi.mock('../tabs/tabStore', async (importOriginal) => {
-  const m = await importOriginal<typeof import('../tabs/tabStore')>();
-  const store = m.createTabsStore({
-    persistence: {
-      loadAll: () => Promise.resolve([]),
-      save: () => Promise.resolve(),
-      remove: () => Promise.resolve(),
-    },
-    debounceMs: 1,
-  });
-  return { ...m, useTabsStore: store };
-});
-vi.mock('../../lib/api/client', async (orig) => {
-  const m = await orig<typeof import('../../lib/api/client')>();
-  return {
-    ...m,
-    getApiClient: () =>
-      m.createApiClient({ baseUrl: TEST_API, getToken: () => Promise.resolve('t'), timeoutMs: 0 }),
-  };
-});
 vi.mock('../../components/CodeEditor', () => ({ CodeEditor: () => <div /> }));
 
 const server = setupMswServer();
@@ -55,12 +35,7 @@ function Loc() {
 beforeEach(() => {
   useTabsStore.reset();
   initAgGrid({});
-  window.appConfig = {
-    auth: { clientId: 'id', authority: 'https://login.example.com/t' },
-    redirectUri: 'https://tim.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
-  };
-  resetConfigCache();
+  configureTestApp();
   useTabsStore.getState().createTab({
     componentUuid: 'root',
     componentName: 'KustoQueryResult',
@@ -91,6 +66,7 @@ function setup() {
   );
   return userEvent.setup();
 }
+afterEach(resetTestApp);
 
 describe('TemplateQueryTab actions', () => {
   it('Run Query shows the snackbar, runs, and stores results', async () => {

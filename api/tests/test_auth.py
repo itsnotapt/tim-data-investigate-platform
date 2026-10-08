@@ -2,16 +2,16 @@ import logging
 from typing import Annotated
 
 import pytest
+from app_factory import create_test_app
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from tim_api.auth import DEV_PRINCIPAL, Principal, get_current_principal
 from tim_api.config import SettingsError, get_settings
-from tim_api.main import create_app
 
 
 def _app() -> FastAPI:
-    app = create_app()
+    app = create_test_app()
 
     @app.get("/test/whoami")
     def whoami(principal: Annotated[Principal, Depends(get_current_principal)]) -> dict[str, str]:
@@ -48,7 +48,7 @@ def test_production_with_auth_disabled_fails_settings(monkeypatch: pytest.Monkey
 def test_production_with_auth_disabled_refuses_to_start(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TIM_ENVIRONMENT", "production")
     monkeypatch.setenv("TIM_AUTH_DISABLED", "true")
-    with pytest.raises(SettingsError), TestClient(create_app()):
+    with pytest.raises(SettingsError), TestClient(create_test_app()):
         pass
 
 

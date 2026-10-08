@@ -1,13 +1,13 @@
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Response, status
 
 from tim_api.auth.obo import build_obo_provider
-from tim_api.config import get_settings
+from tim_api.config import Settings, get_settings
 from tim_api.deps import get_storage
 from tim_api.errors import register_exception_handlers
 from tim_api.kusto.router import router as kusto_router
@@ -19,7 +19,7 @@ from tim_api.observability import (
 )
 from tim_api.openapi_meta import install_openapi
 from tim_api.query_runs.router import router as query_runs_router
-from tim_api.query_runs.runner import cancel_tasks, mark_stale_runs
+from tim_api.query_runs.runner import RACE_SECONDS, cancel_tasks, mark_stale_runs
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
 from tim_api.tagged_events.router import router as tagged_events_router
 from tim_api.templates.router import router as templates_router
@@ -27,8 +27,11 @@ from tim_api.templates.router import router as templates_router
 logger = logging.getLogger("tim_api")
 
 
+StorageFactory = Callable[[Settings], Storage]
+
+
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def _lifespan(app: FastAPI, storage_factory: StorageFactory) -> AsyncIterator[None]:
     # Loading settings here makes startup fail fast on invalid config, including
     # TIM_AUTH_DISABLED=true with TIM_ENVIRONMENT=production.
     settings = get_settings()
@@ -40,7 +43,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     # Fails fast when auth is enabled but no OBO client credential is configured.
     app.state.obo_provider = build_obo_provider(settings)
-    storage = build_storage(settings)
+    storage = storage_factory(settings)
     app.state.storage = storage
     app.state.run_tasks = set()
     app.state.run_slots = asyncio.Semaphore(settings.max_concurrent_runs)
@@ -54,13 +57,18 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         await storage.aclose()
 
 
-def create_app() -> FastAPI:
+def create_app(
+    *, storage_factory: StorageFactory = build_storage, race_seconds: float = RACE_SECONDS
+) -> FastAPI:
+    """Build the app. ``storage_factory`` and ``race_seconds`` default to production behaviour."""
     app = FastAPI(
         title="TIM API",
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
-        lifespan=_lifespan,
+        lifespan=lambda app: _lifespan(app, storage_factory),
     )
+
+    app.state.race_seconds = race_seconds
 
     @app.get("/api/healthChecks/liveness", status_code=status.HTTP_204_NO_CONTENT)
     def liveness() -> Response:

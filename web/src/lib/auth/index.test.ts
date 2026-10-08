@@ -1,13 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
-import { getConfig } from '../config/runtimeConfig';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { resetConfigCache } from '../config/runtimeConfig';
 import { DEV_ACCOUNT, DEV_TOKEN, createAuthClient } from './index';
 
-vi.mock('../config/runtimeConfig', () => ({
-  getConfig: vi.fn(() => ({
+beforeEach(() => {
+  window.appConfig = {
     auth: { clientId: 'cid', authority: 'https://login.microsoftonline.com/tid' },
     redirectUri: 'https://app.example.com/blank.html',
-  })),
-}));
+    tagCluster: 'https://tags.kusto.windows.net',
+  };
+  resetConfigCache();
+});
+afterEach(() => {
+  delete window.appConfig;
+  resetConfigCache();
+});
 
 describe('createAuthClient', () => {
   it('returns the stub when VITE_AUTH_STUB is true in development', async () => {
@@ -29,7 +35,6 @@ describe('createAuthClient', () => {
   it.each([undefined, '', 'false', 'TRUE'])('uses MSAL, not the stub, for %j', (value) => {
     const client = createAuthClient({ VITE_AUTH_STUB: value, MODE: 'development' });
     expect(client).toHaveProperty('msal');
-    expect(getConfig).toHaveBeenCalled();
   });
 
   it('stub logout clears the account and token; login restores it', async () => {

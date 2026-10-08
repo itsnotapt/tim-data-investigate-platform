@@ -4,22 +4,18 @@ import logging
 from collections.abc import Iterator
 
 import pytest
+from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
-from tim_api.auth import Principal, get_current_principal
-from tim_api.main import create_app
 from tim_api.observability import log_safe
-
-PRINCIPAL = Principal(oid="oid-1", name="alice@example.com", tenant_id="t", token=SecretStr("x"))
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def client(monkeypatch: pytest.MonkeyPatch, auth: AuthKit) -> Iterator[TestClient]:
     monkeypatch.setenv("TIM_MAX_REQUEST_BYTES", "2000")
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
-    with TestClient(app) as c:
+    app = create_test_app()
+    auth.install(app)
+    with TestClient(app, headers=auth.headers()) as c:
         yield c
 
 

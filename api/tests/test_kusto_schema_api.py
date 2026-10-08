@@ -3,10 +3,10 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
-from tim_api.auth import Principal, get_current_principal
+from tim_api.auth import Principal
 from tim_api.auth.dependencies import get_obo_provider
 from tim_api.kusto.query_client import (
     KustoForbiddenError,
@@ -14,9 +14,8 @@ from tim_api.kusto.query_client import (
     KustoQueryError,
     get_kusto_client,
 )
-from tim_api.main import create_app
 
-PRINCIPAL = Principal(oid="o", name="alice@example.com", tenant_id="t", token=SecretStr("x"))
+CALLER = {"oid": "oid-1", "name": "alice@example.com", "tenant_id": "tenant-id"}
 DOC = {"Databases": {"Sec": {"Name": "Sec", "Tables": {}}}}
 CLUSTER = "https://c1.westeurope.kusto.windows.net"
 
@@ -56,13 +55,13 @@ def kusto() -> FakeKusto:
 
 
 @pytest.fixture
-def client(obo: FakeObo, kusto: FakeKusto) -> Iterator[TestClient]:
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: PRINCIPAL
+def client(obo: FakeObo, kusto: FakeKusto, auth: AuthKit) -> Iterator[TestClient]:
+    app = create_test_app()
+    auth.install(app)
     app.dependency_overrides[get_obo_provider] = lambda: obo
     fake: KustoQueryClient = kusto  # type: ignore[assignment]
     app.dependency_overrides[get_kusto_client] = lambda: fake
-    with TestClient(app) as c:
+    with TestClient(app, headers=auth.headers(CALLER["name"], CALLER["oid"])) as c:
         yield c
 
 
@@ -74,7 +73,9 @@ def test_happy_path_normalises_cluster(client: TestClient, obo: FakeObo, kusto: 
     r = post(client, CLUSTER.upper().replace("HTTPS", "https") + "/")
     assert r.status_code == 200
     assert r.json() == {"schema": DOC}
-    assert obo.calls == [(PRINCIPAL, CLUSTER)]
+    [(principal, cluster)] = obo.calls
+    assert cluster == CLUSTER
+    assert (principal.oid, principal.name, principal.tenant_id) == tuple(CALLER.values())
     assert kusto.calls == [(CLUSTER, "Sec", "kusto-token")]
 
 
@@ -129,7 +130,7 @@ def test_bad_cluster_400_before_token(
 
 
 def test_unauthenticated_401(obo: FakeObo, kusto: FakeKusto) -> None:
-    app = create_app()
+    app = create_test_app()
     app.dependency_overrides[get_obo_provider] = lambda: obo
     with TestClient(app) as c:
         r = post(c)
