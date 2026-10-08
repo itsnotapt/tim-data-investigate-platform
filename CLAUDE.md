@@ -14,7 +14,7 @@ Issues and specs live in GitHub Issues for `itsnotapt/tim-data-investigate-platf
 
 ### Triage labels
 
-Triage uses a category label and a state label. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+The triage labels and their transitions are in [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 
 ### Domain docs
 
