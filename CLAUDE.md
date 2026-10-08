@@ -2,16 +2,11 @@
 
 TIM is a Kusto investigation platform: `web/` (React, TypeScript) and `api/` (Python, FastAPI) backed by PostgreSQL.
 
-**Before doing anything, read [docs/RULES.md](docs/RULES.md).** The [documentation index](docs/README.md) lists everything else.
+- [CODING_STANDARDS.md](CODING_STANDARDS.md): read before writing or reviewing code.
+- [docs/RULES.md](docs/RULES.md): sources of truth, git and PR flow.
+- [docs/README.md](docs/README.md): documentation index.
 
-Key rules (details in RULES.md):
-- Frontend code goes in `web/`, backend code in `api/`. See [docs/architecture.md](docs/architecture.md).
-- Update docs in the same change as the code. Docs and comments describe the current code only; rationale and history go in an ADR in `docs/adr/`.
-- Every change ships with tests; lint, type checks and tests must pass ([docs/development.md](docs/development.md)).
-- Commit only when asked. Never commit to `main` or `development` directly: branch off `development` as `feat/…`, `fix/…`, `docs/…`, `chore/…` or `refactor/…`; use Conventional Commits.
-- PRs into `development` are squash-merged, so the PR title is the release commit; `main` takes only merge commits from `development` and release-please ([RULES.md §6–7](docs/RULES.md#6-git)).
-
-## Issues, labels and domain docs
+## Agent skills
 
 ### Issue tracker
 
@@ -19,7 +14,7 @@ Issues and specs live in GitHub Issues for `itsnotapt/tim-data-investigate-platf
 
 ### Triage labels
 
-A triaged issue carries a category label (`bug`, `enhancement`) and one state label: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human` or `wontfix`. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+Triage uses a category label and a state label. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 
 ### Domain docs
 

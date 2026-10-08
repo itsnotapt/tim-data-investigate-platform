@@ -2,11 +2,12 @@
 
 TIM is a Kusto investigation platform: analysts run KQL, pivot between data sources with shared query templates, and tag and comment on events. It consists of a React single-page app (`web/`) and a FastAPI service (`api/`) backed by PostgreSQL.
 
-**Contributors and agents: read [RULES.md](RULES.md) first.**
+**Contributors and agents: read [CODING_STANDARDS.md](../CODING_STANDARDS.md) before writing or reviewing code, and [RULES.md](RULES.md) for git and PR flow.**
 
 | Document | Contents |
 |---|---|
-| [RULES.md](RULES.md) | How to work on the repo: sources of truth, docs, engineering, tests, git |
+| [CODING_STANDARDS.md](../CODING_STANDARDS.md) | Coding rules a reviewer judges: docs, security, frontend, backend, tests |
+| [RULES.md](RULES.md) | Process: sources of truth, when to ask the user, git, PRs and releases |
 | [GLOSSARY.md](../GLOSSARY.md) | Domain vocabulary: investigations, tabs, query templates, pivots, query runs, tagging |
 | [architecture.md](architecture.md) | Parts of the system, data flow, web and api internals, persistence, security model, Kusto tables |
 | [api.md](api.md) | HTTP API reference: endpoints, schemas, errors |

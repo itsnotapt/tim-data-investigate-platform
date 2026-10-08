@@ -1,63 +1,29 @@
 # Working rules
 
-These rules apply to everyone working on TIM, human or agent. Read this file before making a change, then use the [documentation index](README.md) to find what you need.
+Process rules for everyone working on TIM, human or agent. Code rules are in [CODING_STANDARDS.md](../CODING_STANDARDS.md); the [documentation index](README.md) lists everything else.
 
 ## 1. Code layout
 
-| Path | Contents |
-|---|---|
-| `web/` | React single-page app (TypeScript, Vite) |
-| `api/` | FastAPI service (Python 3.12, uv) |
-| `deploy/` | Deployment assets (see [deployment.md](deployment.md)) |
-| `docs/` | Project documentation and architecture decision records |
-| `GLOSSARY.md` | Domain vocabulary (definitions of domain terms only) |
-
-New features go in `web/` or `api/`; see [architecture.md](architecture.md) for how they fit together.
+`web/` holds the React app and `api/` the FastAPI service. [architecture.md](architecture.md) describes the layout and how the parts fit together.
 
 ## 2. Sources of truth
 
 1. The code. If a doc disagrees with the code, the code wins; fix the doc in the same change.
-2. Accepted ADRs in [`docs/adr/`](adr/README.md). Changing something an ADR decided needs a new ADR that supersedes it.
-3. The docs in `docs/` and the domain vocabulary in [`GLOSSARY.md`](../GLOSSARY.md).
+2. ADRs in [`docs/adr/`](adr/README.md) with status `accepted`; [adr/README.md](adr/README.md) describes the format. Changing something an ADR decided needs a new ADR that supersedes it.
 
-When a change involves a choice that is hard to reverse (datastore, auth model, licensing, breaking API change, dropping a feature), ask the user before implementing it. Record the outcome in an ADR when it is also surprising without context and the result of a real trade-off.
+Ask the user before implementing a choice that is hard to reverse: datastore, auth model, licensing, a breaking API change, dropping a feature. Record the outcome in an ADR when it passes the tests in [adr/README.md](adr/README.md#adding-an-adr).
 
 ## 3. Documentation
 
-- **Update docs in the same change as the code.** A change isn't done until the docs describe the new behaviour (configuration, commands, endpoints, architecture).
-- Docs and code comments describe the system **as it is now**. No history ("previously", "used to", "was changed to"), no task or ticket IDs, no justification essays.
-- A decision that is hard to reverse, surprising without context and the result of a real trade-off is recorded in an ADR in [`docs/adr/`](adr/README.md); [adr/README.md](adr/README.md#adding-an-adr) says how. Other reasoning goes in the PR description.
-- A code comment may link to an ADR (`# See docs/adr/0004-postgresql-persistence.md`) where the code would otherwise look surprising.
-- Domain terms are defined only in [`GLOSSARY.md`](../GLOSSARY.md), with no implementation details; the other docs use those terms and describe the implementation. [agents/domain.md](agents/domain.md#updating-glossarymd) says how to update it.
-- Configuration changes are documented in [configuration.md](configuration.md); deployment changes in [deployment.md](deployment.md).
-- Dates are `YYYY-MM-DD`.
+Documentation rules are in [CODING_STANDARDS.md](../CODING_STANDARDS.md#documentation). [agents/domain.md](agents/domain.md#updating-glossarymd) says how to update the glossary.
 
 ## 4. Engineering
 
-**General**
-- No secrets in the repo. Configuration comes from environment variables.
-- The user identity is always taken from the access token, never from the request body.
-
-**Web (`web/`)**
-- TypeScript in strict mode, function components and hooks.
-- All API calls go through the typed client in `web/src/lib/api/`; all auth goes through the auth module. When the API changes, regenerate the types (`npm run gen:api`).
-- The grid is AG Grid Enterprise; there is no Community build (see [ADR-0006](adr/0006-ag-grid-enterprise.md)).
-- `npm run lint`, `npm run format:check`, `npm run typecheck` and `npm test` must pass.
-
-**API (`api/`)**
-- Type hints everywhere; `ruff check`, `ruff format --check` and `mypy` must be clean.
-- Database schema changes go through an Alembic migration in `api/migrations/`.
-- Kusto and Entra ID are accessed through interfaces so tests can replace them.
-
-See [development.md](development.md) for the exact commands.
+Code rules are in [CODING_STANDARDS.md](../CODING_STANDARDS.md); [development.md](development.md) has the commands that run lint, type checks and tests.
 
 ## 5. Tests
 
-- Every change ships with tests. Tests exercise behaviour through public interfaces (HTTP endpoints, a module's exports, what a component renders), not internals, and replace only what is outside the repo (Kusto, Entra ID, tag ingestion, the clock).
-- Fix a bug test-first: write a test that fails on the bug at a seam where the bug really occurs, then fix it. If no such seam exists, say so in the PR.
-- API: every endpoint has at least a happy-path test and a test for its main error case (pytest).
-- Web: unit/component tests (Vitest + Testing Library) for logic-heavy code; Playwright e2e tests for user flows.
-- Don't merge with failing or skipped tests unless the user agrees.
+Test rules are in [CODING_STANDARDS.md](../CODING_STANDARDS.md#tests). Do not merge with failing or skipped tests unless the user agrees.
 
 ## 6. Git
 

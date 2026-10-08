@@ -74,7 +74,7 @@ React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores,
 | `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
 | `web/e2e/` | Playwright e2e tests: `flows/` specs, `mocks/` (api and editor mocks), fixtures, screenshot helper |
 
-Features may import `lib/*` and `components/*` and the public `index.ts` of other features, not their internals. Exceptions: code outside `features/grid` imports `features/grid/rowUpdates` directly, and code loaded at startup imports `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle).
+Features import `lib/*` and `components/*`. Eight features (`new-query`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid`, `column-views`) have a public `index.ts`, and most imports between features go through it. About twenty imports reach into another feature's modules directly, for example `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery`, `share/shareLink` and `grid/rowUpdates`. Code outside `features/grid` imports `features/grid/rowUpdates` directly, and code loaded at startup imports `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle). `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs`, `share` and `export-import` directly.
 
 ### Routes
 

@@ -2,7 +2,7 @@
 
 Issues and specs for TIM live as GitHub issues in `itsnotapt/tim-data-investigate-platform`. Use the `gh` CLI for every operation; run inside a clone, `gh` infers the repo from `git remote -v`.
 
-Issue numbers belong in issues, PR descriptions and commit messages, never in `docs/` or code comments ([RULES.md §3](../RULES.md#3-documentation)).
+Where issue numbers may appear is set in [CODING_STANDARDS.md](../../CODING_STANDARDS.md#documentation).
 
 ## Commands
 
