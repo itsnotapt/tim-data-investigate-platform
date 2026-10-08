@@ -2,11 +2,13 @@
 # The pr-conventions job is the required status check on development. The main -> development
 # back-sync PR is opened by GITHUB_TOKEN, so no workflow runs on it: release-please.yml runs the
 # same script for it and sets the pr-conventions status itself.
+# release-projection comments on development -> main PRs with the versions release-please would
+# propose after the merge; it is informational and never fails.
 name: PR conventions
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+    types: [opened, edited, synchronize, reopened]
 
 concurrency:
   group: pr-conventions-${{ github.event.pull_request.number }}
@@ -45,9 +47,61 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
           TITLE: ${{ github.event.pull_request.title }}
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           OPEN_RELEASE_PRS: ${{ steps.release-prs.outputs.count }}
         run: |
           python3 .github/scripts/pr_conventions.py pr "$BASE" "$HEAD" \
             --base-ref "$BASE_REF" --head-ref "$HEAD_REF" --title "$TITLE" \
-            --labels "$LABELS" --open-release-prs "$OPEN_RELEASE_PRS"
+            --open-release-prs "$OPEN_RELEASE_PRS"
+
+  release-projection:
+    name: release-projection
+    # PRs opened by GITHUB_TOKEN (release PRs) start no workflow; only development -> main runs it.
+    if: github.base_ref == 'main' && github.head_ref == 'development' && github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      # The release-please version bundled by googleapis/release-please-action@v5.
+      RELEASE_PLEASE_VERSION: 17.6.0
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # development contains main (back-sync and release freeze) and the merge commit's title is not
+      # read as a commit, so a release PR built on development has the versions main would get.
+      - name: Dry-run release-please on development
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npx --yes "release-please@${RELEASE_PLEASE_VERSION}" release-pr --dry-run \
+            --token "$GH_TOKEN" --repo-url "$GITHUB_REPOSITORY" --target-branch "$GITHUB_HEAD_REF" \
+            --config-file release-please-config.json --manifest-file .release-please-manifest.json \
+            > "$RUNNER_TEMP/dry-run.txt" || echo "::warning::release-please dry-run failed"
+          cat "$RUNNER_TEMP/dry-run.txt"
+
+      - name: Comment the projection
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 .github/scripts/release_projection.py "$RUNNER_TEMP/dry-run.txt" \
+            --source "release-please ${RELEASE_PLEASE_VERSION} release-pr --dry-run on ${GITHUB_HEAD_REF} at ${HEAD_SHA:0:7}" \
+            > "$RUNNER_TEMP/comment.md"
+          cat "$RUNNER_TEMP/comment.md"
+          id="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- release-projection -->"))) | .id' \
+            | head -n 1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F "body=@$RUNNER_TEMP/comment.md" >/dev/null
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F "body=@$RUNNER_TEMP/comment.md" >/dev/null
+          fi
