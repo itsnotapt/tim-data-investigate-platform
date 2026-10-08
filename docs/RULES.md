@@ -20,19 +20,15 @@ New features go in `web/` or `api/`; see [architecture.md](architecture.md) for 
 2. Accepted ADRs in [`docs/adr/`](adr/README.md). Changing something an ADR decided needs a new ADR that supersedes it.
 3. The docs in `docs/` and the domain vocabulary in [`GLOSSARY.md`](../GLOSSARY.md).
 
-When a change involves a choice that is expensive to reverse (datastore, auth model, licensing, breaking API change, dropping a feature), ask the user before implementing it and record the outcome in an ADR.
+When a change involves a choice that is hard to reverse (datastore, auth model, licensing, breaking API change, dropping a feature), ask the user before implementing it. Record the outcome in an ADR when it is also surprising without context and the result of a real trade-off.
 
 ## 3. Documentation
 
 - **Update docs in the same change as the code.** A change isn't done until the docs describe the new behaviour (configuration, commands, endpoints, architecture).
 - Docs and code comments describe the system **as it is now**. No history ("previously", "used to", "was changed to"), no task or ticket IDs, no justification essays.
-- Rationale and history belong in an ADR in [`docs/adr/`](adr/README.md):
-  1. Copy [`0000-template.md`](adr/0000-template.md) to `NNNN-short-title.md` using the next free number. Numbers are never reused or renumbered.
-  2. Fill in context, decision, alternatives and consequences. Set the status to **Proposed**, or **Accepted** once the user agrees.
-  3. Add a row to the table in [`adr/README.md`](adr/README.md).
-  4. If it replaces an earlier ADR, set the old one to **Superseded by NNNN**. Don't delete ADRs.
+- A decision that is hard to reverse, surprising without context and the result of a real trade-off is recorded in an ADR in [`docs/adr/`](adr/README.md); [adr/README.md](adr/README.md#adding-an-adr) says how. Other reasoning goes in the PR description.
 - A code comment may link to an ADR (`# See docs/adr/0004-postgresql-persistence.md`) where the code would otherwise look surprising.
-- Domain terms are defined in [`GLOSSARY.md`](../GLOSSARY.md), without implementation details; [architecture.md](architecture.md#domain-terms-in-code) maps them to the code.
+- Domain terms are defined only in [`GLOSSARY.md`](../GLOSSARY.md), with no implementation details; the other docs use those terms and describe the implementation. [agents/domain.md](agents/domain.md#updating-glossarymd) says how to update it.
 - Configuration changes are documented in [configuration.md](configuration.md); deployment changes in [deployment.md](deployment.md).
 - Dates are `YYYY-MM-DD`.
 
@@ -57,7 +53,8 @@ See [development.md](development.md) for the exact commands.
 
 ## 5. Tests
 
-- Every change ships with tests. Bug fixes include a test that fails without the fix.
+- Every change ships with tests. Tests exercise behaviour through public interfaces (HTTP endpoints, a module's exports, what a component renders), not internals, and replace only what is outside the repo (Kusto, Entra ID, tag ingestion, the clock).
+- Fix a bug test-first: write a test that fails on the bug at a seam where the bug really occurs, then fix it. If no such seam exists, say so in the PR.
 - API: every endpoint has at least a happy-path test and a test for its main error case (pytest).
 - Web: unit/component tests (Vitest + Testing Library) for logic-heavy code; Playwright e2e tests for user flows.
 - Don't merge with failing or skipped tests unless the user agrees.

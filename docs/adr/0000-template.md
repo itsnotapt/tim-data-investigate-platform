@@ -2,18 +2,13 @@
 
 - **Status:** Proposed | Accepted | Superseded by NNNN | Deprecated
 - **Date:** YYYY-MM-DD
-- **Deciders:** (the user / agent that proposed it)
-- **Related:** other ADRs, issues, docs
 
-## Context
-What forces are at play? Cite relevant code (`path:line`) or docs.
+One to three sentences: the context, what was decided, and why.
 
-## Decision
-What we will do, stated plainly.
+## Considered options
 
-## Alternatives considered
-| Option | Pros | Cons |
-|---|---|---|
+Optional: only when the rejected alternatives are worth remembering.
 
 ## Consequences
-What becomes easier or harder. Any follow-up work.
+
+Optional: only when non-obvious downstream effects need calling out.

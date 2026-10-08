@@ -19,8 +19,8 @@ Issues and specs live in GitHub Issues for `itsnotapt/tim-data-investigate-platf
 
 ### Triage labels
 
-Each open issue carries one triage label: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human` or `wontfix`. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+A triaged issue carries a category label (`bug`, `enhancement`) and one state label: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human` or `wontfix`. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 
 ### Domain docs
 
-Domain terms are defined in [GLOSSARY.md](GLOSSARY.md); use them, and record hard-to-reverse decisions as ADRs in [docs/adr/](docs/adr/README.md). See [docs/agents/domain.md](docs/agents/domain.md).
+Single context: domain terms are defined only in [GLOSSARY.md](GLOSSARY.md), decisions in [docs/adr/](docs/adr/README.md). See [docs/agents/domain.md](docs/agents/domain.md).

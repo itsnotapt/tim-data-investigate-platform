@@ -1,6 +1,6 @@
 # TIM
 
-TIM is a Kusto investigation platform: analysts run KQL, pivot from result rows into other queries through shared query templates, and tag and comment on events. This file is the domain vocabulary; how each term is implemented is in [docs/architecture.md](docs/architecture.md#domain-terms-in-code).
+TIM is a Kusto investigation platform: analysts run KQL, pivot from result rows into other queries through shared query templates, and tag and comment on events.
 
 ## Language
 
