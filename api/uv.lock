@@ -1006,7 +1006,7 @@ wheels = [
 
 [[package]]
 name = "tim-api"
-version = "3.0.4"
+version = "4.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
