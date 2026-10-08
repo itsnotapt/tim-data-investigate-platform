@@ -47,11 +47,9 @@ One to three sentences: the context, what was decided, and why.
 
 Numbers are never reused, so the sequence has gaps.
 
-Some ADRs refer to documents from the React + Python migration. Those are preserved at git tag `migration-complete` (`git show migration-complete:docs/<path>`).
-
 | ADR | Title | Status | Date |
 |---|---|---|---|
-| [0001](0001-react-python-rewrite.md) | Rewrite TIM as React + Python in `web/` and `api/` | accepted | 2026-09-29 |
+| [0001](0001-react-python-web-api.md) | TIM is React + Python in `web/` and `api/` | accepted | 2026-09-29 |
 | [0004](0004-postgresql-persistence.md) | PostgreSQL for templates and query runs | accepted | 2026-09-29 |
 | [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to Kusto | accepted | 2026-09-29 |
 | [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise only; licence key optional (trial mode without it) | accepted | 2026-09-29 |
