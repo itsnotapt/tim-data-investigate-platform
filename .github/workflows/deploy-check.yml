@@ -76,29 +76,43 @@ jobs:
             exit 1
           fi
 
-      - name: Release versions are linked
+      - name: Release versions are consistent
         shell: python
         run: |
           import json, re, sys, tomllib
           chart = open("deploy/helm/tim/Chart.yaml").read()
+          tags = dict(re.findall(r"^(frontend|backend): *['\"]?([^'\"\s]+)", open("deploy/helm/tim/image-tags.yaml").read(), re.M))
           manifest = json.load(open(".release-please-manifest.json"))
-          versions = {
-              "Chart.yaml version": re.search(r"^version: *(\S+)", chart, re.M).group(1),
-              "Chart.yaml appVersion": re.search(r'^appVersion: *"([^"]+)"', chart, re.M).group(1),
-              "web/package.json": json.load(open("web/package.json"))["version"],
-              "api/pyproject.toml": tomllib.load(open("api/pyproject.toml", "rb"))["project"]["version"],
-              **{f"manifest {path}": manifest[path] for path in ("web", "api", "deploy/helm/tim")},
+          lock = tomllib.load(open("api/uv.lock", "rb"))
+          groups = {
+              "chart": {
+                  "manifest deploy/helm/tim": manifest["deploy/helm/tim"],
+                  "Chart.yaml version": re.search(r"^version: *(\S+)", chart, re.M).group(1),
+                  "Chart.yaml appVersion": re.search(r'^appVersion: *"([^"]+)"', chart, re.M).group(1),
+              },
+              "frontend": {
+                  "manifest web": manifest["web"],
+                  "web/package.json": json.load(open("web/package.json"))["version"],
+                  "image-tags.yaml frontend": tags.get("frontend"),
+              },
+              "backend": {
+                  "manifest api": manifest["api"],
+                  "api/pyproject.toml": tomllib.load(open("api/pyproject.toml", "rb"))["project"]["version"],
+                  "api/uv.lock tim-api": next(p["version"] for p in lock["package"] if p["name"] == "tim-api"),
+                  "image-tags.yaml backend": tags.get("backend"),
+              },
           }
-          if len(set(versions.values())) != 1:
-              sys.exit(f"web, api and the chart must share one version: {versions}")
+          errors = [f"{name} versions differ: {versions}" for name, versions in groups.items() if len(set(versions.values())) != 1]
+          if errors:
+              sys.exit("\n".join(errors))
 
-      - name: Image tags default to appVersion
+      - name: Image tags default to the pinned versions
         run: |
-          app_version="$(helm show chart "$CHART" | sed -n 's/^appVersion: *"\{0,1\}\([^" ]*\)"\{0,1\}.*/\1/p')"
           rendered="$(helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml")"
-          for component in api web; do
-            if ! grep -q "image: \"ghcr.io/.*/tim-${component}:${app_version}\"" <<<"$rendered"; then
-              echo "the $component image tag must default to appVersion ($app_version)" >&2
+          for component in frontend backend; do
+            tag="$(yq ".${component}" "$CHART/image-tags.yaml")"
+            if ! grep -q "image: \"ghcr.io/itsnotapt/tim-data-investigate-platform/${component}:${tag}\"" <<<"$rendered"; then
+              echo "the $component image must default to ghcr.io/itsnotapt/tim-data-investigate-platform/${component}:${tag} (image-tags.yaml)" >&2
               exit 1
             fi
           done
