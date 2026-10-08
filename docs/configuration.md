@@ -218,7 +218,7 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | `WEB_PORT`                                            | no       | `8080`                        | Host port of `web`, the only published port.                                                   |
 | `TIM_SUBNET`                                          | no       | `10.89.0.0/24`                | Subnet of the compose network.                                                                 |
 | `FORWARDED_ALLOW_IPS`                                 | no       | `TIM_SUBNET`                  | Addresses from which the api trusts `X-Forwarded-*`.                                           |
-| `TIM_API_IMAGE`, `TIM_WEB_IMAGE`, `TIM_IMAGE_TAG`     | no       | `tim-api`, `tim-web`, `local` | Image names and tag. The defaults are the local build names; set them to run published images. |
+| `TIM_API_IMAGE`, `TIM_API_IMAGE_TAG`, `TIM_WEB_IMAGE`, `TIM_WEB_IMAGE_TAG` | no | `tim-api`, `local`, `tim-web`, `local` | Image names and tags. The defaults are the local build names; set them to run published images. |
 
 `TIM_ENVIRONMENT=production`, `BACKEND_URI=http://api:8080` and the other fixed values are set in the compose file.
 

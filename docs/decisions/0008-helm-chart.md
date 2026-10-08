@@ -1,9 +1,9 @@
 # 0008. Helm chart for Kubernetes deployment
 
-- **Status:** Accepted; image tag and chart version rules superseded by [0016](0016-linked-release-version.md)
+- **Status:** Accepted; image tag and chart version rules superseded by [0016](0016-release-versions.md)
 - **Date:** 2026-10-06
 - **Deciders:** the user
-- **Related:** [deployment.md](../deployment.md), [0004](0004-postgresql-persistence.md), [0006](0006-ag-grid-enterprise.md), [0016](0016-linked-release-version.md)
+- **Related:** [deployment.md](../deployment.md), [0004](0004-postgresql-persistence.md), [0006](0006-ag-grid-enterprise.md), [0016](0016-release-versions.md)
 
 ## Context
 TIM ships as two images (`tim-web`, `tim-api`) and needs PostgreSQL ([0004](0004-postgresql-persistence.md)). Compose covers single-host installs; Kubernetes installs need the same topology (web is the only public entry, the api and database stay internal, schema migrations run before the api rolls out) without a second set of variable names to learn. The optional AG Grid licence key ([0006](0006-ag-grid-enterprise.md)) and the Entra client secret must stay out of ConfigMaps and values files that get committed. See [deployment.md](../deployment.md) for the topology.
