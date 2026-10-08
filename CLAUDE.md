@@ -8,4 +8,5 @@ Key rules (details in RULES.md):
 - Frontend code goes in `web/`, backend code in `api/`. See [docs/architecture.md](docs/architecture.md).
 - Update docs in the same change as the code. Docs and comments describe the current code only; rationale and history go in an ADR in `docs/decisions/`.
 - Every change ships with tests; lint, type checks and tests must pass ([docs/development.md](docs/development.md)).
-- Commit only when asked, never on `main`; branch as `feat/…`, `fix/…`, `docs/…` or `chore/…`; use Conventional Commits.
+- Commit only when asked, never on `main`; branch as `feat/…`, `fix/…`, `docs/…`, `chore/…` or `refactor/…`; use Conventional Commits.
+- Releases: the files a commit touches decide which package it bumps; merge PRs with a merge commit ([RULES.md §7](docs/RULES.md#7-releases)).

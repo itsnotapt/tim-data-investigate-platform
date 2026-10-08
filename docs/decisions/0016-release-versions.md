@@ -14,7 +14,7 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 - A package is bumped only by commits under its own path, or by the `linked-versions` plugin (equal versions) or a workspace plugin (node, cargo or maven dependencies). There is no option to bump the chart because another package released.
 - The `yaml` extra-files updater re-serialises the whole file, dropping comments. The generic `x-release-please-version` marker is not per component, so two packages cannot each update their own line of `values.yaml`.
 - The helm updater sets only `Chart.yaml` `version`; `appVersion` needs the generic marker.
-- A commit that touches no files is applied to every package, except packages with `exclude-paths`: those skip it. The pushed empty commit `6655691` (`chore: release 4.0.0`, footer `Release-As: 4.0.0`) would otherwise force every package to 4.0.0.
+- A commit that touches no files is applied to every package, except packages with `exclude-paths`: those skip it. The pushed empty commit `chore: release 4.0.0` (footer `Release-As: 4.0.0`) would otherwise force every package to 4.0.0.
 
 ## Decision
 - **Three independent packages, no linked group.**
@@ -31,7 +31,9 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 - **The chart gets a patch release in the next release PR after a component release.** The chart package lists `chore` in its `changelog-sections` ("Image updates and chores"). A release PR that releases only components is merged as `chore: release main` and changes `image-tags.yaml`, so the next release-please run sees a `chore` commit under the chart and opens a chart patch release. The chart bump stays a patch whatever the component's bump was. When the same release PR also releases the chart (a `feat`/`fix` under `deploy/helm/tim`), the new tags ship in that chart version and no extra patch follows, because the release commit is the chart's own release commit.
 - **Chart changes follow Conventional Commits.** `fix` → patch, `feat` → minor, `feat!` → major. Any other `chore` under `deploy/helm/tim` also gives a patch. Commits that only touch `deploy/helm/tim/ci` (lint values) are excluded.
 - **`appVersion` equals the chart version.** A chart pins two apps, so `appVersion` names the chart release rather than one app; the app versions are in `image-tags.yaml`. A generic `extra-files` entry sets `appVersion: "X.Y.Z" # x-release-please-version`. `app.kubernetes.io/version` is the chart version.
-- **Empty commits release nothing.** Every package has `exclude-paths` (`web/e2e`, `api/tests`, `deploy/helm/tim/ci`), so commits touching no files, including `6655691`, are skipped. To force a version, put `Release-As: X.Y.Z` in the footer of a commit that touches files under that package.
+- **Empty commits release nothing.** Every package has `exclude-paths` (`web/e2e`, `api/tests`, `deploy/helm/tim/ci`), so commits touching no files, including the empty `chore: release 4.0.0` commit, are skipped. To force a version, put `Release-As: X.Y.Z` in the footer of a commit that touches files under that package.
+- **PRs are merged with a merge commit.** release-please reads each commit and the files it touches. A squash merge collapses a PR into one commit whose subject is the PR title and whose files are the union, so one `!` would bump every touched package to a major and per-commit types would be lost; rebase-merge rewrites SHAs.
+- **Breaking commits are checked by path.** `pr-conventions.yml` requires the label `release:major-<package>` for every package whose files a breaking commit touches, and fails a `Release-As` footer on a commit that touches no package files.
 - **First releases.** The manifest is seeded with `web` 1.5.6, `api` 3.0.4 and `deploy/helm/tim` 0.1.0. Conventional Commits then give frontend 1.6.0 (features, no breaking web commit), backend 4.0.0 (`feat(api)!`) and chart 1.0.0 (that breaking commit also touches the chart, and a breaking change on 0.x goes to 1.0.0). No `release-as` configuration is used, so nothing has to be removed afterwards.
 - **Publishing.** `publish-chart` in `release-please.yml` runs when the chart releases. It waits for `build-web` and `build-api` when they run in the same workflow, and runs when they are skipped. Before pushing it checks that `Chart.yaml` `version` and `appVersion` equal the release, that `image-tags.yaml` matches `web/package.json` and `api/pyproject.toml`, and that both pinned images exist in the registry.
 - **CI guard.** `deploy-check.yml` checks that the manifest, `Chart.yaml` `version` and `appVersion` agree for the chart; the manifest, `web/package.json` and `image-tags.yaml` for frontend; and the manifest, `api/pyproject.toml`, `api/uv.lock` and `image-tags.yaml` for backend. It also checks that rendering `ci/minimal-values.yaml` uses the pinned tags.
@@ -44,7 +46,8 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 | Root package with `always-bump-patch` | Same-PR patch bump | Chart `feat`/`feat!` would also be patches |
 | Workflow step that edits the release-please branch | Same-PR chart bump | release-please rewrites the branch on every run; the manifest and chart tags drift |
 | Image tags in `values.yaml` | One file | No release-please updater can change one component's line in a commented file |
-| Per-package `release-as` to override `6655691` | Explicit | Stays in the config and forces the same version on later releases until removed |
+| Per-package `release-as` to override the empty `chore: release 4.0.0` commit | Explicit | Stays in the config and forces the same version on later releases until removed |
+| Squash merge | One commit per PR | Loses per-commit types and the file-to-package mapping; one `!` majors every touched package |
 | Independent packages, pinned `image-tags.yaml`, chart picking up the release commit as a `chore` (chosen) | Native release-please only; legacy lines continue; chart patch on any image change; chart CC for its own changes | Chart patch arrives one release PR later; other chart `chore` commits also release a patch |
 
 ## Consequences
@@ -53,4 +56,5 @@ Constraints found in release-please 17.6.0 (bundled with `googleapis/release-ple
 - Commit types that release-please hides (`build`, `ci`, `docs`, `refactor`, `test`, `style`) in `web/` or `api/` build no image; in `deploy/helm/tim` they ship with the next chart release.
 - Versions in `web/package.json`, `api/pyproject.toml`, `api/uv.lock`, `Chart.yaml` and `image-tags.yaml` are never edited by hand.
 - An empty commit with `Release-As` has no effect.
+- Squash and rebase merges are not used; a breaking commit that touches several packages majors all of them, so the PR needs one label per package.
 - Supersedes the image tag and chart version rules in [0008](0008-helm-chart.md).

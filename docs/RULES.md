@@ -63,5 +63,16 @@ See [development.md](development.md) for the exact commands.
 ## 6. Git
 
 - Commit, push or open a PR only when the user asks.
-- Never commit directly to `main`. Use a short-lived branch named by type: `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>`, `refactor/<short-name>`.
+- Never commit directly to `main`. Use a short-lived branch named by type: `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>`, `refactor/<short-name>`. Bots use `release-please--` and `dependabot/` branches.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, optionally scoped, e.g. `feat(web): …`). Release notes and versions are generated from them by release-please.
+
+## 7. Releases
+
+- Three release-please packages: `web/` is `frontend` (tags `frontend-vX.Y.Z`), `api/` is `backend` (`backend-vX.Y.Z`) and `deploy/helm/tim` is `chart` (`chart-vX.Y.Z`). There is no root package.
+- The files a commit touches decide which packages it bumps; the Conventional Commit scope is cosmetic. Files only under `web/e2e`, `api/tests` or `deploy/helm/tim/ci` release nothing.
+- A breaking commit (`!` or a `BREAKING CHANGE:` footer) bumps the major of every package whose files it touches. Keep breaking changes out of `web/` and `api/` unless that package should go major. The PR needs the label `release:major-<package>` for each such package (checked by `pr-conventions.yml`).
+- `Release-As: X.Y.Z` must be on a commit that touches that package's files; empty commits are ignored.
+- Merge PRs with a merge commit, never squash or rebase-merge, so release-please sees each commit.
+- Never edit versions by hand; release-please owns them.
+
+See [development.md](development.md#ci-and-releases) and [ADR-0016](decisions/0016-release-versions.md).
