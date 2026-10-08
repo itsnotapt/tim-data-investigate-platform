@@ -8,7 +8,7 @@ TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explo
 | API | `api/` | Python 3.12, FastAPI |
 | Persistence | PostgreSQL | templates and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
-Layout rationale: [ADR-0003](adr/0003-repo-layout.md). Domain vocabulary: [GLOSSARY.md](../GLOSSARY.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
+Layout rationale: [ADR-0001](adr/0001-react-python-web-api.md). Domain vocabulary: [GLOSSARY.md](../GLOSSARY.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
 
 ## System overview
 

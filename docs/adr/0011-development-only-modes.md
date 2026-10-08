@@ -1,15 +1,11 @@
-# 0011. Development-only modes refuse to run in production
+---
+status: accepted
+date: 2026-10-06
+---
 
-- **Status:** Accepted
-- **Date:** 2026-10-06
-- **Deciders:** the user
-- **Related:** [0004](0004-postgresql-persistence.md), [0005](0005-auth-entra-popup-obo.md), [configuration](../configuration.md)
+# Development-only modes refuse to run in production
 
-## Context
-Local work and tests need to run without Entra, Postgres or a Kusto cluster. Those shortcuts must never reach a deployment, where they would drop authentication or lose data on restart.
-
-## Decision
-`TIM_ENVIRONMENT` is `development` or `production`, and **defaults to `production`**. Settings validation (`api/src/tim_api/config.py`) makes the app fail at startup if a shortcut is enabled in production.
+Local work and tests need to run without Entra, Postgres or a Kusto cluster, but those shortcuts must never reach a deployment, where they would drop authentication or lose data on restart. `TIM_ENVIRONMENT` is `development` or `production` and **defaults to `production`**, and settings validation (`api/src/tim_api/config.py`) makes the app fail at startup if a shortcut is enabled in production.
 
 | Mode | Setting | Effect | In production |
 |---|---|---|---|
@@ -19,7 +15,10 @@ Local work and tests need to run without Entra, Postgres or a Kusto cluster. Tho
 
 The auth bypass is also re-checked when each request is authenticated (`api/src/tim_api/auth/dependencies.py`).
 
-## Alternatives considered
+Decided by the user. Related: [0004](0004-postgresql-persistence.md), [0005](0005-auth-entra-popup-obo.md), [configuration](../configuration.md).
+
+## Considered Options
+
 | Option | Pros | Cons |
 |---|---|---|
 | Default to `development` | Easier to run locally | A forgotten variable in a deployment would quietly turn off auth |
@@ -27,5 +26,6 @@ The auth bypass is also re-checked when each request is authenticated (`api/src/
 | Separate dev build | No dev code in the production image | Two builds to maintain, and tests would not cover the real code |
 
 ## Consequences
+
 - A deployment must set the real variables. A missing or wrong one stops startup instead of weakening it.
 - Tests and local runs set `TIM_ENVIRONMENT=development` explicitly.
