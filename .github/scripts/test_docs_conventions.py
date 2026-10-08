@@ -192,11 +192,13 @@ class Adr(RepoCase):
         self.assertIn("4-bad.md", out)
         self.assertIn("also used by", out)
 
-    def test_gap(self):
+    def test_gap_is_allowed(self):
+        # Numbers are never reused, so a removed ADR leaves a gap (docs/adr/README.md).
         self.good()
         self.adr("0005")
         out = " ".join(self.messages(self.run_check(dc.check_adr)))
-        self.assertIn("0004 is missing", out)
+        self.assertNotIn("missing", out)
+        self.assertNotIn("gap", out)
 
     def test_header_problems(self):
         self.good()

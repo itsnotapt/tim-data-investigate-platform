@@ -291,13 +291,6 @@ def check_adr(root: Path, files: list[str]) -> list[Failure]:
             continue
         adrs[number] = name
 
-    numbers = sorted(int(n) for n in adrs if n != "0000")
-    for expected in range(1, (numbers[-1] if numbers else 0) + 1):
-        if expected not in numbers:
-            failures.append(
-                Failure("docs/adr", 1, f"ADR numbers have a gap: {expected:04d} is missing")
-            )
-
     details: dict[str, tuple[str, str]] = {}  # number -> (status, date), "" when absent
     for number, name in sorted(adrs.items()):
         if number == "0000":
