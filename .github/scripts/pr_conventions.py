@@ -2,12 +2,15 @@
 """Pull request convention checks run by .github/workflows/pr-conventions.yml.
 
 `pr` runs every check that applies to a PR's target branch:
-- into `development` (squash-merged): Conventional Commit title, branch name, breaking
-  changes by the title and every file the PR changes, and the release freeze;
-- into `main` (merge commit): head `development` or `release-please--*`, every commit
-  subject, breaking changes and Release-As footers per commit, and release order.
+- into `development` (squash-merged): Conventional Commit title, branch name, a breaking
+  title's scope naming every package whose files the PR changes, and the release freeze;
+- into `main` (merge commit): a title release-please does not read as a commit, head
+  `development` or `release-please--*`, every commit subject, Release-As footers per commit,
+  and release order;
+- `main` into `development` (the back-sync, merge commit): a title release-please does not
+  read as a commit.
 
-`commits`, `branch` and `breaking` run single checks.
+`commits`, `branch` and `release-as` run single checks.
 See docs/RULES.md and docs/decisions/0016-release-versions.md.
 """
 
@@ -24,7 +27,12 @@ CONVENTIONAL = re.compile(
     r"^(feat|fix|docs|chore|refactor|test|build|ci|perf|style|revert)(\([^()\s]+\))?!?: \S"
 )
 BREAKING_SUBJECT = re.compile(r"^\w+(\([^()\s]+\))?!:")
+SCOPE = re.compile(r"^\w+\(([^()\s]+)\)!?:")
 BREAKING_FOOTER = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
+# release-please reads every message paragraph that starts like this as a commit.
+READ_AS_COMMIT = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.*?\))?: "
+)
 RELEASE_AS = re.compile(r"^release-as:[ \t]*\S", re.MULTILINE | re.IGNORECASE)
 BRANCH = re.compile(r"^(feat|fix|docs|chore|refactor)/.+")
 BRANCH_PREFIXES = ("release-please--", "dependabot/")
@@ -48,6 +56,12 @@ def is_breaking(message: str) -> bool:
     return (
         BREAKING_SUBJECT.match(subject) is not None or BREAKING_FOOTER.search(message) is not None
     )
+
+
+def scopes_of(subject: str) -> set[str]:
+    """The comma-separated scope entries of a subject: 'feat(backend,chart)!: x'."""
+    match = SCOPE.match(subject)
+    return {s for s in match.group(1).split(",") if s} if match else set()
 
 
 def release_as(message: str) -> bool:
@@ -106,22 +120,24 @@ def commit_time(rev: str) -> int:
     return int(git("log", "-1", "--format=%ct", rev).strip())
 
 
-def _missing_labels(subject: str, touched: list[str], labels: set[str]) -> list[str]:
-    return [
-        f"{subject}\n"
-        f"    is breaking and touches package '{name}'; the PR needs 'release:major-{name}'.\n"
-        f"    Fix: add the label, or move the breaking change out of {name}."
-        for name in touched
-        if f"release:major-{name}" not in labels
-    ]
-
-
 def check_title(title: str) -> list[str]:
     if is_conventional(title):
         return []
     return [
         f"PR title '{title}' is not a Conventional Commit "
         "(type(scope)!: description, e.g. 'feat(web): add export')."
+    ]
+
+
+def check_merge_title(title: str) -> list[str]:
+    """A merge commit's message is 'Merge pull request #N from ...' and then the PR title."""
+    if READ_AS_COMMIT.match(title) is None:
+        return []
+    return [
+        f"PR title '{title}' becomes the body of the merge commit, and release-please reads it "
+        "as a commit with every file of the merge.\n"
+        "    Fix: use a title that does not start with a Conventional Commit type, "
+        "e.g. 'Release: web export and api fixes'."
     ]
 
 
@@ -146,34 +162,36 @@ def check_branch(name: str) -> list[str]:
     ]
 
 
-def check_breaking_commits(base: str, head: str, labels: set[str], packages: Packages) -> list[str]:
-    """Each commit as release-please reads it: breaking changes and Release-As footers by path."""
+def check_release_as(base: str, head: str, packages: Packages) -> list[str]:
+    """Each commit as release-please reads it: a Release-As footer needs package files."""
     failures: list[str] = []
     for sha in commits_in(base, head):
         message = git("log", "-1", "--format=%B", sha)
-        if not (is_breaking(message) or release_as(message)):
-            continue
-        subject = f"{sha[:7]} {message.split(chr(10), 1)[0]}"
-        touched = packages_for_files(files_of(sha), packages)
-        if release_as(message) and not touched:
+        if release_as(message) and not packages_for_files(files_of(sha), packages):
             failures.append(
-                f"{subject}\n"
+                f"{sha[:7]} {message.split(chr(10), 1)[0]}\n"
                 "    has a Release-As footer but touches no package files, so it is ignored.\n"
                 "    Fix: put the Release-As footer on a commit that changes files of that package."
             )
-        if is_breaking(message):
-            failures += _missing_labels(subject, touched, labels)
     return failures
 
 
-def check_breaking_squash(
-    title: str, base: str, head: str, labels: set[str], packages: Packages
-) -> list[str]:
-    """The PR as its squash commit: the title applies to every file the PR changes."""
+def check_breaking_scope(title: str, base: str, head: str, packages: Packages) -> list[str]:
+    """The PR as its squash commit: a breaking title majors every package the PR changes, so
+    its scope must name each of them. Other scope entries are allowed."""
     if not is_breaking(title):
         return []
     files = git("diff", "--name-only", f"{base}...{head}").splitlines()
-    return _missing_labels(f"PR title '{title}'", packages_for_files(files, packages), labels)
+    missing = [p for p in packages_for_files(files, packages) if p not in scopes_of(title)]
+    if not missing:
+        return []
+    return [
+        f"PR title '{title}' is breaking and the PR changes files of "
+        f"{', '.join(missing)}, which its scope does not name.\n"
+        "    A breaking title majors every package whose files the PR changes.\n"
+        "    Fix: name each package in the scope, e.g. 'feat(backend,chart)!: ...', or move "
+        "the changes to packages that should not go major into another PR."
+    ]
 
 
 def check_release_order(base: str, head: str, packages: Packages) -> list[str]:
@@ -221,24 +239,28 @@ def check_freeze(remote: str, open_release_prs: int) -> list[str]:
 
 
 def check_pr(args: argparse.Namespace) -> list[str]:
-    labels = set(json.loads(args.labels))
     packages = repo_packages()
-    failures = check_title(args.title)
+    release_pr = args.head_ref.startswith(RELEASE_BRANCH_PREFIX)
+    sync = args.base_ref == DEVELOPMENT and args.head_ref == MAIN
+    if args.base_ref == MAIN or sync:
+        failures = [] if release_pr else check_merge_title(args.title)
+    else:
+        failures = check_title(args.title)
     if args.base_ref == MAIN:
-        if args.head_ref != DEVELOPMENT and not args.head_ref.startswith(RELEASE_BRANCH_PREFIX):
+        if args.head_ref != DEVELOPMENT and not release_pr:
             failures.append(
                 f"PRs into {MAIN} come from {DEVELOPMENT} or release-please--* only, "
                 f"not '{args.head_ref}'. Open the PR against {DEVELOPMENT}."
             )
         failures += check_commit_subjects(args.base, args.head)
-        failures += check_breaking_commits(args.base, args.head, labels, packages)
+        failures += check_release_as(args.base, args.head, packages)
         failures += check_release_order(args.base, args.head, packages)
         return failures
-    sync = args.base_ref == DEVELOPMENT and args.head_ref == MAIN
-    if not sync:
-        failures += check_branch(args.head_ref)
-    failures += check_breaking_squash(args.title, args.base, args.head, labels, packages)
-    if args.base_ref == DEVELOPMENT and not sync:
+    if sync:
+        return failures
+    failures += check_branch(args.head_ref)
+    failures += check_breaking_scope(args.title, args.base, args.head, packages)
+    if args.base_ref == DEVELOPMENT:
         failures += check_freeze(args.remote, args.open_release_prs)
     return failures
 
@@ -262,7 +284,6 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--base-ref", required=True, help="target branch name")
     p.add_argument("--head-ref", required=True, help="source branch name")
     p.add_argument("--title", required=True)
-    p.add_argument("--labels", default="[]", help="PR label names as a JSON array")
     p.add_argument("--remote", default="origin/", help="prefix of the fetched branch refs")
     p.add_argument("--open-release-prs", type=int, default=0, help="open release-please PRs")
     p.set_defaults(func=lambda a: report(check_pr(a), "OK: all PR checks passed."))
@@ -280,14 +301,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("name")
     p.set_defaults(func=lambda a: report(check_branch(a.name), f"Branch name '{a.name}' is valid."))
 
-    p = sub.add_parser("breaking", help="check breaking changes and Release-As footers per commit")
+    p = sub.add_parser("release-as", help="check Release-As footers per commit")
     p.add_argument("base")
     p.add_argument("head")
-    p.add_argument("--labels", default="[]", help="PR label names as a JSON array")
     p.set_defaults(
         func=lambda a: report(
-            check_breaking_commits(a.base, a.head, set(json.loads(a.labels)), repo_packages()),
-            "OK: breaking commits and Release-As footers checked, all required labels present.",
+            check_release_as(a.base, a.head, repo_packages()),
+            "OK: every Release-As footer is on a commit that changes package files.",
         )
     )
 
