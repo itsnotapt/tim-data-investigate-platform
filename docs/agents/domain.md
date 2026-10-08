@@ -48,5 +48,3 @@ When a decision is settled, check it against the three tests in [docs/adr/README
 If your output contradicts an Accepted ADR, say so explicitly rather than silently overriding it:
 
 > _Contradicts ADR-0010 (Kusto cluster allow-list), but worth reopening because…_
-
-Changing what an ADR decided needs a new ADR that supersedes it.
