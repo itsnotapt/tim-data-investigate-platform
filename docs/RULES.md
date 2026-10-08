@@ -4,7 +4,8 @@ Process rules for everyone working on TIM, human or agent.
 
 ## 2. Sources of truth
 
-- If a doc disagrees with the code, the code wins; fix the doc in the same change ([ADR-0007](adr/0007-docs-describe-current-state.md)).
+- If you find a doc that disagrees with the code, report it; do not decide yourself which one is right. Tell the user what disagrees, let them choose the correct side, and fix the other side in the same change.
+- Your own changes must not create a disagreement. If you change documented behaviour, update that doc in the same change, and add an ADR if the behaviour was a recorded decision ([docs/adr/README.md](adr/README.md)). Never edit a doc to match code you have just written without saying so.
 - Ask the user before implementing a choice that is hard to reverse: datastore, auth model, licensing, a breaking API change, dropping a feature.
 
 ## 6. Git
