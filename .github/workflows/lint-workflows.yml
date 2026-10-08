@@ -41,3 +41,12 @@ jobs:
       # Lints every workflow; run: scripts are checked with the shellcheck preinstalled on ubuntu-latest.
       - name: Lint workflows
         run: actionlint -color -verbose
+
+  scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Test workflow scripts
+        run: python3 -m unittest discover -s .github/scripts -v
