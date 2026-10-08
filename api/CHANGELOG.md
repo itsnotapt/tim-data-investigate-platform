@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/backend-v3.0.4...backend-v4.0.0) (2026-10-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* TIM v4 — current-state docs, Helm chart, independent releases ([#16](https://github.com/itsnotapt/tim-data-investigate-platform/issues/16))
+
+### Features
+
+* TIM v4 — current-state docs, Helm chart, independent releases ([#16](https://github.com/itsnotapt/tim-data-investigate-platform/issues/16)) ([3d45bd5](https://github.com/itsnotapt/tim-data-investigate-platform/commit/3d45bd5d25a46243d4ca7896554488410a9ff1d2))
+
 ## [3.0.4](https://github.com/itsnotapt/tim-data-investigate-platform/compare/backend-v3.0.3...backend-v3.0.4) (2023-03-04)
 
 
