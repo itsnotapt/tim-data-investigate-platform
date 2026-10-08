@@ -45,18 +45,18 @@ One to three sentences: the context, what was decided, and why.
 
 ## Index
 
+Numbers are never reused, so the sequence has gaps.
+
 Some ADRs refer to documents from the React + Python migration. Those are preserved at git tag `migration-complete` (`git show migration-complete:docs/<path>`).
 
 | ADR | Title | Status | Date |
 |---|---|---|---|
-| [0001](0001-react-python-rewrite.md) | Rewrite TIM as React + Python | accepted | 2026-09-29 |
-| [0002](0002-docs-as-source-of-truth.md) | `docs/` is the source of truth for the rewrite | superseded by ADR-0007 | 2026-09-29 |
-| [0003](0003-repo-layout.md) | Repo layout: `web/` + `api/` | accepted | 2026-09-29 |
+| [0001](0001-react-python-rewrite.md) | Rewrite TIM as React + Python in `web/` and `api/` | accepted | 2026-09-29 |
 | [0004](0004-postgresql-persistence.md) | PostgreSQL for templates and query runs | accepted | 2026-09-29 |
 | [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to Kusto | accepted | 2026-09-29 |
 | [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise only; licence key optional (trial mode without it) | accepted | 2026-09-29 |
 | [0007](0007-docs-describe-current-state.md) | Docs describe the current system; rationale lives in ADRs | accepted | 2026-10-06 |
-| [0008](0008-helm-chart.md) | Helm chart for Kubernetes deployment | accepted (image tag and chart version rules superseded by ADR-0016) | 2026-10-06 |
+| [0008](0008-helm-chart.md) | Helm chart for Kubernetes deployment | accepted | 2026-10-06 |
 | [0009](0009-obo-token-exchange.md) | OBO token exchange: one shared MSAL app, configurable scope | accepted | 2026-10-06 |
 | [0010](0010-kusto-cluster-allow-list.md) | Kusto cluster allow-list | accepted | 2026-10-07 |
 | [0011](0011-development-only-modes.md) | Development-only modes refuse to run in production | accepted | 2026-10-06 |
