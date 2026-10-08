@@ -11,7 +11,7 @@ ADR-0002 set up `docs/` to drive the move from the Vue 2 + .NET 6 app to React +
 
 - `docs/` describes the system as it is: architecture, API, configuration, development, operations and deployment. Docs and code comments contain no history, task IDs or justification.
 - Rationale and history are recorded only in ADRs in `docs/adr/`.
-- The code is the source of truth. Docs are updated in the same change as the code; where they disagree, the doc is fixed.
+- Docs are updated in the same change as the code.
 - Work is tracked outside the docs (issues, PRs); there is no in-repo task board or question log.
 - Working rules are in [RULES.md](../RULES.md).
 
