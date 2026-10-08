@@ -10,11 +10,6 @@
 - `main` into `development` (the back-sync, merge commit): a title release-please does not
   read as a commit.
 
-`body` checks the description of a PR into `development` from a `feat/`, `fix/`, `docs/`,
-`chore/` or `refactor/` branch: `## Summary`, `## Evidence` and `## Merge Danger` sections in
-that order, with a `**Door:**` of one-way or two-way and a `**Blast Radius:**` in the last
-(.github/pull_request_template.md).
-
 `commits`, `branch` and `release-as` run single checks.
 See docs/RULES.md and docs/adr/0016-release-versions.md.
 """
@@ -40,13 +35,8 @@ READ_AS_COMMIT = re.compile(
 )
 RELEASE_AS = re.compile(r"^release-as:[ \t]*\S", re.MULTILINE | re.IGNORECASE)
 BRANCH = re.compile(r"^(feat|fix|docs|chore|refactor)/.+")
-SECTION = re.compile(r"^## (.+?)[ \t]*$", re.MULTILINE)
 BRANCH_PREFIXES = ("release-please--", "dependabot/")
 RELEASE_BRANCH_PREFIX = "release-please--"
-HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-BODY_SECTIONS = ("Summary", "Evidence", "Merge Danger")
-DOOR = re.compile(r"^[ \t]*\*\*Door:\*\*[ \t]*(one-way|two-way)\b", re.MULTILINE | re.IGNORECASE)
-BLAST_RADIUS = re.compile(r"^[ \t]*\*\*Blast Radius:\*\*[ \t]*\S", re.MULTILINE)
 DEVELOPMENT = "development"
 MAIN = "main"
 
@@ -248,52 +238,6 @@ def check_freeze(remote: str, open_release_prs: int) -> list[str]:
     ]
 
 
-def check_body(body: str) -> list[str]:
-    """The PR description follows .github/pull_request_template.md once its comments are gone."""
-    body = HTML_COMMENT.sub("", body)
-    headings = [(m.group(1).strip(), m.start(), m.end()) for m in SECTION.finditer(body)]
-    sections: dict[str, str] = {}
-    for i, (name, _, end) in enumerate(headings):
-        stop = headings[i + 1][1] if i + 1 < len(headings) else len(body)
-        sections.setdefault(name, body[end:stop])
-    failures = [
-        f"PR description has no '## {name}' section."
-        for name in BODY_SECTIONS
-        if name not in sections
-    ]
-    present = [name for name, _, _ in headings if name in BODY_SECTIONS]
-    if not failures and present[:3] != list(BODY_SECTIONS):
-        failures.append(
-            "PR description sections must be in the order: "
-            + ", ".join(f"'## {name}'" for name in BODY_SECTIONS)
-            + "."
-        )
-    for name in ("Summary", "Evidence"):
-        if name in sections and not sections[name].strip():
-            failures.append(f"The '## {name}' section is empty.")
-    if "Merge Danger" in sections:
-        danger = sections["Merge Danger"]
-        if not DOOR.search(danger):
-            failures.append(
-                "'## Merge Danger' needs a line '**Door:** one-way' or '**Door:** two-way' "
-                "(one-way: the merge cannot be walked back cheaply)."
-            )
-        if not BLAST_RADIUS.search(danger):
-            failures.append("'## Merge Danger' needs a line '**Blast Radius:** <one word>'.")
-    return failures
-
-
-def check_body_file(args: argparse.Namespace) -> int:
-    if args.base_ref != DEVELOPMENT or BRANCH.match(args.head_ref) is None:
-        print(
-            f"The PR body check does not apply to {args.head_ref} -> {args.base_ref} "
-            f"(only feat/, fix/, docs/, chore/ and refactor/ branches into {DEVELOPMENT})."
-        )
-        return 0
-    body = Path(args.body_file).read_text(encoding="utf-8")
-    return report(check_body(body), "OK: the PR description has all required sections.")
-
-
 def check_pr(args: argparse.Namespace) -> list[str]:
     packages = repo_packages()
     release_pr = args.head_ref.startswith(RELEASE_BRANCH_PREFIX)
@@ -366,12 +310,6 @@ def main(argv: list[str] | None = None) -> int:
             "OK: every Release-As footer is on a commit that changes package files.",
         )
     )
-
-    p = sub.add_parser("body", help="check the PR description sections")
-    p.add_argument("--body-file", required=True, help="file holding the PR description")
-    p.add_argument("--base-ref", required=True, help="target branch name")
-    p.add_argument("--head-ref", required=True, help="source branch name")
-    p.set_defaults(func=check_body_file)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

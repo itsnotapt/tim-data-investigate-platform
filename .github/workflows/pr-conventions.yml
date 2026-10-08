@@ -2,8 +2,6 @@
 # The pr-conventions job is the required status check on development. The main -> development
 # back-sync PR is opened by GITHUB_TOKEN, so no workflow runs on it: release-please.yml runs the
 # same script for it and sets the pr-conventions status itself.
-# The pr-body job checks the description of PRs into development against .github/pull_request_template.md;
-# it is not a required status check.
 # release-projection comments on development -> main PRs with the versions release-please would
 # propose after the merge; it is informational and never fails.
 name: PR conventions
@@ -54,26 +52,6 @@ jobs:
           python3 .github/scripts/pr_conventions.py pr "$BASE" "$HEAD" \
             --base-ref "$BASE_REF" --head-ref "$HEAD_REF" --title "$TITLE" \
             --open-release-prs "$OPEN_RELEASE_PRS"
-
-  pr-body:
-    name: pr-body
-    if: github.base_ref == 'development'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check PR description
-        env:
-          BODY: ${{ github.event.pull_request.body }}
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
-          python3 .github/scripts/pr_conventions.py body --body-file "$RUNNER_TEMP/body.md" \
-            --base-ref "$BASE_REF" --head-ref "$HEAD_REF"
 
   release-projection:
     name: release-projection
