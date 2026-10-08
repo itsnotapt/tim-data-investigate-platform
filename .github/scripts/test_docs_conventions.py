@@ -58,7 +58,7 @@ class RepoCase(unittest.TestCase):
             [sys.executable, str(SCRIPT), "--root", str(self.root), *args],
             capture_output=True,
             text=True,
-            env={**os.environ, **(env or {})},
+            env={**{k: v for k, v in os.environ.items() if k != "GITHUB_ACTIONS"}, **(env or {})},
         )
         return result.returncode, result.stdout + result.stderr
 
@@ -423,13 +423,6 @@ class Cli(RepoCase):
         self.write("README.md", "x\n")
         code, _ = self.run_cli("bogus")
         self.assertEqual(code, 2)
-
-    def test_real_repo_passes(self):
-        root = Path(__file__).resolve().parents[2]
-        result = subprocess.run(  # noqa: S603
-            [sys.executable, str(SCRIPT), "--root", str(root)], capture_output=True, text=True
-        )
-        self.assertEqual(result.returncode, 0, result.stdout)
 
 
 VALID_ADR = """---

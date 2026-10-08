@@ -24,4 +24,4 @@ The files the PR changes decide which package it releases, not the scope. A `!` 
 - [ ] Tests added or updated
 - [ ] Lint, format, typecheck and tests pass ([docs/development.md](../docs/development.md))
 - [ ] A breaking title's scope names every package the PR changes (e.g. `feat(backend,chart)!:`), and the PR only touches packages meant to go major
-- [ ] Docs updated in the same change ([docs/RULES.md](../docs/RULES.md))
+- [ ] Docs updated in the same change ([CODING_STANDARDS.md](../CODING_STANDARDS.md#documentation))
