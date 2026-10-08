@@ -37,7 +37,7 @@ Update `GLOSSARY.md` in the same change as soon as a term is settled: a new conc
 - Group entries under subheadings when natural clusters emerge.
 - The glossary holds definitions only. Stores, tables, field names and environment variables are described in [architecture.md](../architecture.md), [api.md](../api.md) and [configuration.md](../configuration.md), which use the glossary's terms without redefining them.
 
-If `GLOSSARY.md` disagrees with the code, the code wins ([RULES.md §2](../RULES.md#2-sources-of-truth)).
+If `GLOSSARY.md` disagrees with the code, follow [RULES.md §2](../RULES.md#2-sources-of-truth).
 
 ## Recording decisions
 
