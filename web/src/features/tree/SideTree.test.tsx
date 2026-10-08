@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -100,9 +100,9 @@ describe('SideTree', () => {
     await userEvent.click(screen.getByLabelText('Select T-p'));
     expect(remove).toBeEnabled();
     await userEvent.click(remove);
-    expect(Object.keys(store.getState().tabs)).toEqual([]);
-    expect(screen.getByTestId('loc')).toHaveTextContent('/');
-    expect(screen.getByTestId('loc').textContent).toBe('/');
+    // removeSelected awaits each removeTab before it navigates, so wait for both.
+    await waitFor(() => expect(Object.keys(store.getState().tabs)).toEqual([]));
+    await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe('/'));
   });
 
   it('Reload templates calls onReload', async () => {
