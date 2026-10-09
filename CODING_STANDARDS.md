@@ -20,7 +20,8 @@ Commands are in [docs/development.md](docs/development.md).
 ## Documentation
 
 - Docs describe the change in the same PR as the code: behaviour, configuration ([docs/configuration.md](docs/configuration.md)), deployment ([docs/deployment.md](docs/deployment.md)), endpoints and architecture. A doc that disagrees with the code is handled as [docs/RULES.md §2](docs/RULES.md#2-sources-of-truth) says.
-- Docs and code comments describe the system as it is now: no history ("previously", "used to"), no justification essays. Rationale goes in an ADR ([docs/adr/README.md](docs/adr/README.md)) or the PR description.
+- Docs and code comments describe the system as it is now: no history ("previously", "used to").
+- Code comments say what the code does. The reasoning behind a choice, as argued in a discussion, issue or review, goes in its ADR ([docs/adr/README.md](docs/adr/README.md)) when the choice is a recorded decision, otherwise in the PR description.
 - Issue numbers and task IDs appear in issues, PR descriptions and commit messages, not in code comments or in `docs/` outside the ADRs.
 - A code comment may link an ADR where the code would otherwise look surprising.
 - Domain terms come from [GLOSSARY.md](GLOSSARY.md); code and docs use its terms and avoid the synonyms it lists. A new or renamed concept updates the glossary in the same PR ([docs/agents/domain.md](docs/agents/domain.md#updating-glossarymd)).
