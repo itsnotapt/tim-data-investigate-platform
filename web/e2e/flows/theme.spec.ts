@@ -299,12 +299,12 @@ test.describe('with nothing stored on a dark OS', () => {
   });
 });
 
-/** Settings › Theme › `choice`; picking closes both menus. */
-async function pickTheme(page: Page, choice: 'Light' | 'Dark' | 'System') {
+/** Settings › Appearance › `choice`; picking closes both menus. */
+async function pickAppearance(page: Page, choice: 'Light' | 'Dark' | 'System') {
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('menuitem', { name: 'Theme' }).click();
+  await page.getByRole('menuitem', { name: 'Appearance' }).click();
   await page
-    .getByRole('menu', { name: 'Theme' })
+    .getByRole('menu', { name: 'Appearance' })
     .getByRole('menuitemradio', { name: choice })
     .click();
   await expect(page.getByRole('menu')).toHaveCount(0);
@@ -339,10 +339,10 @@ const schemeLog = (page: Page) =>
     () => (window as unknown as { schemeLog: { values: string[]; atDomReady: string } }).schemeLog,
   );
 
-test.describe('Settings › Theme', () => {
+test.describe('Settings › Appearance', () => {
   test('Dark survives a reload with no light flash', async ({ page }) => {
     await expectAppShell(page, LIGHT);
-    await pickTheme(page, 'Dark');
+    await pickAppearance(page, 'Dark');
     await expectScheme(page, 'dark', DARK);
 
     await logSchemeChanges(page);
@@ -361,9 +361,9 @@ test.describe('Settings › Theme', () => {
     await mockApi(other, { handlers: store.handlers });
     await expectAppShell(other, LIGHT);
 
-    await pickTheme(page, 'Dark');
+    await pickAppearance(page, 'Dark');
     await expectScheme(other, 'dark', DARK);
-    await pickTheme(page, 'Light');
+    await pickAppearance(page, 'Light');
     await expectScheme(other, 'light', LIGHT);
   });
 
@@ -371,9 +371,9 @@ test.describe('Settings › Theme', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await storeDarkMode(page);
     await expectAppShell(page, DARK);
-    await pickTheme(page, 'Light');
+    await pickAppearance(page, 'Light');
     await expectScheme(page, 'light', LIGHT);
-    await pickTheme(page, 'System');
+    await pickAppearance(page, 'System');
     await expectScheme(page, 'dark', DARK);
   });
 });
@@ -411,7 +411,7 @@ const THEME_CHOICE = { light: 'Light', dark: 'Dark' } as const;
 
 /**
  * The sweep: axe colour contrast on every main screen in both schemes. The scheme is picked from
- * Settings › Theme on an OS set to the other one.
+ * Settings › Appearance on an OS set to the other one.
  */
 for (const scheme of ['light', 'dark'] as const) {
   test.describe(`colour contrast sweep in ${scheme}`, () => {
@@ -425,7 +425,7 @@ for (const scheme of ['light', 'dark'] as const) {
     async function pickScheme(page: Page) {
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
-      await pickTheme(page, THEME_CHOICE[scheme]);
+      await pickAppearance(page, THEME_CHOICE[scheme]);
       await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
     }
 

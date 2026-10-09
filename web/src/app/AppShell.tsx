@@ -72,22 +72,22 @@ const THEME_MODES: { mode: ThemeMode; label: string; icon: ReactElement }[] = [
 ];
 
 /**
- * Settings: `Theme ›` opens a Light / Dark / System sub-menu, a `Menu` beside the Settings menu.
+ * Settings: `Appearance ›` opens a Light / Dark / System sub-menu, a `Menu` beside the Settings menu.
  * Picking one applies it and closes both menus.
  */
 function SettingsMenu() {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [themeAnchor, setThemeAnchor] = useState<HTMLElement | null>(null);
-  const themeItem = useRef<HTMLLIElement>(null);
+  const appearanceItem = useRef<HTMLLIElement>(null);
   const { mode, setMode } = useColorScheme();
   const current: ThemeMode = mode ?? 'system';
   const closeAll = () => {
     setThemeAnchor(null);
     setAnchor(null);
   };
-  const backToTheme = () => {
+  const backToAppearance = () => {
     setThemeAnchor(null);
-    themeItem.current?.focus();
+    appearanceItem.current?.focus();
   };
   return (
     <>
@@ -101,7 +101,7 @@ function SettingsMenu() {
       </IconButton>
       <Menu anchorEl={anchor} open={anchor !== null} onClose={closeAll}>
         <MenuItem
-          ref={themeItem}
+          ref={appearanceItem}
           aria-haspopup="menu"
           aria-expanded={themeAnchor !== null}
           onClick={(e) => setThemeAnchor(e.currentTarget)}
@@ -109,7 +109,7 @@ function SettingsMenu() {
             if (e.key === 'ArrowRight') setThemeAnchor(e.currentTarget);
           }}
         >
-          <ListItemText primary="Theme" />
+          <ListItemText primary="Appearance" />
           <ChevronRightIcon fontSize="small" sx={{ ml: 3, color: 'text.secondary' }} />
         </MenuItem>
         <MenuItem component={RouterLink} to="/exportimport" onClick={closeAll}>
@@ -119,14 +119,14 @@ function SettingsMenu() {
       <Menu
         anchorEl={themeAnchor}
         open={themeAnchor !== null}
-        onClose={backToTheme}
+        onClose={backToAppearance}
         anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           list: {
-            'aria-label': 'Theme',
+            'aria-label': 'Appearance',
             onKeyDown: (e: KeyboardEvent) => {
-              if (e.key === 'ArrowLeft') backToTheme();
+              if (e.key === 'ArrowLeft') backToAppearance();
             },
           },
         }}

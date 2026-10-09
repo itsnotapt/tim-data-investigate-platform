@@ -135,26 +135,26 @@ describe('AppShell / AuthGate', () => {
     );
   });
 
-  it('Settings lists Theme above Export / Import', async () => {
+  it('Settings lists Appearance above Export / Import', async () => {
     renderShell(fakeClient());
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual(['Theme', 'Export / Import']);
+    expect(items.map((i) => i.textContent)).toEqual(['Appearance', 'Export / Import']);
     expect(items[0]).toHaveAttribute('aria-haspopup', 'menu');
   });
 });
 
-describe('Settings › Theme', () => {
+describe('Settings › Appearance', () => {
   const html = document.documentElement;
 
   async function openSettings() {
     renderShell(fakeClient());
     await screen.findByText('routes ok');
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    return screen.getByRole('menuitem', { name: 'Theme' });
+    return screen.getByRole('menuitem', { name: 'Appearance' });
   }
 
-  const themeMenu = () => screen.getByRole('menu', { name: 'Theme' });
+  const themeMenu = () => screen.getByRole('menu', { name: 'Appearance' });
   const radios = () => within(themeMenu()).getAllByRole('menuitemradio');
 
   it('opens a sub-menu of Light, Dark and System with System checked by default', async () => {
@@ -198,13 +198,13 @@ describe('Settings › Theme', () => {
     expect(localStorage.getItem(THEME_MODE_KEY)).toBe('system');
   });
 
-  it('ArrowRight opens the sub-menu with focus inside; ArrowLeft returns to Theme', async () => {
+  it('ArrowRight opens the sub-menu with focus inside; ArrowLeft returns to Appearance', async () => {
     const theme = await openSettings();
     theme.focus();
     await userEvent.keyboard('{ArrowRight}');
     expect(themeMenu()).toContainElement(document.activeElement as HTMLElement);
     await userEvent.keyboard('{ArrowLeft}');
-    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Appearance' })).toBeNull());
     expect(theme).toHaveFocus();
     expect(theme).toHaveAttribute('aria-expanded', 'false');
   });
@@ -223,11 +223,11 @@ describe('Settings › Theme', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 
-  it('Escape closes only the sub-menu and returns focus to Theme', async () => {
+  it('Escape closes only the sub-menu and returns focus to Appearance', async () => {
     const theme = await openSettings();
     await userEvent.click(theme);
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Appearance' })).toBeNull());
     expect(theme).toBeInTheDocument();
     expect(theme).toHaveFocus();
   });
