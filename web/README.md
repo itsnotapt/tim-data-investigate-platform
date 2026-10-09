@@ -24,7 +24,7 @@ Stack: React 19, React Router (hash router), MUI + Emotion, Zustand, AG Grid Ent
 
 ## E2E tests
 
-`e2e/smoke.spec.ts` and `e2e/flows/*.spec.ts` (Playwright, headless Chromium; config in `playwright.config.ts`, own `e2e/tsconfig.json`, excluded from Vitest). `npm run e2e` starts `vite` on port 5180 with `VITE_AUTH_STUB=true` (fixed signed-in account, token `dev-stub-token`; refused in production builds, so the harness uses the dev server, not `vite preview`). `/config.js` comes from `public/config.js`. No Python api is needed: `e2e/fixtures.ts` exports a `test` that intercepts every `/api/**` call (`e2e/mocks/api.ts`, data in `e2e/mocks/data.ts`). Query runs go POST 202, poll 202, then 200. Each test gets a fresh browser context (empty IndexedDB). Override per file with `test.use({ apiOptions: { rows, templates, pendingPolls, handlers } })`; inspect requests via the `api` fixture (`api.callsTo('POST', '/api/kusto/query')`). `shot(page, 'NN-name')` (`e2e/shot.ts`) writes screenshots only when `E2E_SHOTS=1`, into `e2e/.screenshots/` (gitignored). Reports go to `test-results/` and `playwright-report/` (gitignored). First run on a machine: `npx playwright install chromium`.
+`e2e/smoke.spec.ts` and `e2e/flows/*.spec.ts` (Playwright, headless Chromium; config in `playwright.config.ts`, own `e2e/tsconfig.json`, excluded from Vitest). `npm run e2e` starts `vite` on port 5180 with `VITE_AUTH_STUB=true` (fixed signed-in account, token `dev-stub-token`; refused in production builds, so the harness uses the dev server, not `vite preview`). `/config.js` comes from `public/config.js`. No Python api is needed: `e2e/fixtures.ts` exports a `test` that intercepts every `/api/**` call (`e2e/mocks/api.ts`, data in `e2e/mocks/data.ts`). Query runs go POST 202, poll 202, then 200. Each test gets a fresh browser context (empty IndexedDB). Override per file with `test.use({ apiOptions: { rows, templates, pendingPolls, handlers } })`; inspect requests via the `api` fixture (`api.callsTo('POST', '/api/kusto/query')`). `shot(page, 'NN-name')` (`e2e/shot.ts`) writes screenshots only when `E2E_SHOTS=1`, into `e2e/.screenshots/` (gitignored). Reports go to `test-results/` and `playwright-report/` (gitignored). `e2e/flows/theme.spec.ts` checks the colour scheme: it forces dark by seeding `localStorage['tim-theme-mode']` with `page.addInitScript`, emulates the OS scheme with `page.emulateMedia`, and reaches the config error page by making the dev stub auth throw. First run on a machine: `npx playwright install chromium`.
 
 ## Layout
 
@@ -108,9 +108,15 @@ Tests use the shared MSW server: call `setupMswServer()` from `src/test/msw/serv
 ## Shell, notifications, dialogs
 
 - `lib/uuid` (`generateUuid`, `crypto.randomUUID`), `lib/isEmpty` (empty value, array or object).
-- `app/AppShell`: white dense toolbar (menu > Query Manager, TIM link, Help > Wiki Page / Report a bug from config in a new tab, Settings > Export / Import, Account > Sign in / Sign out) wraps the routes in `app/AuthGate` (signed out: "You must sign-in first."; loading: progress; error: message + Retry). `SideTree` is rendered inside `AuthGate`, with the main content offset by `SIDE_TREE_COLLAPSED_WIDTH`; a failed "Reload templates" shows a snackbar.
+- `app/AppShell`: flat dense toolbar on the paper colour (menu > Query Manager, TIM link, Help > Wiki Page / Report a bug from config in a new tab, Settings > Export / Import, Account > Sign in / Sign out) wraps the routes in `app/AuthGate` (signed out: "You must sign-in first."; loading: progress; error: message + Retry). `SideTree` is rendered inside `AuthGate`, with the main content offset by `SIDE_TREE_COLLAPSED_WIDTH`; a failed "Reload templates" shows a snackbar.
 - `components/SnackbarHost` + `useNotify()`: FIFO, one at a time, default 5000 ms, 200 ms pause between messages, optional link button, Dismiss. Mounted in `App`.
 - `components/DraggableDialog`: MUI Dialog dragged by title via pointer events, clamped to the viewport, re-clamped on window resize.
+
+## Theme
+
+Every colour lives in one palette in `src/app/theme.ts`, with a light and a dark colour scheme (`colorSchemes`). Besides MUI's entries it has TIM's own: `editor.{border,background}`, `grid.{header,oddRow}`, `determination.*` (row fills) and `stripe.*`. MUI emits them as `--mui-palette-…` CSS variables; components read them through palette tokens (`sx={{ borderColor: 'editor.border' }}`, `theme.vars.palette.*`), never colour literals or `theme.palette.mode`. MUI writes the active scheme as `data-ag-theme-mode="light|dark"` on `<html>`, the attribute AG Grid's theme also reads. `theme.test.ts` checks the WCAG AA contrast pairs in both schemes.
+
+`app/AppThemeProvider` (`ThemeProvider` + `CssBaseline`) wraps both `App` and `ConfigError` in `main.tsx`; tests that render either use it as their `wrapper`. MUI saves the mode in `localStorage` under `tim-theme-mode`. The default mode is light for now, so dark is shown only when `tim-theme-mode` is `dark`. In Vitest, `src/test/matchMedia.ts` stubs `matchMedia` (switch the OS scheme with `setPrefersColorScheme`) and `localStorage` is cleared after each test.
 
 ## Bootstrap and TabHost
 

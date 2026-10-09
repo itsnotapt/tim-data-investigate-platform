@@ -30,7 +30,7 @@ export function TemplateYamlEditor({
       <Typography variant="body2" sx={{ mb: 0.5 }}>
         {label}
       </Typography>
-      <Box sx={{ border: '1px dotted darkgrey', height: 200 }}>
+      <Box sx={{ border: '1px dotted', borderColor: 'editor.border', height: 200 }}>
         <CodeEditor
           value={value}
           onChange={onChange}

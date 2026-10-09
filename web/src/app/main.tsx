@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { AppThemeProvider } from './AppThemeProvider';
 import { ConfigError } from './ConfigError';
 import { getAuthClient } from '../lib/auth';
 
@@ -15,4 +16,8 @@ try {
   element = <ConfigError message={e instanceof Error ? e.message : String(e)} />;
 }
 
-createRoot(root).render(<StrictMode>{element}</StrictMode>);
+createRoot(root).render(
+  <StrictMode>
+    <AppThemeProvider>{element}</AppThemeProvider>
+  </StrictMode>,
+);
