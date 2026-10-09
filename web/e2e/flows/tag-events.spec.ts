@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery, shotKeepMouse } from '../mocks/adhoc-grid';
-import { shot } from '../shot';
+import { rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
+import { shot, shotHovering } from '../shot';
 
 test('quick tag submenu, then the customise dialog', async ({ page, api }) => {
   await runAdhocQuery(page);
@@ -15,7 +15,7 @@ test('quick tag submenu, then the customise dialog', async ({ page, api }) => {
   ]) {
     await expect(page.locator('.ag-menu-option', { hasText: item })).toBeVisible();
   }
-  await shotKeepMouse(page, '22-grid-context-menu-tag');
+  await shotHovering(page, '22-grid-context-menu-tag');
 
   // Quick tag the clicked (unsaved) row: saved-events then comments are posted.
   await page.locator('.ag-menu-option', { hasText: 'Quick - Malicious' }).click();

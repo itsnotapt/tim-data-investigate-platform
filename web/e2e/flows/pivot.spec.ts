@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery, shotKeepMouse } from '../mocks/adhoc-grid';
-import { shot } from '../shot';
+import { rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
+import { shot, shotHovering } from '../shot';
 
 test('context menu, pivot to a template child tab', async ({ page, api }) => {
   await runAdhocQuery(page);
@@ -23,7 +23,7 @@ test('context menu, pivot to a template child tab', async ({ page, api }) => {
   await page.locator('.ag-menu-option:has-text("Storms")').hover();
   await expect(page.locator('.ag-menu-option:has-text("Storm events for state")')).toBeVisible();
   await expect(page.locator('.ag-menu-option:has-text("Damage")')).toBeVisible();
-  await shotKeepMouse(page, '23-grid-context-menu-pivot');
+  await shotHovering(page, '23-grid-context-menu-pivot');
 
   await page.locator('.ag-menu-option:has-text("Storm events for state")').click();
   // The parent tab stays in view; the pivot child runs with State = KANSAS (clicked row).
@@ -39,5 +39,5 @@ test('context menu, pivot to a template child tab', async ({ page, api }) => {
   await tree.hover();
   await expect(tree.getByText('New query')).toBeVisible();
   await expect(tree.getByText(/Storm events in KANSAS/)).toBeVisible();
-  await shotKeepMouse(page, '27-side-tree-with-pivot');
+  await shotHovering(page, '27-side-tree-with-pivot');
 });

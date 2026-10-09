@@ -50,7 +50,8 @@ export async function shot(page: Page, name: string): Promise<void> {
 
 /**
  * Like `shot()` but leaves the mouse where it is: for states that only exist while hovering
- * (the expanded side tree). Same directory, dark copy and `E2E_SHOTS` gate as `shot()`.
+ * (the expanded side tree, nested AG Grid menus). Same directory, dark copy and `E2E_SHOTS` gate
+ * as `shot()`.
  */
 export async function shotHovering(page: Page, name: string): Promise<void> {
   if (process.env['E2E_SHOTS'] !== '1') return;

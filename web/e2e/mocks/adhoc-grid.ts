@@ -1,5 +1,4 @@
 import { expect, type Page } from '@playwright/test';
-import { shotHovering } from '../shot';
 
 /** Sign in (stub), New query, pick the sample cluster/database and run; waits for the grid. */
 export async function runAdhocQuery(page: Page): Promise<void> {
@@ -21,9 +20,4 @@ export async function rightClickState(page: Page, rowIndex: number): Promise<voi
   await page
     .locator(`.ag-row[row-index="${rowIndex}"] .ag-cell[col-id="State"]`)
     .click({ button: 'right' });
-}
-
-/** Like `shot` but leaves the mouse where it is (nested AG Grid menus close when it is parked). */
-export async function shotKeepMouse(page: Page, name: string): Promise<void> {
-  await shotHovering(page, name);
 }
