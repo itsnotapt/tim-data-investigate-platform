@@ -41,3 +41,20 @@ test('quick tag submenu, then the customise dialog', async ({ page, api }) => {
   await expect(dialog.getByRole('button', { name: /^save$/i })).toBeVisible();
   await shot(page, '25-tag-event-dialog');
 });
+
+test('a tagged row shows its determination symbol in light and in dark', async ({ page }) => {
+  await runAdhocQuery(page);
+  const selectionCell = (rowIndex: number) =>
+    page.locator(`.ag-row[row-index="${rowIndex}"] .ag-cell[col-id="ag-Grid-SelectionColumn"]`);
+
+  const expectSymbols = async () => {
+    await expect(selectionCell(0).getByRole('img', { name: 'Malicious' })).toBeVisible();
+    await expect(selectionCell(5).getByRole('img', { name: 'Suspicious' })).toBeVisible();
+    await expect(selectionCell(10).getByRole('img', { name: 'Benign' })).toBeVisible();
+    await expect(selectionCell(1).getByRole('img')).toHaveCount(0);
+  };
+
+  await expectSymbols();
+  await page.evaluate(() => document.documentElement.setAttribute('data-ag-theme-mode', 'dark'));
+  await expectSymbols();
+});

@@ -8,6 +8,7 @@ import type {
   SideBarDef,
   StatusPanelDef,
 } from 'ag-grid-community';
+import { DeterminationSymbol } from './DeterminationSymbol';
 import { ExecutionStatusPanel } from './ExecutionStatusPanel';
 import { aggFuncs } from './aggregation';
 import { ROW_ID_FIELD, scalarText } from './columns';
@@ -104,13 +105,14 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
     headerCheckbox: true,
     selectAll: 'filtered',
   },
-  // Checkboxes stay visible while the grid scrolls sideways.
+  // Checkboxes and determination symbols stay visible while the grid scrolls sideways.
   selectionColumnDef: {
+    cellRenderer: DeterminationSymbol,
     pinned: 'left',
     lockPinned: true,
     lockPosition: true,
     suppressMovable: true,
-    width: 42,
+    width: 64,
     resizable: false,
     sortable: false,
   },

@@ -104,7 +104,7 @@ describe('grid options helpers', () => {
     expect(staticGridOptions.selectionColumnDef).toMatchObject({
       pinned: 'left',
       lockPinned: true,
-      width: 42,
+      width: 64,
     });
   });
 
