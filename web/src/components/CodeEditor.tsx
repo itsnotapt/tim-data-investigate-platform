@@ -49,8 +49,8 @@ export function CodeEditor({
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
-  // Same scheme as `app/theme.ts` and `public/theme-init.js`. Monaco has one theme per page: only
-  // this component picks it.
+  // Same scheme as `app/theme.ts` and `public/theme-init.js`. The page's Monaco theme is picked
+  // only here.
   const { colorScheme } = useColorScheme();
   const { colorSchemes } = useTheme();
   const palettes = useMemo<TimPalettes>(

@@ -146,7 +146,7 @@ describe('index.html', () => {
     expect(head).toContain('<script src="/theme-init.js"></script>');
     expect(themeInit).toBeGreaterThan(-1);
     expect(themeInit).toBeLessThan(html.indexOf('<script type="module"'));
-    // No inline script: the CSP's script-src has no 'unsafe-inline'.
+    // Every script is external.
     expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/);
   });
 });

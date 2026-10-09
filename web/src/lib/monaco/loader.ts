@@ -49,7 +49,7 @@ export function loadMonaco(palettes: TimPalettes): Promise<MonacoApi> {
     // editor.api is one shared module instance, also used by monaco-kusto.
     const api: MonacoApi = await import('monaco-editor/esm/vs/editor/editor.api');
     loader.config({ monaco: api });
-    // An unknown theme name falls back silently to light `vs`.
+    // Both TIM themes exist before any editor mounts.
     defineTimThemes(api, palettes);
     return api;
   })().catch((e: unknown) => {

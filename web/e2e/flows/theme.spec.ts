@@ -174,9 +174,7 @@ function contrastRatio(a: string, b: string): number {
 }
 
 /**
- * axe reports every results grid body cell as "incomplete" (AG Grid's layered row DOM hides the
- * background from it), so the text and the symbol of each tagged row are checked against the
- * row's fill here: 4.5:1 for text, 3:1 for the symbol (non-text).
+ * Contrast of each tagged row's text (4.5:1) and symbol (3:1, non-text) against the row's fill.
  */
 async function expectTaggedRowContrast(page: Page) {
   for (const [index, name] of [
@@ -213,7 +211,7 @@ async function expectKqlEditor(page: Page, colours: Colours) {
   );
 }
 
-/** The Query Manager edit dialog has YAML and plain text editors only, so no Kusto is loaded. */
+/** The Query Manager edit dialog has YAML and plain text editors only: no Kusto is loaded. */
 async function expectYamlEditor(page: Page, colours: Colours) {
   await page.goto('/#/queries');
   await page.getByRole('button', { name: 'Storm events by state' }).click();
@@ -314,8 +312,7 @@ async function pickTheme(page: Page, choice: 'Light' | 'Dark' | 'System') {
 
 /**
  * Records every value the scheme attribute takes on `<html>` from the very start of each load, and
- * its value at DOM-ready, in `window.schemeLog`. Init scripts run before `<html>` exists, so this
- * watches the whole document.
+ * its value at DOM-ready, in `window.schemeLog`. It watches the whole document.
  */
 async function logSchemeChanges(page: Page): Promise<void> {
   await page.addInitScript((attribute) => {
@@ -414,7 +411,7 @@ const THEME_CHOICE = { light: 'Light', dark: 'Dark' } as const;
 
 /**
  * The sweep: axe colour contrast on every main screen in both schemes. The scheme is picked from
- * Settings › Theme on an OS set to the other one, so the pick is what decides it.
+ * Settings › Theme on an OS set to the other one.
  */
 for (const scheme of ['light', 'dark'] as const) {
   test.describe(`colour contrast sweep in ${scheme}`, () => {

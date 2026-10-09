@@ -8,7 +8,7 @@ import { getDetermination } from './rowClasses';
 import type { Determination } from './rowClasses';
 import { SkullIcon } from './SkullIcon';
 
-/** One shape per determination, so a row's determination can be read without its colour. */
+/** The symbol and accessible name of each determination. */
 const SYMBOLS: Record<Determination, { Icon: ComponentType<SvgIconProps>; label: string }> = {
   malicious: { Icon: SkullIcon, label: 'Malicious' },
   suspicious: { Icon: WarningAmber, label: 'Suspicious' },

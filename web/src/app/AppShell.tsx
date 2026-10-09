@@ -72,8 +72,8 @@ const THEME_MODES: { mode: ThemeMode; label: string; icon: ReactElement }[] = [
 ];
 
 /**
- * Settings: `Theme ›` opens a Light / Dark / System sub-menu, a sibling `Menu` so its events don't
- * reach the Settings menu. Picking one applies it and closes both menus.
+ * Settings: `Theme ›` opens a Light / Dark / System sub-menu, a `Menu` beside the Settings menu.
+ * Picking one applies it and closes both menus.
  */
 function SettingsMenu() {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);

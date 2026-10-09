@@ -1,5 +1,5 @@
-// Applies the saved Light / Dark / System choice before the bundle runs (external: the CSP allows
-// no inline script). Key and attribute as in src/app/themeKeys.ts, used by theme.ts and CodeEditor.
+// Applies the saved Light / Dark / System choice before the bundle runs. Key and attribute as in
+// src/app/themeKeys.ts, used by theme.ts and CodeEditor.
 (function () {
   var mode = null;
   try {

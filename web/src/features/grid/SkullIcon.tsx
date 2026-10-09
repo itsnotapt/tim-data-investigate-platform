@@ -1,7 +1,7 @@
 import SvgIcon from '@mui/material/SvgIcon';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
 
-/** Material Symbols "skull" (Outlined, Apache 2.0): @mui/icons-material has no skull. */
+/** Material Symbols "skull" (Outlined, Apache 2.0). */
 export function SkullIcon(props: SvgIconProps) {
   return (
     <SvgIcon {...props} viewBox="0 -960 960 960">

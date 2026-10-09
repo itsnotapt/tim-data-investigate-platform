@@ -28,9 +28,8 @@ import './grid.css';
 initAgGridFromConfig();
 
 /**
- * Balham with the theme palette's CSS variables (`web/src/app/theme.ts`). The params have no mode
- * argument, so they apply in both colour schemes while the variables switch underneath with
- * `data-ag-theme-mode`.
+ * Balham with the theme palette's CSS variables (`web/src/app/theme.ts`), the same params in both
+ * colour schemes.
  */
 const gridTheme = themeBalham.withParams({
   backgroundColor: 'var(--mui-palette-background-paper)',

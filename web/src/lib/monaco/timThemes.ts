@@ -19,8 +19,7 @@ const SELECTION_WEIGHT = 0.3;
 const channelHex = (n: number) => Math.round(n).toString(16).padStart(2, '0');
 
 /**
- * `colour` mixed over `background` as 6-digit hex: Monaco parses theme colours with `Color.fromHex`,
- * so MUI's `rgb()` / `rgba()` values are flattened first. `weight` is the share of `colour`.
+ * `colour` mixed over `background`, as 6-digit hex. `weight` is the share of `colour`.
  */
 function mixToHex(colour: string, background: string, weight = 1): string {
   const fg = decomposeColor(colour);

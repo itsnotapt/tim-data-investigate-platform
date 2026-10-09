@@ -23,7 +23,7 @@ const NAMED_COLOURS = new Set(
   whitesmoke yellow yellowgreen`.split(/\s+/),
 );
 
-/** Comments are prose, not styles: blank them out before scanning. */
+/** Blanks out comments before scanning. */
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/.*$/gm, '$1');
 }

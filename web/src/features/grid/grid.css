@@ -1,7 +1,7 @@
 /*
- * Determination rows: the fill sets AG Grid's row background variables, so it also covers odd
- * rows, pinned cells and the filler right of the last column. The stripe goes on the first cell
- * (a row ::before is hidden behind the pinned cells). Colours come from the theme palette.
+ * Determination rows: the fill sets AG Grid's row background variables (even and odd rows, pinned
+ * cells, the filler right of the last column); the stripe is an inset shadow on the first cell.
+ * Colours come from the theme palette.
  */
 .ag-tag-malicious {
   --ag-data-background-color: var(--mui-palette-determination-malicious);

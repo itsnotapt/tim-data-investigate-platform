@@ -35,8 +35,7 @@ const storageManager: StorageManager = ({ key }) => ({
 });
 
 /**
- * Removes the inline `color-scheme` that `public/theme-init.js` sets: it outranks `CssBaseline`'s
- * and would keep the first scheme.
+ * Removes the inline `color-scheme` that `public/theme-init.js` sets, leaving `CssBaseline`'s.
  */
 function TakeOverFromThemeInit() {
   useLayoutEffect(() => {

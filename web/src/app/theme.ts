@@ -40,8 +40,8 @@ declare module '@mui/material/styles' {
 /**
  * The only place colours are defined in `web/src`: one palette, light and dark.
  *
- * The scheme attribute is AG Grid's `data-ag-theme-mode`, so one attribute drives MUI, AG Grid and
- * TIM's CSS. `public/theme-init.js` and `CodeEditor` use the same key and attribute.
+ * One attribute, AG Grid's `data-ag-theme-mode`, selects the scheme for MUI, AG Grid and TIM's CSS.
+ * `public/theme-init.js` and `CodeEditor` use the same key and attribute.
  */
 export const theme = createTheme({
   cssVariables: { colorSchemeSelector: COLOR_SCHEME_ATTRIBUTE },

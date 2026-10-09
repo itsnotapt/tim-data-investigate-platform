@@ -12,7 +12,7 @@ function matches(query: string): boolean {
 }
 
 /**
- * jsdom has no `matchMedia`. This stub answers `prefers-color-scheme` queries from a switchable OS
+ * `matchMedia` for jsdom: answers `prefers-color-scheme` queries from a switchable OS
  * scheme (light by default) and notifies `change` listeners when it switches; any other query
  * doesn't match. Installed only in the jsdom environment.
  */
