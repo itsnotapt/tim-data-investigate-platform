@@ -8,6 +8,10 @@ Where issue numbers may appear is set in [CODING_STANDARDS.md](../../CODING_STAN
 
 Make an issue a sub-issue of a parent with `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards. List a parent's sub-issues with `gh issue view <parent> --json subIssues`.
 
+## Tickets
+
+A ticket's tests and acceptance criteria name its test seams, already confirmed: `/tdd` starts from them.
+
 ## Pull requests
 
 **PRs as a request surface: no.** Issues are the only request surface; PRs are reviewed as code, not labelled with the [triage labels](triage-labels.md).
