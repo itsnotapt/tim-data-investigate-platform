@@ -51,7 +51,7 @@ export const PALETTES: Record<PaletteVariant['key'], PaletteVariant> = {
       gridOddRow: '#fcfdfe',
       editor: '#ffffff',
       determination: { malicious: '#fecaca', suspicious: '#fde68a', benign: '#bbf7d0' },
-      stripe: noStripe,
+      stripe: { malicious: '#dc2626', suspicious: '#d97706', benign: '#16a34a' },
     },
     dark: {
       primary: '#90caf9',
@@ -65,7 +65,7 @@ export const PALETTES: Record<PaletteVariant['key'], PaletteVariant> = {
       gridOddRow: '#232323',
       editor: '#1e1e1e',
       determination: { malicious: '#7f1d1d', suspicious: '#713f12', benign: '#14532d' },
-      stripe: noStripe,
+      stripe: { malicious: '#f87171', suspicious: '#fbbf24', benign: '#4ade80' },
     },
   },
   // B: Azure Data Explorer / Fluent look: grey page with white panels (layered surfaces), Fluent
