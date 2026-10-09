@@ -61,6 +61,47 @@ describe('ResultsGrid', () => {
   });
 });
 
+describe('ResultsGrid determination symbol', () => {
+  const tagged = [
+    { EventId: 'm', TagEvent: { Determination: 'malicious' } },
+    { EventId: 's', TagEvent: { Determination: 'suspicious' } },
+    { EventId: 'b', TagEvent: { Determination: 'benign' } },
+    { EventId: 'u', Name: 'untagged' },
+  ];
+  const selectionCell = (id: string) => {
+    const cell = document.querySelector(
+      `.ag-row[row-id="${id}"] [col-id="ag-Grid-SelectionColumn"]`,
+    );
+    expect(cell).not.toBeNull();
+    return cell as HTMLElement;
+  };
+
+  it('shows the symbol of each determination in the selection cell, and none when untagged', async () => {
+    let api: GridApi | undefined;
+    render(<ResultsGrid rows={tagged} height={400} onGridReady={(e) => (api = e.api)} />);
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(4));
+    await waitFor(() => selectionCell('m'));
+    expect(within(selectionCell('m')).getByRole('img', { name: 'Malicious' })).toBeInTheDocument();
+    expect(within(selectionCell('s')).getByRole('img', { name: 'Suspicious' })).toBeInTheDocument();
+    expect(within(selectionCell('b')).getByRole('img', { name: 'Benign' })).toBeInTheDocument();
+    expect(within(selectionCell('u')).queryByRole('img')).toBeNull();
+    expect(within(selectionCell('m')).getByRole('checkbox')).toBeInTheDocument();
+  });
+
+  it('shows no symbol on a group row', async () => {
+    let api: GridApi | undefined;
+    render(<ResultsGrid rows={tagged} height={400} onGridReady={(e) => (api = e.api)} />);
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(4));
+    act(() => {
+      api?.applyColumnState({ state: [{ colId: 'EventId', rowGroup: true }] });
+    });
+    await waitFor(() => expect(document.querySelector('.ag-row-group')).not.toBeNull());
+    for (const row of document.querySelectorAll<HTMLElement>('.ag-row-group')) {
+      expect(within(row).queryByRole('img')).toBeNull();
+    }
+  });
+});
+
 describe('TabResultsGrid', () => {
   beforeEach(async () => {
     await resetTimDb();
