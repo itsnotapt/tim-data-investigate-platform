@@ -1,12 +1,24 @@
-/* Determination row colours. */
-.ag-tag-malicious {
-  background-color: #fbbbb9 !important;
+/* Determination row colours, per scheme, from the MUI palette (PROTOTYPE #40). */
+.ag-row.ag-tag-malicious {
+  --ag-data-background-color: var(--mui-palette-determination-malicious);
+  --ag-odd-row-background-color: var(--mui-palette-determination-malicious);
+  --tim-stripe: var(--mui-palette-stripe-malicious);
 }
-.ag-tag-suspicious {
-  background-color: #ffecae !important;
+.ag-row.ag-tag-suspicious {
+  --ag-data-background-color: var(--mui-palette-determination-suspicious);
+  --ag-odd-row-background-color: var(--mui-palette-determination-suspicious);
+  --tim-stripe: var(--mui-palette-stripe-suspicious);
 }
-.ag-tag-benign {
-  background-color: #d4f3cd !important;
+.ag-row.ag-tag-benign {
+  --ag-data-background-color: var(--mui-palette-determination-benign);
+  --ag-odd-row-background-color: var(--mui-palette-determination-benign);
+  --tim-stripe: var(--mui-palette-stripe-benign);
+}
+/* Variant C: saturated left stripe on the first cell; transparent in A and B. */
+.ag-row.ag-tag-malicious .ag-cell.ag-column-first,
+.ag-row.ag-tag-suspicious .ag-cell.ag-column-first,
+.ag-row.ag-tag-benign .ag-cell.ag-column-first {
+  box-shadow: inset 5px 0 0 var(--tim-stripe);
 }
 .ag-text-area-input {
   font-family: monospace;

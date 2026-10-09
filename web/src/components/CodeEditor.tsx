@@ -6,6 +6,38 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { DEFAULT_EDITOR_OPTIONS } from './codeEditorOptions';
 import { loadMonaco, loadMonacoKusto, type EditorLanguage } from '../lib/monaco';
+import { useColorScheme } from '@mui/material/styles';
+import { themes as kustoThemes } from '@kusto/monaco-kusto/release/esm/syntaxHighlighting/themes';
+import { PALETTES, usePaletteStore, type SchemePalette } from '../app/palettes.prototype';
+
+// PROTOTYPE (wayfinder #40): tim-light / tim-dark generated as hex from the palette, keeping
+// monaco-kusto's KQL token colours except plain text, which takes the palette text colour.
+export function timMonacoTheme(
+  scheme: 'light' | 'dark',
+  p: SchemePalette,
+): Monaco.editor.IStandaloneThemeData {
+  const kusto = kustoThemes.find((t) => t.name === `kusto-${scheme}`)!.data;
+  const plain = new Set(['#000000', '#DCDCDC']);
+  return {
+    base: scheme === 'light' ? 'vs' : 'vs-dark',
+    inherit: true,
+    rules: kusto.rules.map((r) =>
+      r.foreground && plain.has(r.foreground) ? { ...r, foreground: p.text } : r,
+    ),
+    colors: {
+      'editor.background': p.editor,
+      'editor.foreground': p.text,
+      'editorLineNumber.foreground': p.textSecondary,
+      'editorLineNumber.activeForeground': p.text,
+      'editor.lineHighlightBackground': p.gridOddRow,
+      'editor.lineHighlightBorder': p.divider,
+      'editorWidget.background': p.paper,
+      'editorWidget.border': p.border,
+      'editorSuggestWidget.background': p.paper,
+      'editorSuggestWidget.border': p.border,
+    },
+  };
+}
 
 export type CodeEditorInstance = Monaco.editor.IStandaloneCodeEditor;
 
@@ -42,6 +74,16 @@ export function CodeEditor({
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
+  const { colorScheme } = useColorScheme();
+  const variant = usePaletteStore((st) => st.variant);
+  const scheme = colorScheme === 'dark' ? 'dark' : 'light';
+  const [monacoApi, setMonacoApi] = useState<typeof Monaco | null>(null);
+  useEffect(() => {
+    if (!monacoApi) return;
+    monacoApi.editor.defineTheme('tim-light', timMonacoTheme('light', PALETTES[variant].light));
+    monacoApi.editor.defineTheme('tim-dark', timMonacoTheme('dark', PALETTES[variant].dark));
+    monacoApi.editor.setTheme(`tim-${scheme}`);
+  }, [monacoApi, variant, scheme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +110,7 @@ export function CodeEditor({
   const handleMount = useCallback<OnMount>(
     (editor, monaco) => {
       editorRef.current = editor;
+      setMonacoApi(monaco);
       onMount?.(editor, monaco);
     },
     [onMount],
@@ -89,6 +132,7 @@ export function CodeEditor({
       path={path}
       value={value}
       loading={null}
+      theme={`tim-${scheme}`}
       onChange={(v) => onChange?.(v ?? '')}
       onMount={handleMount}
       options={{

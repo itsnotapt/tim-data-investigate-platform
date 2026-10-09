@@ -13,7 +13,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import { Suspense, useCallback, useState, type ReactElement, type ReactNode } from 'react';
-import { Link as RouterLink, Outlet } from 'react-router';
+import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
@@ -116,6 +116,8 @@ function ShellContent() {
 
 export function AppShell() {
   const { wikiUri, issueUri } = getConfig();
+  // PROTOTYPE (wayfinder #40): prototype routes skip sign-in and bootstrap (no api needed).
+  const isPrototype = useLocation().pathname.startsWith('/prototype');
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
@@ -172,9 +174,13 @@ export function AppShell() {
         </Toolbar>
       </AppBar>
       <Box component="main" sx={{ flexGrow: 1, p: 3, position: 'relative' }}>
-        <AuthGate>
-          <ShellContent />
-        </AuthGate>
+        {isPrototype ? (
+          <Outlet />
+        ) : (
+          <AuthGate>
+            <ShellContent />
+          </AuthGate>
+        )}
       </Box>
     </Box>
   );

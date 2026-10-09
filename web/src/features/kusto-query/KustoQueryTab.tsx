@@ -190,7 +190,7 @@ export function KustoQueryTab({ uuid, onRun }: KustoQueryTabProps) {
           <Box
             sx={{
               height: 400,
-              border: '1px dotted darkgrey',
+              border: '1px dotted var(--mui-palette-tim-border)',
               mb: 2.5,
               resize: 'vertical',
               overflow: 'hidden',

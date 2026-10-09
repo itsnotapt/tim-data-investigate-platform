@@ -21,7 +21,6 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { PrototypeSwitcher, usePrototypeVariant } from '../components/PrototypeSwitcher';
 
 type Mode = 'light' | 'dark' | 'system';
 
@@ -31,7 +30,7 @@ const MODES: { mode: Mode; label: string; icon: ReactElement }[] = [
   { mode: 'system', label: 'System', icon: <SettingsBrightnessOutlinedIcon fontSize="small" /> },
 ];
 
-const VARIANTS = [
+export const VARIANTS = [
   { key: 'A', name: 'Inline radio items' },
   { key: 'B', name: 'Theme sub-menu' },
   { key: 'C', name: 'Segmented control' },
@@ -84,7 +83,7 @@ function ExportImportItem({ onClick }: { onClick: () => void }) {
  * A: a "Theme" heading with three radio items directly in the Settings menu.
  * Picking one applies it immediately and keeps the menu open so the change is visible.
  */
-function VariantA() {
+export function VariantA() {
   const { anchor, open, close } = useAnchor();
   const { current, systemMode, setMode } = useMode();
   return (
@@ -198,7 +197,7 @@ function VariantB() {
  * saying what System resolves to. The control is one menu stop; ArrowLeft / ArrowRight
  * (or clicking) change the choice live, ArrowDown moves on to Export / Import.
  */
-function VariantC() {
+export function VariantC() {
   const { anchor, open, close } = useAnchor();
   const { current, systemMode, setMode } = useMode();
   const step = (delta: number) => {
@@ -274,17 +273,6 @@ function VariantC() {
 }
 
 export function PrototypeSettingsMenu() {
-  const variant = usePrototypeVariant(VARIANTS.map((v) => v.key));
-  const { current, systemMode, effective } = useMode();
-  return (
-    <>
-      {variant === 'A' && <VariantA />}
-      {variant === 'B' && <VariantB />}
-      {variant === 'C' && <VariantC />}
-      <PrototypeSwitcher
-        variants={VARIANTS}
-        state={`mode=${current} system=${systemMode} effective=${effective} saved=${localStorage.getItem('mui-mode')}`}
-      />
-    </>
-  );
+  // #40: variant B was chosen in #38; the palette prototype owns the switcher now.
+  return <VariantB />;
 }

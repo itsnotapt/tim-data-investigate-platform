@@ -5,7 +5,7 @@ import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
 import { AgGridReact } from 'ag-grid-react';
-import { themeBalham } from 'ag-grid-community';
+import { gridTheme } from '../../app/palettes.prototype';
 import type {
   CellEditRequestEvent,
   CellFocusedEvent,
@@ -157,7 +157,7 @@ export function ResultsGrid({
       <div ref={containerRef} style={{ height }} data-testid="results-grid">
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
-          theme={themeBalham}
+          theme={gridTheme}
           rowData={rowData}
           columnDefs={columnDefs}
           context={context}
