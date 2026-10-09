@@ -1,12 +1,42 @@
 import CssBaseline from '@mui/material/CssBaseline';
-import { ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider, type StorageManager } from '@mui/material/styles';
 import { useLayoutEffect, type ReactNode } from 'react';
 import { theme } from './theme';
+import { THEME_MODE_KEY, type ThemeMode } from './themeKeys';
+
+const THEME_MODES: readonly string[] = ['light', 'dark', 'system'] satisfies ThemeMode[];
+
+/** `localStorage` for MUI, except that a stored mode MUI doesn't know reads as the default (System). */
+const storageManager: StorageManager = ({ key }) => ({
+  get(defaultValue: unknown) {
+    let value: string | null = null;
+    try {
+      value = localStorage.getItem(key);
+    } catch {
+      // Storage unavailable.
+    }
+    if (!value || (key === THEME_MODE_KEY && !THEME_MODES.includes(value))) return defaultValue;
+    return value;
+  },
+  set(value: string) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Storage unavailable.
+    }
+  },
+  subscribe(handler: (value: string | null) => void) {
+    const listener = (event: StorageEvent) => {
+      if (event.key === key) handler(event.newValue);
+    };
+    window.addEventListener('storage', listener);
+    return () => window.removeEventListener('storage', listener);
+  },
+});
 
 /**
- * `public/theme-init.js` sets `color-scheme` inline on `<html>` for the page shown before the
- * bundle runs. Inline style outranks the `color-scheme` that `CssBaseline` sets per scheme, so it
- * is removed once MUI's styles are in place; otherwise it would stay on the first scheme.
+ * Removes the inline `color-scheme` that `public/theme-init.js` sets: it outranks `CssBaseline`'s
+ * and would keep the first scheme.
  */
 function TakeOverFromThemeInit() {
   useLayoutEffect(() => {
@@ -17,9 +47,8 @@ function TakeOverFromThemeInit() {
 
 /**
  * MUI theme and baseline for everything TIM renders, including the config error page. MUI holds
- * the light / dark / system mode (System, following the OS, by default), saves it in `localStorage`
- * under `tim-theme-mode` and follows changes made in other tabs. `public/theme-init.js` applies the
- * same choice before this bundle runs.
+ * the light / dark / system mode (System by default), saves it in `localStorage` and follows
+ * changes made in other tabs.
  */
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   return (
@@ -27,8 +56,9 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
       theme={theme}
       noSsr
       disableTransitionOnChange
-      modeStorageKey="tim-theme-mode"
+      modeStorageKey={THEME_MODE_KEY}
       colorSchemeStorageKey="tim-color-scheme"
+      storageManager={storageManager}
     >
       <CssBaseline enableColorScheme />
       <TakeOverFromThemeInit />

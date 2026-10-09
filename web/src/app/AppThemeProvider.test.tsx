@@ -35,6 +35,15 @@ describe('AppThemeProvider', () => {
     expect(document.documentElement.style.colorScheme).toBe('');
   });
 
+  it('treats a junk stored value as System, following the OS and its live changes', () => {
+    localStorage.setItem('tim-theme-mode', 'sepia');
+    setPrefersColorScheme('dark');
+    render(<ConfigError message="bad config" />, { wrapper: AppThemeProvider });
+    expect(schemeAttr()).toBe('dark');
+    act(() => setPrefersColorScheme('light'));
+    expect(schemeAttr()).toBe('light');
+  });
+
   it('applies a stored dark mode', () => {
     localStorage.setItem('tim-theme-mode', 'dark');
     render(<ConfigError message="bad config" />, { wrapper: AppThemeProvider });

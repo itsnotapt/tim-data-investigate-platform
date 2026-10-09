@@ -87,6 +87,14 @@ describe('CodeEditor', () => {
     expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-dark' });
   });
 
+  it('follows a dark OS when the stored mode is junk', async () => {
+    localStorage.setItem('tim-theme-mode', 'sepia');
+    setPrefersColorScheme('dark');
+    render(<CodeEditor value="" language="yaml" />, { wrapper: AppThemeProvider });
+    await screen.findByTestId('monaco');
+    expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-dark' });
+  });
+
   it('uses tim-light when the colour scheme is light', async () => {
     localStorage.setItem('tim-theme-mode', 'light');
     setPrefersColorScheme('dark');

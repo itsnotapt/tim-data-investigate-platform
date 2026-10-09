@@ -174,6 +174,12 @@ describe('Settings › Theme', () => {
     );
   });
 
+  it('checks System for a junk stored value', async () => {
+    localStorage.setItem('tim-theme-mode', 'sepia');
+    await userEvent.click(await openSettings());
+    expect(radios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true']);
+  });
+
   it('picking Dark applies and saves it, and closes both menus', async () => {
     await userEvent.click(await openSettings());
     await userEvent.click(within(themeMenu()).getByRole('menuitemradio', { name: 'Dark' }));
