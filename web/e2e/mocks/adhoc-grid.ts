@@ -1,6 +1,5 @@
-import { resolve } from 'node:path';
 import { expect, type Page } from '@playwright/test';
-import { SHOT_DIR } from '../shot';
+import { shotHovering } from '../shot';
 
 /** Sign in (stub), New query, pick the sample cluster/database and run; waits for the grid. */
 export async function runAdhocQuery(page: Page): Promise<void> {
@@ -26,7 +25,5 @@ export async function rightClickState(page: Page, rowIndex: number): Promise<voi
 
 /** Like `shot` but leaves the mouse where it is (nested AG Grid menus close when it is parked). */
 export async function shotKeepMouse(page: Page, name: string): Promise<void> {
-  if (process.env['E2E_SHOTS'] !== '1') return;
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: resolve(SHOT_DIR, `${name}.png`) });
+  await shotHovering(page, name);
 }

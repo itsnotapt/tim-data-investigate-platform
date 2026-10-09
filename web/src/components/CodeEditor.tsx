@@ -44,7 +44,8 @@ export function CodeEditor({
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
-  // The colour scheme comes from the `data-ag-theme-mode` attribute set up in `app/theme.ts`.
+  // The colour scheme comes from the `data-ag-theme-mode` attribute set up in `app/theme.ts`
+  // (and, before the bundle runs, `public/theme-init.js`).
   // Monaco has one theme per page, so this is the only place a theme is chosen: an editor
   // mounted without one would reset every editor on the page to light.
   const { colorScheme } = useColorScheme();

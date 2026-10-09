@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
+import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { waitForEditor } from '../mocks/editor';
 import { templateStoreHandlers } from '../mocks/templates';
@@ -45,7 +46,7 @@ const DARK_GRID = {
 };
 type GridColours = typeof LIGHT_GRID;
 
-/** Dark can't be picked in the UI yet: a stored mode overrides the light default. */
+/** Dark stored before the page loads, as if picked in an earlier session. */
 async function storeDarkMode(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('tim-theme-mode', 'dark'));
 }
@@ -238,18 +239,133 @@ test.describe('with nothing stored', () => {
 test.describe('with nothing stored on a dark OS', () => {
   test.beforeEach(async ({ page }) => page.emulateMedia({ colorScheme: 'dark' }));
 
-  test('the app shell stays light', async ({ page }) => {
-    await expectAppShell(page, LIGHT);
+  test('the app shell follows the OS, including a live change', async ({ page }) => {
+    await expectAppShell(page, DARK);
+    await expectScheme(page, 'dark', DARK);
+    await page.emulateMedia({ colorScheme: 'light' });
     await expectScheme(page, 'light', LIGHT);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expectScheme(page, 'dark', DARK);
   });
 
-  test('the auth gate stays light', async ({ page }) => {
-    await expectAuthGate(page, LIGHT);
-    await expectScheme(page, 'light', LIGHT);
+  test('the auth gate is dark', async ({ page }) => {
+    await expectAuthGate(page, DARK);
+    await expectScheme(page, 'dark', DARK);
   });
 
-  test('the config error page stays light', async ({ page }) => {
+  test('the config error page is dark', async ({ page }) => {
     await expectConfigError(page);
-    await expectScheme(page, 'light', LIGHT);
+    await expectScheme(page, 'dark', DARK);
   });
 });
+
+/** Settings › Theme › `choice`; picking closes both menus. */
+async function pickTheme(page: Page, choice: 'Light' | 'Dark' | 'System') {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('menuitem', { name: 'Theme' }).click();
+  await page
+    .getByRole('menu', { name: 'Theme' })
+    .getByRole('menuitemradio', { name: choice })
+    .click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+}
+
+/**
+ * Records every value `data-ag-theme-mode` takes on `<html>` from the very start of each load, and
+ * its value at DOM-ready, in `window.schemeLog`. Init scripts run before `<html>` exists, so this
+ * watches the whole document.
+ */
+async function logSchemeChanges(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const log = { values: [] as (string | null)[], atDomReady: null as string | null };
+    Object.assign(window, { schemeLog: log });
+    const current = () => document.documentElement?.getAttribute('data-ag-theme-mode') ?? null;
+    const record = () => {
+      if (log.values.at(-1) !== current()) log.values.push(current());
+    };
+    record();
+    new MutationObserver(record).observe(document, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ['data-ag-theme-mode'],
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+      log.atDomReady = current();
+    });
+  });
+}
+
+const schemeLog = (page: Page) =>
+  page.evaluate(
+    () => (window as unknown as { schemeLog: { values: string[]; atDomReady: string } }).schemeLog,
+  );
+
+test.describe('Settings › Theme', () => {
+  test('Dark survives a reload with no light flash', async ({ page }) => {
+    await expectAppShell(page, LIGHT);
+    await pickTheme(page, 'Dark');
+    await expectScheme(page, 'dark', DARK);
+
+    await logSchemeChanges(page);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
+    await expectScheme(page, 'dark', DARK);
+    const log = await schemeLog(page);
+    expect(log.atDomReady).toBe('dark');
+    // Unset until theme-init.js runs in <head> (nothing painted yet), then only dark.
+    expect(log.values).toEqual([null, 'dark']);
+  });
+
+  test('theme-init.js applies the stored choice before the bundle runs', async ({ page }) => {
+    await storeDarkMode(page);
+    await page.route('**/src/app/main.tsx*', (route) =>
+      route.fulfill({ contentType: 'text/javascript', body: '' }),
+    );
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', 'dark');
+    await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+  });
+
+  test('a second page in the same browser follows the choice', async ({ page, context }) => {
+    await expectAppShell(page, LIGHT);
+    const other = await context.newPage();
+    await mockApi(other, { handlers: store.handlers });
+    await expectAppShell(other, LIGHT);
+
+    await pickTheme(page, 'Dark');
+    await expectScheme(other, 'dark', DARK);
+    await pickTheme(page, 'Light');
+    await expectScheme(other, 'light', LIGHT);
+  });
+
+  test('System goes back to following the OS', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await storeDarkMode(page);
+    await expectAppShell(page, DARK);
+    await pickTheme(page, 'Light');
+    await expectScheme(page, 'light', LIGHT);
+    await pickTheme(page, 'System');
+    await expectScheme(page, 'dark', DARK);
+  });
+});
+
+for (const scheme of ['light', 'dark'] as const) {
+  test.describe(`colour contrast on a ${scheme} OS`, () => {
+    test.beforeEach(async ({ page }) => page.emulateMedia({ colorScheme: scheme }));
+
+    test('home', async ({ page }) => {
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expectColourContrast(page);
+    });
+
+    test('Query Manager', async ({ page }) => {
+      await page.goto('/#/queries');
+      await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expectColourContrast(page);
+    });
+  });
+}

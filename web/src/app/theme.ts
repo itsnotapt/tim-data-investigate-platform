@@ -42,7 +42,8 @@ declare module '@mui/material/styles' {
  *
  * `colorSchemeSelector` uses AG Grid's attribute name on purpose: MUI writes
  * `data-ag-theme-mode="light|dark"` on `<html>`, and AG Grid's `themeBalham` reads that same
- * attribute, so one attribute drives MUI, AG Grid and TIM's CSS.
+ * attribute, so one attribute drives MUI, AG Grid and TIM's CSS. `public/theme-init.js` sets the
+ * same attribute from the same `tim-theme-mode` key before the bundle runs; keep them in step.
  */
 export const theme = createTheme({
   cssVariables: { colorSchemeSelector: 'data-ag-theme-mode' },
