@@ -34,6 +34,8 @@ vi.mock('../lib/monaco', () => ({
   getKustoWorkerFor: h.getKustoWorkerFor,
 }));
 
+import { AppThemeProvider } from '../app/AppThemeProvider';
+import { setPrefersColorScheme } from '../test/matchMedia';
 import { CodeEditor } from './CodeEditor';
 import { useCodeEditor } from './useCodeEditor';
 
@@ -76,6 +78,21 @@ describe('CodeEditor', () => {
     render(<CodeEditor value="T" language="kusto" />);
     await screen.findByTestId('monaco');
     expect(h.loadMonacoKusto).toHaveBeenCalled();
+  });
+
+  it('uses tim-dark when the colour scheme is dark', async () => {
+    localStorage.setItem('tim-theme-mode', 'dark');
+    render(<CodeEditor value="" language="yaml" />, { wrapper: AppThemeProvider });
+    await screen.findByTestId('monaco');
+    expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-dark' });
+  });
+
+  it('uses tim-light when the colour scheme is light', async () => {
+    localStorage.setItem('tim-theme-mode', 'light');
+    setPrefersColorScheme('dark');
+    render(<CodeEditor value="" language="kusto" />, { wrapper: AppThemeProvider });
+    await screen.findByTestId('monaco');
+    expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-light' });
   });
 
   it('disposes model and editor on unmount', async () => {

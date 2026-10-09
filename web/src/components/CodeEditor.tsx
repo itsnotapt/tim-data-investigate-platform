@@ -2,6 +2,7 @@ import { Editor, type OnMount } from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
+import { useColorScheme } from '@mui/material/styles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { DEFAULT_EDITOR_OPTIONS } from './codeEditorOptions';
@@ -25,8 +26,9 @@ export interface CodeEditorProps {
 }
 
 /**
- * Monaco wrapper using the locally bundled monaco-editor (no CDN). The model and editor are
- * disposed on unmount.
+ * Monaco wrapper using the locally bundled monaco-editor (no CDN), themed `tim-light` or `tim-dark`
+ * (defined by `loadMonaco()`) to match the colour scheme. The model and editor are disposed on
+ * unmount.
  */
 export function CodeEditor({
   value,
@@ -42,6 +44,10 @@ export function CodeEditor({
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
+  // The colour scheme comes from the `data-ag-theme-mode` attribute set up in `app/theme.ts`.
+  // Monaco has one theme per page, so this is the only place a theme is chosen: an editor
+  // mounted without one would reset every editor on the page to light.
+  const { colorScheme } = useColorScheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +95,7 @@ export function CodeEditor({
       path={path}
       value={value}
       loading={null}
+      theme={colorScheme === 'dark' ? 'tim-dark' : 'tim-light'}
       onChange={(v) => onChange?.(v ?? '')}
       onMount={handleMount}
       options={{
