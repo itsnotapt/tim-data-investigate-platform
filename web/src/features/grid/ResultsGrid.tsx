@@ -27,6 +27,23 @@ import './grid.css';
 // Registers modules and applies the licence key before any grid renders (this chunk is lazy).
 initAgGridFromConfig();
 
+/**
+ * Balham with the theme palette's CSS variables (`web/src/app/theme.ts`). The params have no mode
+ * argument, so they apply in both colour schemes while the variables switch underneath with
+ * `data-ag-theme-mode`.
+ */
+const gridTheme = themeBalham.withParams({
+  backgroundColor: 'var(--mui-palette-background-paper)',
+  foregroundColor: 'var(--mui-palette-text-primary)',
+  textColor: 'var(--mui-palette-text-primary)',
+  borderColor: 'var(--mui-palette-divider)',
+  accentColor: 'var(--mui-palette-primary-main)',
+  headerBackgroundColor: 'var(--mui-palette-grid-header)',
+  chromeBackgroundColor: 'var(--mui-palette-grid-header)',
+  oddRowBackgroundColor: 'var(--mui-palette-grid-oddRow)',
+  statusBarLabelColor: 'var(--mui-palette-text-secondary)',
+});
+
 export interface ResultsGridProps {
   rows: readonly GridRow[];
   /** Template `columns` (ColDef overrides by column name, plus `default`). */
@@ -157,7 +174,7 @@ export function ResultsGrid({
       <div ref={containerRef} style={{ height }} data-testid="results-grid">
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
-          theme={themeBalham}
+          theme={gridTheme}
           rowData={rowData}
           columnDefs={columnDefs}
           context={context}

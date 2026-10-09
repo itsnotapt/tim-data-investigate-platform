@@ -51,7 +51,7 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
             height: 16,
             minWidth: 16,
             px: 0.5,
-            ...(tone === 'default' && { bgcolor: 'grey.500', color: 'common.white' }),
+            ...(tone === 'default' && { bgcolor: 'grey.700', color: 'common.white' }),
           },
         }}
       >
