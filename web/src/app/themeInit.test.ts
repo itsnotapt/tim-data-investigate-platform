@@ -1,14 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { SupportedColorScheme } from '@mui/material/styles';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setPrefersColorScheme } from '../test/matchMedia';
-import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY, type ColorScheme } from './themeKeys';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from './themeKeys';
 
 // public/theme-init.js runs as a classic script in <head>, before the module bundle.
 const source = readFileSync(resolve(import.meta.dirname, '../../public/theme-init.js'), 'utf8');
 const html = document.documentElement;
 
-function runThemeInit(stored: string | null, os: ColorScheme) {
+function runThemeInit(stored: string | null, os: SupportedColorScheme) {
   if (stored !== null) localStorage.setItem(THEME_MODE_KEY, stored);
   setPrefersColorScheme(os);
   // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the shipped script as is

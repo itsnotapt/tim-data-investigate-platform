@@ -1,7 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
+import type { SupportedColorScheme } from '@mui/material/styles';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
-import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY, type ColorScheme } from '../../src/app/themeKeys';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from '../../src/app/themeKeys';
 import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { waitForEditor } from '../mocks/editor';
@@ -69,7 +70,7 @@ async function serveConfigWithoutAuth(page: Page): Promise<void> {
   );
 }
 
-async function expectScheme(page: Page, scheme: ColorScheme, colours: Colours) {
+async function expectScheme(page: Page, scheme: SupportedColorScheme, colours: Colours) {
   const html = page.locator('html');
   await expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
   await expect(html).toHaveCSS('color-scheme', scheme);
@@ -412,7 +413,7 @@ for (const scheme of ['light', 'dark'] as const) {
 }
 
 /** The scheme stored before the page loads, for the config error page (it has no Settings menu). */
-async function storeMode(page: Page, scheme: ColorScheme): Promise<void> {
+async function storeMode(page: Page, scheme: SupportedColorScheme): Promise<void> {
   await page.addInitScript(([key, mode]) => localStorage.setItem(key, mode), [
     THEME_MODE_KEY,
     scheme,

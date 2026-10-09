@@ -2,11 +2,17 @@ import { Editor, type OnMount } from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
-import { useColorScheme } from '@mui/material/styles';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useColorScheme, useTheme } from '@mui/material/styles';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { DEFAULT_EDITOR_OPTIONS } from './codeEditorOptions';
-import { loadMonaco, loadMonacoKusto, type EditorLanguage } from '../lib/monaco';
+import {
+  loadMonaco,
+  loadMonacoKusto,
+  TIM_THEME_NAMES,
+  type EditorLanguage,
+  type TimPalettes,
+} from '../lib/monaco';
 
 export type CodeEditorInstance = Monaco.editor.IStandaloneCodeEditor;
 
@@ -27,8 +33,7 @@ export interface CodeEditorProps {
 
 /**
  * Monaco wrapper using the locally bundled monaco-editor (no CDN), themed `tim-light` or `tim-dark`
- * (defined by `loadMonaco()`) to match the colour scheme. The model and editor are disposed on
- * unmount.
+ * to match the colour scheme. The model and editor are disposed on unmount.
  */
 export function CodeEditor({
   value,
@@ -44,22 +49,25 @@ export function CodeEditor({
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
-  // The colour scheme comes from the `data-ag-theme-mode` attribute set up in `app/theme.ts`
-  // (and, before the bundle runs, `public/theme-init.js`).
-  // Monaco has one theme per page, so this is the only place a theme is chosen: an editor
-  // mounted without one would reset every editor on the page to light.
+  // The scheme behind `COLOR_SCHEME_ATTRIBUTE` (`app/theme.ts`, `public/theme-init.js`). Monaco has
+  // one theme per page: only this component picks it, and an editor without one resets all to light.
   const { colorScheme } = useColorScheme();
+  const { colorSchemes } = useTheme();
+  const palettes = useMemo<TimPalettes>(
+    () => ({ light: colorSchemes.light!.palette, dark: colorSchemes.dark!.palette }),
+    [colorSchemes],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    (language === 'kusto' ? loadMonacoKusto() : loadMonaco()).then(
+    (language === 'kusto' ? loadMonacoKusto(palettes) : loadMonaco(palettes)).then(
       () => !cancelled && setLoadedLanguage(language),
       (e: unknown) => !cancelled && setError(e instanceof Error ? e.message : String(e)),
     );
     return () => {
       cancelled = true;
     };
-  }, [language]);
+  }, [language, palettes]);
 
   useEffect(
     () => () => {
@@ -96,7 +104,7 @@ export function CodeEditor({
       path={path}
       value={value}
       loading={null}
-      theme={colorScheme === 'dark' ? 'tim-dark' : 'tim-light'}
+      theme={TIM_THEME_NAMES[colorScheme ?? 'light']}
       onChange={(v) => onChange?.(v ?? '')}
       onMount={handleMount}
       options={{

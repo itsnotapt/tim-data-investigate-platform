@@ -28,7 +28,8 @@ vi.mock('@monaco-editor/react', async () => {
     },
   };
 });
-vi.mock('../lib/monaco', () => ({
+vi.mock('../lib/monaco', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/monaco')>()),
   loadMonaco: h.loadMonaco,
   loadMonacoKusto: h.loadMonacoKusto,
   getKustoWorkerFor: h.getKustoWorkerFor,
@@ -36,6 +37,7 @@ vi.mock('../lib/monaco', () => ({
 
 import { AppThemeProvider } from '../app/AppThemeProvider';
 import { THEME_MODE_KEY } from '../app/themeKeys';
+import type { TimPalettes } from '../lib/monaco';
 import { setPrefersColorScheme } from '../test/matchMedia';
 import { CodeEditor } from './CodeEditor';
 import { useCodeEditor } from './useCodeEditor';
@@ -61,9 +63,13 @@ describe('CodeEditor', () => {
         onChange={onChange}
         onMount={onMount}
       />,
+      { wrapper: AppThemeProvider },
     );
     await screen.findByTestId('monaco');
-    expect(h.loadMonaco).toHaveBeenCalled();
+    // With the palettes of both schemes, to define tim-light and tim-dark.
+    const [palettes] = h.loadMonaco.mock.calls[0] as [TimPalettes];
+    expect(palettes.light.editor.background).toBe('#ffffff');
+    expect(palettes.dark.editor.background).toBe('#1e1e1e');
     expect(h.loadMonacoKusto).not.toHaveBeenCalled();
     const props = h.editorProps[0]!;
     expect(props).toMatchObject({ value: 'a: 1', language: 'yaml', path: 't.yaml' });
@@ -76,7 +82,7 @@ describe('CodeEditor', () => {
   });
 
   it('loads the Kusto service for language kusto', async () => {
-    render(<CodeEditor value="T" language="kusto" />);
+    render(<CodeEditor value="T" language="kusto" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');
     expect(h.loadMonacoKusto).toHaveBeenCalled();
   });
@@ -105,7 +111,7 @@ describe('CodeEditor', () => {
   });
 
   it('disposes model and editor on unmount', async () => {
-    const { unmount } = render(<CodeEditor value="" />);
+    const { unmount } = render(<CodeEditor value="" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');
     unmount();
     expect(h.model.dispose).toHaveBeenCalled();
@@ -114,7 +120,7 @@ describe('CodeEditor', () => {
 
   it('shows an error when monaco fails to load', async () => {
     h.loadMonaco.mockRejectedValue(new Error('boom'));
-    render(<CodeEditor value="" />);
+    render(<CodeEditor value="" />, { wrapper: AppThemeProvider });
     expect(await screen.findByRole('alert')).toHaveTextContent('boom');
   });
 });

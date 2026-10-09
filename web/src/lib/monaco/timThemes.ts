@@ -1,7 +1,15 @@
-import { decomposeColor, type Palette } from '@mui/material/styles';
+import { decomposeColor, type Palette, type SupportedColorScheme } from '@mui/material/styles';
 import type * as Monaco from 'monaco-editor';
 
-export type TimThemeName = 'tim-light' | 'tim-dark';
+/** Monaco theme name per colour scheme: `loader.ts` defines them, `CodeEditor` picks one. */
+export const TIM_THEME_NAMES = { light: 'tim-light', dark: 'tim-dark' } as const satisfies Record<
+  SupportedColorScheme,
+  string
+>;
+
+/** The palette of each colour scheme, from `theme.colorSchemes`. */
+export type TimPalettes = Record<SupportedColorScheme, Palette>;
+
 type ThemeData = Monaco.editor.IStandaloneThemeData;
 type TokenRule = Monaco.editor.ITokenThemeRule;
 
@@ -14,7 +22,7 @@ const channelHex = (n: number) => Math.round(n).toString(16).padStart(2, '0');
  * `colour` mixed over `background` as 6-digit hex: Monaco parses theme colours with `Color.fromHex`,
  * so MUI's `rgb()` / `rgba()` values are flattened first. `weight` is the share of `colour`.
  */
-function toHex(colour: string, background: string, weight = 1): string {
+function mixToHex(colour: string, background: string, weight = 1): string {
   const fg = decomposeColor(colour);
   const bg = decomposeColor(background);
   if (fg.type !== 'rgb' && fg.type !== 'rgba') throw new Error(`Unsupported colour: ${colour}`);
@@ -33,7 +41,7 @@ const PLAIN_TOKENS = new Set(['', 'plainText']);
  */
 export function buildTimTheme(palette: Palette, kustoRules: TokenRule[] = []): ThemeData {
   const background = palette.editor.background;
-  const hex = (colour: string, weight?: number) => toHex(colour, background, weight);
+  const hex = (colour: string, weight?: number) => mixToHex(colour, background, weight);
   const text = hex(palette.text.primary);
   const secondary = hex(palette.text.secondary);
   const border = hex(palette.editor.border);

@@ -1,10 +1,10 @@
-import type { ColorScheme } from '../app/themeKeys';
+import type { SupportedColorScheme } from '@mui/material/styles';
 
 type Listener = (event: MediaQueryListEvent) => void;
 
 /** Each `change` listener with the query it was registered for. */
 const listeners = new Map<Listener, string>();
-let osScheme: ColorScheme = 'light';
+let osScheme: SupportedColorScheme = 'light';
 
 function matches(query: string): boolean {
   const asked = /prefers-color-scheme:\s*(dark|light)/.exec(query)?.[1];
@@ -34,7 +34,7 @@ function matchMedia(query: string): MediaQueryList {
 if (typeof window !== 'undefined') window.matchMedia = matchMedia;
 
 /** Switches the OS colour scheme the `matchMedia` stub reports, notifying `change` listeners. */
-export function setPrefersColorScheme(scheme: ColorScheme): void {
+export function setPrefersColorScheme(scheme: SupportedColorScheme): void {
   osScheme = scheme;
   for (const [listener, media] of listeners) {
     listener({ matches: matches(media), media } as MediaQueryListEvent);
