@@ -72,9 +72,8 @@ const THEME_MODES: { mode: ThemeMode; label: string; icon: ReactElement }[] = [
 ];
 
 /**
- * Settings: `Theme ›` opens a Light / Dark / System sub-menu to the left; picking one applies it
- * and closes both menus. MUI has no nested menu, so the sub-menu is a sibling `Menu`: inside the
- * Settings menu, clicks and keys from its portal would bubble into the parent menu.
+ * Settings: `Theme ›` opens a Light / Dark / System sub-menu, a sibling `Menu` so its events don't
+ * reach the Settings menu. Picking one applies it and closes both menus.
  */
 function SettingsMenu() {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);

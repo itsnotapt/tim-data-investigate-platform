@@ -1,8 +1,5 @@
-// Applies the saved Light / Dark / System choice before the module bundle runs, so the page
-// never shows the other scheme first. Loaded by a plain <script src> in <head> of index.html:
-// the CSP has no 'unsafe-inline' in script-src, so this can't be an inline script.
-// The storage key and the attribute must match AppThemeProvider (modeStorageKey) and
-// src/app/theme.ts (colorSchemeSelector), where MUI takes over once the bundle runs.
+// Applies the saved Light / Dark / System choice before the bundle runs (external: the CSP allows
+// no inline script). Key and attribute as in src/app/themeKeys.ts, used by theme.ts and CodeEditor.
 (function () {
   var mode = null;
   try {

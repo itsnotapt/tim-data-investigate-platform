@@ -38,13 +38,10 @@ declare module '@mui/material/styles' {
 }
 
 /**
- * The only place colours are defined in `web/src`: one palette with a light and a dark scheme.
- * Components read colours through palette tokens (`sx`, `theme.vars.*`), never literals.
+ * The only place colours are defined in `web/src`: one palette, light and dark.
  *
- * `colorSchemeSelector` uses AG Grid's attribute name on purpose: MUI writes
- * `data-ag-theme-mode="light|dark"` on `<html>`, and AG Grid's `themeBalham` reads that same
- * attribute, so one attribute drives MUI, AG Grid and TIM's CSS. `public/theme-init.js` sets the
- * same attribute from the same `tim-theme-mode` key before the bundle runs; keep them in step.
+ * The scheme attribute is AG Grid's `data-ag-theme-mode`, so one attribute drives MUI, AG Grid and
+ * TIM's CSS. `public/theme-init.js` and `CodeEditor` use the same key and attribute.
  */
 export const theme = createTheme({
   cssVariables: { colorSchemeSelector: COLOR_SCHEME_ATTRIBUTE },
