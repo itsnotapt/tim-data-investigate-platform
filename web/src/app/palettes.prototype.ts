@@ -34,8 +34,8 @@ export interface PaletteVariant {
 const noStripe = { malicious: 'transparent', suspicious: 'transparent', benign: 'transparent' };
 
 export const PALETTES: Record<PaletteVariant['key'], PaletteVariant> = {
-  // A: today's look kept (MUI blue, plain white, today's pastel determination fills), plus a
-  // Material-style dark scheme with deep tinted fills.
+  // A (chosen): today's look kept (MUI blue, plain white) plus a Material-style dark scheme;
+  // determination fills taken from C (no stripe).
   A: {
     key: 'A',
     name: 'Material neutral',
@@ -50,7 +50,7 @@ export const PALETTES: Record<PaletteVariant['key'], PaletteVariant> = {
       gridHeader: '#f5f7f7',
       gridOddRow: '#fcfdfe',
       editor: '#ffffff',
-      determination: { malicious: '#fbbbb9', suspicious: '#ffecae', benign: '#d4f3cd' },
+      determination: { malicious: '#fecaca', suspicious: '#fde68a', benign: '#bbf7d0' },
       stripe: noStripe,
     },
     dark: {
@@ -64,7 +64,7 @@ export const PALETTES: Record<PaletteVariant['key'], PaletteVariant> = {
       gridHeader: '#262626',
       gridOddRow: '#232323',
       editor: '#1e1e1e',
-      determination: { malicious: '#5c2b2b', suspicious: '#584818', benign: '#24452a' },
+      determination: { malicious: '#7f1d1d', suspicious: '#713f12', benign: '#14532d' },
       stripe: noStripe,
     },
   },
