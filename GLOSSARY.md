@@ -80,7 +80,7 @@ An analyst's note on a saved event, optionally carrying a determination.
 An event that has tags or comments. Queries that ask for it show its tags, comments and determination alongside the row.
 
 **Determination**:
-The verdict on an event: malicious, suspicious or benign. It colours the event's row in the grid.
+The verdict on an event: malicious, suspicious or benign. It marks the event's row in the grid with a colour and a symbol.
 _Avoid_: verdict, classification
 
 **Tag cluster** / **tag database**:
