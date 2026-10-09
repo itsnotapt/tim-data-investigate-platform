@@ -9,7 +9,7 @@ import { theme } from './theme';
 /** `authClient` is injectable for tests; the app uses the config/stub-selected client. */
 export function App({ authClient }: { authClient?: AuthClient } = {}) {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} noSsr>
       <CssBaseline />
       <SnackbarHost>
         <AuthProvider client={authClient ?? getAuthClient()}>

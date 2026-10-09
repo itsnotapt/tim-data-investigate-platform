@@ -3,7 +3,6 @@ import HelpIcon from '@mui/icons-material/Help';
 import InfoIcon from '@mui/icons-material/Info';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -21,6 +20,7 @@ import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
 import { useTemplatesStore } from '../features/templates';
 import { AuthGate } from './AuthGate';
+import { PrototypeSettingsMenu } from './SettingsMenu.prototype';
 
 interface ToolbarMenuProps {
   label: string;
@@ -167,13 +167,7 @@ export function AppShell() {
               </MenuItem>,
             ]}
           </ToolbarMenu>
-          <ToolbarMenu label="Settings" icon={<SettingsOutlinedIcon />}>
-            {(close) => (
-              <MenuItem component={RouterLink} to="/exportimport" onClick={close}>
-                Export / Import
-              </MenuItem>
-            )}
-          </ToolbarMenu>
+          <PrototypeSettingsMenu />
           <AccountMenu />
         </Toolbar>
       </AppBar>
