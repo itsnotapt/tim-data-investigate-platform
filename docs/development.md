@@ -88,20 +88,10 @@ Add a revision with `uv run alembic revision -m "…"` in `api/`, then fill in `
 
 ## CI and releases
 
-Branches, titles, merge methods, the release freeze and how titles decide releases are in [RULES.md §6–7](RULES.md#6-git). Which commits release each package is in [ADR-0016](adr/0016-release-versions.md). `.github/scripts/pr_conventions.py` enforces the rules as the required `pr-conventions` check (`pr-conventions.yml`). Its `--help` lists the checks.
-
-To run it before pushing, `git fetch origin` first. It compares against `origin/main` and `origin/development`, and the release-order check needs the release tags:
-
-```bash
-python3 .github/scripts/pr_conventions.py pr origin/development HEAD \
-  --base-ref development --head-ref "$(git branch --show-current)" --title "docs: your PR title"
-```
-
-A local run can't see open release-please PRs (`--open-release-prs` defaults to 0), so it can pass while CI fails on the release freeze.
+Branches, titles, the merge method and how titles decide releases are in [RULES.md §6–7](RULES.md#6-git). Which commits release each package is in [ADR-0016](adr/0016-release-versions.md). `.github/scripts/pr_conventions.py` is the required `pr-conventions` check (`pr-conventions.yml`). It checks that the PR title is a Conventional Commit and that a breaking title's scope names every package the PR changes. It is skipped for `release-please--*` branches.
 
 Things the workflows don't tell you:
 
-- A PR opened by `GITHUB_TOKEN` starts no workflows. That is why `sync-development` in `release-please.yml` runs `pr_conventions.py` itself and sets the `pr-conventions` status on the back-sync PR, and why `release-projection` runs only on the `development` → `main` PR.
 - An api release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath in `release-please-config.json`. If you rename the package in `api/pyproject.toml`, update that jsonpath too, or `uv sync --locked` fails on the release PR.
 - Use each action's major tag (`@vN`). `astral-sh/setup-uv` publishes only full version tags, so it is pinned to `v10.2.0`.
 
@@ -109,10 +99,8 @@ Repository settings that the branch flow depends on. They live in GitHub, not in
 
 | Setting | Value |
 |---|---|
-| Default branch | `development` |
-| Merge methods | merge commit and squash; rebase disabled |
+| Default branch | `main` |
+| Merge methods | squash only; merge commit and rebase disabled |
 | Squash commit | title: PR title; message: blank |
-| Merge commit | title: `Merge pull request #N from …`; message: PR title |
-| Actions | may create pull requests (release-please and `sync-development`) |
-| Ruleset `main` | no deletion, no force push; changes through a PR (0 approvals), merge commit only; no required status check |
-| Ruleset `development` | no deletion, no force push; changes through a PR (0 approvals), squash or merge commit; required status check `pr-conventions` |
+| Actions | may create pull requests (release-please) |
+| Ruleset `main` | no deletion, no force push; changes through a PR (0 approvals); required status check `pr-conventions` |

@@ -11,15 +11,13 @@ Process rules for everyone working on TIM, human or agent.
 ## 6. Git
 
 - Commit, push or open a PR only when the user asks.
-- Never commit directly to `development` or `main`. Branch off `development` as `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>` or `refactor/<short-name>`.
+- Never commit directly to `main`. Branch off `main` as `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>` or `refactor/<short-name>`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/), optionally scoped, e.g. `feat(web): …`.
 - Do not merge with failing or skipped tests unless the user agrees.
-- PRs into `development` are squash-merged: the PR title is the release commit. Leave the squash body empty and mark a breaking change with `!` in the title, not with a footer.
-- `development` → `main` and the `main` → `development` back-sync are merged with a merge commit. Their PR title must not start with `type:` or `type(scope):` (use e.g. `Release: web export and api fixes`); do not edit the merge commit message.
-- **Releasing:** open a `development` → `main` PR and check the versions in its `release-projection` comment, merge it, then merge each release PR release-please opens. `release-please.yml` then merges `main` back into `development`.
-- **Release freeze:** from the `development` → `main` merge until the back-sync, merge nothing else into `development`.
+- PRs into `main` are squash-merged: the PR title is the release commit. Leave the squash body empty and mark a breaking change with `!` in the title, not with a footer.
+- **Releasing:** merge the release PRs release-please opens against `main`.
 
-[ADR-0016](adr/0016-release-versions.md) records the branch flow and why; [development.md](development.md#ci-and-releases) describes the checks and repository settings that enforce it.
+[ADR-0016](adr/0016-release-versions.md) records the branch flow and why; [development.md](development.md#ci-and-releases) describes the checks and repository settings.
 
 ## 7. Releases
 
