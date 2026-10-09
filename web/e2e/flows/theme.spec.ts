@@ -56,17 +56,15 @@ async function storeDarkMode(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('tim-theme-mode', 'dark'));
 }
 
-/** The dev stub auth throws when created, so main.tsx renders the config error page. */
-async function failAuthSetup(page: Page): Promise<void> {
-  await page.route('**/src/lib/auth/devStubAuth.ts*', (route) =>
-    route.fulfill({
-      contentType: 'text/javascript',
-      body: [
-        'export const DEV_ACCOUNT = {};',
-        "export const DEV_TOKEN = '';",
-        "export function createDevStubAuth() { throw new Error('auth.clientId is required'); }",
-      ].join('\n'),
-    }),
+/** The deployment serves a runtime config without `auth`, so main.tsx renders the config error page. */
+async function serveConfigWithoutAuth(page: Page): Promise<void> {
+  await page.route(
+    (url) => url.pathname === '/config.js',
+    (route) =>
+      route.fulfill({
+        contentType: 'text/javascript',
+        body: "window.appConfig = { tagCluster: 'https://help.kusto.windows.net' };",
+      }),
   );
 }
 
@@ -95,10 +93,10 @@ async function expectAuthGate(page: Page, colours: Colours) {
 }
 
 async function expectConfigError(page: Page) {
-  await failAuthSetup(page);
+  await serveConfigWithoutAuth(page);
   await page.goto('/');
   await expect(page.getByText('TIM cannot start: configuration error')).toBeVisible();
-  await expect(page.getByText('auth.clientId is required')).toBeVisible();
+  await expect(page.getByText('auth.clientId: missing (required)')).toBeVisible();
 }
 
 /**
