@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
+import { waitForEditor } from '../mocks/editor';
+import { templateStoreHandlers } from '../mocks/templates';
 
 // Computed colours of the light and dark palettes (web/src/app/theme.ts).
 const LIGHT = {
@@ -9,12 +11,14 @@ const LIGHT = {
   paper: 'rgb(255, 255, 255)',
   text: 'rgb(33, 33, 33)',
   primary: 'rgb(25, 118, 210)',
+  editor: 'rgb(255, 255, 255)',
 };
 const DARK = {
   background: 'rgb(18, 18, 18)',
   paper: 'rgb(30, 30, 30)',
   text: 'rgb(224, 224, 224)',
   primary: 'rgb(144, 202, 249)',
+  editor: 'rgb(30, 30, 30)',
 };
 type Colours = typeof LIGHT;
 
@@ -150,16 +154,30 @@ async function expectColourContrast(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
-test.describe('light (the default)', () => {
-  test('the results grid has the light palette', async ({ page }) => {
-    await expectResultsGrid(page, LIGHT_GRID);
-  });
+const store = templateStoreHandlers();
+test.use({ apiOptions: { handlers: store.handlers } });
+test.beforeEach(() => store.reset());
 
-  test('the results screen with tagged rows meets colour contrast', async ({ page }) => {
-    await expectResultsGrid(page, LIGHT_GRID);
-    await expectColourContrast(page);
-  });
-});
+/** The KQL editor of a new ad hoc query. */
+async function expectKqlEditor(page: Page, colours: Colours) {
+  await page.goto('/');
+  await page.getByRole('button', { name: /get started/i }).click();
+  await page.getByRole('menuitem', { name: 'New query' }).click();
+  await waitForEditor(page);
+  await expect(page.locator('.monaco-editor').first()).toHaveCSS(
+    'background-color',
+    colours.editor,
+  );
+}
+
+/** The Query Manager edit dialog has YAML and plain text editors only, so no Kusto is loaded. */
+async function expectYamlEditor(page: Page, colours: Colours) {
+  await page.goto('/#/queries');
+  await page.getByRole('button', { name: 'Storm events by state' }).click();
+  const params = page.getByRole('dialog', { name: 'Edit Query' }).locator('.monaco-editor').first();
+  await waitForEditor(page, params);
+  await expect(params).toHaveCSS('background-color', colours.editor);
+}
 
 test.describe('with dark mode stored', () => {
   test.beforeEach(async ({ page }) => storeDarkMode(page));
@@ -186,6 +204,33 @@ test.describe('with dark mode stored', () => {
 
   test('the results screen with tagged rows meets colour contrast', async ({ page }) => {
     await expectResultsGrid(page, DARK_GRID);
+    await expectColourContrast(page);
+  });
+
+  test('the KQL editor is dark', async ({ page }) => {
+    await expectKqlEditor(page, DARK);
+  });
+
+  test('a YAML editor opened before any KQL editor is dark', async ({ page }) => {
+    await expectYamlEditor(page, DARK);
+  });
+});
+
+test.describe('with nothing stored', () => {
+  test('the KQL editor is on the light editor background', async ({ page }) => {
+    await expectKqlEditor(page, LIGHT);
+  });
+
+  test('a YAML editor is on the light editor background', async ({ page }) => {
+    await expectYamlEditor(page, LIGHT);
+  });
+
+  test('the results grid has the light palette', async ({ page }) => {
+    await expectResultsGrid(page, LIGHT_GRID);
+  });
+
+  test('the results screen with tagged rows meets colour contrast', async ({ page }) => {
+    await expectResultsGrid(page, LIGHT_GRID);
     await expectColourContrast(page);
   });
 });
