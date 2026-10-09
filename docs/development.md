@@ -93,6 +93,7 @@ Branches, titles, the merge method and how titles decide releases are in [RULES.
 Things the workflows don't tell you:
 
 - An api release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath in `release-please-config.json`. If you rename the package in `api/pyproject.toml`, update that jsonpath too, or `uv sync --locked` fails on the release PR.
+- Images do not come from Docker Hub, whose anonymous pull limit stalls CI: Docker Hub images (Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action`, the `postgres` service) are pulled through `mirror.gcr.io`, and `nginx-unprivileged` from its publisher's `ghcr.io/nginx`. Keep the same image and tag when you change one, and check the tag exists on the mirror (`docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`).
 - Use each action's major tag (`@vN`). `astral-sh/setup-uv` publishes only full version tags, so it is pinned to `v10.2.0`.
 
 Repository settings that the branch flow depends on. They live in GitHub, not in the repo:

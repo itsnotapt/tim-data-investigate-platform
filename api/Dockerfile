@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile:1
+# syntax=mirror.gcr.io/docker/dockerfile:1
 # TIM API image. Build context: api/  (docker build -t tim-api api/)
 
-FROM python:3.12-slim-trixie AS builder
+FROM mirror.gcr.io/library/python:3.12-slim-trixie AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
 
-FROM python:3.12-slim-trixie AS runtime
+FROM mirror.gcr.io/library/python:3.12-slim-trixie AS runtime
 
 RUN groupadd --system --gid 10001 tim \
  && useradd --system --uid 10001 --gid tim --no-create-home --shell /usr/sbin/nologin tim
