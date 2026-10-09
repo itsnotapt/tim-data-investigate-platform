@@ -4,8 +4,8 @@ TIM ships as two container images and runs on Docker Compose or Kubernetes (Helm
 
 | Local build name | Source                         | Base image | Published as                                                      |
 | ---------------- | ------------------------------ | ---------- | ----------------------------------------------------------------- |
-| `tim-api`        | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13) | `ghcr.io/<owner>/<repo>/backend:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
-| `tim-web`        | `web/Dockerfile` (context `web/`) | `nginxinc/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` | `ghcr.io/<owner>/<repo>/frontend:<version>` (same tag set) |
+| `tim-api`        | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`) | `ghcr.io/<owner>/<repo>/backend:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
+| `tim-web`        | `web/Dockerfile` (context `web/`) | `ghcr.io/nginx/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` (from `mirror.gcr.io`) | `ghcr.io/<owner>/<repo>/frontend:<version>` (same tag set) |
 
 Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a release. The frontend (`web/`), the backend (`api/`) and the Helm chart are versioned independently; the chart pins one frontend and one backend version ([ADR-0016](adr/0016-release-versions.md)).
 

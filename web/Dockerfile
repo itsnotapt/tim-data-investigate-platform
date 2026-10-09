@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile:1
+# syntax=mirror.gcr.io/docker/dockerfile:1
 # TIM web image. Build context: web/  (docker build -t tim-web web/)
 
-FROM node:24-alpine3.24 AS build
+FROM mirror.gcr.io/library/node:24-alpine3.24 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
@@ -9,7 +9,7 @@ COPY . .
 RUN npm run build
 
 
-FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
+FROM ghcr.io/nginx/nginx-unprivileged:1.30-alpine AS runtime
 
 USER root
 RUN apk add --no-cache jq \

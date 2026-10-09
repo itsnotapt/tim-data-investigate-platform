@@ -95,7 +95,7 @@ docker build -t tim-api api/
 docker run --rm -p 8080:8080 --env-file .env tim-api
 ```
 
-Multi-stage on `python:3.12-slim-trixie` (Debian 13): the `ghcr.io/astral-sh/uv` image runs `uv sync --locked --no-dev` into `/app/.venv` (bytecode compiled, project installed non-editable); the runtime stage copies only the venv and runs as non-root uid 10001. It serves `uvicorn tim_api.main:app` on port 8080 with `--proxy-headers` and one worker. `HEALTHCHECK` calls `/api/healthChecks/liveness` with the Python standard library. The image takes the same `TIM_*` variables as above (nothing is baked in); `uvicorn` trusts `X-Forwarded-*` only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), so set it to the proxy address in deployment.
+Multi-stage on `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`): the `ghcr.io/astral-sh/uv` image runs `uv sync --locked --no-dev` into `/app/.venv` (bytecode compiled, project installed non-editable); the runtime stage copies only the venv and runs as non-root uid 10001. It serves `uvicorn tim_api.main:app` on port 8080 with `--proxy-headers` and one worker. `HEALTHCHECK` calls `/api/healthChecks/liveness` with the Python standard library. The image takes the same `TIM_*` variables as above (nothing is baked in); `uvicorn` trusts `X-Forwarded-*` only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), so set it to the proxy address in deployment.
 
 ## Models
 
