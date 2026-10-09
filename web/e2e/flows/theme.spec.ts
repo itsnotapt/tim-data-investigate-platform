@@ -4,7 +4,12 @@ import { test, expect } from '../fixtures';
 import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { waitForEditor } from '../mocks/editor';
-import { templateStoreHandlers } from '../mocks/templates';
+import {
+  openRunTemplateTab,
+  shareParams,
+  STORM_UUID,
+  templateStoreHandlers,
+} from '../mocks/templates';
 
 // Computed colours of the light and dark palettes (web/src/app/theme.ts).
 const LIGHT = {
@@ -153,6 +158,43 @@ async function paintedColour(element: Locator): Promise<string> {
 async function expectColourContrast(page: Page) {
   const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
   expect(results.violations).toEqual([]);
+}
+
+/** WCAG 2 contrast ratio of two computed `rgb(…)` colours. */
+function contrastRatio(a: string, b: string): number {
+  const luminance = (colour: string) => {
+    const [red, green, blue] = (colour.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map((v) => {
+      const c = Number(v) / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * (red ?? 0) + 0.7152 * (green ?? 0) + 0.0722 * (blue ?? 0);
+  };
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
+}
+
+/**
+ * axe reports every results grid body cell as "incomplete" (AG Grid's layered row DOM hides the
+ * background from it), so the text and the symbol of each tagged row are checked against the
+ * row's fill here: 4.5:1 for text, 3:1 for the symbol (non-text).
+ */
+async function expectTaggedRowContrast(page: Page) {
+  for (const [index, name] of [
+    [0, 'Malicious'],
+    [5, 'Suspicious'],
+    [10, 'Benign'],
+  ] as const) {
+    const row = page.locator(`.ag-row[row-index="${index}"]`);
+    const fill = await row.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const text = await row
+      .locator('.ag-cell[col-id="State"]')
+      .evaluate((el) => getComputedStyle(el).color);
+    const symbol = await row
+      .getByRole('img', { name })
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(contrastRatio(text, fill), `${name} row text on ${fill}`).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(symbol, fill), `${name} symbol on ${fill}`).toBeGreaterThanOrEqual(3);
+  }
 }
 
 const store = templateStoreHandlers();
@@ -366,6 +408,108 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
       await expectColourContrast(page);
+    });
+  });
+}
+
+/** The scheme stored before the page loads, for the config error page (it has no Settings menu). */
+async function storeMode(page: Page, scheme: 'light' | 'dark'): Promise<void> {
+  await page.addInitScript((mode) => localStorage.setItem('tim-theme-mode', mode), scheme);
+}
+
+const THEME_CHOICE = { light: 'Light', dark: 'Dark' } as const;
+
+/**
+ * The sweep: axe colour contrast on every main screen in both schemes. The scheme is picked from
+ * Settings › Theme on an OS set to the other one, so the pick is what decides it.
+ */
+for (const scheme of ['light', 'dark'] as const) {
+  test.describe(`colour contrast sweep in ${scheme}`, () => {
+    test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+    test.beforeEach(async ({ page }) =>
+      page.emulateMedia({ colorScheme: scheme === 'dark' ? 'light' : 'dark' }),
+    );
+
+    /** Picks the scheme on the home screen; the choice is saved, so later loads keep it. */
+    async function pickScheme(page: Page) {
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
+      await pickTheme(page, THEME_CHOICE[scheme]);
+      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+    }
+
+    async function expectContrastInScheme(page: Page) {
+      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expectColourContrast(page);
+    }
+
+    test('home', async ({ page }) => {
+      await pickScheme(page);
+      await expectContrastInScheme(page);
+    });
+
+    test('results with tagged rows', async ({ page }) => {
+      await pickScheme(page);
+      await runAdhocQuery(page);
+      // Rows 0 / 5 / 10 carry the three determinations: their fills and symbols are on screen.
+      for (const name of ['Malicious', 'Suspicious', 'Benign']) {
+        await expect(page.getByRole('img', { name }).first()).toBeVisible();
+      }
+      await expectContrastInScheme(page);
+      await expectTaggedRowContrast(page);
+    });
+
+    test('Query Manager', async ({ page }) => {
+      await pickScheme(page);
+      await page.goto('/#/queries');
+      await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
+      await expectContrastInScheme(page);
+    });
+
+    test('a saved view', async ({ page }) => {
+      await pickScheme(page);
+      await openRunTemplateTab(page);
+      // Reloading the tab's own URL opens the saved view, not the share link.
+      await page.reload();
+      await expect(page).toHaveURL(/#\/view\//);
+      await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
+      await expectContrastInScheme(page);
+    });
+
+    test('a shared query', async ({ page }) => {
+      await pickScheme(page);
+      await page.goto(`/#/share/${STORM_UUID}?p=${shareParams({ State: 'TEXAS' })}&execute=0`);
+      await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
+      await expectContrastInScheme(page);
+    });
+
+    test('a shared query link with an error', async ({ page }) => {
+      await pickScheme(page);
+      await page.goto(`/#/share/${STORM_UUID}`);
+      await expect(page.getByText('Parameters are missing.')).toBeVisible();
+      await expectContrastInScheme(page);
+    });
+
+    test('Export / Import', async ({ page }) => {
+      await pickScheme(page);
+      await page.getByRole('button', { name: 'Settings' }).click();
+      await page.getByRole('menuitem', { name: 'Export / Import' }).click();
+      await expect(page).toHaveURL(/#\/exportimport/);
+      await page.getByRole('button', { name: 'Export' }).click();
+      await expect(
+        page.getByText('All settings have been exported and saved to your clipboard.'),
+      ).toBeVisible();
+      await expectContrastInScheme(page);
+    });
+
+    test('the config error page', async ({ page }) => {
+      await storeMode(page, scheme);
+      await expectConfigError(page);
+      await expectContrastInScheme(page);
     });
   });
 }
