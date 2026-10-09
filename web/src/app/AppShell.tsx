@@ -29,7 +29,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Link as RouterLink, Outlet } from 'react-router';
+import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
@@ -278,9 +278,14 @@ export function AppShell() {
         </Toolbar>
       </AppBar>
       <Box component="main" sx={{ flexGrow: 1, p: 3, position: 'relative' }}>
-        <AuthGate>
-          <ShellContent />
-        </AuthGate>
+        {/* PROTOTYPE (#44): prototype routes skip sign-in and bootstrap (no api needed). */}
+        {useLocation().pathname.startsWith('/prototype') ? (
+          <Outlet />
+        ) : (
+          <AuthGate>
+            <ShellContent />
+          </AuthGate>
+        )}
       </Box>
     </Box>
   );

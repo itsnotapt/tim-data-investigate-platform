@@ -11,6 +11,7 @@ import type {
   CellFocusedEvent,
   GridApi,
   GridReadyEvent,
+  SelectionColumnDef,
 } from 'ag-grid-community';
 import { ColumnViewBar } from '../column-views';
 import { DetailPanel } from './DetailPanel';
@@ -72,6 +73,8 @@ export interface ResultsGridProps {
    * re-created. Without it column state is not kept.
    */
   stateKey?: string;
+  /** PROTOTYPE (#44): replaces the selection column def. */
+  selectionColumnDef?: SelectionColumnDef;
 }
 
 export function ResultsGrid({
@@ -87,6 +90,7 @@ export function ResultsGrid({
   columnViews = true,
   detailPanel = true,
   stateKey,
+  selectionColumnDef,
 }: ResultsGridProps) {
   const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
@@ -174,6 +178,7 @@ export function ResultsGrid({
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
           theme={gridTheme}
+          selectionColumnDef={selectionColumnDef ?? staticGridOptions.selectionColumnDef}
           rowData={rowData}
           columnDefs={columnDefs}
           context={context}
