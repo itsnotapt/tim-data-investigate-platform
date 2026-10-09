@@ -9,7 +9,7 @@ date: 2026-10-06
 
 The previous app is gone, there is no data to carry over and no compatibility to keep.
 
-- `docs/` describes the system as it is: architecture, API, configuration, development, operations and deployment. Docs and code comments contain no history, task IDs or justification.
+- `docs/` describes the system as it is: architecture, API, configuration, development, operations and deployment. Docs and code comments contain no history or task IDs. Code comments say what the code does, not the reasoning behind it.
 - Rationale and history are recorded only in ADRs in `docs/adr/`.
 - Docs live in the repo, versioned and reviewed with the code, and are updated in the same change as the code. A stale doc is treated as a bug.
 - Work is tracked outside the docs (issues, PRs); there is no in-repo task board or question log.
