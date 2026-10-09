@@ -1,14 +1,13 @@
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from '../src/app/themeKeys';
 
 /** Screenshot output directory (gitignored). */
 export const SHOT_DIR = resolve(import.meta.dirname, '.screenshots');
 
-const MODE_KEY = 'tim-theme-mode';
-
 /**
  * Switches the page to `mode` the way a change in another tab does: a `storage` event for
- * `tim-theme-mode`, which MUI applies at once (and saves). Returns the stored value before.
+ * `THEME_MODE_KEY`, which MUI applies at once (and saves). Returns the stored value before.
  */
 async function switchMode(page: Page, mode: string): Promise<string | null> {
   return page.evaluate(
@@ -17,7 +16,7 @@ async function switchMode(page: Page, mode: string): Promise<string | null> {
       window.dispatchEvent(new StorageEvent('storage', { key, newValue: next }));
       return before;
     },
-    [MODE_KEY, mode] as const,
+    [THEME_MODE_KEY, mode] as const,
   );
 }
 
@@ -25,14 +24,14 @@ async function switchMode(page: Page, mode: string): Promise<string | null> {
 async function lightAndDark(page: Page, name: string, settle: number): Promise<void> {
   await page.screenshot({ path: resolve(SHOT_DIR, `${name}.png`) });
   const before = await switchMode(page, 'dark');
-  await page.locator('html[data-ag-theme-mode="dark"]').waitFor({ state: 'attached' });
+  await page.locator(`html[${COLOR_SCHEME_ATTRIBUTE}="dark"]`).waitFor({ state: 'attached' });
   await page.waitForTimeout(settle);
   await page.screenshot({ path: resolve(SHOT_DIR, `${name}-dark.png`) });
   await switchMode(page, before ?? 'system');
   await page.evaluate(
     ([key, value]) =>
       value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value),
-    [MODE_KEY, before] as const,
+    [THEME_MODE_KEY, before] as const,
   );
   await page.waitForTimeout(settle);
 }

@@ -36,6 +36,7 @@ import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
 import { useTemplatesStore } from '../features/templates';
 import { AuthGate } from './AuthGate';
+import type { ThemeMode } from './themeKeys';
 
 interface ToolbarMenuProps {
   label: string;
@@ -63,8 +64,6 @@ function ToolbarMenu({ label, icon, children }: ToolbarMenuProps) {
     </>
   );
 }
-
-type ThemeMode = 'light' | 'dark' | 'system';
 
 const THEME_MODES: { mode: ThemeMode; label: string; icon: ReactElement }[] = [
   { mode: 'light', label: 'Light', icon: <LightModeOutlinedIcon fontSize="small" /> },

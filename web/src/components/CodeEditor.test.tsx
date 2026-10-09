@@ -35,6 +35,7 @@ vi.mock('../lib/monaco', () => ({
 }));
 
 import { AppThemeProvider } from '../app/AppThemeProvider';
+import { THEME_MODE_KEY } from '../app/themeKeys';
 import { setPrefersColorScheme } from '../test/matchMedia';
 import { CodeEditor } from './CodeEditor';
 import { useCodeEditor } from './useCodeEditor';
@@ -81,14 +82,14 @@ describe('CodeEditor', () => {
   });
 
   it('uses tim-dark when the colour scheme is dark', async () => {
-    localStorage.setItem('tim-theme-mode', 'dark');
+    localStorage.setItem(THEME_MODE_KEY, 'dark');
     render(<CodeEditor value="" language="yaml" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');
     expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-dark' });
   });
 
   it('follows a dark OS when the stored mode is junk', async () => {
-    localStorage.setItem('tim-theme-mode', 'sepia');
+    localStorage.setItem(THEME_MODE_KEY, 'sepia');
     setPrefersColorScheme('dark');
     render(<CodeEditor value="" language="yaml" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');
@@ -96,7 +97,7 @@ describe('CodeEditor', () => {
   });
 
   it('uses tim-light when the colour scheme is light', async () => {
-    localStorage.setItem('tim-theme-mode', 'light');
+    localStorage.setItem(THEME_MODE_KEY, 'light');
     setPrefersColorScheme('dark');
     render(<CodeEditor value="" language="kusto" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');

@@ -1,4 +1,5 @@
 import { createTheme } from '@mui/material/styles';
+import { COLOR_SCHEME_ATTRIBUTE } from './themeKeys';
 
 /** Code editor frame (dotted border) and background. */
 interface EditorColours {
@@ -46,7 +47,7 @@ declare module '@mui/material/styles' {
  * same attribute from the same `tim-theme-mode` key before the bundle runs; keep them in step.
  */
 export const theme = createTheme({
-  cssVariables: { colorSchemeSelector: 'data-ag-theme-mode' },
+  cssVariables: { colorSchemeSelector: COLOR_SCHEME_ATTRIBUTE },
   colorSchemes: {
     light: {
       palette: {

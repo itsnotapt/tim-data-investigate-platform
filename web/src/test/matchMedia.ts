@@ -1,9 +1,10 @@
-type Scheme = 'light' | 'dark';
+import type { ColorScheme } from '../app/themeKeys';
+
 type Listener = (event: MediaQueryListEvent) => void;
 
 /** Each `change` listener with the query it was registered for. */
 const listeners = new Map<Listener, string>();
-let osScheme: Scheme = 'light';
+let osScheme: ColorScheme = 'light';
 
 function matches(query: string): boolean {
   const asked = /prefers-color-scheme:\s*(dark|light)/.exec(query)?.[1];
@@ -33,7 +34,7 @@ function matchMedia(query: string): MediaQueryList {
 if (typeof window !== 'undefined') window.matchMedia = matchMedia;
 
 /** Switches the OS colour scheme the `matchMedia` stub reports, notifying `change` listeners. */
-export function setPrefersColorScheme(scheme: Scheme): void {
+export function setPrefersColorScheme(scheme: ColorScheme): void {
   osScheme = scheme;
   for (const [listener, media] of listeners) {
     listener({ matches: matches(media), media } as MediaQueryListEvent);

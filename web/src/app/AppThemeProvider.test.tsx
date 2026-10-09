@@ -1,12 +1,13 @@
 import { act, render, screen } from '@testing-library/react';
 import { setPrefersColorScheme } from '../test/matchMedia';
 import { AppThemeProvider } from './AppThemeProvider';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from './themeKeys';
 import { ConfigError } from './ConfigError';
 
-const schemeAttr = () => document.documentElement.getAttribute('data-ag-theme-mode');
+const schemeAttr = () => document.documentElement.getAttribute(COLOR_SCHEME_ATTRIBUTE);
 
 describe('AppThemeProvider', () => {
-  afterEach(() => document.documentElement.removeAttribute('data-ag-theme-mode'));
+  afterEach(() => document.documentElement.removeAttribute(COLOR_SCHEME_ATTRIBUTE));
 
   it('follows a dark OS when nothing is stored', () => {
     setPrefersColorScheme('dark');
@@ -23,7 +24,7 @@ describe('AppThemeProvider', () => {
   });
 
   it('a stored light mode ignores a dark OS', () => {
-    localStorage.setItem('tim-theme-mode', 'light');
+    localStorage.setItem(THEME_MODE_KEY, 'light');
     setPrefersColorScheme('dark');
     render(<ConfigError message="bad config" />, { wrapper: AppThemeProvider });
     expect(schemeAttr()).toBe('light');
@@ -36,7 +37,7 @@ describe('AppThemeProvider', () => {
   });
 
   it('treats a junk stored value as System, following the OS and its live changes', () => {
-    localStorage.setItem('tim-theme-mode', 'sepia');
+    localStorage.setItem(THEME_MODE_KEY, 'sepia');
     setPrefersColorScheme('dark');
     render(<ConfigError message="bad config" />, { wrapper: AppThemeProvider });
     expect(schemeAttr()).toBe('dark');
@@ -45,7 +46,7 @@ describe('AppThemeProvider', () => {
   });
 
   it('applies a stored dark mode', () => {
-    localStorage.setItem('tim-theme-mode', 'dark');
+    localStorage.setItem(THEME_MODE_KEY, 'dark');
     render(<ConfigError message="bad config" />, { wrapper: AppThemeProvider });
     expect(schemeAttr()).toBe('dark');
   });

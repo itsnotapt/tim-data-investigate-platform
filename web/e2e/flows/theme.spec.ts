@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY, type ColorScheme } from '../../src/app/themeKeys';
 import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { waitForEditor } from '../mocks/editor';
@@ -53,7 +54,7 @@ type GridColours = typeof LIGHT_GRID;
 
 /** Dark stored before the page loads, as if picked in an earlier session. */
 async function storeDarkMode(page: Page): Promise<void> {
-  await page.addInitScript(() => localStorage.setItem('tim-theme-mode', 'dark'));
+  await page.addInitScript((key) => localStorage.setItem(key, 'dark'), THEME_MODE_KEY);
 }
 
 /** The deployment serves a runtime config without `auth`, so main.tsx renders the config error page. */
@@ -68,9 +69,9 @@ async function serveConfigWithoutAuth(page: Page): Promise<void> {
   );
 }
 
-async function expectScheme(page: Page, scheme: 'light' | 'dark', colours: Colours) {
+async function expectScheme(page: Page, scheme: ColorScheme, colours: Colours) {
   const html = page.locator('html');
-  await expect(html).toHaveAttribute('data-ag-theme-mode', scheme);
+  await expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
   await expect(html).toHaveCSS('color-scheme', scheme);
   await expect(page.locator('body')).toHaveCSS('background-color', colours.background);
   await expect(page.locator('body')).toHaveCSS('color', colours.text);
@@ -311,15 +312,15 @@ async function pickTheme(page: Page, choice: 'Light' | 'Dark' | 'System') {
 }
 
 /**
- * Records every value `data-ag-theme-mode` takes on `<html>` from the very start of each load, and
+ * Records every value the scheme attribute takes on `<html>` from the very start of each load, and
  * its value at DOM-ready, in `window.schemeLog`. Init scripts run before `<html>` exists, so this
  * watches the whole document.
  */
 async function logSchemeChanges(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+  await page.addInitScript((attribute) => {
     const log = { values: [] as (string | null)[], atDomReady: null as string | null };
     Object.assign(window, { schemeLog: log });
-    const current = () => document.documentElement?.getAttribute('data-ag-theme-mode') ?? null;
+    const current = () => document.documentElement?.getAttribute(attribute) ?? null;
     const record = () => {
       if (log.values.at(-1) !== current()) log.values.push(current());
     };
@@ -327,12 +328,12 @@ async function logSchemeChanges(page: Page): Promise<void> {
     new MutationObserver(record).observe(document, {
       childList: true,
       subtree: true,
-      attributeFilter: ['data-ag-theme-mode'],
+      attributeFilter: [attribute],
     });
     document.addEventListener('DOMContentLoaded', () => {
       log.atDomReady = current();
     });
-  });
+  }, COLOR_SCHEME_ATTRIBUTE);
 }
 
 const schemeLog = (page: Page) =>
@@ -362,7 +363,7 @@ test.describe('Settings › Theme', () => {
       route.fulfill({ contentType: 'text/javascript', body: '' }),
     );
     await page.goto('/');
-    await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', 'dark');
+    await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
   });
 
@@ -396,7 +397,7 @@ for (const scheme of ['light', 'dark'] as const) {
     test('home', async ({ page }) => {
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
-      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
       await expectColourContrast(page);
     });
 
@@ -404,15 +405,18 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto('/#/queries');
       await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
-      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
       await expectColourContrast(page);
     });
   });
 }
 
 /** The scheme stored before the page loads, for the config error page (it has no Settings menu). */
-async function storeMode(page: Page, scheme: 'light' | 'dark'): Promise<void> {
-  await page.addInitScript((mode) => localStorage.setItem('tim-theme-mode', mode), scheme);
+async function storeMode(page: Page, scheme: ColorScheme): Promise<void> {
+  await page.addInitScript(([key, mode]) => localStorage.setItem(key, mode), [
+    THEME_MODE_KEY,
+    scheme,
+  ] as const);
 }
 
 const THEME_CHOICE = { light: 'Light', dark: 'Dark' } as const;
@@ -434,11 +438,11 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
       await pickTheme(page, THEME_CHOICE[scheme]);
-      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
     }
 
     async function expectContrastInScheme(page: Page) {
-      await expect(page.locator('html')).toHaveAttribute('data-ag-theme-mode', scheme);
+      await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
       await expectColourContrast(page);
     }
 

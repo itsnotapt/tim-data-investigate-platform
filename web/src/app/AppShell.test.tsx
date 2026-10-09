@@ -9,6 +9,7 @@ import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from
 import { getConfig, resetConfigCache } from '../lib/config/runtimeConfig';
 import { AppShell } from './AppShell';
 import { AppThemeProvider } from './AppThemeProvider';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from './themeKeys';
 
 beforeEach(() => {
   stubBootstrap();
@@ -23,7 +24,7 @@ beforeEach(() => {
   resetConfigCache();
 });
 afterEach(() => {
-  document.documentElement.removeAttribute('data-ag-theme-mode');
+  document.documentElement.removeAttribute(COLOR_SCHEME_ATTRIBUTE);
   delete window.appConfig;
   resetConfigCache();
 });
@@ -166,7 +167,7 @@ describe('Settings › Theme', () => {
   });
 
   it('checks the stored choice', async () => {
-    localStorage.setItem('tim-theme-mode', 'dark');
+    localStorage.setItem(THEME_MODE_KEY, 'dark');
     await userEvent.click(await openSettings());
     expect(within(themeMenu()).getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute(
       'aria-checked',
@@ -175,7 +176,7 @@ describe('Settings › Theme', () => {
   });
 
   it('checks System for a junk stored value', async () => {
-    localStorage.setItem('tim-theme-mode', 'sepia');
+    localStorage.setItem(THEME_MODE_KEY, 'sepia');
     await userEvent.click(await openSettings());
     expect(radios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true']);
   });
@@ -183,18 +184,18 @@ describe('Settings › Theme', () => {
   it('picking Dark applies and saves it, and closes both menus', async () => {
     await userEvent.click(await openSettings());
     await userEvent.click(within(themeMenu()).getByRole('menuitemradio', { name: 'Dark' }));
-    expect(html).toHaveAttribute('data-ag-theme-mode', 'dark');
-    expect(localStorage.getItem('tim-theme-mode')).toBe('dark');
+    expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
+    expect(localStorage.getItem(THEME_MODE_KEY)).toBe('dark');
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 
   it('System follows the OS', async () => {
-    localStorage.setItem('tim-theme-mode', 'light');
+    localStorage.setItem(THEME_MODE_KEY, 'light');
     setPrefersColorScheme('dark');
     await userEvent.click(await openSettings());
     await userEvent.click(within(themeMenu()).getByRole('menuitemradio', { name: 'System' }));
-    expect(html).toHaveAttribute('data-ag-theme-mode', 'dark');
-    expect(localStorage.getItem('tim-theme-mode')).toBe('system');
+    expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
+    expect(localStorage.getItem(THEME_MODE_KEY)).toBe('system');
   });
 
   it('ArrowRight opens the sub-menu with focus inside; ArrowLeft returns to Theme', async () => {
@@ -218,7 +219,7 @@ describe('Settings › Theme', () => {
     await userEvent.keyboard('{ArrowUp}');
     expect(document.activeElement).toHaveTextContent('Dark');
     await userEvent.keyboard('{Enter}');
-    expect(html).toHaveAttribute('data-ag-theme-mode', 'dark');
+    expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 
