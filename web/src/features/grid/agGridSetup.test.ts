@@ -1,8 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const registerModules = vi.fn();
 const setLicenseKey = vi.fn();
-const getConfig = vi.fn();
 const mod = (moduleName: string) => ({ moduleName });
 
 vi.mock('ag-grid-community', () => ({
@@ -58,15 +57,25 @@ vi.mock('ag-grid-enterprise', () => ({
     ].map((n) => [n, mod(n)]),
   ),
 }));
-vi.mock('../../lib/config/runtimeConfig', () => ({ getConfig }));
 
 beforeEach(() => {
   vi.resetModules();
   registerModules.mockClear();
   setLicenseKey.mockClear();
-  getConfig.mockReset();
+  delete window.appConfig;
 });
 
+afterEach(() => {
+  delete window.appConfig;
+});
+
+const validConfig = {
+  auth: { clientId: 'id', authority: 'https://login.example.com/t' },
+  redirectUri: 'https://tim.example.com/blank.html',
+  tagCluster: 'https://tags.kusto.windows.net',
+};
+
+// Modules are reloaded per test, so each gets a fresh runtime-config cache.
 async function load() {
   return import('./agGridSetup');
 }
@@ -124,7 +133,7 @@ describe('initAgGrid', () => {
 
 describe('initAgGridFromConfig', () => {
   it('applies the licence key from the runtime config', async () => {
-    getConfig.mockReturnValue({ agGridLicenseKey: 'key-2' });
+    window.appConfig = { ...validConfig, agGridLicenseKey: 'key-2' };
     const { initAgGridFromConfig } = await load();
     initAgGridFromConfig();
     expect(registerModules).toHaveBeenCalledTimes(1);
@@ -132,9 +141,7 @@ describe('initAgGridFromConfig', () => {
   });
 
   it('still registers the modules when the config is invalid', async () => {
-    getConfig.mockImplementation(() => {
-      throw new Error('bad config');
-    });
+    window.appConfig = { agGridLicenseKey: 'key-3' };
     const { initAgGridFromConfig } = await load();
     expect(() => initAgGridFromConfig()).not.toThrow();
     expect(registerModules).toHaveBeenCalledTimes(1);

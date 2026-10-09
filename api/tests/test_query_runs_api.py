@@ -1,15 +1,17 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import httpx2 as httpx
 import pytest
+from app_factory import AuthKit, create_test_app
 from pydantic import SecretStr
 
-from tim_api.auth import Principal, get_current_principal
+from tim_api.auth import Principal
 from tim_api.auth.dependencies import get_obo_provider
 from tim_api.auth.obo import OboAuthError
 from tim_api.kusto.query_client import (
@@ -20,7 +22,6 @@ from tim_api.kusto.query_client import (
     ResultLimits,
     get_kusto_client,
 )
-from tim_api.main import create_app
 from tim_api.query_runs import runner
 from tim_api.query_runs.models import (
     KustoQueryEcho,
@@ -32,8 +33,8 @@ from tim_api.query_runs.runner import NUL_REPLACEMENT, sanitise_nul
 from tim_api.storage import Storage
 
 CLUSTER = "https://c1.westeurope.kusto.windows.net"
-ALICE = Principal(oid="a", name="alice@example.com", tenant_id="t", token=SecretStr("x"))
-BOB = Principal(oid="b", name="bob@example.com", tenant_id="t", token=SecretStr("y"))
+ALICE = Principal(oid="a", name="alice@example.com", tenant_id="tenant-id", token=SecretStr("x"))
+BOB = Principal(oid="b", name="bob@example.com", tenant_id="tenant-id", token=SecretStr("y"))
 BODY = {"cluster": CLUSTER, "database": "Sec", "query": "T | take 1"}
 
 
@@ -76,30 +77,38 @@ class FakeKusto:
 
 
 class Env:
-    def __init__(self, client: httpx.AsyncClient, kusto: FakeKusto, obo: FakeObo, who: list[Any]):
+    def __init__(self, client: httpx.AsyncClient, kusto: FakeKusto, obo: FakeObo, auth: AuthKit):
         self.client = client
         self.kusto = kusto
         self.obo = obo
-        self._who = who
+        self._auth = auth
 
     def as_user(self, principal: Principal) -> None:
-        self._who[0] = principal
+        self.client.headers.update(self._auth.headers(principal.name, principal.oid))
 
 
-@pytest.fixture
-async def env(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Env]:
-    monkeypatch.setattr("tim_api.main.build_storage", lambda _s: storage)
-    monkeypatch.setattr(runner, "RACE_SECONDS", 0.2)
-    kusto, obo, who = FakeKusto(), FakeObo(), [ALICE]
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: who[0]
+@asynccontextmanager
+async def open_env(storage: Storage, auth: AuthKit, race_seconds: float) -> AsyncIterator[Env]:
+    kusto, obo = FakeKusto(), FakeObo()
+    app = create_test_app(storage_factory=lambda _s: storage, race_seconds=race_seconds)
+    auth.install(app)
     app.dependency_overrides[get_obo_provider] = lambda: obo
     fake: KustoQueryClient = kusto  # type: ignore[assignment]
     app.dependency_overrides[get_kusto_client] = lambda: fake
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
-            yield Env(client, kusto, obo, who)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://t",
+            headers=auth.headers(ALICE.name, ALICE.oid),
+        ) as client:
+            yield Env(client, kusto, obo, auth)
+
+
+@pytest.fixture
+async def env(storage: Storage, auth: AuthKit) -> AsyncIterator[Env]:
+    async with open_env(storage, auth, race_seconds=0.2) as e:
+        yield e
 
 
 async def test_fast_query_returns_200_completed(env: Env) -> None:
@@ -168,14 +177,16 @@ async def test_unexpected_error_is_generic(env: Env, caplog: pytest.LogCaptureFi
     assert "traceId=" in caplog.text
 
 
-async def test_timeout_sets_timed_out(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_timeout_sets_timed_out(
+    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("TIM_QUERY_TIMEOUT_SECONDS", "1")
     from tim_api.config import get_settings
 
     get_settings.cache_clear()
-    monkeypatch.setattr(runner, "RACE_SECONDS", 3.0)
-    env.kusto.gate = asyncio.Event()  # never set
-    r = await env.client.post("/api/kusto/query", json=BODY)
+    async with open_env(storage, auth, race_seconds=3.0) as env:
+        env.kusto.gate = asyncio.Event()  # never set
+        r = await env.client.post("/api/kusto/query", json=BODY)
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "timedOut"
@@ -236,9 +247,8 @@ async def test_obo_failure_is_synchronous_403(env: Env, storage: Storage) -> Non
     assert env.kusto.calls == []
 
 
-async def test_unauthenticated_is_401(storage: Storage, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("tim_api.main.build_storage", lambda _s: storage)
-    app = create_app()
+async def test_unauthenticated_is_401(storage: Storage) -> None:
+    app = create_test_app(storage_factory=lambda _s: storage)
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
@@ -270,10 +280,7 @@ def test_sanitise_nul_leaves_other_values_alone() -> None:
     assert sanitise_nul("\x00") == NUL_REPLACEMENT
 
 
-async def test_startup_sweep_marks_stale_runs(
-    storage: Storage, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("tim_api.main.build_storage", lambda _s: storage)
+async def test_startup_sweep_marks_stale_runs(storage: Storage) -> None:
     now = datetime.now(UTC)
 
     def make(age: timedelta) -> KustoQueryRun:
@@ -290,7 +297,7 @@ async def test_startup_sweep_marks_stale_runs(
     stale, fresh = make(timedelta(hours=1)), make(timedelta(seconds=5))
     await storage.runs.create(stale)
     await storage.runs.create(fresh)
-    app = create_app()
+    app = create_test_app(storage_factory=lambda _s: storage)
     async with app.router.lifespan_context(app):
         got_stale = await storage.runs.get_for_owner(stale.query_run_id, ALICE.name, now)
         got_fresh = await storage.runs.get_for_owner(fresh.query_run_id, ALICE.name, now)
@@ -302,20 +309,20 @@ async def test_startup_sweep_marks_stale_runs(
 
 
 async def test_shutdown_cancels_running_tasks_and_marks_error(
-    storage: Storage, monkeypatch: pytest.MonkeyPatch
+    storage: Storage, auth: AuthKit
 ) -> None:
-    monkeypatch.setattr("tim_api.main.build_storage", lambda _s: storage)
-    monkeypatch.setattr(runner, "RACE_SECONDS", 0.05)
     kusto, obo = FakeKusto(), FakeObo()
     kusto.gate = asyncio.Event()
-    app = create_app()
-    app.dependency_overrides[get_current_principal] = lambda: ALICE
+    app = create_test_app(storage_factory=lambda _s: storage, race_seconds=0.05)
+    auth.install(app)
     app.dependency_overrides[get_obo_provider] = lambda: obo
     fake: KustoQueryClient = kusto  # type: ignore[assignment]
     app.dependency_overrides[get_kusto_client] = lambda: fake
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://t", headers=auth.headers(ALICE.name, ALICE.oid)
+        ) as client:
             r = await client.post("/api/kusto/query", json=BODY)
         assert r.status_code == 202
         assert len(app.state.run_tasks) == 1

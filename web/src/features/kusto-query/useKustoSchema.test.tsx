@@ -1,11 +1,12 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { HttpResponse, http } from 'msw';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CodeEditorInstance } from '../../components/CodeEditor';
-import { apiUrl, problemResponse, TEST_API } from '../../test/msw/handlers';
+import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { clearKustoSchemaCache, normalizeSchema } from './kustoSchema';
 import { useKustoSchema } from './useKustoSchema';
 
@@ -13,14 +14,6 @@ const setSchema = vi.fn();
 vi.mock('../../lib/monaco', () => ({
   getKustoWorkerFor: () => Promise.resolve({ setSchemaFromShowSchema: setSchema }),
 }));
-vi.mock('../../lib/api/client', async (orig) => {
-  const m = await orig<typeof import('../../lib/api/client')>();
-  return {
-    ...m,
-    getApiClient: () =>
-      m.createApiClient({ baseUrl: TEST_API, getToken: () => Promise.resolve('t'), timeoutMs: 0 }),
-  };
-});
 
 const server = setupMswServer();
 const editor = {} as CodeEditorInstance;
@@ -32,6 +25,7 @@ const doc = (name: string) => ({
 let calls: { cluster: string; database: string }[] = [];
 const delays: Record<string, number> = {};
 beforeEach(() => {
+  configureTestApp();
   setSchema.mockReset();
   clearKustoSchemaCache();
   calls = [];
@@ -44,6 +38,7 @@ beforeEach(() => {
     }),
   );
 });
+afterEach(resetTestApp);
 
 describe('useKustoSchema', () => {
   it('loads the schema for the initial cluster and database', async () => {

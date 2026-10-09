@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SnackbarHost } from '../../components';
-import { createApiClient, type QueryTemplate } from '../../lib/api';
+import { createApiClient, listTemplates, type QueryTemplate } from '../../lib/api';
 import { apiUrl, TEST_API } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { createTemplatesStore } from '../templates';
@@ -38,6 +38,8 @@ const tpl = (n: string, extra: Partial<QueryTemplate> = {}): QueryTemplate => ({
 let data: QueryTemplate[];
 let calls: string[];
 let listQueries: string[];
+/** Requests the templates store makes (the page itself always asks for `includeDeleted=true`). */
+const storeReloads = () => listQueries.filter((q) => !q.includes('includeDeleted')).length;
 
 beforeEach(() => {
   data = [tpl('1'), tpl('2', { isManaged: true }), tpl('3', { isDeleted: true })];
@@ -65,18 +67,16 @@ beforeEach(() => {
 
 async function setup() {
   const store = createTemplatesStore({
-    fetchTemplates: () => Promise.resolve([]),
+    fetchTemplates: () => listTemplates({}, { client }),
     loadQueryOptions: () => Promise.resolve({}),
   });
-  const reload = vi.spyOn(store.getState(), 'reload');
-  store.setState({ reload });
   render(
     <SnackbarHost>
       <QueryManagerPage client={client} store={store} />
     </SnackbarHost>,
   );
   await screen.findByText('Tpl 1');
-  return { user: userEvent.setup(), reload };
+  return { user: userEvent.setup(), store };
 }
 
 const row = (name: string) => screen.getByRole('checkbox', { name: `Select ${name}` });
@@ -138,21 +138,23 @@ describe('QueryManagerPage', () => {
   });
 
   it('bulk deletes, then refreshes the list and the templates store', async () => {
-    const { user, reload } = await setup();
+    const { user, store } = await setup();
     await user.click(row('Tpl 1'));
     await user.click(screen.getByRole('button', { name: 'Delete (1)' }));
     await waitFor(() => expect(screen.queryByText('Tpl 1')).not.toBeInTheDocument());
     expect(calls).toEqual([`DELETE ${data[0]?.uuid}`]);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(storeReloads()).toBe(1);
+    expect(store.getState().templates.map((t) => t.name)).toEqual(['Tpl 2']);
     expect(screen.getByRole('button', { name: 'Delete (0)' })).toBeDisabled();
   });
 
   it('bulk restores with PATCH isDeleted=false', async () => {
-    const { user, reload } = await setup();
+    const { user, store } = await setup();
     await user.click(screen.getByRole('switch', { name: 'Show deleted' }));
     await user.click(row('Tpl 3'));
     await user.click(screen.getByRole('button', { name: 'Restore (1)' }));
-    await waitFor(() => expect(reload).toHaveBeenCalled());
+    await waitFor(() => expect(storeReloads()).toBe(1));
+    expect(store.getState().templates.map((t) => t.name)).toEqual(['Tpl 1', 'Tpl 2', 'Tpl 3']);
     expect(calls[0]).toContain('PATCH');
     expect(calls[0]).toContain('"path":"/isDeleted","value":false');
     expect(

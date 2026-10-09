@@ -1,21 +1,12 @@
 import 'fake-indexeddb/auto';
 import { HttpResponse, http } from 'msw';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resetConfigCache } from '../../lib/config/runtimeConfig';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { rowResultsDao } from '../../lib/storage';
-import { apiUrl, makeRun, queryRunHandlers, TEST_API } from '../../test/msw/handlers';
+import { apiUrl, makeRun, queryRunHandlers } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { kusto, newTestStore } from '../../test/tabsTestUtils';
 import { cloneTemplateTab, convertTemplateTab, runTemplateQuery } from './runTemplateQuery';
-
-vi.mock('../../lib/api/client', async (orig) => {
-  const m = await orig<typeof import('../../lib/api/client')>();
-  return {
-    ...m,
-    getApiClient: () =>
-      m.createApiClient({ baseUrl: TEST_API, getToken: () => Promise.resolve('t'), timeoutMs: 0 }),
-  };
-});
 
 const server = setupMswServer();
 const store = newTestStore();
@@ -43,17 +34,13 @@ const mk = () =>
 
 beforeEach(() => {
   store.reset();
-  window.appConfig = {
-    auth: { clientId: 'id', authority: 'https://login.example.com/t' },
-    redirectUri: 'https://tim.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
-  };
-  resetConfigCache();
+  configureTestApp();
   store.getState().createTab(kusto('root'));
   mk();
 });
 
 const tab = (id = 'tpl') => store.getState().tabs[id]!;
+afterEach(resetTestApp);
 
 describe('runTemplateQuery', () => {
   it('renders cluster/database/query, sends no time range and stores results', async () => {

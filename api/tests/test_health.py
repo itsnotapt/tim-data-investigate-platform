@@ -1,14 +1,13 @@
 from collections.abc import Iterator
 
 import pytest
+from app_factory import create_test_app
 from fastapi.testclient import TestClient
-
-from tim_api.main import create_app
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app()) as c:  # lifespan wires storage for readiness
+    with TestClient(create_test_app()) as c:  # lifespan wires storage for readiness
         yield c
 
 

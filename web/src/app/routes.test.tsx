@@ -1,25 +1,31 @@
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthProvider, type AuthClient } from '../lib/auth';
 import { useTabsStore } from '../features/tabs';
 import { useTemplatesStore } from '../features/templates';
 import userEvent from '@testing-library/user-event';
+import { resetConfigCache } from '../lib/config/runtimeConfig';
 import { routes } from './routes';
-
-vi.mock('../lib/config/runtimeConfig', () => ({
-  getConfig: vi.fn(() => ({
-    wikiUri: 'https://wiki.example',
-    issueUri: 'https://issues.example',
-    defaultClusters: [],
-  })),
-}));
 
 beforeEach(() => {
   useTabsStore.reset();
   stubBootstrap();
+  window.appConfig = {
+    auth: { clientId: 'id', authority: 'https://login.example.com/t' },
+    redirectUri: 'https://tim.example.com/blank.html',
+    tagCluster: 'https://tags.kusto.windows.net',
+    wikiUri: 'https://wiki.example',
+    issueUri: 'https://issues.example',
+    defaultClusters: [],
+  };
+  resetConfigCache();
+});
+afterEach(() => {
+  delete window.appConfig;
+  resetConfigCache();
 });
 
 const client: AuthClient = {

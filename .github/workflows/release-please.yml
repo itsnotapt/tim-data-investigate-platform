@@ -21,7 +21,7 @@ jobs:
       pull-requests: write
     outputs:
       # frontend (web), backend (api) and the chart (deploy/helm/tim) release independently. See
-      # docs/decisions/0016-release-versions.md.
+      # docs/adr/0016-release-versions.md.
       web-release: ${{ steps.release.outputs.web--release_created }}
       web-version: ${{ steps.release.outputs.web--version }}
       api-release: ${{ steps.release.outputs.api--release_created }}
@@ -33,59 +33,7 @@ jobs:
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Without it the action targets the default branch, which is development.
           target-branch: main
-
-  # Merges main back into development with a merge commit once no release PR is open, so the
-  # version files and CHANGELOGs do not diverge. Merge commits are ignored by release-please
-  # (the repository's merge commit message is blank). See docs/RULES.md section 6.
-  sync-development:
-    runs-on: ubuntu-latest
-    needs: release-please
-    permissions:
-      contents: write
-      pull-requests: write
-      statuses: write
-    concurrency:
-      group: sync-development
-      cancel-in-progress: false
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TITLE: "Merge main into development"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Merge main into development
-        run: |
-          if [ "$(git rev-list --count origin/development..origin/main)" = 0 ]; then
-            echo "development already contains main."
-            exit 0
-          fi
-          pending="$(gh pr list --base main --state open --json headRefName \
-            --jq '[.[] | select(.headRefName | startswith("release-please--"))] | length')"
-          if [ "$pending" != 0 ]; then
-            echo "A release PR is open; development is synced after it is merged."
-            exit 0
-          fi
-          pr="$(gh pr list --base development --head main --state open --json number --jq '.[0].number // empty')"
-          if [ -z "$pr" ]; then
-            gh pr create --base development --head main --title "$TITLE" \
-              --body "Merges main back into development after a release. Created by release-please.yml; merge it with a merge commit, never squash."
-            pr="$(gh pr list --base development --head main --state open --json number --jq '.[0].number')"
-          fi
-          head="$(gh pr view "$pr" --json headRefOid --jq .headRefOid)"
-          # No workflow runs on a PR opened by GITHUB_TOKEN, so run the required check here.
-          if python3 .github/scripts/pr_conventions.py pr origin/development "$head" \
-            --base-ref development --head-ref main --title "$TITLE"; then state=success; else state=failure; fi
-          gh api "repos/${GITHUB_REPOSITORY}/statuses/${head}" -f state="$state" -f context=pr-conventions \
-            -f description="main -> development sync, checked by release-please.yml"
-          [ "$state" = success ]
-          gh api -X PUT "repos/${GITHUB_REPOSITORY}/pulls/${pr}/merge" -f merge_method=merge -f sha="$head" \
-            -f commit_title="Merge pull request #${pr} from ${GITHUB_REPOSITORY_OWNER}/main" \
-            -f commit_message="Sync after a release." \
-            || { echo "::error::Could not merge PR #${pr}; resolve it and merge it with a merge commit."; exit 1; }
 
   build-web:
     runs-on: ubuntu-latest
@@ -209,7 +157,7 @@ jobs:
             docker buildx imagetools inspect "${REGISTRY}/${repo}/${component}:${tag}" >/dev/null
           done
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
 
       - name: Log into github registry
         env:

@@ -60,7 +60,9 @@ async def start_query(
         raise problem_exception(400, "query and database must not contain NUL characters")
     # Auth errors (401/403/502/503) surface synchronously, before a run exists.
     token = await obo.get_token(principal, cluster)
-    manager = RunManager(store, kusto, settings, tasks, slots=slots)
+    manager = RunManager(
+        store, kusto, settings, tasks, slots=slots, race_seconds=request.app.state.race_seconds
+    )
     run = await manager.start(
         body, cluster=cluster, owner=principal.name, token=token, trace_id=get_trace_id(request)
     )

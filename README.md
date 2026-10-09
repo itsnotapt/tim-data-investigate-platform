@@ -35,7 +35,7 @@ Open http://localhost:8081. The api runs with authentication disabled, but the w
 - [Development](docs/development.md): local setup, tests, linting
 - [Configuration](docs/configuration.md): environment variables
 - [Deployment](docs/deployment.md) and [Operations](docs/operations.md)
-- [Working rules](docs/RULES.md) for contributors and agents
+- [Coding standards](CODING_STANDARDS.md) and [working rules](docs/RULES.md) (git, PRs, releases) for contributors and agents
 
 ## Contributing
 

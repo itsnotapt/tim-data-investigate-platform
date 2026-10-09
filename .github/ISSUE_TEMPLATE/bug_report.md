@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Report something that is not working as expected
-labels: bug
+labels: [bug, needs-triage]
 ---
 
 **Describe the bug**
@@ -16,8 +16,10 @@ labels: bug
 <!-- What you expected to happen. -->
 
 **Version and deployment**
-<!-- The web, api and Helm chart share one release version (for example 0.1.0). -->
-- TIM version:
+<!-- The frontend (web), backend (api) and Helm chart are released independently, so give the version of each that you run. -->
+- Frontend version:
+- Backend version:
+- Chart version (Helm):
 - Deployment: Helm chart / Docker Compose / other
 - Browser (for UI bugs):
 

@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -7,20 +8,6 @@ import { resetConfigCache } from '../../lib/config/runtimeConfig';
 import { useTabsStore } from '../tabs/tabStore';
 import { KustoQueryTab } from './KustoQueryTab';
 import { DEFAULT_QUERY_EXAMPLE } from './defaultQuery';
-
-// Use an in-memory tab store so nothing touches IndexedDB.
-vi.mock('../tabs/tabStore', async (importOriginal) => {
-  const m = await importOriginal<typeof import('../tabs/tabStore')>();
-  const store = m.createTabsStore({
-    persistence: {
-      loadAll: () => Promise.resolve([]),
-      save: () => Promise.resolve(),
-      remove: () => Promise.resolve(),
-    },
-    debounceMs: 1,
-  });
-  return { ...m, useTabsStore: store };
-});
 
 // Monaco cannot run in jsdom.
 vi.mock('../../components/CodeEditor', () => ({

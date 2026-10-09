@@ -4,7 +4,6 @@
         "web": {
             "release-type": "node",
             "package-name": "frontend",
-            "release-as": "1.6.0",
             "exclude-paths": [
                 "web/e2e"
             ],
@@ -19,7 +18,6 @@
         "api": {
             "release-type": "python",
             "package-name": "backend",
-            "release-as": "4.0.0",
             "exclude-paths": [
                 "api/tests"
             ],
@@ -39,7 +37,6 @@
         "deploy/helm/tim": {
             "release-type": "helm",
             "package-name": "chart",
-            "release-as": "1.0.0",
             "exclude-paths": [
                 "deploy/helm/tim/ci"
             ],

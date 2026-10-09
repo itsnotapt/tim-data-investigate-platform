@@ -3,16 +3,17 @@ from collections.abc import Iterator
 from typing import Annotated, Any
 
 import pytest
+from app_factory import create_test_app
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError
+from tim_api.config import get_settings
 from tim_api.main import create_app
 from tim_api.models_common import ApiModel
 from tim_api.storage import (
     AlreadyExistsError,
-    MemoryStorage,
     NotFoundError,
     StorageUnavailableError,
 )
@@ -36,7 +37,7 @@ class Plain(BaseModel):
 
 
 def _app() -> FastAPI:
-    app = create_app()
+    app = create_test_app()
 
     @app.post("/t/body")
     def body(payload: Body) -> dict[str, str]:
@@ -93,25 +94,10 @@ def _check_envelope(response: Any, status: int, slug: str) -> dict[str, Any]:
     return result
 
 
-class FakeStorage(MemoryStorage):
-    def __init__(self, healthy: bool = True, raises: bool = False) -> None:
-        super().__init__()
-        self._healthy = healthy
-        self._raises = raises
-
-    async def health(self) -> bool:
-        if self._raises:
-            raise ConnectionError("db password=hunter2")
-        return self._healthy
-
-
-@pytest.mark.parametrize(("healthy", "raises"), [(False, False), (True, True)])
-def test_readiness_503_when_storage_down(
-    monkeypatch: pytest.MonkeyPatch, healthy: bool, raises: bool
-) -> None:
-    monkeypatch.setattr(
-        "tim_api.main.build_storage", lambda _s: FakeStorage(healthy=healthy, raises=raises)
-    )
+def test_readiness_503_when_storage_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Real PostgresStorage whose server refuses connections (nothing listens on port 1).
+    monkeypatch.setenv("TIM_DATABASE_URL", "postgresql+asyncpg://tim:hunter2@127.0.0.1:1/tim")
+    get_settings.cache_clear()
     with TestClient(create_app()) as client:
         response = client.get("/api/healthChecks/readiness")
         assert client.get("/api/healthChecks/liveness").status_code == 204
