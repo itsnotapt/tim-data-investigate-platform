@@ -105,7 +105,7 @@ function SettingsMenu() {
         <MenuItem
           ref={themeItem}
           aria-haspopup="menu"
-          aria-expanded={themeAnchor ? true : undefined}
+          aria-expanded={themeAnchor !== null}
           onClick={(e) => setThemeAnchor(e.currentTarget)}
           onKeyDown={(e) => {
             if (e.key === 'ArrowRight') setThemeAnchor(e.currentTarget);

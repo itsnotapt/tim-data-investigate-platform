@@ -158,7 +158,7 @@ describe('Settings › Theme', () => {
 
   it('opens a sub-menu of Light, Dark and System with System checked by default', async () => {
     const theme = await openSettings();
-    expect(theme).not.toHaveAttribute('aria-expanded');
+    expect(theme).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(theme);
     expect(theme).toHaveAttribute('aria-expanded', 'true');
     expect(radios().map((r) => r.textContent)).toEqual(['Light', 'Dark', 'System']);
@@ -199,7 +199,7 @@ describe('Settings › Theme', () => {
     await userEvent.keyboard('{ArrowLeft}');
     await waitFor(() => expect(screen.queryByRole('menu', { name: 'Theme' })).toBeNull());
     expect(theme).toHaveFocus();
-    expect(theme).not.toHaveAttribute('aria-expanded');
+    expect(theme).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('Enter opens the sub-menu, arrows move and Enter picks', async () => {
