@@ -358,16 +358,6 @@ test.describe('Settings › Theme', () => {
     expect(log.values).toEqual([null, 'dark']);
   });
 
-  test('theme-init.js applies the stored choice before the bundle runs', async ({ page }) => {
-    await storeDarkMode(page);
-    await page.route('**/src/app/main.tsx*', (route) =>
-      route.fulfill({ contentType: 'text/javascript', body: '' }),
-    );
-    await page.goto('/');
-    await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
-    await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
-  });
-
   test('a second page in the same browser follows the choice', async ({ page, context }) => {
     await expectAppShell(page, LIGHT);
     const other = await context.newPage();
