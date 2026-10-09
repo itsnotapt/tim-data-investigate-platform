@@ -1,15 +1,16 @@
-import type { SvgIconComponent } from '@mui/icons-material';
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined';
-import GppBad from '@mui/icons-material/GppBad';
 import WarningAmber from '@mui/icons-material/WarningAmber';
+import type { SvgIconProps } from '@mui/material/SvgIcon';
 import Tooltip from '@mui/material/Tooltip';
 import type { CustomCellRendererProps } from 'ag-grid-react';
+import type { ComponentType } from 'react';
 import { getDetermination } from './rowClasses';
 import type { Determination } from './rowClasses';
+import { SkullIcon } from './SkullIcon';
 
 /** One shape per determination, so a row's determination can be read without its colour. */
-const SYMBOLS: Record<Determination, { Icon: SvgIconComponent; label: string }> = {
-  malicious: { Icon: GppBad, label: 'Malicious' },
+const SYMBOLS: Record<Determination, { Icon: ComponentType<SvgIconProps>; label: string }> = {
+  malicious: { Icon: SkullIcon, label: 'Malicious' },
   suspicious: { Icon: WarningAmber, label: 'Suspicious' },
   benign: { Icon: CheckCircleOutlined, label: 'Benign' },
 };
@@ -26,8 +27,7 @@ export function DeterminationSymbol({ node, data }: CustomCellRendererProps) {
         role="img"
         aria-label={label}
         aria-hidden={false}
-        fontSize="small"
-        sx={{ color: 'text.primary', verticalAlign: 'middle' }}
+        sx={{ fontSize: 16, color: 'text.primary', verticalAlign: 'middle' }}
       />
     </Tooltip>
   );
