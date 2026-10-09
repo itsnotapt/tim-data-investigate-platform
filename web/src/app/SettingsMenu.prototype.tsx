@@ -120,15 +120,14 @@ function VariantA() {
 }
 
 /**
- * B: one "Theme" item showing the current choice, opening a sub-menu of three radio items.
+ * B: one "Theme" item (no current value shown), opening a sub-menu of three radio items.
  * ArrowRight / Enter opens it, ArrowLeft / Escape returns; picking closes both menus.
  */
 function VariantB() {
   const { anchor, open, close } = useAnchor();
   const sub = useAnchor();
   const themeItem = useRef<HTMLLIElement>(null);
-  const { current, effective, setMode } = useMode();
-  const summary = current === 'system' ? `System (${cap(effective)})` : cap(current);
+  const { current, setMode } = useMode();
   const closeAll = () => {
     sub.close();
     close();
@@ -151,10 +150,7 @@ function VariantB() {
           }}
         >
           <ListItemText primary="Theme" />
-          <Typography variant="body2" color="text.secondary" sx={{ ml: 3 }}>
-            {summary}
-          </Typography>
-          <ChevronRightIcon fontSize="small" sx={{ ml: 1, color: 'text.secondary' }} />
+          <ChevronRightIcon fontSize="small" sx={{ ml: 3, color: 'text.secondary' }} />
         </MenuItem>
         <ExportImportItem onClick={close} />
       </Menu>
