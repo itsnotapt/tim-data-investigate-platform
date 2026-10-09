@@ -5,6 +5,7 @@ import { test, expect } from '../fixtures';
 import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from '../../src/app/themeKeys';
 import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
+import { DETERMINATION_SYMBOLS_KEY } from '../../src/features/grid/determinationSymbolsKey';
 import { waitForEditor } from '../mocks/editor';
 import {
   openRunTemplateTab,
@@ -440,6 +441,7 @@ for (const scheme of ['light', 'dark'] as const) {
     });
 
     test('results with tagged rows', async ({ page }) => {
+      await page.addInitScript((key) => localStorage.setItem(key, 'on'), DETERMINATION_SYMBOLS_KEY);
       await pickScheme(page);
       await runAdhocQuery(page);
       // Rows 0 / 5 / 10 carry the three determinations: their fills and symbols are on screen.

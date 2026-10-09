@@ -1,3 +1,4 @@
+import type { Locator } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
 import { shot, shotHovering } from '../shot';
@@ -42,10 +43,13 @@ test('quick tag submenu, then the customise dialog', async ({ page, api }) => {
   await shot(page, '25-tag-event-dialog');
 });
 
-test('a tagged row shows its determination symbol in light and in dark', async ({ page }) => {
+test('determination symbols start off, toggle from the checkbox column and are remembered', async ({
+  page,
+}) => {
   await runAdhocQuery(page);
   const selectionCell = (rowIndex: number) =>
     page.locator(`.ag-row[row-index="${rowIndex}"] .ag-cell[col-id="ag-Grid-SelectionColumn"]`);
+  const toggle = page.locator('.ag-menu-option', { hasText: 'Show determination symbols' });
 
   const expectSymbols = async () => {
     await expect(selectionCell(0).getByRole('img', { name: 'Malicious' })).toBeVisible();
@@ -54,7 +58,36 @@ test('a tagged row shows its determination symbol in light and in dark', async (
     await expect(selectionCell(1).getByRole('img')).toHaveCount(0);
   };
 
+  await expect(selectionCell(0).getByRole('checkbox')).toBeAttached();
+  await expect(
+    page.locator('.ag-cell[col-id="ag-Grid-SelectionColumn"]').getByRole('img'),
+  ).toHaveCount(0);
+
+  await selectionCell(0).click({ button: 'right' });
+  await toggle.click();
   await expectSymbols();
+
+  // Each symbol is 16px tall, centred on the checkbox, with the cell's 7px padding after the widest.
+  const box = async (locator: Locator) => (await locator.boundingBox())!;
+  const checkbox = await box(selectionCell(5).locator('.ag-checkbox-input-wrapper'));
+  const warning = await box(selectionCell(5).getByRole('img', { name: 'Suspicious' }));
+  const cell = await box(selectionCell(5));
+  expect(warning.height).toBeCloseTo(16, 0);
+  expect(warning.y + warning.height / 2).toBeCloseTo(checkbox.y + checkbox.height / 2, 0);
+  expect(cell.x + cell.width - (warning.x + warning.width)).toBeLessThanOrEqual(8);
+
   await page.evaluate(() => document.documentElement.setAttribute('data-ag-theme-mode', 'dark'));
   await expectSymbols();
+
+  await page.reload();
+  await runAdhocQuery(page);
+  await expectSymbols();
+
+  await page
+    .locator('.ag-header-cell[col-id="ag-Grid-SelectionColumn"]')
+    .click({ button: 'right', position: { x: 26, y: 10 } });
+  await toggle.click();
+  await expect(
+    page.locator('.ag-cell[col-id="ag-Grid-SelectionColumn"]').getByRole('img'),
+  ).toHaveCount(0);
 });

@@ -5,6 +5,7 @@ import type {
   GridOptions,
   DefaultMenuItem,
   MenuItemDef,
+  SelectionColumnDef,
   SideBarDef,
   StatusPanelDef,
 } from 'ag-grid-community';
@@ -81,8 +82,53 @@ export function buildContextMenu(extra: ExtraMenuItems = []): ExtraMenuItems {
   ];
 }
 
-export function makeGetContextMenuItems(extra?: GetExtraContextMenuItems): GetContextMenuItems {
-  return (params) => buildContextMenu(extra?.(params));
+export function makeGetContextMenuItems(
+  extra?: GetExtraContextMenuItems,
+  selectionColumnItems: ExtraMenuItems = [],
+): GetContextMenuItems {
+  return (params) => {
+    const items = extra?.(params) ?? [];
+    return buildContextMenu(
+      params.column?.getColId() === SELECTION_COLUMN_ID
+        ? [...selectionColumnItems, ...items]
+        : items,
+    );
+  };
+}
+
+/** Column id AG Grid gives the selection checkbox column. */
+export const SELECTION_COLUMN_ID = 'ag-Grid-SelectionColumn';
+
+/** The "Show determination symbols" menu item, ticked while they show. */
+export function determinationSymbolsMenuItem(
+  show: boolean,
+  setShow: (show: boolean) => void,
+): MenuItemDef {
+  return { name: 'Show determination symbols', checked: show, action: () => setShow(!show) };
+}
+
+/**
+ * Selection column, pinned left: the checkbox, plus the row's determination symbol when `show` is
+ * on. The width is the 7px cell padding each side, the 16px checkbox, and the 6px gap and widest
+ * symbol.
+ */
+export function buildSelectionColumnDef(
+  show: boolean,
+  setShow: (show: boolean) => void,
+): SelectionColumnDef {
+  const width = show ? 55 : 30;
+  return {
+    cellRenderer: show ? DeterminationSymbol : undefined,
+    columnMenuItems: [determinationSymbolsMenuItem(show, setShow)],
+    pinned: 'left',
+    lockPinned: true,
+    lockPosition: true,
+    suppressMovable: true,
+    width,
+    minWidth: width,
+    resizable: false,
+    sortable: false,
+  };
 }
 
 /** Options that do not depend on props. */
@@ -104,17 +150,6 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
     enableClickSelection: false,
     headerCheckbox: true,
     selectAll: 'filtered',
-  },
-  // Checkboxes and determination symbols stay visible while the grid scrolls sideways.
-  selectionColumnDef: {
-    cellRenderer: DeterminationSymbol,
-    pinned: 'left',
-    lockPinned: true,
-    lockPosition: true,
-    suppressMovable: true,
-    width: 64,
-    resizable: false,
-    sortable: false,
   },
   cellSelection: true,
   sideBar: SIDE_BAR,

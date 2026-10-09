@@ -18,7 +18,13 @@ import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs, prepareRows } from './columns';
 import type { GridRow, GridRowWithId, TemplateColumns } from './columns';
-import { makeGetContextMenuItems, staticGridOptions } from './gridOptions';
+import { useDeterminationSymbols } from './determinationSymbols';
+import {
+  buildSelectionColumnDef,
+  determinationSymbolsMenuItem,
+  makeGetContextMenuItems,
+  staticGridOptions,
+} from './gridOptions';
 import type { ExtraMenuItems, GetExtraContextMenuItems } from './gridOptions';
 import { createStatsStore } from './status';
 import type { ExecutionStats, StatsStore } from './status';
@@ -137,7 +143,19 @@ export function ResultsGrid({
       }, head);
     };
   }, [detailPanel, getContextMenuItems]);
-  const menu = useMemo(() => makeGetContextMenuItems(extraMenuItems), [extraMenuItems]);
+  const showSymbols = useDeterminationSymbols((s) => s.show);
+  const setShowSymbols = useDeterminationSymbols((s) => s.setShow);
+  const selectionColumnDef = useMemo(
+    () => buildSelectionColumnDef(showSymbols, setShowSymbols),
+    [showSymbols, setShowSymbols],
+  );
+  const menu = useMemo(
+    () =>
+      makeGetContextMenuItems(extraMenuItems, [
+        determinationSymbolsMenuItem(showSymbols, setShowSymbols),
+      ]),
+    [extraMenuItems, showSymbols, setShowSymbols],
+  );
 
   // The open panel follows the focused cell's row.
   const onCellFocused = useCallback((e: CellFocusedEvent<GridRowWithId>) => {
@@ -174,6 +192,7 @@ export function ResultsGrid({
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
           theme={gridTheme}
+          selectionColumnDef={selectionColumnDef}
           rowData={rowData}
           columnDefs={columnDefs}
           context={context}
