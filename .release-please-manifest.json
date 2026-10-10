@@ -1,5 +1,5 @@
 {
-    "web": "1.6.0",
+    "web": "1.7.0",
     "api": "4.0.0",
-    "deploy/helm/tim": "1.0.0"
+    "deploy/helm/tim": "1.0.1"
 }
