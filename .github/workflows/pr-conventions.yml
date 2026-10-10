@@ -1,5 +1,5 @@
 # Enforces the PR rules in docs/RULES.md sections 6 and 7; rationale in docs/adr/0016-release-versions.md.
-# The pr-conventions job is the required status check on main.
+# The pr-conventions job is a required status check on main.
 name: PR conventions
 
 on:

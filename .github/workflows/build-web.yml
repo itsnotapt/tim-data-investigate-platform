@@ -1,10 +1,9 @@
 name: Build web
 
+# Pull requests always run this workflow, so the required build-web-gate check always reports;
+# the changes job skips the build jobs when the PR does not touch web/ or this file.
 on:
   pull_request:
-    paths:
-      - web/**
-      - .github/workflows/build-web.yml
   push:
     branches:
       - main
@@ -14,7 +13,8 @@ on:
 
 concurrency:
   group: build-web-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to a PR cancels its older run; every push to main gets a complete run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -24,7 +24,38 @@ defaults:
     working-directory: web
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.diff.outputs.web }}
+
+    steps:
+      # fetch-depth 0 makes the base..head commits available to the diff.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      # A push to main passed the paths filter above, so it always builds.
+      - name: Detect web changes
+        id: diff
+        working-directory: .
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            changed=true
+          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(web/|\.github/workflows/build-web\.yml$)'; then
+            changed=true
+          else
+            changed=false
+          fi
+          echo "web=$changed" | tee -a "$GITHUB_OUTPUT"
+
   build:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -81,7 +112,9 @@ jobs:
             web/test-results
           retention-days: 7
 
-  docker-build:
+  docker-build-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -98,3 +131,24 @@ jobs:
           push: false
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
+
+  # The required status check on main. It always runs and fails when a needed job failed or was
+  # cancelled; build jobs skipped because web/ is unchanged count as passed.
+  build-web-gate:
+    needs: [changes, build, docker-build-web]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check the build jobs
+        working-directory: .
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needed job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
