@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import { rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
+import { gridCell, rightClickState, runAdhocQuery } from '../mocks/adhoc-grid';
 import { shot } from '../shot';
 
 test('search the New query menu', async ({ page }) => {
@@ -30,9 +30,7 @@ test('template results, edit mode, template tree, new draft', async ({ page }) =
   await expect(page.getByRole('button', { name: /^convert$/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /share link/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /^edit$/i })).toBeVisible();
-  await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toHaveText(
-    'KANSAS',
-  );
+  await expect(gridCell(page, 1, 'State')).toHaveText('KANSAS');
   await shot(page, '28-template-query-results');
 
   await page.getByRole('button', { name: /^edit$/i }).click();
