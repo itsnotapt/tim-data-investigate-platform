@@ -13,11 +13,9 @@
 
 ## Changelog entries
 
-<!-- The squash title and body for the merger to paste: one Conventional Commit line per further user-visible change, or "none" (docs/RULES.md §6). -->
+<!-- Only when the PR adds changelog lines beyond its title: the squash body for the merger to paste, one Conventional Commit line per further user-visible change (docs/RULES.md §6). Otherwise delete this section; the title is the only entry. -->
 
 ```
-Title:
-Body:
 ```
 
 ## Merge Danger
@@ -29,5 +27,5 @@ Body:
 
 - [ ] Tests added or updated
 - [ ] Lint, format, typecheck and tests pass ([docs/development.md](../docs/development.md))
-- [ ] Title, changelog entries, branch and any breaking scope follow [docs/RULES.md §6–7](../docs/RULES.md#6-git)
+- [ ] Title, any squash-body lines, branch and any breaking scope follow [docs/RULES.md §6–7](../docs/RULES.md#6-git)
 - [ ] Docs updated in the same change ([CODING_STANDARDS.md](../CODING_STANDARDS.md#documentation))
