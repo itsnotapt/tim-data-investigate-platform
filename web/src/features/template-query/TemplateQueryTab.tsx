@@ -271,7 +271,7 @@ export function TemplateQueryTab({
           </Box>
           <Divider sx={{ mb: 1.5 }} />
           {viewQuery && (
-            <Box sx={{ height: 400, border: '1px dotted darkgrey', mb: 2 }}>
+            <Box sx={{ height: 400, border: '1px dotted', borderColor: 'editor.border', mb: 2 }}>
               <CodeEditor
                 language="kusto"
                 path={`${uuid}.preview.kusto`}

@@ -3,10 +3,10 @@ import { aggFuncs, dcount } from './aggregation';
 import { buildColumnDefs, collectColumnNames, prepareRows } from './columns';
 import {
   buildContextMenu,
+  buildSelectionColumnDef,
   dateComparator,
   defaultColDef,
   quickFilterText,
-  staticGridOptions,
 } from './gridOptions';
 import { getDetermination, rowClassRules } from './rowClasses';
 import { createStatsStore, formatExecutionStats, formatMemoryMb } from './status';
@@ -101,10 +101,9 @@ describe('grid options helpers', () => {
     expect(quickFilterText(5)).toBe('5');
   });
   it('pins the selection checkbox column left', () => {
-    expect(staticGridOptions.selectionColumnDef).toMatchObject({
+    expect(buildSelectionColumnDef(false, () => {})).toMatchObject({
       pinned: 'left',
       lockPinned: true,
-      width: 42,
     });
   });
 

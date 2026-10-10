@@ -2,10 +2,17 @@ import { Editor, type OnMount } from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useColorScheme, useTheme } from '@mui/material/styles';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type * as Monaco from 'monaco-editor';
 import { DEFAULT_EDITOR_OPTIONS } from './codeEditorOptions';
-import { loadMonaco, loadMonacoKusto, type EditorLanguage } from '../lib/monaco';
+import {
+  loadMonaco,
+  loadMonacoKusto,
+  TIM_THEME_NAMES,
+  type EditorLanguage,
+  type TimPalettes,
+} from '../lib/monaco';
 
 export type CodeEditorInstance = Monaco.editor.IStandaloneCodeEditor;
 
@@ -25,8 +32,8 @@ export interface CodeEditorProps {
 }
 
 /**
- * Monaco wrapper using the locally bundled monaco-editor (no CDN). The model and editor are
- * disposed on unmount.
+ * Monaco wrapper using the locally bundled monaco-editor (no CDN), themed `tim-light` or `tim-dark`
+ * to match the colour scheme. The model and editor are disposed on unmount.
  */
 export function CodeEditor({
   value,
@@ -42,17 +49,25 @@ export function CodeEditor({
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
+  // Same scheme as `app/theme.ts` and `public/theme-init.js`. The page's Monaco theme is picked
+  // only here.
+  const { colorScheme } = useColorScheme();
+  const { colorSchemes } = useTheme();
+  const palettes = useMemo<TimPalettes>(
+    () => ({ light: colorSchemes.light!.palette, dark: colorSchemes.dark!.palette }),
+    [colorSchemes],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    (language === 'kusto' ? loadMonacoKusto() : loadMonaco()).then(
+    (language === 'kusto' ? loadMonacoKusto(palettes) : loadMonaco(palettes)).then(
       () => !cancelled && setLoadedLanguage(language),
       (e: unknown) => !cancelled && setError(e instanceof Error ? e.message : String(e)),
     );
     return () => {
       cancelled = true;
     };
-  }, [language]);
+  }, [language, palettes]);
 
   useEffect(
     () => () => {
@@ -89,6 +104,7 @@ export function CodeEditor({
       path={path}
       value={value}
       loading={null}
+      theme={TIM_THEME_NAMES[colorScheme ?? 'light']}
       onChange={(v) => onChange?.(v ?? '')}
       onMount={handleMount}
       options={{

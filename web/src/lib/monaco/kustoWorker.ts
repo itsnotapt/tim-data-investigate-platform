@@ -1,5 +1,4 @@
 import type * as Monaco from 'monaco-editor';
-import { loadMonacoKusto } from './loader';
 
 /** Resolved Kusto worker proxy (has `setSchemaFromShowSchema(schema, clusterUri, database)`). */
 export type KustoWorkerProxy = Awaited<
@@ -21,7 +20,6 @@ export async function getKustoWorkerFor(
 ): Promise<KustoWorkerProxy | null> {
   const model = editor.getModel();
   if (!model) return null;
-  await loadMonacoKusto();
   const { getKustoWorker } = await import('@kusto/monaco-kusto/release/esm/monaco.contribution');
   const accessor = await getKustoWorker();
   return accessor(model.uri);

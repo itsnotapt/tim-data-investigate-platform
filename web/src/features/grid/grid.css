@@ -1,12 +1,28 @@
-/* Determination row colours. */
+/*
+ * Determination rows: the fill sets AG Grid's row background variables (even and odd rows, pinned
+ * cells, the filler right of the last column); the stripe is an inset shadow on the first cell.
+ * Colours come from the theme palette.
+ */
 .ag-tag-malicious {
-  background-color: #fbbbb9 !important;
+  --ag-data-background-color: var(--mui-palette-determination-malicious);
+  --ag-odd-row-background-color: var(--mui-palette-determination-malicious);
 }
 .ag-tag-suspicious {
-  background-color: #ffecae !important;
+  --ag-data-background-color: var(--mui-palette-determination-suspicious);
+  --ag-odd-row-background-color: var(--mui-palette-determination-suspicious);
 }
 .ag-tag-benign {
-  background-color: #d4f3cd !important;
+  --ag-data-background-color: var(--mui-palette-determination-benign);
+  --ag-odd-row-background-color: var(--mui-palette-determination-benign);
+}
+.ag-tag-malicious .ag-cell.ag-column-first {
+  box-shadow: inset 5px 0 0 var(--mui-palette-stripe-malicious);
+}
+.ag-tag-suspicious .ag-cell.ag-column-first {
+  box-shadow: inset 5px 0 0 var(--mui-palette-stripe-suspicious);
+}
+.ag-tag-benign .ag-cell.ag-column-first {
+  box-shadow: inset 5px 0 0 var(--mui-palette-stripe-benign);
 }
 .ag-text-area-input {
   font-family: monospace;

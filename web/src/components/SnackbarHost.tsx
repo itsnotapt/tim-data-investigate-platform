@@ -100,7 +100,7 @@ export function SnackbarHost({ children }: { children?: ReactNode }) {
                   {current.linkText ?? 'Open'}
                 </Button>
               )}
-              <Button color="secondary" size="small" onClick={dismiss} endIcon={<CloseIcon />}>
+              <Button color="inherit" size="small" onClick={dismiss} endIcon={<CloseIcon />}>
                 Dismiss
               </Button>
             </>

@@ -137,6 +137,20 @@ describe('read-only root filesystem', () => {
   });
 });
 
+describe('index.html', () => {
+  const html = readFileSync(resolve(import.meta.dirname, '../../../index.html'), 'utf8');
+
+  it('loads theme-init.js as an external script in <head>, before the module bundle', () => {
+    const head = /<head>([\s\S]*)<\/head>/.exec(html)?.[1] ?? '';
+    const themeInit = html.indexOf('<script src="/theme-init.js"></script>');
+    expect(head).toContain('<script src="/theme-init.js"></script>');
+    expect(themeInit).toBeGreaterThan(-1);
+    expect(themeInit).toBeLessThan(html.indexOf('<script type="module"'));
+    // Every script is external.
+    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/);
+  });
+});
+
 describe('nginx template headers', () => {
   const tpl = readFileSync(join(docker, 'nginx.conf.template'), 'utf8');
 

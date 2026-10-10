@@ -1,4 +1,5 @@
 import Autocomplete from '@mui/material/Autocomplete';
+import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
@@ -44,9 +45,9 @@ function Label({ name, required }: { name: string; required: boolean }) {
     <>
       {name}
       {required && (
-        <span aria-hidden="true" style={{ color: 'red' }}>
+        <Box component="span" aria-hidden="true" sx={{ color: 'error.main' }}>
           {' *'}
-        </span>
+        </Box>
       )}
     </>
   );

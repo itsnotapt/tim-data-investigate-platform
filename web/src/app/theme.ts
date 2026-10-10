@@ -1,20 +1,88 @@
 import { createTheme } from '@mui/material/styles';
+import { COLOR_SCHEME_ATTRIBUTE } from './themeKeys';
 
-// Light look: white dense toolbar with a 1px hairline
-// border and no shadow, blue primary, Roboto.
+/** Code editor frame (dotted border) and background. */
+interface EditorColours {
+  border: string;
+  background: string;
+}
+/** Results grid header / chrome and odd-row fill. */
+interface GridColours {
+  header: string;
+  oddRow: string;
+}
+/** One colour per determination: the row fill (`determination`) or its decorative stripe. */
+interface DeterminationColours {
+  malicious: string;
+  suspicious: string;
+  benign: string;
+}
+
+// TIM's own palette entries, emitted as `--mui-palette-<entry>-<key>`; `theme.vars` is always set.
+declare module '@mui/material/styles' {
+  interface CssThemeVariables {
+    enabled: true;
+  }
+  interface Palette {
+    editor: EditorColours;
+    grid: GridColours;
+    determination: DeterminationColours;
+    stripe: DeterminationColours;
+  }
+  interface PaletteOptions {
+    editor?: EditorColours;
+    grid?: GridColours;
+    determination?: DeterminationColours;
+    stripe?: DeterminationColours;
+  }
+}
+
+/**
+ * The only place colours are defined in `web/src`: one palette, light and dark.
+ *
+ * One attribute, AG Grid's `data-ag-theme-mode`, selects the scheme for MUI, AG Grid and TIM's CSS.
+ * `public/theme-init.js` and `CodeEditor` use the same key and attribute.
+ */
 export const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: { main: '#1976d2' },
-    background: { default: '#ffffff' },
-    text: { primary: 'rgba(0,0,0,0.87)' },
+  cssVariables: { colorSchemeSelector: COLOR_SCHEME_ATTRIBUTE },
+  colorSchemes: {
+    light: {
+      palette: {
+        contrastThreshold: 4.5,
+        primary: { main: '#1976d2' },
+        background: { default: '#ffffff', paper: '#ffffff' },
+        text: { primary: '#212121', secondary: '#616161' },
+        divider: '#e0e0e0',
+        editor: { border: '#8a8a8a', background: '#ffffff' },
+        grid: { header: '#f5f7f7', oddRow: '#fcfdfe' },
+        determination: { malicious: '#fecaca', suspicious: '#fde68a', benign: '#bbf7d0' },
+        stripe: { malicious: '#dc2626', suspicious: '#d97706', benign: '#16a34a' },
+      },
+    },
+    dark: {
+      palette: {
+        contrastThreshold: 4.5,
+        primary: { main: '#90caf9' },
+        background: { default: '#121212', paper: '#1e1e1e' },
+        text: { primary: '#e0e0e0', secondary: '#a0a0a0' },
+        divider: '#333333',
+        editor: { border: '#6e6e6e', background: '#1e1e1e' },
+        grid: { header: '#262626', oddRow: '#232323' },
+        determination: { malicious: '#7f1d1d', suspicious: '#713f12', benign: '#14532d' },
+        stripe: { malicious: '#f87171', suspicious: '#fbbf24', benign: '#4ade80' },
+      },
+    },
   },
   typography: { fontFamily: 'Roboto, "Helvetica Neue", Arial, sans-serif' },
   components: {
+    // Flat dense toolbar on the paper colour with a 1px hairline.
     MuiAppBar: {
       defaultProps: { elevation: 0, color: 'inherit' },
       styleOverrides: {
-        root: { backgroundColor: '#fff', borderBottom: '1px solid rgba(0,0,0,0.1)' },
+        root: ({ theme }) => ({
+          backgroundColor: theme.vars.palette.background.paper,
+          borderBottom: `1px solid ${theme.vars.palette.divider}`,
+        }),
       },
     },
     MuiToolbar: { defaultProps: { variant: 'dense' } },

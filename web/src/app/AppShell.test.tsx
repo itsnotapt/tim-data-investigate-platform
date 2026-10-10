@@ -2,11 +2,14 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { setPrefersColorScheme } from '../test/matchMedia';
 import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from '../lib/auth';
 import { getConfig, resetConfigCache } from '../lib/config/runtimeConfig';
 import { AppShell } from './AppShell';
+import { AppThemeProvider } from './AppThemeProvider';
+import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from './themeKeys';
 
 beforeEach(() => {
   stubBootstrap();
@@ -21,6 +24,7 @@ beforeEach(() => {
   resetConfigCache();
 });
 afterEach(() => {
+  document.documentElement.removeAttribute(COLOR_SCHEME_ATTRIBUTE);
   delete window.appConfig;
   resetConfigCache();
 });
@@ -48,6 +52,7 @@ function renderShell(client: AuthClient) {
         <RouterProvider router={router} />
       </AuthProvider>
     </SnackbarHost>,
+    { wrapper: AppThemeProvider },
   );
 }
 
@@ -128,5 +133,102 @@ describe('AppShell / AuthGate', () => {
       'href',
       '/exportimport',
     );
+  });
+
+  it('Settings lists Appearance above Export / Import', async () => {
+    renderShell(fakeClient());
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Appearance', 'Export / Import']);
+    expect(items[0]).toHaveAttribute('aria-haspopup', 'menu');
+  });
+});
+
+describe('Settings › Appearance', () => {
+  const html = document.documentElement;
+
+  async function openSettings() {
+    renderShell(fakeClient());
+    await screen.findByText('routes ok');
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    return screen.getByRole('menuitem', { name: 'Appearance' });
+  }
+
+  const themeMenu = () => screen.getByRole('menu', { name: 'Appearance' });
+  const radios = () => within(themeMenu()).getAllByRole('menuitemradio');
+
+  it('opens a sub-menu of Light, Dark and System with System checked by default', async () => {
+    const theme = await openSettings();
+    expect(theme).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(theme);
+    expect(theme).toHaveAttribute('aria-expanded', 'true');
+    expect(radios().map((r) => r.textContent)).toEqual(['Light', 'Dark', 'System']);
+    expect(radios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true']);
+  });
+
+  it('checks the stored choice', async () => {
+    localStorage.setItem(THEME_MODE_KEY, 'dark');
+    await userEvent.click(await openSettings());
+    expect(within(themeMenu()).getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  it('checks System for a junk stored value', async () => {
+    localStorage.setItem(THEME_MODE_KEY, 'sepia');
+    await userEvent.click(await openSettings());
+    expect(radios().map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true']);
+  });
+
+  it('picking Dark applies and saves it, and closes both menus', async () => {
+    await userEvent.click(await openSettings());
+    await userEvent.click(within(themeMenu()).getByRole('menuitemradio', { name: 'Dark' }));
+    expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
+    expect(localStorage.getItem(THEME_MODE_KEY)).toBe('dark');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+  });
+
+  it('System follows the OS', async () => {
+    localStorage.setItem(THEME_MODE_KEY, 'light');
+    setPrefersColorScheme('dark');
+    await userEvent.click(await openSettings());
+    await userEvent.click(within(themeMenu()).getByRole('menuitemradio', { name: 'System' }));
+    expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
+    expect(localStorage.getItem(THEME_MODE_KEY)).toBe('system');
+  });
+
+  it('ArrowRight opens the sub-menu with focus inside; ArrowLeft returns to Appearance', async () => {
+    const theme = await openSettings();
+    theme.focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(themeMenu()).toContainElement(document.activeElement as HTMLElement);
+    await userEvent.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Appearance' })).toBeNull());
+    expect(theme).toHaveFocus();
+    expect(theme).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('Enter opens the sub-menu, arrows move and Enter picks', async () => {
+    const theme = await openSettings();
+    theme.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(themeMenu()).toContainElement(document.activeElement as HTMLElement);
+    // Focus starts on the checked item (System); ArrowUp moves to Dark.
+    expect(document.activeElement).toHaveTextContent('System');
+    await userEvent.keyboard('{ArrowUp}');
+    expect(document.activeElement).toHaveTextContent('Dark');
+    await userEvent.keyboard('{Enter}');
+    expect(html).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, 'dark');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+  });
+
+  it('Escape closes only the sub-menu and returns focus to Appearance', async () => {
+    const theme = await openSettings();
+    await userEvent.click(theme);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Appearance' })).toBeNull());
+    expect(theme).toBeInTheDocument();
+    expect(theme).toHaveFocus();
   });
 });

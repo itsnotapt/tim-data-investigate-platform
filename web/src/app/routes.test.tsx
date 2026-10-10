@@ -8,6 +8,7 @@ import { useTabsStore } from '../features/tabs';
 import { useTemplatesStore } from '../features/templates';
 import userEvent from '@testing-library/user-event';
 import { resetConfigCache } from '../lib/config/runtimeConfig';
+import { AppThemeProvider } from './AppThemeProvider';
 import { routes } from './routes';
 
 beforeEach(() => {
@@ -43,6 +44,7 @@ function renderAt(entry: string) {
         <RouterProvider router={router} />
       </AuthProvider>
     </SnackbarHost>,
+    { wrapper: AppThemeProvider },
   );
   return router;
 }

@@ -18,7 +18,13 @@ import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs, prepareRows } from './columns';
 import type { GridRow, GridRowWithId, TemplateColumns } from './columns';
-import { makeGetContextMenuItems, staticGridOptions } from './gridOptions';
+import { useDeterminationSymbols } from './determinationSymbols';
+import {
+  buildSelectionColumnDef,
+  determinationSymbolsMenuItem,
+  makeGetContextMenuItems,
+  staticGridOptions,
+} from './gridOptions';
 import type { ExtraMenuItems, GetExtraContextMenuItems } from './gridOptions';
 import { createStatsStore } from './status';
 import type { ExecutionStats, StatsStore } from './status';
@@ -26,6 +32,22 @@ import './grid.css';
 
 // Registers modules and applies the licence key before any grid renders (this chunk is lazy).
 initAgGridFromConfig();
+
+/**
+ * Balham with the theme palette's CSS variables (`web/src/app/theme.ts`), the same params in both
+ * colour schemes.
+ */
+const gridTheme = themeBalham.withParams({
+  backgroundColor: 'var(--mui-palette-background-paper)',
+  foregroundColor: 'var(--mui-palette-text-primary)',
+  textColor: 'var(--mui-palette-text-primary)',
+  borderColor: 'var(--mui-palette-divider)',
+  accentColor: 'var(--mui-palette-primary-main)',
+  headerBackgroundColor: 'var(--mui-palette-grid-header)',
+  chromeBackgroundColor: 'var(--mui-palette-grid-header)',
+  oddRowBackgroundColor: 'var(--mui-palette-grid-oddRow)',
+  statusBarLabelColor: 'var(--mui-palette-text-secondary)',
+});
 
 export interface ResultsGridProps {
   rows: readonly GridRow[];
@@ -121,7 +143,19 @@ export function ResultsGrid({
       }, head);
     };
   }, [detailPanel, getContextMenuItems]);
-  const menu = useMemo(() => makeGetContextMenuItems(extraMenuItems), [extraMenuItems]);
+  const showSymbols = useDeterminationSymbols((s) => s.show);
+  const setShowSymbols = useDeterminationSymbols((s) => s.setShow);
+  const selectionColumnDef = useMemo(
+    () => buildSelectionColumnDef(showSymbols, setShowSymbols),
+    [showSymbols, setShowSymbols],
+  );
+  const menu = useMemo(
+    () =>
+      makeGetContextMenuItems(extraMenuItems, [
+        determinationSymbolsMenuItem(showSymbols, setShowSymbols),
+      ]),
+    [extraMenuItems, showSymbols, setShowSymbols],
+  );
 
   // The open panel follows the focused cell's row.
   const onCellFocused = useCallback((e: CellFocusedEvent<GridRowWithId>) => {
@@ -157,7 +191,8 @@ export function ResultsGrid({
       <div ref={containerRef} style={{ height }} data-testid="results-grid">
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
-          theme={themeBalham}
+          theme={gridTheme}
+          selectionColumnDef={selectionColumnDef}
           rowData={rowData}
           columnDefs={columnDefs}
           context={context}
