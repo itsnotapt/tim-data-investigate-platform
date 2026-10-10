@@ -1,20 +1,23 @@
 name: Build api
 
+# Pull requests always run this workflow, so the required build-api-gate check always reports;
+# the changes job skips the build jobs when the PR does not touch api/, this file, or a file the
+# api tests read from outside api/ (docs/architecture.md, web/src/lib/api/openapi.json).
 on:
   pull_request:
-    paths:
-      - api/**
-      - .github/workflows/build-api.yml
   push:
     branches:
       - main
     paths:
       - api/**
+      - docs/architecture.md
+      - web/src/lib/api/openapi.json
       - .github/workflows/build-api.yml
 
 concurrency:
   group: build-api-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to a PR cancels its older run; every push to main gets a complete run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -24,7 +27,43 @@ defaults:
     working-directory: api
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.diff.outputs.api }}
+
+    steps:
+      # fetch-depth 0 makes the base..head commits available to the diff.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      # A push to main passed the paths filter above, so it always builds.
+      - name: Detect api changes
+        id: diff
+        working-directory: .
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            changed=true
+          else
+            # Diff on its own line, so a failed diff fails this job and the gate instead of reading
+            # as "no changes".
+            files=$(git diff --name-only "$BASE...$HEAD")
+            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|\.github/workflows/build-api\.yml$)' <<<"$files"; then
+              changed=true
+            else
+              changed=false
+            fi
+          fi
+          echo "api=$changed" | tee -a "$GITHUB_OUTPUT"
+
   test:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
 
     services:
@@ -68,7 +107,9 @@ jobs:
         env:
           TIM_TEST_DATABASE_URL: postgresql+asyncpg://tim:tim@localhost:5432/tim_test
 
-  docker-build:
+  docker-build-api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -85,3 +126,24 @@ jobs:
           push: false
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
+
+  # The required status check on main. It always runs and fails when a needed job failed or was
+  # cancelled; build jobs skipped because api/ is unchanged count as passed.
+  build-api-gate:
+    needs: [changes, test, docker-build-api]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check the build jobs
+        working-directory: .
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needed job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
