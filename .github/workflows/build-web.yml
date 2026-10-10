@@ -1,7 +1,8 @@
 name: Build web
 
 # Pull requests always run this workflow, so the required build-web-gate check always reports;
-# the changes job skips the build jobs when the PR does not touch web/ or this file.
+# the changes job skips the build jobs when the PR does not touch web/, this file, or a file the
+# web checks read from outside web/ (.editorconfig, which Prettier reads).
 on:
   pull_request:
   push:
@@ -9,6 +10,7 @@ on:
       - main
     paths:
       - web/**
+      - .editorconfig
       - .github/workflows/build-web.yml
 
 concurrency:
@@ -50,7 +52,7 @@ jobs:
             # Diff on its own line, so a failed diff fails this job and the gate instead of reading
             # as "no changes".
             files=$(git diff --name-only "$BASE...$HEAD")
-            if grep -qE '^(web/|\.github/workflows/build-web\.yml$)' <<<"$files"; then
+            if grep -qE '^(web/|\.editorconfig$|\.github/workflows/build-web\.yml$)' <<<"$files"; then
               changed=true
             else
               changed=false
