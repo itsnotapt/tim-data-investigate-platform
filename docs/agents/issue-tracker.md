@@ -8,6 +8,12 @@ Where issue numbers may appear is set in [CODING_STANDARDS.md](../../CODING_STAN
 
 Make an issue a sub-issue of a parent with `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards. List a parent's sub-issues with `gh issue view <parent> --json subIssues`.
 
+## Dependencies
+
+When one issue genuinely waits on another, consider GitHub's native issue dependencies over a "depends on" line in the body: the edge shows as **Blocked by** / **Blocking** in the issue sidebar and in project views, and the issue stops counting as blocked once its blockers close. Add one with `gh issue edit <issue> --add-blocked-by <blocker>` (or `gh issue create --blocked-by <blocker> ...`), and list an issue's blockers with `gh issue view <issue> --json blockedBy`.
+
+Dependencies link issues only. When an issue waits on a pull request, name the PR in the body rather than adding a blocker for whichever issue that PR closes, and update or remove the line once the PR merges.
+
 ## Tickets
 
 A ticket's tests and acceptance criteria name its test seams, already confirmed: `/tdd` starts from them.
@@ -28,7 +34,7 @@ Work too large for one session is planned as a **map**: one parent issue whose *
   - `wayfinder:prototype`: build a rough, throwaway artifact to react to; the ticket links it.
   - `wayfinder:grilling`: a question-by-question discussion with a person to settle a plan or decision.
   - `wayfinder:task`: practical work that must happen before a decision can be made, such as getting access or moving data.
-- **Blocking**: GitHub's native issue dependencies. Add an edge with `gh issue edit <child> --add-blocked-by <blocker>` (or `gh issue create --blocked-by <blocker> ...`), and list a ticket's blockers with `gh issue view <child> --json blockedBy`. A ticket is unblocked when every blocker is closed.
+- **Blocking**: [dependencies](#dependencies) between tickets. A ticket is unblocked when every blocker is closed.
 - **Next ticket**: of the map's open children, drop any with an open blocker or an assignee; the first remaining one in map order is next.
 - **Claim**: assign the ticket to yourself before any other change to it.
 - **Resolve**: comment the answer, close the ticket, then add a one-line summary linking it under the map's **Decisions so far**.
