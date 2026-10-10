@@ -5,8 +5,8 @@ type: application
 # version and appVersion are set by release-please and are always equal. The frontend and backend
 # image tags this chart version deploys are pinned in image-tags.yaml
 # (docs/adr/0016-release-versions.md).
-version: 1.0.0
-appVersion: "1.0.0" # x-release-please-version
+version: 1.0.1
+appVersion: "1.0.1" # x-release-please-version
 kubeVersion: ">=1.34.0-0"
 keywords:
   - tim

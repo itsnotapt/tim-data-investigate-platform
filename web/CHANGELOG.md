@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.6.0...frontend-v1.7.0) (2026-10-10)
+
+
+### Features
+
+* dark mode: Settings › Appearance offers Light, Dark and System (the default) ([78cdcd0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/78cdcd0b7013a7186d758c4e8dea003e809dbef9))
+* optional determination symbols beside the row checkbox: right-click a checkbox cell or the checkbox column header and choose Show determination symbols ([78cdcd0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/78cdcd0b7013a7186d758c4e8dea003e809dbef9))
+* tagged rows get new determination fills and a stripe, in light and dark ([78cdcd0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/78cdcd0b7013a7186d758c4e8dea003e809dbef9))
+* the code editors follow the light or dark scheme ([78cdcd0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/78cdcd0b7013a7186d758c4e8dea003e809dbef9))
+
+
+### Bug Fixes
+
+* colour contrast of the snackbar Dismiss button, the tree badge and the grid status bar ([78cdcd0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/78cdcd0b7013a7186d758c4e8dea003e809dbef9))
+
 ## [1.6.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.5.6...frontend-v1.6.0) (2026-10-08)
 
 
