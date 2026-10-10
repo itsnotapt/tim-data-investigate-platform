@@ -155,8 +155,30 @@ async function paintedColour(element: Locator): Promise<string> {
   });
 }
 
-/** axe colour contrast (WCAG 2 AA) on the current page; "incomplete" results don't fail. */
+/**
+ * Waits until no finite animation or transition is running, such as a snackbar fading in.
+ * Endless ones, such as a progress spinner, are not waited for.
+ */
+async function waitForAnimations(page: Page) {
+  await page.evaluate(async () => {
+    const running = () =>
+      document
+        .getAnimations()
+        .filter(
+          (a) => a.playState === 'running' && a.effect?.getComputedTiming().endTime !== Infinity,
+        );
+    for (let pending = running(); pending.length > 0; pending = running()) {
+      await Promise.all(pending.map((a) => a.finished.catch(() => undefined)));
+    }
+  });
+}
+
+/**
+ * axe colour contrast (WCAG 2 AA) on the current page once its animations have ended, so a
+ * partly faded-in element is measured at its final colours; "incomplete" results don't fail.
+ */
 async function expectColourContrast(page: Page) {
+  await waitForAnimations(page);
   const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
   expect(results.violations).toEqual([]);
 }
@@ -497,6 +519,26 @@ for (const scheme of ['light', 'dark'] as const) {
       ).toBeVisible();
       await expectContrastInScheme(page);
     });
+
+    // A snackbar fading in on the light page fails axe; the sweep measures it once it has faded in.
+    if (scheme === 'light') {
+      test('Export / Import, measured once the snackbar has faded in', async ({ page }) => {
+        await pickScheme(page);
+        await page.goto('/#/exportimport');
+        await page.getByRole('button', { name: 'Export' }).click();
+        const snackbar = page.getByRole('alert');
+        await expect(snackbar).toContainText('All settings have been exported');
+        // Holds the fade-in a quarter of the way through for about three seconds.
+        await snackbar.evaluate((el) => {
+          for (const animation of el.getAnimations()) {
+            const duration = Number(animation.effect?.getComputedTiming().duration ?? 0);
+            animation.currentTime = duration / 4;
+            animation.updatePlaybackRate(0.05);
+          }
+        });
+        await expectContrastInScheme(page);
+      });
+    }
 
     test('the config error page', async ({ page }) => {
       await storeMode(page, scheme);
