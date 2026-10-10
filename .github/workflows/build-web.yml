@@ -46,10 +46,15 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             changed=true
-          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(web/|\.github/workflows/build-web\.yml$)'; then
-            changed=true
           else
-            changed=false
+            # Diff on its own line, so a failed diff fails this job and the gate instead of reading
+            # as "no changes".
+            files=$(git diff --name-only "$BASE...$HEAD")
+            if grep -qE '^(web/|\.github/workflows/build-web\.yml$)' <<<"$files"; then
+              changed=true
+            else
+              changed=false
+            fi
           fi
           echo "web=$changed" | tee -a "$GITHUB_OUTPUT"
 

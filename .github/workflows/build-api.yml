@@ -1,7 +1,8 @@
 name: Build api
 
 # Pull requests always run this workflow, so the required build-api-gate check always reports;
-# the changes job skips the build jobs when the PR does not touch api/ or this file.
+# the changes job skips the build jobs when the PR does not touch api/, this file, or a file the
+# api tests read from outside api/ (docs/architecture.md, web/src/lib/api/openapi.json).
 on:
   pull_request:
   push:
@@ -9,6 +10,8 @@ on:
       - main
     paths:
       - api/**
+      - docs/architecture.md
+      - web/src/lib/api/openapi.json
       - .github/workflows/build-api.yml
 
 concurrency:
@@ -46,10 +49,15 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             changed=true
-          elif git diff --name-only "$BASE...$HEAD" | grep -qE '^(api/|\.github/workflows/build-api\.yml$)'; then
-            changed=true
           else
-            changed=false
+            # Diff on its own line, so a failed diff fails this job and the gate instead of reading
+            # as "no changes".
+            files=$(git diff --name-only "$BASE...$HEAD")
+            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|\.github/workflows/build-api\.yml$)' <<<"$files"; then
+              changed=true
+            else
+              changed=false
+            fi
           fi
           echo "api=$changed" | tee -a "$GITHUB_OUTPUT"
 

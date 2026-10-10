@@ -90,7 +90,7 @@ Add a revision with `uv run alembic revision -m "…"` in `api/`, then fill in `
 
 Branches, titles, the merge method and how titles decide releases are in [RULES.md §6–7](RULES.md#6-git). Which commits release each package is in [ADR-0016](adr/0016-release-versions.md). `.github/scripts/pr_conventions.py` is the required `pr-conventions` check (`pr-conventions.yml`). It checks that the PR title is a Conventional Commit and that a breaking title's scope names every package the PR changes. It is skipped for `release-please--*` branches.
 
-`build-web-gate` (`build-web.yml`) and `build-api-gate` (`build-api.yml`) are the required build checks. Both workflows run on every PR; a `changes` job skips the build jobs when the PR does not touch `web/` or `api/` (or the workflow file), and the gate job fails when a build job failed or was cancelled. Runs on release-please PRs wait for approval (**Approve and run** on the PR) before they report.
+`build-web-gate` (`build-web.yml`) and `build-api-gate` (`build-api.yml`) are the required build checks. Both workflows run on every PR; a `changes` job skips the build jobs when the PR does not touch `web/` or `api/` (or the workflow file; for api also `docs/architecture.md` and `web/src/lib/api/openapi.json`, which the api tests read), and the gate job fails when the `changes` job or a build job failed or was cancelled. Runs on release-please PRs wait for approval (**Approve and run** on the PR) before they report.
 
 Things the workflows don't tell you:
 
