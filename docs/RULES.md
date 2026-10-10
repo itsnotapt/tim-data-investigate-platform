@@ -14,7 +14,8 @@ Process rules for everyone working on TIM, human or agent.
 - Never commit directly to `main`. Branch off `main` as `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>` or `refactor/<short-name>`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/), optionally scoped, e.g. `feat(web): …`.
 - Do not merge with failing or skipped tests unless the user agrees.
-- PRs into `main` are squash-merged: the PR title is the release commit. Leave the squash body empty and mark a breaking change with `!` in the title, not with a footer.
+- PRs into `main` are squash-merged: the PR title is the release commit and its first changelog entry. Mark a breaking change with `!` in the title, not with a footer.
+- **Squash body:** for each further user-visible change, add one Conventional Commit line to the squash body; release-please makes each line a changelog entry in every package whose files the PR changes, and counts its type toward the version like the title's (a `feat` line under a `fix` title makes a minor release). Write each line for the changelog reader, with the UI's own labels, e.g. `fix: colour contrast of the snackbar Dismiss button`. Use `feat`, `fix` or `perf`, with no scope and no `!`: a breaking change goes in the title. The body holds only these lines, one per line: replace GitHub's pre-filled text. Tests, refactors and CI changes get no line. Propose the title and lines under **Changelog entries** in the PR description.
 - **Releasing:** merge the release PRs release-please opens against `main`.
 
 [ADR-0016](adr/0016-release-versions.md) records the branch flow and why; [development.md](development.md#ci-and-releases) describes the checks and repository settings.
@@ -22,7 +23,6 @@ Process rules for everyone working on TIM, human or agent.
 ## 7. Releases
 
 - Keep a breaking change in its own PR, out of any package that should not go major. Its title's scope names every package whose files the PR changes: `frontend` (`web/`), `backend` (`api/`), `chart` (`deploy/helm/tim`), e.g. `feat(backend,chart)!: …`.
-- Versions come from the commit types; `Release-As: X.Y.Z` is an optional exception, typed as a footer in the squash-merge dialog of a PR that changes only that package, to force or correct a version for the next release only.
-- Never edit versions by hand; release-please owns them.
+- Versions come from the commit types. Never edit versions by hand; release-please owns them.
 
 [ADR-0016](adr/0016-release-versions.md) describes the packages and which commits bump them.
