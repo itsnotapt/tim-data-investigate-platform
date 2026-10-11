@@ -1,0 +1,7 @@
+type: kql_query
+key: tim.sign_ins_from_ips
+name: Sign-ins from IPs
+connection: kusto-main
+database: Security
+kql_file: sign_ins_from_ip.kql
+id: hash_values

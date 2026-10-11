@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../action-file.schema.json
+type: snowflake_query
+key: contoso.okta_admin_changes
+name: Okta admin changes
+menu: [Okta]
+description: Privilege grants and removals in Okta.
+pivot: none
+connection: snowflake-okta
+sql: |
+  select event_time, actor_upn, target_upn, event_type, outcome, uuid
+  from okta.logs.system_log
+  where event_type like 'user.account.privilege.%%'
+    and event_time > dateadd(day, -%(days)s, current_timestamp)
+    and (%(outcome)s is null or outcome = %(outcome)s)
+params:
+  - name: days
+    kind: int
+    default: 7
+  - name: outcome
+    kind: choice
+    required: false
+    choices: [SUCCESS, FAILURE]
+columns:
+  - {name: EVENT_TIME, type: datetime}
+  - {name: ACTOR_UPN}
+  - {name: TARGET_UPN}
+  - {name: EVENT_TYPE}
+  - {name: OUTCOME}
+  - {name: UUID, hidden: true}
+id:
+  columns: [UUID]

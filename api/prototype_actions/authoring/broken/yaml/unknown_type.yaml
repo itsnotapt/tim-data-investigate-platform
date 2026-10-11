@@ -1,0 +1,7 @@
+type: kql_querry
+key: tim.sign_ins_for_user
+name: Sign-ins for user
+connection: kusto-main
+database: Security
+kql: SigninLogs
+id: hash_values

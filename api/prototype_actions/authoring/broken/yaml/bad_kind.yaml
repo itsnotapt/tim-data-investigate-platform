@@ -1,0 +1,11 @@
+type: kql_query
+key: tim.sign_ins_for_user
+name: Sign-ins for user
+connection: kusto-main
+database: Security
+kql: SigninLogs | where TimeGenerated > ago(days * 1d)
+params:
+  - name: days
+    kind: integer
+    default: 1
+id: hash_values

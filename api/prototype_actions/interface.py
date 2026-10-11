@@ -233,3 +233,5 @@ class Provider:
     name: str
     actions: Sequence[Action] = ()
     hooks: Sequence[type[Hook]] = ()
+    # Action types that can be written as action files (see action_files.py), by type_name.
+    action_types: Sequence[type[Action]] = ()

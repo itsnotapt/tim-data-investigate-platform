@@ -12,8 +12,10 @@ which the fake ``site/contoso_tim_actions-0.1.0.dist-info`` stands in for.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
+from action_files import ActionFile, FileActionType, text_or_file
 from fakes import FakeSnowflakeCursor
 from interface import Action, Column, Hook, Param, Provider, Row, RunContext, from_columns
 
@@ -28,8 +30,24 @@ class SnowflakeHook(Hook):
         return FakeSnowflakeCursor(self.connection.endpoint, as_user=self.analyst.upn)
 
 
-class SnowflakeQuery(Action):
+class SnowflakeQueryFile(ActionFile):
+    """``type: snowflake_query``: fixed SQL on a fixed connection."""
+
+    type: Literal["snowflake_query"]
+    connection: str
+    sql: str | None = None
+    sql_file: str | None = None
+
+    def type_fields(self, directory: Path) -> dict[str, Any]:
+        return {"connection": self.connection,
+                "sql": text_or_file(self.sql, self.sql_file, directory, "sql")}
+
+
+class SnowflakeQuery(FileActionType, Action):
     """Action type for fixed SQL with pyformat binds; a list param expands to ``(a, b, ...)``."""
+
+    type_name = "snowflake_query"
+    File = SnowflakeQueryFile
 
     def __init__(self, *, connection: str, sql: str, **action: Any) -> None:
         super().__init__(**action)
@@ -72,4 +90,5 @@ okta_logins = SnowflakeQuery(
 
 
 def provider() -> Provider:
-    return Provider(name="contoso", actions=[okta_logins], hooks=[SnowflakeHook])
+    return Provider(name="contoso", actions=[okta_logins], hooks=[SnowflakeHook],
+                    action_types=[SnowflakeQuery])

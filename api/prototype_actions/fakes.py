@@ -53,7 +53,7 @@ class FakeSnowflakeCursor:
         print(f"    [snowflake] {self.account} as {self.as_user}")
         print(f"    [snowflake] sql: {' '.join(sql.split())}")
         print(f"    [snowflake] binds: {binds}")
-        wanted = set(binds.get("upns", []))
+        wanted = set(binds.get("upns") or [r["ACTOR_UPN"] for r in OKTA_LOGINS])
         self.rows = [r for r in OKTA_LOGINS if r["ACTOR_UPN"] in wanted]
 
     def __iter__(self):  # type: ignore[no-untyped-def]

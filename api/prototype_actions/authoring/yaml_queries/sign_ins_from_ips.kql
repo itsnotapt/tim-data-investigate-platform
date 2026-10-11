@@ -1,0 +1,4 @@
+declare query_parameters(ips:dynamic, days:int = 1);
+SigninLogs
+| where TimeGenerated > ago(days * 1d)
+| where IPAddress in (ips)

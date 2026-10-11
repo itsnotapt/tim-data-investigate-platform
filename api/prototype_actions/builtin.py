@@ -11,6 +11,10 @@ import json
 from collections.abc import Iterable
 from typing import Any
 
+from pathlib import Path
+from typing import Literal
+
+from action_files import ActionFile, FileActionType, text_or_file
 from fakes import FakeKustoClient
 from interface import (
     Action,
@@ -76,12 +80,28 @@ class RunKql(Action):
         return hook.query(params["database"], params["query"], times, ctx)
 
 
-class KqlQuery(Action):
+class KqlQueryFile(ActionFile):
+    """``type: kql_query``: a fixed KQL query on a fixed connection."""
+
+    type: Literal["kql_query"]
+    connection: str
+    database: str
+    kql: str | None = None
+    kql_file: str | None = None
+
+    def type_fields(self, directory: Path) -> dict[str, Any]:
+        return {"connection": self.connection, "database": self.database,
+                "kql": text_or_file(self.kql, self.kql_file, directory, "kql")}
+
+
+class KqlQuery(FileActionType, Action):
     """Action type for a fixed KQL query on a fixed connection; params bind as query parameters.
 
-    The "Query authoring format" ticket decides whether authors write these in Python or in a
-    query file that becomes one of these.
+    Written in Python (an instance of this class) or as a ``type: kql_query`` action file.
     """
+
+    type_name = "kql_query"
+    File = KqlQueryFile
 
     def __init__(self, *, connection: str, database: str, kql: str, **action: Any) -> None:
         super().__init__(**action)
@@ -150,4 +170,5 @@ sign_ins_for_user = KqlQuery(
 
 
 def provider() -> Provider:
-    return Provider(name="tim", actions=[run_kql, dev_json, sign_ins_for_user], hooks=[KustoHook])
+    return Provider(name="tim", actions=[run_kql, dev_json, sign_ins_for_user], hooks=[KustoHook],
+                    action_types=[KqlQuery])

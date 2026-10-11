@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../action-file.schema.json
+# No code: the file takes the event time as a param and the KQL computes the window. The form
+# then shows "Event time" rather than a start and an end the analyst could edit.
+type: kql_query
+key: tim.sign_ins_around_event
+name: Sign-ins around this event
+menu: [Entra]
+connection: kusto-main
+database: Security
+kql: |
+  declare query_parameters(upn:string, eventTime:datetime);
+  SigninLogs
+  | where TimeGenerated between ((eventTime - 30m) .. (eventTime + 30m))
+  | where UserPrincipalName == upn
+params:
+  - name: upn
+    from_columns: [UserPrincipalName, AccountUpn]
+  - name: eventTime
+    label: Event time
+    kind: datetime
+    from_columns: [Timestamp, TimeGenerated, EVENT_TIME]
+id:
+  first_of: [CorrelationId]

@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../action-file.schema.json
+# The KQL is in a sidecar .kql file, so the editor highlights it (either format can do this).
+type: kql_query
+key: tim.sign_ins_from_ips
+name: Sign-ins from IPs
+menu: [Entra]
+pivot: rows
+connection: kusto-main
+database: Security
+kql_file: sign_ins_from_ips.kql
+params:
+  - name: ips
+    label: IP addresses
+    many: true
+    from_columns: [IPAddress, CLIENT_IP, RemoteIP]
+  - name: days
+    kind: int
+    default: 1
+id:
+  first_of: [CorrelationId]

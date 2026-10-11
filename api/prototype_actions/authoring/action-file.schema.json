@@ -1,0 +1,421 @@
+{
+  "$defs": {
+    "ColumnSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "number",
+            "bool",
+            "datetime",
+            "timespan",
+            "json"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "hidden": {
+          "default": false,
+          "title": "Hidden",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ColumnSpec",
+      "type": "object"
+    },
+    "IdColumns": {
+      "additionalProperties": false,
+      "description": "``id: {columns: [UUID]}``: the value of one column, or a hash of several.",
+      "properties": {
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Columns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "columns"
+      ],
+      "title": "IdColumns",
+      "type": "object"
+    },
+    "IdFirstOf": {
+      "additionalProperties": false,
+      "description": "``id: {first_of: [CorrelationId]}``: the first column present, else a hash of the row.",
+      "properties": {
+        "first_of": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "First Of",
+          "type": "array"
+        }
+      },
+      "required": [
+        "first_of"
+      ],
+      "title": "IdFirstOf",
+      "type": "object"
+    },
+    "KqlQueryFile": {
+      "additionalProperties": false,
+      "description": "``type: kql_query``: a fixed KQL query on a fixed connection.",
+      "properties": {
+        "type": {
+          "const": "kql_query",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "menu": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Menu",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "pivot": {
+          "default": "row",
+          "enum": [
+            "none",
+            "row",
+            "rows"
+          ],
+          "title": "Pivot",
+          "type": "string"
+        },
+        "params": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ParamSpec"
+          },
+          "title": "Params",
+          "type": "array"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ColumnSpec"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columns"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "const": "hash_values",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/IdColumns"
+            },
+            {
+              "$ref": "#/$defs/IdFirstOf"
+            }
+          ],
+          "description": "Required: hash_values, {columns: [...]} or {first_of: [...]}",
+          "title": "Id"
+        },
+        "connection": {
+          "title": "Connection",
+          "type": "string"
+        },
+        "database": {
+          "title": "Database",
+          "type": "string"
+        },
+        "kql": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kql"
+        },
+        "kql_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kql File"
+        }
+      },
+      "required": [
+        "type",
+        "key",
+        "name",
+        "id",
+        "connection",
+        "database"
+      ],
+      "title": "KqlQueryFile",
+      "type": "object"
+    },
+    "ParamSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "default": "string",
+          "enum": [
+            "string",
+            "int",
+            "datetime",
+            "choice",
+            "connection",
+            "kql",
+            "sql",
+            "json"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "many": {
+          "default": false,
+          "title": "Many",
+          "type": "boolean"
+        },
+        "choices": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Choices",
+          "type": "array"
+        },
+        "backend": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backend"
+        },
+        "schema_from": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Schema From",
+          "type": "array"
+        },
+        "from_columns": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "From Columns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ParamSpec",
+      "type": "object"
+    },
+    "SnowflakeQueryFile": {
+      "additionalProperties": false,
+      "description": "``type: snowflake_query``: fixed SQL on a fixed connection.",
+      "properties": {
+        "type": {
+          "const": "snowflake_query",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "menu": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Menu",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "pivot": {
+          "default": "row",
+          "enum": [
+            "none",
+            "row",
+            "rows"
+          ],
+          "title": "Pivot",
+          "type": "string"
+        },
+        "params": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ParamSpec"
+          },
+          "title": "Params",
+          "type": "array"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ColumnSpec"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columns"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "const": "hash_values",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/IdColumns"
+            },
+            {
+              "$ref": "#/$defs/IdFirstOf"
+            }
+          ],
+          "description": "Required: hash_values, {columns: [...]} or {first_of: [...]}",
+          "title": "Id"
+        },
+        "connection": {
+          "title": "Connection",
+          "type": "string"
+        },
+        "sql": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sql"
+        },
+        "sql_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sql File"
+        }
+      },
+      "required": [
+        "type",
+        "key",
+        "name",
+        "id",
+        "connection"
+      ],
+      "title": "SnowflakeQueryFile",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "kql_query": "#/$defs/KqlQueryFile",
+      "snowflake_query": "#/$defs/SnowflakeQueryFile"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/KqlQueryFile"
+    },
+    {
+      "$ref": "#/$defs/SnowflakeQueryFile"
+    }
+  ]
+}

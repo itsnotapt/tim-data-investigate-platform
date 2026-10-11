@@ -1,0 +1,11 @@
+type: kql_query
+key: tim.sign_ins_for_user
+name: Sign-ins for user
+connection: kusto-main
+database: Security
+kql: |
+  SigninLogs
+  | where UserPrincipalName == upn
+ params:
+  - name: upn
+id: hash_values
