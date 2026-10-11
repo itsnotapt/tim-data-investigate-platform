@@ -17,12 +17,15 @@ from interface import (
     Column,
     ColumnType,
     Hook,
+    IdFn,
     Param,
     PivotContext,
     Provider,
     Row,
     RunContext,
     first_of,
+    from_columns,
+    hash_values,
 )
 
 _KUSTO_TYPES: dict[str, ColumnType] = {
@@ -61,7 +64,10 @@ class KustoHook(Hook):
 
 
 class RunKql(Action):
-    """Ad-hoc KQL: the analyst picks the connection and writes the query."""
+    """Ad-hoc KQL: the analyst picks the connection, writes the query and may name the id column."""
+
+    def row_id(self, params: dict[str, Any]) -> IdFn:
+        return from_columns(params["idColumn"]) if params.get("idColumn") else self.id
 
     def run(self, params: dict[str, Any], ctx: RunContext) -> Iterable[Row]:
         hook = ctx.hook(params["connection"])
@@ -110,12 +116,13 @@ run_kql = RunKql(
     params=(
         Param("connection", "connection", backend="kusto"),
         Param("database"),
-        Param("query", "kql"),
+        Param("query", "kql", schema_from=("connection", "database")),
         Param("startTime", "datetime", required=False),
         Param("endTime", "datetime", required=False),
+        Param("idColumn", label="Id column", required=False),
     ),
     columns=None,  # declared at run time from Kusto's column types
-    id=first_of("EventId", "ReportId"),  # tag-friendly when the query keeps a known key
+    id=hash_values,  # when the analyst leaves idColumn empty
 )
 
 dev_json = DevJson(
@@ -124,6 +131,7 @@ dev_json = DevJson(
     menu=("Development",),
     pivot="rows",
     params=(Param("rows", "json"),),
+    id=hash_values,
 )
 
 sign_ins_for_user = KqlQuery(

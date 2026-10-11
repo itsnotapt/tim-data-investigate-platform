@@ -98,6 +98,11 @@ def section_run_kql(registry: Registry) -> None:
         "startTime": "2026-10-10T00:00:00+00:00",
         "endTime": "2026-10-11T00:00:00+00:00",
     }, ANALYST))
+    print("\n--- same query, analyst sets Id column = CorrelationId (tags now match the pivot's)")
+    show_result(run_action(registry, "tim.run_kql", {
+        "connection": "kusto-main", "database": "Security", "query": "SigninLogs | take 3",
+        "idColumn": "CorrelationId",
+    }, ANALYST))
 
 
 def section_pivots(registry: Registry) -> None:

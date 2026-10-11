@@ -63,6 +63,16 @@ class Hook(ABC):
     def get_conn(self) -> Any:
         """The backend's own client, authenticated as the analyst where the backend supports it."""
 
+    def cancel(self) -> None:
+        """Stop what this hook is running (timeout or the analyst's cancel). Called from another
+        thread while ``run`` is blocked in the backend client."""
+
+    def editor_schema(self, scope: dict[str, Any]) -> dict[str, Any] | None:
+        """Completion schema for KQL/SQL editors, e.g. ``{"database": "Security"}`` -> Kusto's
+        ``.show schema as json``. Served by ``POST /api/connections/{name}/schema``; None: no
+        completion for this backend."""
+        return None
+
 
 # --- params, pivots, columns -----------------------------------------------------------------
 
@@ -81,6 +91,8 @@ class Param:
     many: bool = False  # a list of values, e.g. one per selected row
     choices: Sequence[str] = ()  # kind="choice"
     backend: str | None = None  # kind="connection": TIM offers this instance's connections
+    # kind="kql"/"sql": the params naming the connection and scope the editor's schema is for.
+    schema_from: Sequence[str] = ()
     # Default pivot resolution: fill from the first of these columns found in the context.
     # Also what the context menu is filtered on (see Action.pivot_columns).
     from_columns: Sequence[str] = ()
@@ -176,7 +188,7 @@ class Action(ABC):
     params: Sequence[Param] = ()
     pivot: Literal["none", "row", "rows"] = "row"  # offered on one row, a selection, or never
     columns: Sequence[Column] | None = None  # None: TIM infers them (ISO-8601 dates detected)
-    id: IdFn = hash_values
+    id: IdFn  # required: hash_values is a choice the author makes, never a silent default
 
     def pivot_columns(self) -> list[list[str]]:
         """Columns the context menu is filtered on: every group needs one column in the row.
@@ -197,9 +209,14 @@ class Action(ABC):
                 resolved[param.name] = list(dict.fromkeys(values)) if param.many else values[0]
         return resolved
 
+    def row_id(self, params: dict[str, Any]) -> IdFn:
+        """The ``id`` for this run. Override to let a param choose it (Run KQL's ``idColumn``)."""
+        return self.id
+
     @abstractmethod
     def run(self, params: dict[str, Any], ctx: RunContext) -> Iterable[Row]:
-        """Yield result rows. Synchronous: TIM runs it in a worker thread."""
+        """Yield result rows. Synchronous: TIM runs it in a worker thread and cancels through
+        the hooks it handed out."""
 
 
 def _first_present(row: Row, names: Sequence[str]) -> Any:

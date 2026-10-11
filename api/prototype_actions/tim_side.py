@@ -155,7 +155,8 @@ def run_action(
 
     ctx = RunContext(analyst, build_hook)
     started = time.perf_counter()
-    rows = [{"id": action.id(row), "values": row} for row in action.run(params, ctx)]
+    row_id = action.row_id(params)
+    rows = [{"id": row_id(row), "values": row} for row in action.run(params, ctx)]
     columns = ctx.columns or list(action.columns or []) or infer_columns([r["values"] for r in rows])
     details = {
         "duration": round(time.perf_counter() - started, 4),
