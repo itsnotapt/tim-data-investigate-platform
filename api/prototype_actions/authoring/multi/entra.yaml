@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../action-file.schema.json
+# Two actions in one file: each YAML document is one action, validated on its own.
+type: kql_query
+key: tim.sign_ins_for_user
+name: Sign-ins for user
+menu: [Entra]
+connection: kusto-main
+database: Security
+kql: |
+  declare query_parameters(upn:string, days:int = 1);
+  SigninLogs
+  | where TimeGenerated > ago(days * 1d)
+  | where UserPrincipalName == upn
+params:
+  - name: upn
+    label: User
+    from_columns: [UserPrincipalName, AccountUpn, ACTOR_UPN]
+  - name: days
+    kind: int
+    default: 1
+id:
+  first_of: [CorrelationId]
+---
+type: kql_query
+key: tim.audit_for_user
+name: Directory changes by user
+menu: [Entra]
+connection: kusto-main
+database: Security
+kql: |
+  declare query_parameters(upn:string, days:int = 7);
+  AuditLogs
+  | where TimeGenerated > ago(days * 1d)
+  | where InitiatedBy.user.userPrincipalName == upn
+params:
+  - name: upn
+    label: User
+    from_columns: [UserPrincipalName, AccountUpn, ACTOR_UPN]
+  - name: days
+    kind: int
+    default: 7
+id:
+  columns: [Id]

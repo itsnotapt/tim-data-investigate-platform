@@ -2,7 +2,8 @@
 
     uv run --project api --with pyyaml python api/prototype_actions/authoring/compare.py
     uv run --project api --with pyyaml python api/prototype_actions/authoring/compare.py errors
-        # one section: side-by-side|same-actions|errors|escape-hatch|schema|locations
+        # one section: side-by-side|same-actions|errors|escape-hatch|multi|schema|
+        #   locations
 
 Question: how are queries written, a Python file per query or YAML files tied to a registered
 action type? Assumption: the audience is people who write queries but not much Python, so the
@@ -57,8 +58,9 @@ def python_registry() -> Registry:
 
 
 def yaml_registry() -> Registry:
-    return registry_of("yaml", [load_action_file(HERE / "yaml_queries" / f"{q}.yaml", FILE_TYPES)
-                                for q in QUERIES])
+    return registry_of("yaml", [a for q in QUERIES
+                                for a in load_action_file(HERE / "yaml_queries" / f"{q}.yaml",
+                                                          FILE_TYPES)])
 
 
 def counted(path: Path) -> str:
@@ -155,7 +157,7 @@ def errors() -> None:
 def escape_hatch() -> None:
     heading("ESCAPE HATCH: a computed param (a window around the clicked row's time)")
     py = import_action(HERE / "escape_hatch" / "sign_ins_around_event.py")
-    ym = load_action_file(HERE / "escape_hatch" / "sign_ins_around_event.yaml", FILE_TYPES)
+    [ym] = load_action_file(HERE / "escape_hatch" / "sign_ins_around_event.yaml", FILE_TYPES)
     context = PivotContext(row=SIGN_INS[1], rows=[SIGN_INS[1]], column="IPAddress",
                            value=SIGN_INS[1]["IPAddress"])
     for label, action in (("python: custom resolve() in a subclass", py),
@@ -166,6 +168,18 @@ def escape_hatch() -> None:
         show("resolved params (what the form shows)", resolved)
         result = run_action(registry, action.key, resolved, ANALYST)
         show("row count", result["details"]["rowCount"])
+
+
+def multi() -> None:
+    heading("MULTI: several actions in one file, one YAML document each (--- between them)")
+    for name in ("multi/entra.yaml", "broken/yaml/multi_second_broken.yaml"):
+        print(f"\n--- {name}")
+        try:
+            actions = load_action_file(HERE / name, FILE_TYPES)
+            show("actions", [f"{a.key} ({type(a).__name__})" for a in actions])
+        except ActionFileError as exc:
+            for line in str(exc).splitlines():
+                print(f"  {line}")
 
 
 def schema() -> None:
@@ -215,6 +229,7 @@ SECTIONS = {
     "same-actions": same_actions,
     "errors": errors,
     "escape-hatch": escape_hatch,
+    "multi": multi,
     "schema": schema,
     "locations": locations,
 }

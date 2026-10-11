@@ -1,0 +1,23 @@
+type: kql_query
+key: tim.sign_ins_for_user
+name: Sign-ins for user
+connection: kusto-main
+database: Security
+kql: SigninLogs | where UserPrincipalName == upn
+params:
+  - name: upn
+    from_columns: [UserPrincipalName]
+id:
+  first_of: [CorrelationId]
+---
+type: kql_query
+key: tim.audit_for_user
+name: Directory changes by user
+connection: kusto-main
+database: Security
+kql: AuditLogs | where InitiatedBy.user.userPrincipalName == upn
+params:
+  - name: upn
+    kind: text
+id:
+  columns: [Id]

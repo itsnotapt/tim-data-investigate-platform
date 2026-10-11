@@ -149,18 +149,32 @@ class ActionFileError(Exception):
     pass
 
 
-def load_action_file(path: Path, types: dict[str, type[FileActionType]]) -> Action:
-    """Validate one file against its type's model and build the action. Errors name the file,
-    the line and the field."""
+def load_action_file(path: Path, types: dict[str, type[FileActionType]]) -> list[Action]:
+    """Every action in one file: one per YAML document (``---`` between them). Each document is
+    validated against its type's model; errors name the file, the line and the field."""
     source = path.read_text()
     try:
-        node = yaml.compose(source)
-        data = yaml.safe_load(source)
+        nodes = list(yaml.compose_all(source))
+        documents = list(yaml.safe_load_all(source))
     except yaml.MarkedYAMLError as exc:
         line = exc.problem_mark.line + 1 if exc.problem_mark else "?"
         raise ActionFileError(f"{path.name}:{line}: not valid YAML: {exc.problem}") from None
+    actions, problems = [], []
+    for node, data in zip(nodes, documents, strict=True):
+        try:
+            actions.append(_load_document(path, node, data, types))
+        except ActionFileError as exc:
+            problems.append(str(exc))
+    if problems:
+        raise ActionFileError("\n".join(problems))
+    return actions
+
+
+def _load_document(
+    path: Path, node: yaml.Node, data: Any, types: dict[str, type[FileActionType]]
+) -> Action:
     if not isinstance(data, dict):
-        raise ActionFileError(f"{path.name}: expected a mapping of fields")
+        raise ActionFileError(f"{path.name}:{_line(node, ())}: expected a mapping of fields")
     type_name = data.get("type")
     action_type = types.get(type_name)  # type: ignore[arg-type]
     if action_type is None:
@@ -178,7 +192,7 @@ def load_action_file(path: Path, types: dict[str, type[FileActionType]]) -> Acti
         ]
         raise ActionFileError("\n".join(problems)) from None
     except ValueError as exc:
-        raise ActionFileError(f"{path.name}: {exc}") from None
+        raise ActionFileError(f"{path.name}:{_line(node, ())}: {exc}") from None
 
 
 def _line(node: yaml.Node | None, loc: Sequence[str | int]) -> int:
@@ -201,7 +215,7 @@ def file_provider(
     name: str, directory: Path, types: dict[str, type[FileActionType]]
 ) -> Provider:
     """A provider for every ``*.yaml`` in a directory: a package's data or the instance's."""
-    actions = [load_action_file(p, types) for p in sorted(directory.glob("*.yaml"))]
+    actions = [a for p in sorted(directory.glob("*.yaml")) for a in load_action_file(p, types)]
     return Provider(name=name, actions=actions)
 
 
