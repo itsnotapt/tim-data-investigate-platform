@@ -2,13 +2,14 @@
 // Question: how do analysts create, share and manage saved params, including saved
 // queries that become pivots? Actions are admin-authored; saved params are analyst data.
 // Every input (an action param with from_columns, or a query parameter) is either Fixed (its
-// value is saved) or From row (filled from the clicked row; the tab's value is only a test value).
+// value is saved) or From row (filled from the selected rows when pivoting). A `dynamic` input is
+// an array, sent as JSON; the query parses it (no query rewriting beyond Snowflake's :name to :N).
 // Run with `npm run prototype:saved-params`; ◀ ▶ (or arrow keys) switch variants.
 import { Fragment, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
+  Autocomplete,
   Box,
   Button,
-  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -21,6 +22,7 @@ import {
   InputAdornment,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   ListSubheader,
   Menu,
@@ -28,21 +30,19 @@ import {
   Radio,
   RadioGroup,
   Stack,
-  Switch,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
+import CheckIcon from '@mui/icons-material/Check';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import EditIcon from '@mui/icons-material/EditOutlined';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import PushPinIcon from '@mui/icons-material/PushPin';
-import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOffOutlined';
@@ -192,6 +192,20 @@ const ROWS: Record<string, string>[] = [
     ProcessName: 'sqlservr.exe',
     SHA256: 'c0de…ff',
   },
+  {
+    Timestamp: '2026-10-15T09:40Z',
+    DeviceName: 'wks-0207',
+    AccountUpn: 'priya@contoso.com',
+    ProcessName: 'powershell.exe',
+    SHA256: '9f2c…a1',
+  },
+  {
+    Timestamp: '2026-10-15T10:05Z',
+    DeviceName: 'srv-db-02',
+    AccountUpn: 'jo@contoso.com',
+    ProcessName: 'cmd.exe',
+    SHA256: '7a10…3c',
+  },
 ];
 
 // ---------------------------------------------------------------- saved params model
@@ -206,10 +220,9 @@ interface Input {
   via: 'param' | 'query';
   /** fixed: `value` is saved. row: filled from `columns` when pivoting, asked in the form otherwise. */
   mode: 'fixed' | 'row';
-  /** Fixed: the saved value. From row: the tab's test value (for Run and the preview), never saved. */
+  /** The tab's value (what Run uses); saved only when fixed. A `dynamic` value is a JSON array. */
   value: string;
   columns: string[];
-  many: boolean;
 }
 interface Saved {
   id: string;
@@ -259,7 +272,6 @@ const queryInput = (name: string, type = 'string'): Input => ({
   value: '',
   // Suggest a same-named result column; otherwise the analyst maps it.
   columns: COLUMNS.includes(name) ? [name] : [],
-  many: false,
 });
 
 /** Adds inputs for the action's from_columns params and newly typed query parameters; keeps the rest. */
@@ -269,12 +281,11 @@ function syncInputs(a: ActionDef, values: Record<string, string>, inputs: Input[
     .filter((p) => p.fromColumns && !has(p.name))
     .map((p) => ({
       name: p.name,
-      type: p.kind,
+      type: p.many ? 'dynamic' : p.kind,
       via: 'param',
       mode: 'row',
       value: '',
       columns: p.fromColumns!,
-      many: !!p.many,
     }));
   const query = suggestQueryParams(values)
     .filter((q) => !has(q.name))
@@ -295,22 +306,47 @@ const visibleTo = (s: Saved, who: string) =>
 /** Test values stay on the tab; only fixed values are saved. */
 const forSave = (inputs: Input[]) =>
   inputs.map((i) => (i.mode === 'row' ? { ...i, value: '' } : i));
-const fromRow = (inputs: Input[], row: Record<string, string>) =>
-  inputs.map((i) =>
-    i.mode === 'row' ? { ...i, value: row[i.columns.find((c) => c in row) ?? ''] ?? '' } : i,
-  );
+const isArray = (i: Input) => i.type === 'dynamic';
+const TYPES = ['string', 'long', 'real', 'datetime', 'bool', 'dynamic'];
+/** Shown in empty value fields; the preview shows `<column of the clicked row>` instead. */
+const PLACEHOLDER: Record<string, string> = {
+  string: 'text',
+  long: '0',
+  real: '0.0',
+  datetime: '2026-10-17T00:00:00Z',
+  bool: 'true',
+  dynamic: 'add values',
+};
+const parseArray = (v: string): string[] => {
+  try {
+    const a: unknown = JSON.parse(v || '[]');
+    return Array.isArray(a) ? a.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+const rowValues = (i: Input, rows: Record<string, string>[]) => [
+  ...new Set(rows.map((r) => r[i.columns.find((c) => c in r) ?? ''] ?? '').filter((v) => v !== '')),
+];
+/** Fills from-row inputs from the selected rows: an array input takes every distinct value. */
+const fromRows = (inputs: Input[], rows: Record<string, string>[]) =>
+  inputs.map((i) => {
+    if (i.mode !== 'row') return i;
+    const vs = rowValues(i, rows);
+    return { ...i, value: isArray(i) ? JSON.stringify(vs) : (vs[0] ?? '') };
+  });
+/** Why the pivot can't take these rows: a single-value input sees more than one value. */
+const rowsProblem = (inputs: Input[], rows: Record<string, string>[]) => {
+  const i = openInputs(inputs).find((x) => !isArray(x) && rowValues(x, rows).length > 1);
+  return i ? `${i.name} takes one value; rows have ${rowValues(i, rows).length}` : undefined;
+};
 
-/** What the hook sends. From-row inputs use the tab's test value, or a placeholder when there is none. */
+/** What the hook sends. From-row inputs show a placeholder for the row's value. */
 function backendRequest(s: Saved): string {
-  const valueOf = (i: Input): string | string[] => {
-    const placeholder = `<${i.columns[0] ?? '?'} of ${i.many ? 'each selected row' : 'the clicked row'}>`;
-    if (i.mode === 'row' && !i.value) return i.many ? [placeholder] : placeholder;
-    return i.many
-      ? i.value
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean)
-      : i.value;
+  const valueOf = (i: Input): string => {
+    if (i.mode === 'fixed') return i.value;
+    const col = i.columns[0] ?? '?';
+    return isArray(i) ? `["<${col} of each selected row>", …]` : `<${col} of the clicked row>`;
   };
   const qp = s.inputs.filter((i) => i.via === 'query');
   if (s.actionKey === 'run_kql') {
@@ -319,42 +355,33 @@ function backendRequest(s: Saved): string {
     const declare = /declare\s+query_parameters/i.test(kql)
       ? ''
       : qp.length
-        ? `declare query_parameters(${qp.map((i) => `${i.name}:${i.many ? 'dynamic' : i.type}`).join(', ')});\n`
+        ? `declare query_parameters(${qp.map((i) => `${i.name}:${i.type}`).join(', ')});\n`
         : '';
     const params = Object.fromEntries(
-      qp.map((i) => {
-        const v = valueOf(i);
-        return [
-          i.name,
-          Array.isArray(v)
-            ? `dynamic(${JSON.stringify(v)})`
-            : i.type === 'string'
-              ? v
-              : `${i.type}(${v})`,
-        ];
-      }),
+      qp.map((i) => [i.name, i.type === 'string' ? valueOf(i) : `${i.type}(${valueOf(i)})`]),
     );
     return `Kusto query (text is never spliced):\n${declare}${kql}\n\nClientRequestProperties.Parameters:\n${JSON.stringify(params, null, 1)}`;
   }
   if (s.actionKey === 'run_sql') {
-    // Snowflake binds server-side only by position (qmark / numeric) and not into IN lists,
-    // so the hook rewrites :name to :N and a `many` input becomes one JSON array bind.
+    // Snowflake binds server-side only by position, so the hook renames :name to :N and nothing
+    // else. A dynamic input is bound as its JSON text; the query parses it (PARSE_JSON).
     const order: string[] = [];
     const sql = (s.values.sql ?? '').replace(/(?<![:\w]):([A-Za-z_]\w*)/g, (_m, n: string) => {
       if (!order.includes(n)) order.push(n);
-      const i = qp.find((x) => x.name === n);
-      const pos = `:${order.indexOf(n) + 1}`;
-      return i?.many ? `(SELECT value FROM TABLE(FLATTEN(INPUT => PARSE_JSON(${pos}))))` : pos;
+      return `:${order.indexOf(n) + 1}`;
     });
     const binds = order.map((n) => {
       const i = qp.find((x) => x.name === n);
-      if (!i) return `<${n}: not declared, save blocked>`;
-      const v = valueOf(i);
-      return Array.isArray(v) ? JSON.stringify(JSON.stringify(v)) : JSON.stringify(v);
+      return i ? JSON.stringify(valueOf(i)) : `<${n}: not declared, save blocked>`;
     });
     return `Snowflake (paramstyle=numeric, server-side):\n${sql}\n\nbinds: [${binds.join(', ')}]`;
   }
-  const params = Object.fromEntries(s.inputs.map((i) => [i.name, valueOf(i)]));
+  const params = Object.fromEntries(
+    s.inputs.map((i) => [
+      i.name,
+      isArray(i) && i.mode === 'fixed' ? parseArray(i.value) : valueOf(i),
+    ]),
+  );
   return `Action ${s.actionKey} runs with params:\n${JSON.stringify({ ...s.values, ...params }, null, 1)}`;
 }
 
@@ -377,7 +404,6 @@ function toYaml(s: Saved): string {
       lines.push(`  - name: ${i.name}`, `    kind: ${i.type}`);
       if (i.mode === 'row') lines.push(`    from_columns: [${i.columns.join(', ')}]`);
       else lines.push(`    default: ${JSON.stringify(i.value)}`);
-      if (i.many) lines.push('    many: true');
     }
   }
   lines.push(s.values.idColumn ? `id: {columns: [${s.values.idColumn}]}` : 'id: hash_values');
@@ -385,6 +411,22 @@ function toYaml(s: Saved): string {
 }
 
 const SEED: Saved[] = [
+  {
+    id: 's5',
+    name: 'Processes on hosts',
+    menu: 'Endpoint/Triage',
+    actionKey: 'run_kql',
+    values: {
+      connection: 'security-prod',
+      database: 'SecurityLogs',
+      kql: 'DeviceProcessEvents\n| where DeviceName in (Hosts)\n| project Timestamp, DeviceName, FileName, ProcessCommandLine',
+    },
+    inputs: [{ ...queryInput('Hosts', 'dynamic'), columns: ['DeviceName'] }],
+    owner: ME,
+    shared: true,
+    hiddenBy: [],
+    updated: 5,
+  },
   {
     id: 's1',
     name: 'Rare parents of process',
@@ -423,10 +465,10 @@ const SEED: Saved[] = [
     actionKey: 'run_sql',
     values: {
       connection: 'snowflake-prod',
-      sql: 'SELECT uuid, published, event_type, outcome\nFROM OKTA.SYSTEM_LOG\nWHERE actor_alternate_id IN :users\n  AND published > DATEADD(day, -7, CURRENT_TIMESTAMP())',
+      sql: 'SELECT uuid, published, event_type, outcome\nFROM OKTA.SYSTEM_LOG\nWHERE actor_alternate_id IN (\n    SELECT value::string FROM TABLE(FLATTEN(PARSE_JSON(:users))))\n  AND published > DATEADD(day, -7, CURRENT_TIMESTAMP())',
       idColumn: 'uuid',
     },
-    inputs: [{ ...queryInput('users'), columns: ['AccountUpn', 'UserPrincipalName'], many: true }],
+    inputs: [{ ...queryInput('users', 'dynamic'), columns: ['AccountUpn', 'UserPrincipalName'] }],
     owner: SAM,
     shared: true,
     hiddenBy: [],
@@ -550,7 +592,7 @@ interface Tab {
   actionKey: string;
   /** The action's other params. */
   values: Record<string, string>;
-  /** Fixed or from-row inputs, with the tab's values (fixed values or test values). */
+  /** Fixed or from-row inputs, with the values the tab runs with. */
   inputs: Input[];
   /** Snapshot origin: later edits to the saved item don't change the tab. */
   fromSaved?: string;
@@ -564,8 +606,7 @@ const defaults = (a: ActionDef) =>
 
 const VARIANTS = [
   { key: 'A', name: 'Save dialog + New menu' },
-  { key: 'B', name: 'Pin params in the form' },
-  { key: 'C', name: 'Library page' },
+  { key: 'C', name: 'A + library page' },
 ] as const;
 
 export function SavedParamsPage() {
@@ -599,10 +640,10 @@ export function SavedParamsPage() {
     setShowLibrary(false);
     say(`open tab ${id} (${via})`);
   };
-  const openSaved = (s: Saved, row?: Record<string, string>) =>
-    openTab(s.actionKey, row ? `pivot → ${s.name}` : `New → ${s.name}`, {
+  const openSaved = (s: Saved, rows?: Record<string, string>[]) =>
+    openTab(s.actionKey, rows ? `pivot (${rows.length} rows) → ${s.name}` : `New → ${s.name}`, {
       values: s.values,
-      inputs: row ? fromRow(s.inputs, row) : s.inputs,
+      inputs: rows ? fromRows(s.inputs, rows) : s.inputs,
       fromSaved: s.id,
     });
   const updateTab = (patch: { values?: Record<string, string>; inputs?: Input[] }) =>
@@ -650,22 +691,19 @@ export function SavedParamsPage() {
       shared: false,
       hiddenBy: [],
     });
-  /** The tab as a saved item, test values included (upsert strips them). */
+  /** The tab as a new saved item; the save dialog offers to update the item it came from instead. */
   const fromTab = (): Saved => {
     const a = actionByKey(tab.actionKey);
     const origin = tab.fromSaved ? saved.find((s) => s.id === tab.fromSaved) : undefined;
-    const existing = origin?.owner === who ? origin : undefined;
     return {
-      id: existing?.id ?? `s${Date.now()}`,
-      name:
-        existing?.name ??
-        (origin ? `${origin.name} (copy)` : hasQuery(a) ? 'Untitled query' : `${a.name} (saved)`),
-      menu: existing?.menu ?? origin?.menu ?? a.menu,
+      id: `s${Date.now()}`,
+      name: origin?.name ?? (hasQuery(a) ? 'Untitled query' : `${a.name} (saved)`),
+      menu: origin?.menu ?? a.menu,
       actionKey: a.key,
       values: Object.fromEntries(Object.entries(tab.values).filter(([, v]) => v)),
       inputs: tab.inputs,
       owner: who,
-      shared: existing?.shared ?? false,
+      shared: origin?.owner === who ? origin.shared : false,
       hiddenBy: [],
       updated: Date.now(),
     };
@@ -709,11 +747,10 @@ export function SavedParamsPage() {
       }}
     >
       <Box sx={{ width: 220, borderRight: 1, borderColor: 'divider', p: 1, overflow: 'auto' }}>
-        {variant === 'A' ? (
-          <NewMenuTree {...common} />
-        ) : (
-          <NewMenu {...common} onLibrary={() => setShowLibrary(true)} />
-        )}
+        <NewMenuTree
+          {...common}
+          onLibrary={variant === 'C' ? () => setShowLibrary(true) : undefined}
+        />
         <Typography variant="overline">Tabs</Typography>
         {tabs.map((t) => (
           <Box
@@ -737,7 +774,6 @@ export function SavedParamsPage() {
             </Typography>
           </Box>
         ))}
-        {variant === 'B' && <SidePanel {...common} />}
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, p: 2, overflow: 'auto' }}>
@@ -778,7 +814,7 @@ export function SavedParamsPage() {
           {tab.inputs
             .map(
               (i) =>
-                `${i.name}: ${i.mode === 'fixed' ? `fixed ${JSON.stringify(i.value)}` : `from ${i.columns.join('|') || '(no column)'}, test ${JSON.stringify(i.value)}`}`,
+                `${i.name} (${i.type}) = ${JSON.stringify(i.value)}; saves as ${i.mode === 'fixed' ? 'fixed' : `from ${i.columns.join(' | ') || '(no column)'}`}`,
             )
             .join('\n') || '(none)'}
         </pre>
@@ -817,7 +853,7 @@ type Common = {
     via: string,
     origin?: { inputs?: Input[]; values?: Record<string, string>; fromSaved?: string },
   ) => void;
-  openSaved: (s: Saved, row?: Record<string, string>) => void;
+  openSaved: (s: Saved, rows?: Record<string, string>[]) => void;
   updateTab: (patch: { values?: Record<string, string>; inputs?: Input[] }) => void;
   upsert: (s: Saved) => void;
   remove: (s: Saved) => void;
@@ -829,73 +865,6 @@ type Common = {
   say: (s: string) => void;
   variant: string;
 };
-
-// ---------------------------------------------------------------- New menu
-
-function NewMenu(p: Common & { onLibrary: () => void }) {
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const close = () => setAnchor(null);
-  const mySaved = p.visible.filter((s) => s.owner === p.who);
-  const shared = p.visible.filter((s) => s.owner !== p.who);
-  // A: saved items live in the New menu with inline manage buttons.
-  // B and C: the New menu only opens them; managing is in the side panel / library.
-  const row = (s: Saved) => (
-    <MenuItem
-      key={s.id}
-      onClick={() => {
-        p.openSaved(s);
-        close();
-      }}
-    >
-      <Box sx={{ flex: 1 }}>
-        {s.name}
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-          {actionByKey(s.actionKey).name}
-          {isPivot(s) ? ' · pivot' : ''}
-          {s.owner !== p.who ? ` · ${s.owner}` : s.shared ? ' · shared' : ''}
-        </Typography>
-      </Box>
-      {p.variant === 'A' && <ManageButtons {...p} s={s} />}
-    </MenuItem>
-  );
-  return (
-    <>
-      <Button fullWidth variant="contained" onClick={(e) => setAnchor(e.currentTarget)}>
-        New
-      </Button>
-      <Menu anchorEl={anchor} open={!!anchor} onClose={close}>
-        <ListSubheader>Actions</ListSubheader>
-        {ACTIONS.map((a) => (
-          <MenuItem
-            key={a.key}
-            onClick={() => {
-              p.openTab(a.key, `New → ${a.name}`);
-              close();
-            }}
-          >
-            {a.menu} / {a.name}
-          </MenuItem>
-        ))}
-        <ListSubheader>My saved</ListSubheader>
-        {mySaved.map(row)}
-        <ListSubheader>Shared with everyone</ListSubheader>
-        {shared.map(row)}
-        {p.variant === 'C' && <Divider />}
-        {p.variant === 'C' && (
-          <MenuItem
-            onClick={() => {
-              p.onLibrary();
-              close();
-            }}
-          >
-            Open library…
-          </MenuItem>
-        )}
-      </Menu>
-      <Box sx={{ mb: 1 }} />
-    </>
-  );
-}
 
 // ---------------------------------------------------------------- A at scale: nested New menu
 
@@ -999,7 +968,11 @@ function savedCaption(s: Saved, who: string) {
   const cols = [...new Set(openInputs(s.inputs).flatMap((i) => i.columns))];
   return [
     actionByKey(s.actionKey).name,
-    isPivot(s) ? `pivot on ${cols.join(', ')}` : openInputs(s.inputs).length ? 'asks' : 'bookmark',
+    isPivot(s)
+      ? `pivot on ${cols.join(', ')}${openInputs(s.inputs).some(isArray) ? ' (many rows)' : ''}`
+      : openInputs(s.inputs).length
+        ? 'asks'
+        : 'bookmark',
     s.owner !== who ? s.owner.split('@')[0] : s.shared ? 'shared' : 'private',
   ].join(' · ');
 }
@@ -1008,18 +981,21 @@ function SavedItemRow({
   s,
   who,
   depth,
+  problem,
   onOpen,
   onMore,
 }: {
   s: Saved;
   who: string;
   depth: number;
+  /** Set when the selected rows don't fit this pivot; the row is disabled and says why. */
+  problem?: string;
   onOpen: () => void;
   onMore?: (el: HTMLElement) => void;
 }) {
   return (
-    <ListItemButton sx={{ pl: 2 + depth * 2, py: 0 }} onClick={onOpen}>
-      <ListItemText primary={s.name} secondary={savedCaption(s, who)} />
+    <ListItemButton sx={{ pl: 2 + depth * 2, py: 0 }} onClick={onOpen} disabled={!!problem}>
+      <ListItemText primary={s.name} secondary={problem ?? savedCaption(s, who)} />
       {onMore && (
         <IconButton
           size="small"
@@ -1046,8 +1022,8 @@ function MenuSearch({ value, onChange }: { value: string; onChange: (v: string) 
         placeholder="Search name, folder, action, owner"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        // Keep MUI Menu type-ahead from stealing keystrokes.
-        onKeyDown={(e) => e.stopPropagation()}
+        // Keep MUI Menu type-ahead from stealing keystrokes, but let Escape close the menu.
+        onKeyDown={(e) => e.key !== 'Escape' && e.stopPropagation()}
         slotProps={{
           input: {
             startAdornment: (
@@ -1065,7 +1041,7 @@ function MenuSearch({ value, onChange }: { value: string; onChange: (v: string) 
 type Filter = 'all' | 'mine' | 'others' | 'hidden';
 
 /** A: the real New menu's tree (folders by full path, search opens every folder) with one ⋯ per item. */
-function NewMenuTree(p: Common) {
+function NewMenuTree(p: Common & { onLibrary?: () => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -1174,6 +1150,17 @@ function NewMenuTree(p: Common) {
           </List>
         </li>
         {nodes.length === 0 && <MenuItem disabled>Nothing matches</MenuItem>}
+        {p.onLibrary && <Divider />}
+        {p.onLibrary && (
+          <MenuItem
+            onClick={() => {
+              p.onLibrary!();
+              close();
+            }}
+          >
+            Open library…
+          </MenuItem>
+        )}
       </Menu>
       <Menu anchorEl={more?.el} open={!!more} onClose={() => setMore(null)}>
         {m && [
@@ -1201,6 +1188,28 @@ function NewMenuTree(p: Common) {
               Hide from my menus
             </MenuItem>
           ),
+          own && <Divider key="vdiv" />,
+          own && <ListSubheader key="vis">Visibility</ListSubheader>,
+          ...(own
+            ? (
+                [
+                  [false, 'Only me'],
+                  [true, 'Everyone (read-only)'],
+                ] as const
+              ).map(([shared, label]) => (
+                <MenuItem
+                  key={label}
+                  onClick={act(() => {
+                    if (m.shared !== shared) p.upsert({ ...m, shared });
+                  })}
+                >
+                  <ListItemIcon>
+                    {m.shared === shared && <CheckIcon fontSize="small" />}
+                  </ListItemIcon>
+                  {label}
+                </MenuItem>
+              ))
+            : []),
           <Divider key="div" />,
           <MenuItem key="yaml" onClick={act(() => setYaml(toYaml(m)), true)}>
             Copy as action file
@@ -1291,65 +1300,98 @@ function ManageButtons(p: Common & { s: Saved; onEdit?: () => void }) {
 
 // ---------------------------------------------------------------- inputs
 
-/** Comma-separated column list. Keeps the raw text so typing ", " isn't eaten mid-edit. */
-function ColumnsField({
-  columns,
+/** Chips: type and press Enter, or pick a suggestion. No comma-separated text. */
+function ChipsField({
+  label,
+  values,
+  options = [],
+  placeholder,
+  error,
+  helperText,
   onChange,
 }: {
-  columns: string[];
-  onChange: (columns: string[]) => void;
+  label: string;
+  values: string[];
+  options?: string[];
+  placeholder?: string;
+  error?: boolean;
+  helperText?: string;
+  onChange: (values: string[]) => void;
 }) {
-  const [text, setText] = useState(columns.join(', '));
   return (
-    <TextField
+    <Autocomplete
+      multiple
+      freeSolo
       size="small"
-      label="From columns (first match wins)"
-      value={text}
-      onChange={(e) => {
-        setText(e.target.value);
-        onChange(
-          e.target.value
-            .split(',')
-            .map((c) => c.trim())
-            .filter(Boolean),
-        );
-      }}
-      error={columns.length === 0}
-      helperText={columns.length === 0 ? 'Map a column to offer it as a pivot' : undefined}
+      options={options}
+      value={values}
+      onChange={(_e, v) => onChange(v)}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={label}
+          placeholder={values.length ? undefined : placeholder}
+          error={error}
+          helperText={helperText}
+        />
+      )}
       sx={{ flex: 1, minWidth: 220 }}
     />
   );
 }
 
+/** The value of an input: a text field, or chips for a dynamic (array) input, stored as JSON. */
+function ValueField({
+  input: i,
+  label,
+  helperText,
+  onChange,
+}: {
+  input: Input;
+  label: string;
+  helperText?: string;
+  onChange: (value: string) => void;
+}) {
+  return isArray(i) ? (
+    <ChipsField
+      label={label}
+      values={parseArray(i.value)}
+      placeholder={PLACEHOLDER.dynamic}
+      helperText={helperText}
+      onChange={(vs) => onChange(JSON.stringify(vs))}
+    />
+  ) : (
+    <TextField
+      size="small"
+      label={label}
+      value={i.value}
+      placeholder={PLACEHOLDER[i.type] ?? 'value'}
+      slotProps={{ inputLabel: { shrink: true } }}
+      onChange={(e) => onChange(e.target.value)}
+      helperText={helperText}
+      sx={{ flex: 1, minWidth: 200 }}
+    />
+  );
+}
+
 /**
- * One input. `toggle` says how the mode is switched: 'pin' (B, in the form), 'buttons' (A dialog,
- * C library) or 'none' (A and C tabs: the mode is set when saving, the tab only holds the value).
+ * One input. In the tab (`editing` false) it is just a value to run with. In the save dialog it is
+ * Fixed (the value is saved) or From row (columns to fill it from; no value).
  */
 function InputRow({
   input: i,
   label,
-  toggle,
+  editing,
   onChange,
   onDelete,
 }: {
   input: Input;
   label?: string;
-  toggle: 'pin' | 'buttons' | 'none';
+  editing: boolean;
   onChange: (i: Input) => void;
   onDelete?: () => void;
 }) {
   const row = i.mode === 'row';
-  const setMode = (mode: Input['mode']) => onChange({ ...i, mode });
-  const valueLabel =
-    toggle === 'none'
-      ? (label ?? i.name)
-      : `${label ?? i.name}${row ? ': test value, not saved' : ': saved value'}`;
-  const hint =
-    toggle === 'none' && row && i.columns.length
-      ? `From ${i.columns.join(' / ')} when pivoting`
-      : i.many
-        ? 'Comma-separated'
-        : undefined;
   return (
     <Stack direction="row" sx={{ gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
       {i.via === 'query' && (
@@ -1359,59 +1401,50 @@ function InputRow({
             select
             size="small"
             value={i.type}
-            onChange={(e) => onChange({ ...i, type: e.target.value })}
-            sx={{ width: 110 }}
+            onChange={(e) => onChange({ ...i, type: e.target.value, value: '' })}
+            sx={{ width: 160 }}
           >
-            {['string', 'long', 'real', 'datetime', 'bool'].map((t) => (
+            {TYPES.map((t) => (
               <MenuItem key={t} value={t}>
-                {t}
+                {t === 'dynamic' ? 'dynamic (array)' : t}
               </MenuItem>
             ))}
           </TextField>
         </>
       )}
-      {toggle === 'buttons' && (
+      {editing && (
         <ToggleButtonGroup
           size="small"
           exclusive
           value={i.mode}
-          onChange={(_e, m: Input['mode'] | null) => m && setMode(m)}
+          onChange={(_e, m: Input['mode'] | null) => m && onChange({ ...i, mode: m })}
         >
           <ToggleButton value="fixed">Fixed</ToggleButton>
           <ToggleButton value="row">From row</ToggleButton>
         </ToggleButtonGroup>
       )}
-      <TextField
-        size="small"
-        label={valueLabel}
-        value={i.value}
-        onChange={(e) => onChange({ ...i, value: e.target.value })}
-        helperText={hint}
-        sx={{ flex: 1, minWidth: 200 }}
-      />
-      {toggle === 'pin' && (
-        <Tooltip
-          title={row ? 'Unpin: save this value as fixed' : 'Pin: fill from a column when pivoting'}
-        >
-          <IconButton onClick={() => setMode(row ? 'fixed' : 'row')}>
-            {row ? <PushPinIcon /> : <PushPinOutlinedIcon />}
-          </IconButton>
-        </Tooltip>
-      )}
-      {row && toggle !== 'none' && (
-        <>
-          <ColumnsField columns={i.columns} onChange={(columns) => onChange({ ...i, columns })} />
-          <FormControlLabel
-            control={
-              <Checkbox
-                size="small"
-                checked={i.many}
-                onChange={(e) => onChange({ ...i, many: e.target.checked })}
-              />
-            }
-            label="All selected rows"
-          />
-        </>
+      {editing && row ? (
+        <ChipsField
+          label={
+            isArray(i)
+              ? 'From columns, every selected row (first match wins)'
+              : 'From columns (first match wins)'
+          }
+          values={i.columns}
+          options={COLUMNS}
+          error={i.columns.length === 0}
+          helperText={
+            i.columns.length === 0 ? 'Add a column to offer it on right-click' : undefined
+          }
+          onChange={(columns) => onChange({ ...i, columns })}
+        />
+      ) : (
+        <ValueField
+          input={i}
+          label={label ?? i.name}
+          helperText={editing ? undefined : isArray(i) ? 'Array: sent as JSON' : undefined}
+          onChange={(value) => onChange({ ...i, value })}
+        />
       )}
     </Stack>
   );
@@ -1444,12 +1477,12 @@ function AddParameter({ taken, onAdd }: { taken: string[]; onAdd: (name: string)
 function QueryParams({
   a,
   inputs,
-  toggle,
+  editing,
   onChange,
 }: {
   a: ActionDef;
   inputs: Input[];
-  toggle: 'pin' | 'buttons' | 'none';
+  editing: boolean;
   onChange: (inputs: Input[]) => void;
 }) {
   const qp = inputs.filter((i) => i.via === 'query');
@@ -1461,16 +1494,16 @@ function QueryParams({
       </Typography>
       <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
         {a.key === 'run_sql'
-          ? 'Write :name in the SQL; it is picked up here.'
-          : 'Reference a parameter by name in the KQL and add it here; TIM adds the declare statement.'}
-        {toggle === 'none' ? ' Choose fixed or from-row when saving.' : ''}
+          ? 'Write :name in the SQL; it is picked up here. A dynamic (array) parameter arrives as JSON text: use PARSE_JSON(:name).'
+          : 'Reference a parameter by name in the KQL and add it here; TIM adds the declare statement. A dynamic parameter is a dynamic array.'}
+        {editing ? '' : ' Choose fixed or from-row when saving.'}
       </Typography>
       <Stack sx={{ gap: 1 }}>
         {qp.map((i) => (
           <InputRow
             key={i.name}
             input={i}
-            toggle={toggle}
+            editing={editing}
             onChange={(next) => set(i.name, next)}
             onDelete={() => onChange(inputs.filter((x) => x.name !== i.name))}
           />
@@ -1489,10 +1522,7 @@ function QueryParams({
 function TabView(p: Common & { variant: string }) {
   const a = actionByKey(p.tab.actionKey);
   const [saving, setSaving] = useState<Saved | null>(null);
-  const [quickName, setQuickName] = useState('');
-  const [quickShared, setQuickShared] = useState(false);
   const origin = p.tab.fromSaved ? p.saved.find((s) => s.id === p.tab.fromSaved) : undefined;
-  const toggle = p.variant === 'B' ? 'pin' : 'none';
   const setInputs = (inputs: Input[]) => p.updateTab({ inputs });
 
   const field = (param: ParamDef) => {
@@ -1503,7 +1533,7 @@ function TabView(p: Common & { variant: string }) {
           key={param.name}
           input={input}
           label={param.label}
-          toggle={toggle}
+          editing={false}
           onChange={(next) =>
             setInputs(p.tab.inputs.map((i) => (i.name === param.name ? next : i)))
           }
@@ -1551,22 +1581,9 @@ function TabView(p: Common & { variant: string }) {
             ({a.source}){origin ? ` · from saved "${origin.name}" (snapshot)` : ''}
           </Typography>
         </Typography>
-        {p.variant === 'A' && (
-          <Button startIcon={<StarBorderIcon />} onClick={() => setSaving(p.fromTab())}>
-            {origin?.owner === p.who ? 'Save' : 'Save as…'}
-          </Button>
-        )}
-        {p.variant === 'C' && (
-          <Button
-            startIcon={<StarBorderIcon />}
-            onClick={() => {
-              p.upsert(p.fromTab());
-              p.say('saved privately; name, sharing and fixed/from-row are edited in the library');
-            }}
-          >
-            Save to library
-          </Button>
-        )}
+        <Button startIcon={<StarBorderIcon />} onClick={() => setSaving(p.fromTab())}>
+          Save…
+        </Button>
         <Button
           variant="outlined"
           onClick={() =>
@@ -1582,43 +1599,18 @@ function TabView(p: Common & { variant: string }) {
       {a.params.map(field)}
 
       {hasQuery(a) && (
-        <QueryParams a={a} inputs={p.tab.inputs} toggle={toggle} onChange={setInputs} />
-      )}
-
-      {p.variant === 'B' && (
-        <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-          <TextField
-            size="small"
-            label="Save as"
-            placeholder="Name"
-            value={quickName}
-            onChange={(e) => setQuickName(e.target.value)}
-          />
-          <FormControlLabel
-            control={
-              <Switch checked={quickShared} onChange={(e) => setQuickShared(e.target.checked)} />
-            }
-            label="Share with everyone"
-          />
-          <Button
-            startIcon={<StarBorderIcon />}
-            onClick={() => {
-              const base = p.fromTab();
-              p.upsert({ ...base, name: quickName || base.name, shared: quickShared });
-            }}
-          >
-            Save
-          </Button>
-        </Stack>
+        <QueryParams a={a} inputs={p.tab.inputs} editing={false} onChange={setInputs} />
       )}
 
       <MockGrid {...p} />
 
       {saving && (
         <Dialog open onClose={() => setSaving(null)} maxWidth="lg" fullWidth>
-          <DialogTitle>Save params</DialogTitle>
+          <DialogTitle>Save {hasQuery(a) ? 'query' : `${a.name} params`}</DialogTitle>
           <SaveEditor
             initial={saving}
+            origin={origin}
+            who={p.who}
             onCancel={() => setSaving(null)}
             onSave={(s) => {
               p.upsert(s);
@@ -1635,21 +1627,55 @@ function TabView(p: Common & { variant: string }) {
 
 function SaveEditor({
   initial,
+  origin,
+  who,
   onSave,
   onCancel,
   inline,
 }: {
   initial: Saved;
+  /** The saved item the tab was opened from: yours can be updated; anyone else's is copied. */
+  origin?: Saved;
+  who?: string;
   onSave: (s: Saved) => void;
   onCancel?: () => void;
   inline?: boolean;
 }) {
-  const [s, setS] = useState(initial);
+  const own = !!origin && origin.owner === who;
+  const copyName = origin ? `${origin.name} (copy)` : '';
+  const [target, setTarget] = useState<'update' | 'new'>(own ? 'update' : 'new');
+  const [s, setS] = useState(origin && !own ? { ...initial, name: copyName } : initial);
+  const pick = (t: 'update' | 'new') => {
+    setTarget(t);
+    // Keep the name in step with the choice unless the analyst has typed their own.
+    if (t === 'new' && s.name === origin!.name) setS({ ...s, name: copyName });
+    if (t === 'update' && s.name === copyName) setS({ ...s, name: origin!.name });
+  };
   const a = actionByKey(s.actionKey);
   const setInputs = (inputs: Input[]) => setS({ ...s, inputs });
   const open = openInputs(s.inputs);
   const body = (
     <Stack sx={{ gap: 2, pt: 1 }}>
+      {own && (
+        <RadioGroup value={target} onChange={(e) => pick(e.target.value as 'update' | 'new')}>
+          <FormControlLabel
+            value="update"
+            control={<Radio size="small" />}
+            label={`Update "${origin.name}": anyone opening it from now on gets this version; open tabs keep theirs`}
+          />
+          <FormControlLabel
+            value="new"
+            control={<Radio size="small" />}
+            label={`Save as a new item: "${origin.name}" stays as it is`}
+          />
+        </RadioGroup>
+      )}
+      {origin && !own && (
+        <Typography variant="body2" color="text.secondary">
+          Opened from {origin.owner.split('@')[0]}'s "{origin.name}". This saves a new item of your
+          own; theirs is unchanged.
+        </Typography>
+      )}
       <Stack direction="row" sx={{ gap: 1 }}>
         <TextField
           size="small"
@@ -1701,18 +1727,15 @@ function SaveEditor({
               key={i.name}
               input={i}
               label={a.params.find((x) => x.name === i.name)?.label}
-              toggle="buttons"
+              editing
               onChange={(next) => setInputs(s.inputs.map((x) => (x.name === i.name ? next : x)))}
             />
           ))}
-        {hasQuery(a) && (
-          <QueryParams a={a} inputs={s.inputs} toggle="buttons" onChange={setInputs} />
-        )}
+        {hasQuery(a) && <QueryParams a={a} inputs={s.inputs} editing onChange={setInputs} />}
       </Stack>
       <Box>
         <Typography variant="subtitle2">
-          What the backend receives (from-row inputs show the test value, or a placeholder for the
-          clicked row)
+          What the backend receives (from-row inputs show a placeholder for the row's value)
         </Typography>
         <pre
           style={{
@@ -1731,8 +1754,11 @@ function SaveEditor({
   const actions = (
     <>
       {onCancel && <Button onClick={onCancel}>Cancel</Button>}
-      <Button variant="contained" onClick={() => onSave(s)}>
-        Save
+      <Button
+        variant="contained"
+        onClick={() => onSave(own && target === 'update' ? { ...s, id: origin.id } : s)}
+      >
+        {!origin ? 'Save' : own && target === 'update' ? 'Update' : 'Save new'}
       </Button>
     </>
   );
@@ -1748,51 +1774,6 @@ function SaveEditor({
       <DialogContent>{body}</DialogContent>
       <DialogActions>{actions}</DialogActions>
     </>
-  );
-}
-
-// ---------------------------------------------------------------- B: side panel
-
-function SidePanel(p: Common) {
-  const [editing, setEditing] = useState<Saved | null>(null);
-  return (
-    <Box sx={{ mt: 2 }}>
-      <Typography variant="overline">Saved</Typography>
-      {p.visible.map((s) => (
-        <Box key={s.id} sx={{ py: 0.5, borderTop: 1, borderColor: 'divider' }}>
-          <Typography variant="body2" sx={{ cursor: 'pointer' }} onClick={() => p.openSaved(s)}>
-            {s.name}
-          </Typography>
-          <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-            {isPivot(s) && <Chip size="small" label="pivot" />}
-            {s.owner === p.who ? (
-              <Chip
-                size="small"
-                variant={s.shared ? 'filled' : 'outlined'}
-                label={s.shared ? 'shared' : 'private'}
-                onClick={() => p.upsert({ ...s, shared: !s.shared })}
-              />
-            ) : (
-              <Chip size="small" variant="outlined" label={s.owner.split('@')[0]} />
-            )}
-            <ManageButtons {...p} s={s} onEdit={() => setEditing(s)} />
-          </Stack>
-        </Box>
-      ))}
-      {editing && (
-        <Dialog open onClose={() => setEditing(null)} maxWidth="lg" fullWidth>
-          <DialogTitle>Edit saved params</DialogTitle>
-          <SaveEditor
-            initial={editing}
-            onCancel={() => setEditing(null)}
-            onSave={(s) => {
-              p.upsert(s);
-              setEditing(null);
-            }}
-          />
-        </Dialog>
-      )}
-    </Box>
   );
 }
 
@@ -1913,26 +1894,35 @@ function Library(p: Common) {
 // ---------------------------------------------------------------- grid with pivot menu
 
 function MockGrid(p: Common) {
-  const [menu, setMenu] = useState<{ x: number; y: number; row: Record<string, string> } | null>(
+  const [selected, setSelected] = useState<number[]>([]);
+  const [menu, setMenu] = useState<{ x: number; y: number; rows: Record<string, string>[] } | null>(
     null,
   );
   const [search, setSearch] = useState('');
   const m = menu ? p.pivotMenu() : null;
-  const item = (label: ReactNode, onClick: () => void, key: string) => (
-    <MenuItem
-      key={key}
-      onClick={() => {
-        onClick();
-        setMenu(null);
-      }}
-    >
-      {label}
-    </MenuItem>
-  );
+  const close = () => {
+    setMenu(null);
+    setSearch('');
+  };
+  const select = (i: number, e: MouseEvent) =>
+    setSelected((sel) =>
+      e.ctrlKey || e.metaKey
+        ? sel.includes(i)
+          ? sel.filter((x) => x !== i)
+          : [...sel, i]
+        : e.shiftKey && sel.length
+          ? Array.from(
+              { length: Math.abs(i - sel[sel.length - 1]!) + 1 },
+              (_, k) => Math.min(i, sel[sel.length - 1]!) + k,
+            )
+          : [i],
+    );
+  const tree = m ? savedTree(m.pivots, search) : [];
   return (
     <Box>
       <Typography variant="caption" color="text.secondary">
-        Results (mock). Right-click a row to pivot.
+        Results (mock). Click to select; Ctrl-click or Shift-click for more rows; right-click to
+        pivot on the selection.
       </Typography>
       <Box
         component="table"
@@ -1940,6 +1930,7 @@ function MockGrid(p: Common) {
           width: '100%',
           borderCollapse: 'collapse',
           fontSize: 13,
+          userSelect: 'none',
           '& td, & th': { border: 1, borderColor: 'divider', p: 0.5 },
         }}
       >
@@ -1952,51 +1943,68 @@ function MockGrid(p: Common) {
         </thead>
         <tbody>
           {ROWS.map((r, i) => (
-            <tr
+            <Box
+              component="tr"
               key={i}
+              aria-selected={selected.includes(i)}
+              onClick={(e) => select(i, e)}
               onContextMenu={(e) => {
                 e.preventDefault();
-                setMenu({ x: e.clientX, y: e.clientY, row: r });
+                // Right-clicking outside the selection selects just that row, like a grid does.
+                const rows = selected.includes(i) ? selected : [i];
+                setSelected(rows);
+                setMenu({ x: e.clientX, y: e.clientY, rows: rows.map((k) => ROWS[k]!) });
+              }}
+              sx={{
+                cursor: 'default',
+                bgcolor: selected.includes(i) ? 'action.selected' : undefined,
               }}
             >
               {COLUMNS.map((c) => (
                 <td key={c}>{r[c]}</td>
               ))}
-            </tr>
+            </Box>
           ))}
         </tbody>
       </Box>
       <Menu
         open={!!menu}
-        onClose={() => {
-          setMenu(null);
-          setSearch('');
-        }}
-        autoFocus={p.variant !== 'A'}
+        onClose={close}
+        autoFocus={false}
         anchorReference="anchorPosition"
         anchorPosition={menu ? { top: menu.y, left: menu.x } : undefined}
+        slotProps={{ paper: { sx: { width: 440, maxHeight: '85vh' } } }}
       >
+        <ListSubheader>
+          {menu?.rows.length === 1 ? '1 row' : `${menu?.rows.length} rows`} selected
+        </ListSubheader>
         <ListSubheader>Actions</ListSubheader>
-        {m?.actions.map((a) =>
-          item(
-            `${a.menu} / ${a.name}`,
-            () =>
-              p.openTab(a.key, `pivot → ${a.name}`, {
-                inputs: fromRow(syncInputs(a, {}, []), menu!.row),
-              }),
-            a.key,
-          ),
-        )}
+        {m?.actions.map((a) => {
+          const inputs = syncInputs(a, {}, []);
+          const problem = rowsProblem(inputs, menu!.rows);
+          return (
+            <MenuItem
+              key={a.key}
+              disabled={!!problem}
+              onClick={() => {
+                p.openTab(a.key, `pivot (${menu!.rows.length} rows) → ${a.name}`, {
+                  inputs: fromRows(inputs, menu!.rows),
+                });
+                close();
+              }}
+            >
+              <ListItemText primary={`${a.menu} / ${a.name}`} secondary={problem} />
+            </MenuItem>
+          );
+        })}
         <ListSubheader>Saved pivots</ListSubheader>
         {m?.pivots.length === 0 && <MenuItem disabled>None match these columns</MenuItem>}
-        {p.variant === 'A' && m && m.pivots.length > 0 && (
-          <MenuSearch value={search} onChange={setSearch} />
-        )}
-        {p.variant === 'A' && m && (
+        {m && m.pivots.length > 0 && <MenuSearch value={search} onChange={setSearch} />}
+        {m && (
           <li>
             <List disablePadding dense>
               <TreeNodes
-                nodes={savedTree(m.pivots, search)}
+                nodes={tree}
                 depth={0}
                 forceOpen={search.trim() !== ''}
                 renderItem={(id, depth) => {
@@ -2006,9 +2014,10 @@ function MockGrid(p: Common) {
                       s={s}
                       who={p.who}
                       depth={depth}
+                      problem={rowsProblem(s.inputs, menu!.rows)}
                       onOpen={() => {
-                        p.openSaved(s, menu!.row);
-                        setMenu(null);
+                        p.openSaved(s, menu!.rows);
+                        close();
                       }}
                     />
                   );
@@ -2017,24 +2026,9 @@ function MockGrid(p: Common) {
             </List>
           </li>
         )}
-        {p.variant === 'A' &&
-          m &&
-          m.pivots.length > 0 &&
-          savedTree(m.pivots, search).length === 0 && <MenuItem disabled>Nothing matches</MenuItem>}
-        {p.variant !== 'A' &&
-          m?.pivots.map((s) =>
-            item(
-              <span>
-                {s.menu ? `${s.menu} / ` : ''}
-                {s.name}
-                <Typography component="span" variant="caption" color="text.secondary">
-                  {s.owner !== p.who ? `  · ${s.owner.split('@')[0]}` : ''}
-                </Typography>
-              </span>,
-              () => p.openSaved(s, menu!.row),
-              s.id,
-            ),
-          )}
+        {m && m.pivots.length > 0 && tree.length === 0 && (
+          <MenuItem disabled>Nothing matches</MenuItem>
+        )}
       </Menu>
     </Box>
   );
