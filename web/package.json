@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "gen:api": "openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts"
+    "gen:api": "openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts",
+    "prototype:saved-params": "VITE_AUTH_STUB=true vite --open '/#/prototype/saved-params'"
   },
   "type": "module",
   "dependencies": {
