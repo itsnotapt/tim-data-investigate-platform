@@ -1231,10 +1231,10 @@ function SaveEditor({
         <Typography variant="subtitle2">
           Inputs:{' '}
           {isPivot(s)
-            ? 'offered in the right-click menu'
+            ? 'in the New menu and the right-click menu on rows with a mapped column'
             : open.length
-              ? 'map every from-row input to a column to offer it as a pivot; until then the form asks for them'
-              : 'all fixed, so this is a bookmark in the New menu'}
+              ? 'New menu only; the form asks for the from-row inputs. Map each to a column to also offer it on right-click'
+              : 'all fixed, so New menu only (a bookmark)'}
         </Typography>
         {s.inputs
           .filter((i) => i.via === 'param')
