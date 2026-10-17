@@ -4,7 +4,7 @@
 // Every input (an action param with from_columns, or a query parameter) is either Fixed (its
 // value is saved) or From row (filled from the clicked row; the tab's value is only a test value).
 // Run with `npm run prototype:saved-params`; ◀ ▶ (or arrow keys) switch variants.
-import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   Box,
   Button,
@@ -16,7 +16,12 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  Collapse,
   IconButton,
+  InputAdornment,
+  List,
+  ListItemButton,
+  ListItemText,
   ListSubheader,
   Menu,
   MenuItem,
@@ -33,11 +38,17 @@ import {
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import EditIcon from '@mui/icons-material/EditOutlined';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
+import SearchIcon from '@mui/icons-material/Search';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { PrototypeSwitcher, usePrototypeVariant } from '../../components/PrototypeSwitcher';
+import { buildTemplateMenuTree, type MenuNode } from '../new-query/templateMenuTree';
+import type { QueryTemplate } from '../new-query/types';
 
 // ---------------------------------------------------------------- mock catalogue
 
@@ -440,6 +451,98 @@ const SEED: Saved[] = [
   },
 ];
 
+// A at scale: about 60 saved items in three-level folders, from several analysts.
+const JO = 'jo@contoso.com';
+const PRIYA = 'priya@contoso.com';
+const BULK: [string, string[]][] = [
+  [
+    'Endpoint/Hunting/Persistence',
+    [
+      'Run keys added',
+      'Scheduled tasks created',
+      'New services',
+      'WMI subscriptions',
+      'Startup folder writes',
+    ],
+  ],
+  [
+    'Endpoint/Hunting/Lateral movement',
+    ['PsExec use', 'Remote WMI', 'RDP from workstations', 'SMB admin shares'],
+  ],
+  ['Endpoint/Hunting/Credential access', ['LSASS access', 'DCSync attempts', 'Kerberoasting']],
+  ['Endpoint/Hunting/Defense evasion', ['Defender exclusions', 'Log clearing', 'Unsigned drivers']],
+  ['Endpoint/Triage', ['Process tree', 'Network connections', 'File writes', 'Logons on host']],
+  [
+    'Identity/Entra/Sign-ins',
+    ['Failed sign-ins', 'Impossible travel', 'Legacy auth', 'MFA denied', 'New countries'],
+  ],
+  ['Identity/Entra/Audit', ['Role assignments', 'App consent grants', 'Password resets']],
+  ['Identity/Okta/System log', ['Session starts', 'MFA resets', 'Admin role changes']],
+  ['Identity/On-prem AD', ['Group changes', 'Account lockouts', 'Kerberos TGS requests']],
+  ['Network/Firewall/Palo Alto', ['Denied by host', 'Top talkers', 'Threat logs']],
+  ['Network/DNS', ['Rare domains', 'Long subdomains', 'DGA-like lookups']],
+  ['Network/Proxy', ['Uploads over 10 MB', 'Newly seen domains']],
+  ['Cloud/AWS/CloudTrail', ['Console logins', 'IAM changes', 'S3 bucket policy changes']],
+  ['Cloud/Azure/Activity', ['Resource deletions', 'Key Vault access']],
+  ['Email/Defender', ['Messages from sender', 'Clicked URLs', 'Quarantine releases']],
+  ['Hash', ['Hash prevalence', 'Known-bad hash list']],
+  [
+    'Scratch',
+    ['tmp ransomware sweep', 'tmp vpn check', 'tmp jira 4411', 'tmp ad export', 'tmp test'],
+  ],
+];
+const BULK_PIVOT: [string, string, string][] = [
+  // folder prefix, column, parameter
+  ['Endpoint', 'DeviceName', 'Host'],
+  ['Identity', 'AccountUpn', 'User'],
+  ['Network', 'DeviceName', 'Host'],
+  ['Cloud', 'AccountUpn', 'User'],
+  ['Email', 'AccountUpn', 'Recipient'],
+  ['Hash', 'SHA256', 'Sha256'],
+  ['Scratch', 'DeviceName', 'Host'],
+];
+const SNOWFLAKE = ['Identity/Okta', 'Cloud/AWS', 'Network/Proxy'];
+let n = 0;
+for (const [menu, names] of BULK)
+  for (const name of names) {
+    n += 1;
+    const [, column, param] = BULK_PIVOT.find(([f]) => menu.startsWith(f))!;
+    const sql = SNOWFLAKE.some((f) => menu.startsWith(f));
+    const table = name.replace(/[^A-Za-z]/g, '');
+    // Every fifth is a bookmark (all fixed); the rest pivot on the folder's column.
+    const bookmark = n % 5 === 0;
+    const owner = menu === 'Scratch' ? ME : [SAM, ME, JO, PRIYA][n % 4]!;
+    SEED.push({
+      id: `b${n}`,
+      name,
+      menu,
+      actionKey: sql ? 'run_sql' : 'run_kql',
+      values: sql
+        ? {
+            connection: 'snowflake-prod',
+            sql: `SELECT * FROM ${table.toUpperCase()}\nWHERE ${column} = :${param.toLowerCase()}`,
+            idColumn: '',
+          }
+        : {
+            connection: 'security-prod',
+            database: 'SecurityLogs',
+            kql: `${table}\n| where ${column} == ${param}`,
+            idColumn: '',
+          },
+      inputs: [
+        {
+          ...queryInput(sql ? param.toLowerCase() : param),
+          columns: [column],
+          ...(bookmark ? { mode: 'fixed' as const, value: 'example' } : {}),
+        },
+      ],
+      owner,
+      shared: menu !== 'Scratch' && n % 7 !== 0,
+      hiddenBy: n % 11 === 0 ? [ME] : [],
+      updated: 10 + n,
+    });
+  }
+
 // ---------------------------------------------------------------- tabs
 
 interface Tab {
@@ -532,6 +635,12 @@ export function SavedParamsPage() {
     );
     say(`hide "${s.name}" from ${who}'s menus`);
   };
+  const unhide = (s: Saved) => {
+    setSaved((all) =>
+      all.map((x) => (x.id === s.id ? { ...x, hiddenBy: x.hiddenBy.filter((h) => h !== who) } : x)),
+    );
+    say(`unhide "${s.name}" for ${who}`);
+  };
   const duplicate = (s: Saved) =>
     upsert({
       ...s,
@@ -582,10 +691,12 @@ export function SavedParamsPage() {
     upsert,
     remove,
     hide,
+    unhide,
     duplicate,
     fromTab,
     pivotMenu,
     say,
+    variant,
   };
 
   return (
@@ -598,7 +709,11 @@ export function SavedParamsPage() {
       }}
     >
       <Box sx={{ width: 220, borderRight: 1, borderColor: 'divider', p: 1, overflow: 'auto' }}>
-        <NewMenu {...common} variant={variant} onLibrary={() => setShowLibrary(true)} />
+        {variant === 'A' ? (
+          <NewMenuTree {...common} />
+        ) : (
+          <NewMenu {...common} onLibrary={() => setShowLibrary(true)} />
+        )}
         <Typography variant="overline">Tabs</Typography>
         {tabs.map((t) => (
           <Box
@@ -668,11 +783,14 @@ export function SavedParamsPage() {
             .join('\n') || '(none)'}
         </pre>
         <p>
-          <b>Saved params (server)</b>
+          <b>Saved params (server), last 3 changed of {saved.length}</b>
         </p>
         <pre style={{ whiteSpace: 'pre-wrap' }}>
           {JSON.stringify(
-            saved.map((s) => ({ ...s, updated: undefined, pivot: isPivot(s) })),
+            [...saved]
+              .sort((a, b) => b.updated - a.updated)
+              .slice(0, 3)
+              .map((s) => ({ ...s, updated: undefined, pivot: isPivot(s) })),
             null,
             1,
           )}
@@ -704,15 +822,17 @@ type Common = {
   upsert: (s: Saved) => void;
   remove: (s: Saved) => void;
   hide: (s: Saved) => void;
+  unhide: (s: Saved) => void;
   duplicate: (s: Saved) => void;
   fromTab: () => Saved;
   pivotMenu: () => { actions: ActionDef[]; pivots: Saved[] };
   say: (s: string) => void;
+  variant: string;
 };
 
 // ---------------------------------------------------------------- New menu
 
-function NewMenu(p: Common & { variant: string; onLibrary: () => void }) {
+function NewMenu(p: Common & { onLibrary: () => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const close = () => setAnchor(null);
   const mySaved = p.visible.filter((s) => s.owner === p.who);
@@ -773,6 +893,344 @@ function NewMenu(p: Common & { variant: string; onLibrary: () => void }) {
         )}
       </Menu>
       <Box sx={{ mb: 1 }} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- A at scale: nested New menu
+
+/** Saved items as templates, so the real New menu's tree builder (full-path folders, search) lays them out. */
+const asTemplate = (s: Saved): QueryTemplate =>
+  ({
+    uuid: s.id,
+    queryType: 'query',
+    menu: s.name,
+    summary: [actionByKey(s.actionKey).name, isPivot(s) ? 'pivot' : '', s.owner, s.menu].join(' '),
+    path: s.menu.split('/').filter(Boolean),
+  }) as unknown as QueryTemplate;
+const actionTemplate = (a: ActionDef): QueryTemplate =>
+  ({
+    uuid: a.key,
+    queryType: 'query',
+    menu: a.name,
+    summary: a.source,
+    path: a.menu.split('/').filter(Boolean),
+  }) as unknown as QueryTemplate;
+const savedTree = (items: Saved[], search: string) =>
+  buildTemplateMenuTree(items.map(asTemplate), { queryType: 'query', search });
+const countItems = (nodes: MenuNode[]): number =>
+  nodes.reduce((n, x) => n + (x.kind === 'item' ? 1 : countItems(x.children)), 0);
+
+function Folder({
+  title,
+  count,
+  depth,
+  forceOpen,
+  children,
+}: {
+  title: string;
+  count: number;
+  depth: number;
+  forceOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const expanded = forceOpen || open;
+  return (
+    <>
+      <ListItemButton
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={expanded}
+        sx={{ pl: 2 + depth * 2 }}
+      >
+        <ListItemText primary={title} />
+        <Typography variant="caption" color="text.secondary" sx={{ mx: 1 }}>
+          {count}
+        </Typography>
+        {expanded ? <ExpandLess /> : <ExpandMore />}
+      </ListItemButton>
+      <Collapse in={expanded} timeout="auto" unmountOnExit>
+        <List disablePadding dense>
+          {children}
+        </List>
+      </Collapse>
+    </>
+  );
+}
+
+function TreeNodes({
+  nodes,
+  depth,
+  forceOpen,
+  renderItem,
+}: {
+  nodes: MenuNode[];
+  depth: number;
+  forceOpen: boolean;
+  renderItem: (id: string, depth: number) => ReactNode;
+}) {
+  return (
+    <>
+      {nodes.map((n) =>
+        n.kind === 'folder' ? (
+          <Folder
+            key={`f:${n.key}`}
+            title={n.title}
+            count={countItems(n.children)}
+            depth={depth}
+            forceOpen={forceOpen}
+          >
+            <TreeNodes
+              nodes={n.children}
+              depth={depth + 1}
+              forceOpen={forceOpen}
+              renderItem={renderItem}
+            />
+          </Folder>
+        ) : (
+          <Fragment key={`i:${n.key}`}>{renderItem(n.key, depth)}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+function savedCaption(s: Saved, who: string) {
+  const cols = [...new Set(openInputs(s.inputs).flatMap((i) => i.columns))];
+  return [
+    actionByKey(s.actionKey).name,
+    isPivot(s) ? `pivot on ${cols.join(', ')}` : openInputs(s.inputs).length ? 'asks' : 'bookmark',
+    s.owner !== who ? s.owner.split('@')[0] : s.shared ? 'shared' : 'private',
+  ].join(' · ');
+}
+
+function SavedItemRow({
+  s,
+  who,
+  depth,
+  onOpen,
+  onMore,
+}: {
+  s: Saved;
+  who: string;
+  depth: number;
+  onOpen: () => void;
+  onMore?: (el: HTMLElement) => void;
+}) {
+  return (
+    <ListItemButton sx={{ pl: 2 + depth * 2, py: 0 }} onClick={onOpen}>
+      <ListItemText primary={s.name} secondary={savedCaption(s, who)} />
+      {onMore && (
+        <IconButton
+          size="small"
+          aria-label={`More for ${s.name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMore(e.currentTarget);
+          }}
+        >
+          <MoreHorizIcon fontSize="small" />
+        </IconButton>
+      )}
+    </ListItemButton>
+  );
+}
+
+function MenuSearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <li style={{ padding: '4px 16px' }}>
+      <TextField
+        size="small"
+        fullWidth
+        autoFocus
+        placeholder="Search name, folder, action, owner"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        // Keep MUI Menu type-ahead from stealing keystrokes.
+        onKeyDown={(e) => e.stopPropagation()}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
+    </li>
+  );
+}
+
+type Filter = 'all' | 'mine' | 'others' | 'hidden';
+
+/** A: the real New menu's tree (folders by full path, search opens every folder) with one ⋯ per item. */
+function NewMenuTree(p: Common) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [more, setMore] = useState<{ el: HTMLElement; s: Saved } | null>(null);
+  const [editing, setEditing] = useState<Saved | null>(null);
+  const [yaml, setYaml] = useState<string | null>(null);
+  const close = () => setAnchor(null);
+  const searching = search.trim() !== '';
+  const items = p.saved.filter((s) => {
+    if (filter === 'hidden') return s.hiddenBy.includes(p.who);
+    if (!visibleTo(s, p.who)) return false;
+    return filter === 'all' || (filter === 'mine') === (s.owner === p.who);
+  });
+  const byId = new Map(p.saved.map((s) => [s.id, s]));
+  const nodes = savedTree(items, search);
+  const actions = buildTemplateMenuTree(ACTIONS.map(actionTemplate), {
+    queryType: 'query',
+    search,
+  });
+  const m = more?.s;
+  const own = m?.owner === p.who;
+  const act =
+    (f: () => void, closeAll = false) =>
+    () => {
+      f();
+      setMore(null);
+      if (closeAll) close();
+    };
+  return (
+    <>
+      <Button fullWidth variant="contained" onClick={(e) => setAnchor(e.currentTarget)}>
+        New
+      </Button>
+      <Box sx={{ mb: 1 }} />
+      <Menu
+        anchorEl={anchor}
+        open={!!anchor}
+        onClose={close}
+        autoFocus={false}
+        slotProps={{ paper: { sx: { width: 440, maxHeight: '85vh' } } }}
+      >
+        <MenuSearch value={search} onChange={setSearch} />
+        <li style={{ padding: '0 16px 4px' }}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={filter}
+            onChange={(_, v: Filter | null) => v && setFilter(v)}
+          >
+            <ToggleButton value="all">All</ToggleButton>
+            <ToggleButton value="mine">Mine</ToggleButton>
+            <ToggleButton value="others">Others'</ToggleButton>
+            <ToggleButton value="hidden">Hidden</ToggleButton>
+          </ToggleButtonGroup>
+        </li>
+        {filter === 'all' && actions.length > 0 && (
+          <li>
+            <List disablePadding dense>
+              <Folder title="Actions" count={countItems(actions)} depth={0} forceOpen={searching}>
+                <TreeNodes
+                  nodes={actions}
+                  depth={1}
+                  forceOpen={searching}
+                  renderItem={(key, depth) => {
+                    const a = actionByKey(key);
+                    return (
+                      <ListItemButton
+                        sx={{ pl: 2 + depth * 2 }}
+                        onClick={() => {
+                          p.openTab(a.key, `New → ${a.name}`);
+                          close();
+                        }}
+                      >
+                        <ListItemText primary={a.name} secondary={`admin · ${a.source}`} />
+                      </ListItemButton>
+                    );
+                  }}
+                />
+              </Folder>
+            </List>
+          </li>
+        )}
+        <ListSubheader>Saved ({countItems(nodes)})</ListSubheader>
+        <li>
+          <List disablePadding dense>
+            <TreeNodes
+              nodes={nodes}
+              depth={0}
+              forceOpen={searching}
+              renderItem={(id, depth) => {
+                const s = byId.get(id)!;
+                return (
+                  <SavedItemRow
+                    s={s}
+                    who={p.who}
+                    depth={depth}
+                    onOpen={() => {
+                      p.openSaved(s);
+                      close();
+                    }}
+                    onMore={(el) => setMore({ el, s })}
+                  />
+                );
+              }}
+            />
+          </List>
+        </li>
+        {nodes.length === 0 && <MenuItem disabled>Nothing matches</MenuItem>}
+      </Menu>
+      <Menu anchorEl={more?.el} open={!!more} onClose={() => setMore(null)}>
+        {m && [
+          <MenuItem key="open" onClick={act(() => p.openSaved(m), true)}>
+            Open
+          </MenuItem>,
+          own && (
+            <MenuItem key="edit" onClick={act(() => setEditing(m), true)}>
+              Edit…
+            </MenuItem>
+          ),
+          <MenuItem key="dup" onClick={act(() => p.duplicate(m))}>
+            Duplicate as mine
+          </MenuItem>,
+          own ? (
+            <MenuItem key="del" onClick={act(() => p.remove(m))}>
+              Delete
+            </MenuItem>
+          ) : m.hiddenBy.includes(p.who) ? (
+            <MenuItem key="unhide" onClick={act(() => p.unhide(m))}>
+              Unhide
+            </MenuItem>
+          ) : (
+            <MenuItem key="hide" onClick={act(() => p.hide(m))}>
+              Hide from my menus
+            </MenuItem>
+          ),
+          <Divider key="div" />,
+          <MenuItem key="yaml" onClick={act(() => setYaml(toYaml(m)), true)}>
+            Copy as action file
+          </MenuItem>,
+        ]}
+      </Menu>
+      {editing && (
+        <Dialog open onClose={() => setEditing(null)} maxWidth="md" fullWidth>
+          <DialogTitle>Edit saved params</DialogTitle>
+          <SaveEditor
+            initial={editing}
+            onCancel={() => setEditing(null)}
+            onSave={(s) => {
+              p.upsert(s);
+              setEditing(null);
+            }}
+          />
+        </Dialog>
+      )}
+      {yaml && (
+        <Dialog open onClose={() => setYaml(null)} maxWidth="sm" fullWidth>
+          <DialogTitle>Action file (for an admin to add)</DialogTitle>
+          <DialogContent>
+            <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{yaml}</pre>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setYaml(null)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      )}
     </>
   );
 }
@@ -1458,6 +1916,7 @@ function MockGrid(p: Common) {
   const [menu, setMenu] = useState<{ x: number; y: number; row: Record<string, string> } | null>(
     null,
   );
+  const [search, setSearch] = useState('');
   const m = menu ? p.pivotMenu() : null;
   const item = (label: ReactNode, onClick: () => void, key: string) => (
     <MenuItem
@@ -1509,7 +1968,11 @@ function MockGrid(p: Common) {
       </Box>
       <Menu
         open={!!menu}
-        onClose={() => setMenu(null)}
+        onClose={() => {
+          setMenu(null);
+          setSearch('');
+        }}
+        autoFocus={p.variant !== 'A'}
         anchorReference="anchorPosition"
         anchorPosition={menu ? { top: menu.y, left: menu.x } : undefined}
       >
@@ -1526,19 +1989,52 @@ function MockGrid(p: Common) {
         )}
         <ListSubheader>Saved pivots</ListSubheader>
         {m?.pivots.length === 0 && <MenuItem disabled>None match these columns</MenuItem>}
-        {m?.pivots.map((s) =>
-          item(
-            <span>
-              {s.menu ? `${s.menu} / ` : ''}
-              {s.name}
-              <Typography component="span" variant="caption" color="text.secondary">
-                {s.owner !== p.who ? `  · ${s.owner.split('@')[0]}` : ''}
-              </Typography>
-            </span>,
-            () => p.openSaved(s, menu!.row),
-            s.id,
-          ),
+        {p.variant === 'A' && m && m.pivots.length > 0 && (
+          <MenuSearch value={search} onChange={setSearch} />
         )}
+        {p.variant === 'A' && m && (
+          <li>
+            <List disablePadding dense>
+              <TreeNodes
+                nodes={savedTree(m.pivots, search)}
+                depth={0}
+                forceOpen={search.trim() !== ''}
+                renderItem={(id, depth) => {
+                  const s = m.pivots.find((x) => x.id === id)!;
+                  return (
+                    <SavedItemRow
+                      s={s}
+                      who={p.who}
+                      depth={depth}
+                      onOpen={() => {
+                        p.openSaved(s, menu!.row);
+                        setMenu(null);
+                      }}
+                    />
+                  );
+                }}
+              />
+            </List>
+          </li>
+        )}
+        {p.variant === 'A' &&
+          m &&
+          m.pivots.length > 0 &&
+          savedTree(m.pivots, search).length === 0 && <MenuItem disabled>Nothing matches</MenuItem>}
+        {p.variant !== 'A' &&
+          m?.pivots.map((s) =>
+            item(
+              <span>
+                {s.menu ? `${s.menu} / ` : ''}
+                {s.name}
+                <Typography component="span" variant="caption" color="text.secondary">
+                  {s.owner !== p.who ? `  · ${s.owner.split('@')[0]}` : ''}
+                </Typography>
+              </span>,
+              () => p.openSaved(s, menu!.row),
+              s.id,
+            ),
+          )}
       </Menu>
     </Box>
   );
