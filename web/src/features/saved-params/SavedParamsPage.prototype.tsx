@@ -1,7 +1,9 @@
 // PROTOTYPE (wayfinder "Saved params"): throwaway, in-memory only, never merged.
 // Question: how do analysts create, share and manage saved params, including saved
 // queries that become pivots? Actions are admin-authored; saved params are analyst data.
-// Open at #/prototype/saved-params; ◀ ▶ (or arrow keys) switch variants.
+// Every input (an action param with from_columns, or a query parameter) is either Fixed (its
+// value is saved) or From row (filled from the clicked row; the tab's value is only a test value).
+// Run with `npm run prototype:saved-params`; ◀ ▶ (or arrow keys) switch variants.
 import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   Box,
@@ -23,6 +25,8 @@ import {
   Stack,
   Switch,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -181,21 +185,27 @@ const ROWS: Record<string, string>[] = [
 
 // ---------------------------------------------------------------- saved params model
 
-/** One pivot input: an unfixed action param, or a `declare query_parameters` name in saved KQL. */
+/**
+ * A param that can be fixed or filled from the clicked row: an action param that declares
+ * from_columns, or a query parameter of a saved KQL/SQL query (bound server-side, never spliced).
+ */
 interface Input {
   name: string;
   type: string;
+  via: 'param' | 'query';
+  /** fixed: `value` is saved. row: filled from `columns` when pivoting, asked in the form otherwise. */
+  mode: 'fixed' | 'row';
+  /** Fixed: the saved value. From row: the tab's test value (for Run and the preview), never saved. */
+  value: string;
   columns: string[];
   many: boolean;
-  /** 'param' = an action param left open; 'query' = a Kusto query parameter bound server-side. */
-  via: 'param' | 'query';
 }
 interface Saved {
   id: string;
   name: string;
   menu: string;
   actionKey: string;
-  /** Fixed values; params missing here stay open (form or pivot). */
+  /** The action's other params, always fixed (connection, database, query text, ...). */
   values: Record<string, string>;
   inputs: Input[];
   owner: string;
@@ -208,8 +218,8 @@ const ME = 'alex@contoso.com';
 const SAM = 'sam@contoso.com';
 
 /**
- * Suggests query parameters from the query text. Only a suggestion: the saved item's declared
- * inputs are the source of truth, and TIM builds the backend binding from them.
+ * Suggests query parameters from the query text. Only a suggestion: the declared inputs are the
+ * source of truth, and TIM builds the backend binding from them.
  * KQL: an existing `declare query_parameters(...)`. SQL: `:name` placeholders (not `::` casts or `:1`).
  */
 function suggestQueryParams(values: Record<string, string>): { name: string; type: string }[] {
@@ -230,15 +240,71 @@ function suggestQueryParams(values: Record<string, string>): { name: string; typ
 }
 const hasQuery = (a: ActionDef) => a.params.some((p) => p.kind === 'kql' || p.kind === 'sql');
 
-/** What the hook sends for one clicked row (or the selected rows, for `many`). */
-function backendRequest(s: Saved, rows: Record<string, string>[]): string {
-  const valueOf = (i: Input) => {
-    const col = (r: Record<string, string>) => r[i.columns.find((c) => c in r) ?? ''];
-    return i.many ? [...new Set(rows.map(col).filter(Boolean))] : (col(rows[0]!) ?? '');
+const queryInput = (name: string, type = 'string'): Input => ({
+  name,
+  type,
+  via: 'query',
+  mode: 'row',
+  value: '',
+  // Suggest a same-named result column; otherwise the analyst maps it.
+  columns: COLUMNS.includes(name) ? [name] : [],
+  many: false,
+});
+
+/** Adds inputs for the action's from_columns params and newly typed query parameters; keeps the rest. */
+function syncInputs(a: ActionDef, values: Record<string, string>, inputs: Input[]): Input[] {
+  const has = (n: string) => inputs.some((i) => i.name === n);
+  const params: Input[] = a.params
+    .filter((p) => p.fromColumns && !has(p.name))
+    .map((p) => ({
+      name: p.name,
+      type: p.kind,
+      via: 'param',
+      mode: 'row',
+      value: '',
+      columns: p.fromColumns!,
+      many: !!p.many,
+    }));
+  const query = suggestQueryParams(values)
+    .filter((q) => !has(q.name))
+    .map((q) => queryInput(q.name, q.type));
+  return [...inputs, ...params, ...query];
+}
+
+const openInputs = (inputs: Input[]) => inputs.filter((i) => i.mode === 'row');
+/** A pivot when it has open inputs and every one maps to a column. Open inputs without columns are asked in the form. */
+const isPivot = (s: Saved) => {
+  const open = openInputs(s.inputs);
+  return open.length > 0 && open.every((i) => i.columns.length > 0);
+};
+const pivotMatches = (inputs: Input[], cols: string[]) =>
+  openInputs(inputs).every((i) => i.columns.some((c) => cols.includes(c)));
+const visibleTo = (s: Saved, who: string) =>
+  (s.owner === who || s.shared) && !s.hiddenBy.includes(who);
+/** Test values stay on the tab; only fixed values are saved. */
+const forSave = (inputs: Input[]) =>
+  inputs.map((i) => (i.mode === 'row' ? { ...i, value: '' } : i));
+const fromRow = (inputs: Input[], row: Record<string, string>) =>
+  inputs.map((i) =>
+    i.mode === 'row' ? { ...i, value: row[i.columns.find((c) => c in row) ?? ''] ?? '' } : i,
+  );
+
+/** What the hook sends. From-row inputs use the tab's test value, or a placeholder when there is none. */
+function backendRequest(s: Saved): string {
+  const valueOf = (i: Input): string | string[] => {
+    const placeholder = `<${i.columns[0] ?? '?'} of ${i.many ? 'each selected row' : 'the clicked row'}>`;
+    if (i.mode === 'row' && !i.value) return i.many ? [placeholder] : placeholder;
+    return i.many
+      ? i.value
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      : i.value;
   };
   const qp = s.inputs.filter((i) => i.via === 'query');
   if (s.actionKey === 'run_kql') {
     const kql = s.values.kql ?? '';
+    // Fixed query parameters are bound too: the query text never changes.
     const declare = /declare\s+query_parameters/i.test(kql)
       ? ''
       : qp.length
@@ -278,49 +344,8 @@ function backendRequest(s: Saved, rows: Record<string, string>[]): string {
     return `Snowflake (paramstyle=numeric, server-side):\n${sql}\n\nbinds: [${binds.join(', ')}]`;
   }
   const params = Object.fromEntries(s.inputs.map((i) => [i.name, valueOf(i)]));
-  return `Action ${s.actionKey} run with params:\n${JSON.stringify({ ...s.values, ...params }, null, 1)}`;
+  return `Action ${s.actionKey} runs with params:\n${JSON.stringify({ ...s.values, ...params }, null, 1)}`;
 }
-
-/** Derives pivot inputs for a save: open action params that have from_columns, plus KQL query parameters. */
-function deriveInputs(
-  action: ActionDef,
-  values: Record<string, string>,
-  prev: Input[] = [],
-): Input[] {
-  const old = (n: string) => prev.find((i) => i.name === n);
-  const fromParams: Input[] = action.params
-    .filter((p) => p.fromColumns && !values[p.name])
-    .map(
-      (p) =>
-        old(p.name) ?? {
-          name: p.name,
-          type: p.kind,
-          columns: p.fromColumns!,
-          many: !!p.many,
-          via: 'param',
-        },
-    );
-  const fromQuery: Input[] = suggestQueryParams(values).map(
-    (q) =>
-      old(q.name) ?? {
-        name: q.name,
-        type: q.type,
-        // Suggest a same-named result column; otherwise the analyst maps it.
-        columns: COLUMNS.includes(q.name) ? [q.name] : [],
-        many: false,
-        via: 'query',
-      },
-  );
-  // Keep query parameters the analyst declared by hand (e.g. KQL without a declare statement).
-  const kept = prev.filter((i) => i.via === 'query' && !fromQuery.some((q) => q.name === i.name));
-  return [...fromParams, ...fromQuery, ...kept];
-}
-
-const isPivot = (s: Saved) => s.inputs.length > 0 && s.inputs.every((i) => i.columns.length > 0);
-const pivotMatches = (inputs: Input[], cols: string[]) =>
-  inputs.every((i) => i.columns.some((c) => cols.includes(c)));
-const visibleTo = (s: Saved, who: string) =>
-  (s.owner === who || s.shared) && !s.hiddenBy.includes(who);
 
 function toYaml(s: Saved): string {
   const a = actionByKey(s.actionKey);
@@ -338,11 +363,9 @@ function toYaml(s: Saved): string {
   if (s.inputs.length) {
     lines.push('params:');
     for (const i of s.inputs) {
-      lines.push(
-        `  - name: ${i.name}`,
-        `    kind: ${i.type}`,
-        `    from_columns: [${i.columns.join(', ')}]`,
-      );
+      lines.push(`  - name: ${i.name}`, `    kind: ${i.type}`);
+      if (i.mode === 'row') lines.push(`    from_columns: [${i.columns.join(', ')}]`);
+      else lines.push(`    default: ${JSON.stringify(i.value)}`);
       if (i.many) lines.push('    many: true');
     }
   }
@@ -359,17 +382,11 @@ const SEED: Saved[] = [
     values: {
       connection: 'security-prod',
       database: 'SecurityLogs',
-      kql: 'DeviceProcessEvents\n| where FileName == ProcessName\n| summarize count() by InitiatingProcessFileName\n| where count_ < 5',
-      idColumn: '',
+      kql: 'DeviceProcessEvents\n| where FileName == ProcessName\n| summarize count() by InitiatingProcessFileName\n| where count_ < MaxCount',
     },
     inputs: [
-      {
-        name: 'ProcessName',
-        type: 'string',
-        columns: ['ProcessName', 'FileName'],
-        many: false,
-        via: 'query',
-      },
+      { ...queryInput('ProcessName'), columns: ['ProcessName', 'FileName'] },
+      { ...queryInput('MaxCount', 'long'), mode: 'fixed', value: '5' },
     ],
     owner: SAM,
     shared: true,
@@ -382,15 +399,7 @@ const SEED: Saved[] = [
     menu: 'Identity',
     actionKey: 'signins_for_user',
     values: { lookback: '30d' },
-    inputs: [
-      {
-        name: 'user',
-        type: 'string',
-        columns: ['AccountUpn', 'UserPrincipalName', 'Upn'],
-        many: false,
-        via: 'param',
-      },
-    ],
+    inputs: syncInputs(actionByKey('signins_for_user'), {}, []),
     owner: ME,
     shared: false,
     hiddenBy: [],
@@ -406,15 +415,7 @@ const SEED: Saved[] = [
       sql: 'SELECT uuid, published, event_type, outcome\nFROM OKTA.SYSTEM_LOG\nWHERE actor_alternate_id IN :users\n  AND published > DATEADD(day, -7, CURRENT_TIMESTAMP())',
       idColumn: 'uuid',
     },
-    inputs: [
-      {
-        name: 'users',
-        type: 'string',
-        columns: ['AccountUpn', 'UserPrincipalName'],
-        many: true,
-        via: 'query',
-      },
-    ],
+    inputs: [{ ...queryInput('users'), columns: ['AccountUpn', 'UserPrincipalName'], many: true }],
     owner: SAM,
     shared: true,
     hiddenBy: [],
@@ -444,15 +445,17 @@ const SEED: Saved[] = [
 interface Tab {
   id: number;
   actionKey: string;
+  /** The action's other params. */
   values: Record<string, string>;
+  /** Fixed or from-row inputs, with the tab's values (fixed values or test values). */
+  inputs: Input[];
   /** Snapshot origin: later edits to the saved item don't change the tab. */
   fromSaved?: string;
-  /** Snapshot of the saved item's pivot inputs, so "Save as…" keeps the column mapping. */
-  inputs?: Input[];
-  /** Values filled from the clicked row for those inputs; never saved as fixed values. */
-  bound?: Record<string, string>;
   via: string;
 }
+
+const defaults = (a: ActionDef) =>
+  Object.fromEntries(a.params.filter((p) => !p.fromColumns).map((p) => [p.name, p.default ?? '']));
 
 // ---------------------------------------------------------------- page
 
@@ -466,16 +469,10 @@ export function SavedParamsPage() {
   const variant = usePrototypeVariant(VARIANTS.map((v) => v.key));
   const [who, setWho] = useState(ME);
   const [saved, setSaved] = useState<Saved[]>(SEED);
-  const [tabs, setTabs] = useState<Tab[]>([
-    {
-      id: 1,
-      actionKey: 'run_kql',
-      values: Object.fromEntries(
-        actionByKey('run_kql').params.map((p) => [p.name, p.default ?? '']),
-      ),
-      via: 'New → Run KQL',
-    },
-  ]);
+  const [tabs, setTabs] = useState<Tab[]>(() => {
+    const a = actionByKey('run_kql');
+    return [{ id: 1, actionKey: a.key, values: defaults(a), inputs: [], via: 'New → Run KQL' }];
+  });
   const [active, setActive] = useState(1);
   const [log, setLog] = useState<string[]>(['start']);
   const [showLibrary, setShowLibrary] = useState(false);
@@ -487,28 +484,39 @@ export function SavedParamsPage() {
 
   const openTab = (
     actionKey: string,
-    values: Record<string, string>,
     via: string,
-    origin: Partial<Tab> = {},
+    origin: { inputs?: Input[]; values?: Record<string, string>; fromSaved?: string } = {},
   ) => {
+    const a = actionByKey(actionKey);
     const id = Math.max(0, ...tabs.map((t) => t.id)) + 1;
-    setTabs((ts) => [...ts, { ...origin, id, actionKey, values: { ...values }, via }]);
+    const values = { ...defaults(a), ...origin.values };
+    const inputs = syncInputs(a, values, origin.inputs ?? []);
+    setTabs((ts) => [...ts, { id, actionKey, values, inputs, via, fromSaved: origin.fromSaved }]);
     setActive(id);
+    setShowLibrary(false);
     say(`open tab ${id} (${via})`);
   };
-  const openSaved = (s: Saved, extra: Record<string, string> = {}, via = `New → ${s.name}`) => {
-    const a = actionByKey(s.actionKey);
-    const values = {
-      ...Object.fromEntries(a.params.map((p) => [p.name, p.default ?? ''])),
-      ...s.values,
-    };
-    openTab(s.actionKey, values, via, { fromSaved: s.id, inputs: s.inputs, bound: extra });
-  };
-  const updateTab = (values: Record<string, string>) =>
-    setTabs((ts) => ts.map((t) => (t.id === tab.id ? { ...t, values } : t)));
+  const openSaved = (s: Saved, row?: Record<string, string>) =>
+    openTab(s.actionKey, row ? `pivot → ${s.name}` : `New → ${s.name}`, {
+      values: s.values,
+      inputs: row ? fromRow(s.inputs, row) : s.inputs,
+      fromSaved: s.id,
+    });
+  const updateTab = (patch: { values?: Record<string, string>; inputs?: Input[] }) =>
+    setTabs((ts) =>
+      ts.map((t) => {
+        if (t.id !== tab.id) return t;
+        const values = patch.values ?? t.values;
+        const inputs = syncInputs(actionByKey(t.actionKey), values, patch.inputs ?? t.inputs);
+        return { ...t, values, inputs };
+      }),
+    );
   const upsert = (s: Saved) => {
+    const clean = { ...s, inputs: forSave(s.inputs), updated: Date.now() };
     setSaved((all) =>
-      all.some((x) => x.id === s.id) ? all.map((x) => (x.id === s.id ? s : x)) : [...all, s],
+      all.some((x) => x.id === s.id)
+        ? all.map((x) => (x.id === s.id ? clean : x))
+        : [...all, clean],
     );
     say(
       `${saved.some((x) => x.id === s.id) ? 'update' : 'save'} "${s.name}" (${s.shared ? 'shared' : 'private'}${isPivot(s) ? ', pivot' : ''})`,
@@ -524,7 +532,7 @@ export function SavedParamsPage() {
     );
     say(`hide "${s.name}" from ${who}'s menus`);
   };
-  const duplicate = (s: Saved) => {
+  const duplicate = (s: Saved) =>
     upsert({
       ...s,
       id: `s${Date.now()}`,
@@ -532,31 +540,21 @@ export function SavedParamsPage() {
       owner: who,
       shared: false,
       hiddenBy: [],
-      updated: Date.now(),
     });
-  };
+  /** The tab as a saved item, test values included (upsert strips them). */
   const fromTab = (): Saved => {
     const a = actionByKey(tab.actionKey);
     const origin = tab.fromSaved ? saved.find((s) => s.id === tab.fromSaved) : undefined;
     const existing = origin?.owner === who ? origin : undefined;
-    // Non-empty values are fixed, except params the origin fills from columns; empty ones stay open.
-    const open = new Set((tab.inputs ?? []).map((i) => i.name));
-    const values = Object.fromEntries(
-      Object.entries(tab.values).filter(([k, v]) => v && !open.has(k)),
-    );
     return {
       id: existing?.id ?? `s${Date.now()}`,
       name:
         existing?.name ??
-        (origin
-          ? `${origin.name} (copy)`
-          : a.key === 'run_kql'
-            ? 'Untitled query'
-            : `${a.name} (saved)`),
+        (origin ? `${origin.name} (copy)` : hasQuery(a) ? 'Untitled query' : `${a.name} (saved)`),
       menu: existing?.menu ?? origin?.menu ?? a.menu,
       actionKey: a.key,
-      values,
-      inputs: deriveInputs(a, values, tab.inputs),
+      values: Object.fromEntries(Object.entries(tab.values).filter(([, v]) => v)),
+      inputs: tab.inputs,
       owner: who,
       shared: existing?.shared ?? false,
       hiddenBy: [],
@@ -565,15 +563,12 @@ export function SavedParamsPage() {
   };
 
   // Right-click on a grid row: admin actions and saved pivots whose inputs match the grid's columns.
-  const pivotMenu = (row: Record<string, string>) => {
-    const actions = ACTIONS.filter(
-      (a) => a.params.some((p) => p.fromColumns) && pivotMatches(deriveInputs(a, {}), COLUMNS),
-    );
-    const pivots = visible.filter((s) => isPivot(s) && pivotMatches(s.inputs, COLUMNS));
-    const resolve = (inputs: Input[]) =>
-      Object.fromEntries(inputs.map((i) => [i.name, row[i.columns.find((c) => c in row)!] ?? '']));
-    return { actions, pivots, resolve };
-  };
+  const pivotMenu = () => ({
+    actions: ACTIONS.filter(
+      (a) => a.params.some((p) => p.fromColumns) && pivotMatches(syncInputs(a, {}, []), COLUMNS),
+    ),
+    pivots: visible.filter((s) => isPivot(s) && pivotMatches(s.inputs, COLUMNS)),
+  });
 
   const common = {
     who,
@@ -662,6 +657,17 @@ export function SavedParamsPage() {
           <div key={i}>• {l}</div>
         ))}
         <p>
+          <b>Active tab inputs</b>
+        </p>
+        <pre style={{ whiteSpace: 'pre-wrap' }}>
+          {tab.inputs
+            .map(
+              (i) =>
+                `${i.name}: ${i.mode === 'fixed' ? `fixed ${JSON.stringify(i.value)}` : `from ${i.columns.join('|') || '(no column)'}, test ${JSON.stringify(i.value)}`}`,
+            )
+            .join('\n') || '(none)'}
+        </pre>
+        <p>
           <b>Saved params (server)</b>
         </p>
         <pre style={{ whiteSpace: 'pre-wrap' }}>
@@ -688,19 +694,19 @@ type Common = {
   saved: Saved[];
   visible: Saved[];
   mine: Saved[];
-  openTab: (k: string, v: Record<string, string>, via: string, origin?: Partial<Tab>) => void;
-  openSaved: (s: Saved, extra?: Record<string, string>, via?: string) => void;
-  updateTab: (v: Record<string, string>) => void;
+  openTab: (
+    k: string,
+    via: string,
+    origin?: { inputs?: Input[]; values?: Record<string, string>; fromSaved?: string },
+  ) => void;
+  openSaved: (s: Saved, row?: Record<string, string>) => void;
+  updateTab: (patch: { values?: Record<string, string>; inputs?: Input[] }) => void;
   upsert: (s: Saved) => void;
   remove: (s: Saved) => void;
   hide: (s: Saved) => void;
   duplicate: (s: Saved) => void;
   fromTab: () => Saved;
-  pivotMenu: (row: Record<string, string>) => {
-    actions: ActionDef[];
-    pivots: Saved[];
-    resolve: (i: Input[]) => Record<string, string>;
-  };
+  pivotMenu: () => { actions: ActionDef[]; pivots: Saved[] };
   say: (s: string) => void;
 };
 
@@ -743,11 +749,7 @@ function NewMenu(p: Common & { variant: string; onLibrary: () => void }) {
           <MenuItem
             key={a.key}
             onClick={() => {
-              p.openTab(
-                a.key,
-                Object.fromEntries(a.params.map((x) => [x.name, x.default ?? ''])),
-                `New → ${a.name}`,
-              );
+              p.openTab(a.key, `New → ${a.name}`);
               close();
             }}
           >
@@ -829,45 +831,237 @@ function ManageButtons(p: Common & { s: Saved; onEdit?: () => void }) {
   );
 }
 
+// ---------------------------------------------------------------- inputs
+
+/** Comma-separated column list. Keeps the raw text so typing ", " isn't eaten mid-edit. */
+function ColumnsField({
+  columns,
+  onChange,
+}: {
+  columns: string[];
+  onChange: (columns: string[]) => void;
+}) {
+  const [text, setText] = useState(columns.join(', '));
+  return (
+    <TextField
+      size="small"
+      label="From columns (first match wins)"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(
+          e.target.value
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean),
+        );
+      }}
+      error={columns.length === 0}
+      helperText={columns.length === 0 ? 'Map a column to offer it as a pivot' : undefined}
+      sx={{ flex: 1, minWidth: 220 }}
+    />
+  );
+}
+
+/**
+ * One input. `toggle` says how the mode is switched: 'pin' (B, in the form), 'buttons' (A dialog,
+ * C library) or 'none' (A and C tabs: the mode is set when saving, the tab only holds the value).
+ */
+function InputRow({
+  input: i,
+  label,
+  toggle,
+  onChange,
+  onDelete,
+}: {
+  input: Input;
+  label?: string;
+  toggle: 'pin' | 'buttons' | 'none';
+  onChange: (i: Input) => void;
+  onDelete?: () => void;
+}) {
+  const row = i.mode === 'row';
+  const setMode = (mode: Input['mode']) => onChange({ ...i, mode });
+  const valueLabel =
+    toggle === 'none'
+      ? (label ?? i.name)
+      : `${label ?? i.name}${row ? ': test value, not saved' : ': saved value'}`;
+  const hint =
+    toggle === 'none' && row && i.columns.length
+      ? `From ${i.columns.join(' / ')} when pivoting`
+      : i.many
+        ? 'Comma-separated'
+        : undefined;
+  return (
+    <Stack direction="row" sx={{ gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      {i.via === 'query' && (
+        <>
+          <Chip size="small" color="primary" label={i.name} onDelete={onDelete} sx={{ mt: 1 }} />
+          <TextField
+            select
+            size="small"
+            value={i.type}
+            onChange={(e) => onChange({ ...i, type: e.target.value })}
+            sx={{ width: 110 }}
+          >
+            {['string', 'long', 'real', 'datetime', 'bool'].map((t) => (
+              <MenuItem key={t} value={t}>
+                {t}
+              </MenuItem>
+            ))}
+          </TextField>
+        </>
+      )}
+      {toggle === 'buttons' && (
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={i.mode}
+          onChange={(_e, m: Input['mode'] | null) => m && setMode(m)}
+        >
+          <ToggleButton value="fixed">Fixed</ToggleButton>
+          <ToggleButton value="row">From row</ToggleButton>
+        </ToggleButtonGroup>
+      )}
+      <TextField
+        size="small"
+        label={valueLabel}
+        value={i.value}
+        onChange={(e) => onChange({ ...i, value: e.target.value })}
+        helperText={hint}
+        sx={{ flex: 1, minWidth: 200 }}
+      />
+      {toggle === 'pin' && (
+        <Tooltip
+          title={row ? 'Unpin: save this value as fixed' : 'Pin: fill from a column when pivoting'}
+        >
+          <IconButton onClick={() => setMode(row ? 'fixed' : 'row')}>
+            {row ? <PushPinIcon /> : <PushPinOutlinedIcon />}
+          </IconButton>
+        </Tooltip>
+      )}
+      {row && toggle !== 'none' && (
+        <>
+          <ColumnsField columns={i.columns} onChange={(columns) => onChange({ ...i, columns })} />
+          <FormControlLabel
+            control={
+              <Checkbox
+                size="small"
+                checked={i.many}
+                onChange={(e) => onChange({ ...i, many: e.target.checked })}
+              />
+            }
+            label="All selected rows"
+          />
+        </>
+      )}
+    </Stack>
+  );
+}
+
+function AddParameter({ taken, onAdd }: { taken: string[]; onAdd: (name: string) => void }) {
+  const [name, setName] = useState('');
+  return (
+    <Stack direction="row" sx={{ gap: 1 }}>
+      <TextField
+        size="small"
+        placeholder="Parameter name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <Button
+        disabled={!/^[A-Za-z_]\w*$/.test(name) || taken.includes(name)}
+        onClick={() => {
+          onAdd(name);
+          setName('');
+        }}
+      >
+        Add parameter
+      </Button>
+    </Stack>
+  );
+}
+
+/** Query parameters of a KQL/SQL action, in the tab (all variants) and in the save editor. */
+function QueryParams({
+  a,
+  inputs,
+  toggle,
+  onChange,
+}: {
+  a: ActionDef;
+  inputs: Input[];
+  toggle: 'pin' | 'buttons' | 'none';
+  onChange: (inputs: Input[]) => void;
+}) {
+  const qp = inputs.filter((i) => i.via === 'query');
+  const set = (n: string, next: Input) => onChange(inputs.map((i) => (i.name === n ? next : i)));
+  return (
+    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
+      <Typography variant="subtitle2">
+        Query parameters (bound server-side, never spliced)
+      </Typography>
+      <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
+        {a.key === 'run_sql'
+          ? 'Write :name in the SQL; it is picked up here.'
+          : 'Reference a parameter by name in the KQL and add it here; TIM adds the declare statement.'}
+        {toggle === 'none' ? ' Choose fixed or from-row when saving.' : ''}
+      </Typography>
+      <Stack sx={{ gap: 1 }}>
+        {qp.map((i) => (
+          <InputRow
+            key={i.name}
+            input={i}
+            toggle={toggle}
+            onChange={(next) => set(i.name, next)}
+            onDelete={() => onChange(inputs.filter((x) => x.name !== i.name))}
+          />
+        ))}
+        <AddParameter
+          taken={inputs.map((i) => i.name)}
+          onAdd={(name) => onChange([...inputs, queryInput(name)])}
+        />
+      </Stack>
+    </Box>
+  );
+}
+
 // ---------------------------------------------------------------- tab
 
 function TabView(p: Common & { variant: string }) {
   const a = actionByKey(p.tab.actionKey);
   const [saving, setSaving] = useState<Saved | null>(null);
-  // Start from the saved item's snapshot when the tab came from one.
-  const [pins, setPins] = useState<Record<string, string[]>>(() =>
-    Object.fromEntries(
-      (p.tab.inputs ?? []).filter((i) => i.via === 'param').map((i) => [i.name, i.columns]),
-    ),
-  );
   const [quickName, setQuickName] = useState('');
   const [quickShared, setQuickShared] = useState(false);
-  const [declared, setDeclared] = useState<Input[]>(() =>
-    (p.tab.inputs ?? []).filter((i) => i.via === 'query'),
-  );
-  // B: query parameters suggested from the text plus any declared by hand.
-  const qp = deriveInputs(a, p.tab.values, declared).filter((i) => i.via === 'query');
   const origin = p.tab.fromSaved ? p.saved.find((s) => s.id === p.tab.fromSaved) : undefined;
+  const toggle = p.variant === 'B' ? 'pin' : 'none';
+  const setInputs = (inputs: Input[]) => p.updateTab({ inputs });
 
   const field = (param: ParamDef) => {
-    const pinned = pins[param.name];
-    const input = pinned ? (
+    const input = p.tab.inputs.find((i) => i.name === param.name);
+    if (input)
+      return (
+        <InputRow
+          key={param.name}
+          input={input}
+          label={param.label}
+          toggle={toggle}
+          onChange={(next) =>
+            setInputs(p.tab.inputs.map((i) => (i.name === param.name ? next : i)))
+          }
+        />
+      );
+    const set = (v: string) => p.updateTab({ values: { ...p.tab.values, [param.name]: v } });
+    const code = param.kind === 'kql' || param.kind === 'sql';
+    return param.kind === 'choice' || param.kind === 'connection' ? (
       <TextField
-        size="small"
-        fullWidth
-        label={`${param.label} ← from column`}
-        value={pinned.join(', ')}
-        onChange={(e) => setPins({ ...pins, [param.name]: e.target.value.split(/,\s*/) })}
-        helperText="Pivot input: filled from the clicked row"
-      />
-    ) : param.kind === 'choice' || param.kind === 'connection' ? (
-      <TextField
+        key={param.name}
         select
         size="small"
         fullWidth
         label={param.label}
         value={p.tab.values[param.name] ?? ''}
-        onChange={(e) => p.updateTab({ ...p.tab.values, [param.name]: e.target.value })}
+        onChange={(e) => set(e.target.value)}
       >
         {param.choices!.map((c) => (
           <MenuItem key={c} value={c}>
@@ -877,57 +1071,21 @@ function TabView(p: Common & { variant: string }) {
       </TextField>
     ) : (
       <TextField
+        key={param.name}
         size="small"
         fullWidth
-        multiline={param.kind === 'kql' || param.kind === 'sql'}
-        minRows={param.kind === 'kql' || param.kind === 'sql' ? 5 : undefined}
+        multiline={code}
+        minRows={code ? 5 : undefined}
         label={param.label}
         value={p.tab.values[param.name] ?? ''}
-        onChange={(e) => p.updateTab({ ...p.tab.values, [param.name]: e.target.value })}
-        slotProps={{
-          htmlInput: {
-            style:
-              param.kind === 'kql' || param.kind === 'sql'
-                ? { fontFamily: 'monospace' }
-                : undefined,
-          },
-        }}
+        onChange={(e) => set(e.target.value)}
+        slotProps={{ htmlInput: { style: code ? { fontFamily: 'monospace' } : undefined } }}
       />
     );
-    return (
-      <Stack key={param.name} direction="row" sx={{ alignItems: 'flex-start', gap: 1 }}>
-        {input}
-        {p.variant === 'B' && param.fromColumns && (
-          <Tooltip title={pinned ? 'Unpin: fixed value' : 'Pin: fill from a column when pivoting'}>
-            <IconButton
-              onClick={() =>
-                setPins((x) =>
-                  pinned ? omit(x, param.name) : { ...x, [param.name]: param.fromColumns! },
-                )
-              }
-            >
-              {pinned ? <PushPinIcon /> : <PushPinOutlinedIcon />}
-            </IconButton>
-          </Tooltip>
-        )}
-      </Stack>
-    );
-  };
-
-  const quickSave = () => {
-    const base = p.fromTab();
-    const values = Object.fromEntries(Object.entries(base.values).filter(([k]) => !pins[k]));
-    const inputs = [
-      ...deriveInputs(a, values, base.inputs)
-        .filter((i) => i.via === 'param')
-        .map((i) => (pins[i.name] ? { ...i, columns: pins[i.name]! } : i)),
-      ...qp,
-    ];
-    p.upsert({ ...base, values, inputs, name: quickName || base.name, shared: quickShared });
   };
 
   return (
-    <Stack sx={{ gap: 1.5, maxWidth: 900 }}>
+    <Stack sx={{ gap: 1.5, maxWidth: 1000 }}>
       <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
         <Typography variant="h6" sx={{ flex: 1 }}>
           {a.name}{' '}
@@ -944,9 +1102,8 @@ function TabView(p: Common & { variant: string }) {
           <Button
             startIcon={<StarBorderIcon />}
             onClick={() => {
-              const s = p.fromTab();
-              p.upsert(s);
-              p.say('saved privately; name, sharing and pivot inputs are edited in the library');
+              p.upsert(p.fromTab());
+              p.say('saved privately; name, sharing and fixed/from-row are edited in the library');
             }}
           >
             Save to library
@@ -954,7 +1111,11 @@ function TabView(p: Common & { variant: string }) {
         )}
         <Button
           variant="outlined"
-          onClick={() => p.say(`run tab (${JSON.stringify(p.tab.values).slice(0, 60)}…)`)}
+          onClick={() =>
+            p.say(
+              `run tab with ${p.tab.inputs.map((i) => `${i.name}=${JSON.stringify(i.value)}`).join(', ') || 'no inputs'}`,
+            )
+          }
         >
           Run
         </Button>
@@ -962,24 +1123,8 @@ function TabView(p: Common & { variant: string }) {
 
       {a.params.map(field)}
 
-      {p.tab.bound && Object.keys(p.tab.bound).length > 0 && (
-        <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography variant="caption">
-            Filled from the clicked row (not part of the saved item):
-          </Typography>
-          {Object.entries(p.tab.bound).map(([k, v]) => (
-            <Chip key={k} size="small" color="primary" variant="outlined" label={`${k} = ${v}`} />
-          ))}
-        </Stack>
-      )}
-
-      {p.variant === 'B' && hasQuery(a) && (
-        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
-          <Typography variant="subtitle2">
-            Query parameters (declared here, bound server-side, never spliced)
-          </Typography>
-          <QueryParamsEditor inputs={qp} onChange={setDeclared} />
-        </Box>
+      {hasQuery(a) && (
+        <QueryParams a={a} inputs={p.tab.inputs} toggle={toggle} onChange={setInputs} />
       )}
 
       {p.variant === 'B' && (
@@ -997,26 +1142,22 @@ function TabView(p: Common & { variant: string }) {
             }
             label="Share with everyone"
           />
-          <Button startIcon={<StarBorderIcon />} onClick={quickSave}>
+          <Button
+            startIcon={<StarBorderIcon />}
+            onClick={() => {
+              const base = p.fromTab();
+              p.upsert({ ...base, name: quickName || base.name, shared: quickShared });
+            }}
+          >
             Save
           </Button>
         </Stack>
       )}
 
-      {p.variant !== 'B' && hasQuery(a) && (
-        <Typography variant="caption" color="text.secondary">
-          {a.key === 'run_sql'
-            ? 'Use :name placeholders'
-            : 'Reference a parameter by name (TIM adds the declare statement)'}
-          ; saving lets you declare each one and map it to columns, which makes the saved query a
-          pivot.
-        </Typography>
-      )}
-
       <MockGrid {...p} />
 
       {saving && (
-        <Dialog open onClose={() => setSaving(null)} maxWidth="md" fullWidth>
+        <Dialog open onClose={() => setSaving(null)} maxWidth="lg" fullWidth>
           <DialogTitle>Save params</DialogTitle>
           <SaveEditor
             initial={saving}
@@ -1030,93 +1171,6 @@ function TabView(p: Common & { variant: string }) {
       )}
     </Stack>
   );
-}
-
-/** Declares query parameters: name, type, the columns a pivot fills it from, and one row vs all selected rows. */
-function QueryParamsEditor({
-  inputs,
-  onChange,
-}: {
-  inputs: Input[];
-  onChange: (inputs: Input[]) => void;
-}) {
-  const [name, setName] = useState('');
-  const set = (n: string, patch: Partial<Input>) =>
-    onChange(inputs.map((i) => (i.name === n ? { ...i, ...patch } : i)));
-  return (
-    <Box>
-      {inputs.map((i) => (
-        <Stack key={i.name} direction="row" sx={{ alignItems: 'center', gap: 1, mt: 1 }}>
-          <Chip
-            size="small"
-            color="primary"
-            label={i.name}
-            onDelete={() => onChange(inputs.filter((x) => x.name !== i.name))}
-          />
-          <TextField
-            select
-            size="small"
-            value={i.type}
-            onChange={(e) => set(i.name, { type: e.target.value })}
-            sx={{ width: 110 }}
-          >
-            {['string', 'long', 'real', 'datetime', 'bool'].map((t) => (
-              <MenuItem key={t} value={t}>
-                {t}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            size="small"
-            label="From columns (first match wins)"
-            value={i.columns.join(', ')}
-            onChange={(e) => set(i.name, { columns: e.target.value.split(/,\s*/).filter(Boolean) })}
-            sx={{ flex: 1 }}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                size="small"
-                checked={i.many}
-                onChange={(e) => set(i.name, { many: e.target.checked })}
-              />
-            }
-            label="All selected rows"
-          />
-        </Stack>
-      ))}
-      <Stack direction="row" sx={{ gap: 1, mt: 1 }}>
-        <TextField
-          size="small"
-          placeholder="Parameter name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button
-          disabled={!/^[A-Za-z_]\w*$/.test(name) || inputs.some((i) => i.name === name)}
-          onClick={() => {
-            onChange([
-              ...inputs,
-              {
-                name,
-                type: 'string',
-                columns: COLUMNS.includes(name) ? [name] : [],
-                many: false,
-                via: 'query',
-              },
-            ]);
-            setName('');
-          }}
-        >
-          Add parameter
-        </Button>
-      </Stack>
-    </Box>
-  );
-}
-
-function omit<T>(o: Record<string, T>, k: string): Record<string, T> {
-  return Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
 }
 
 // ---------------------------------------------------------------- save editor (A dialog, C library pane)
@@ -1134,8 +1188,8 @@ function SaveEditor({
 }) {
   const [s, setS] = useState(initial);
   const a = actionByKey(s.actionKey);
-  const setInput = (n: string, patch: Partial<Input>) =>
-    setS({ ...s, inputs: s.inputs.map((i) => (i.name === n ? { ...i, ...patch } : i)) });
+  const setInputs = (inputs: Input[]) => setS({ ...s, inputs });
+  const open = openInputs(s.inputs);
   const body = (
     <Stack sx={{ gap: 2, pt: 1 }}>
       <Stack direction="row" sx={{ gap: 1 }}>
@@ -1166,55 +1220,41 @@ function SaveEditor({
         />
       </RadioGroup>
       <Box>
-        <Typography variant="subtitle2">Fixed values ({a.name})</Typography>
+        <Typography variant="subtitle2">Other params of {a.name} (always fixed)</Typography>
         <pre style={{ margin: 0, fontSize: 12, whiteSpace: 'pre-wrap' }}>
           {Object.entries(s.values)
             .map(([k, v]) => `${k}: ${v}`)
             .join('\n')}
         </pre>
       </Box>
-      <Box>
+      <Stack sx={{ gap: 1 }}>
         <Typography variant="subtitle2">
-          Pivot inputs{' '}
+          Inputs:{' '}
           {isPivot(s)
-            ? '(offered in the right-click menu)'
-            : '(map every input to a column to make this a pivot)'}
+            ? 'offered in the right-click menu'
+            : open.length
+              ? 'map every from-row input to a column to offer it as a pivot; until then the form asks for them'
+              : 'all fixed, so this is a bookmark in the New menu'}
         </Typography>
-        {s.inputs.length === 0 && (
-          <Typography variant="caption" color="text.secondary">
-            None: a bookmark that opens in the New menu. Add{' '}
-            <code>declare query_parameters(...)</code> to the KQL to pivot.
-          </Typography>
-        )}
         {s.inputs
           .filter((i) => i.via === 'param')
           .map((i) => (
-            <Stack key={i.name} direction="row" sx={{ alignItems: 'center', gap: 1, mt: 1 }}>
-              <Chip size="small" label={`${i.name}: ${i.type} (action param)`} />
-              <TextField
-                size="small"
-                label="From columns (first match wins)"
-                value={i.columns.join(', ')}
-                onChange={(e) =>
-                  setInput(i.name, { columns: e.target.value.split(/,\s*/).filter(Boolean) })
-                }
-                sx={{ flex: 1 }}
-              />
-            </Stack>
+            <InputRow
+              key={i.name}
+              input={i}
+              label={a.params.find((x) => x.name === i.name)?.label}
+              toggle="buttons"
+              onChange={(next) => setInputs(s.inputs.map((x) => (x.name === i.name ? next : x)))}
+            />
           ))}
         {hasQuery(a) && (
-          <QueryParamsEditor
-            inputs={s.inputs.filter((i) => i.via === 'query')}
-            onChange={(qp) =>
-              setS({ ...s, inputs: [...s.inputs.filter((i) => i.via === 'param'), ...qp] })
-            }
-          />
+          <QueryParams a={a} inputs={s.inputs} toggle="buttons" onChange={setInputs} />
         )}
-      </Box>
+      </Stack>
       <Box>
         <Typography variant="subtitle2">
-          What the backend receives when pivoting from the first mock row (or all rows for "all
-          selected")
+          What the backend receives (from-row inputs show the test value, or a placeholder for the
+          clicked row)
         </Typography>
         <pre
           style={{
@@ -1225,7 +1265,7 @@ function SaveEditor({
             background: 'rgba(127,127,127,.12)',
           }}
         >
-          {backendRequest(s, ROWS)}
+          {backendRequest(s)}
         </pre>
       </Box>
     </Stack>
@@ -1233,7 +1273,7 @@ function SaveEditor({
   const actions = (
     <>
       {onCancel && <Button onClick={onCancel}>Cancel</Button>}
-      <Button variant="contained" onClick={() => onSave({ ...s, updated: Date.now() })}>
+      <Button variant="contained" onClick={() => onSave(s)}>
         Save
       </Button>
     </>
@@ -1282,7 +1322,7 @@ function SidePanel(p: Common) {
         </Box>
       ))}
       {editing && (
-        <Dialog open onClose={() => setEditing(null)} maxWidth="md" fullWidth>
+        <Dialog open onClose={() => setEditing(null)} maxWidth="lg" fullWidth>
           <DialogTitle>Edit saved params</DialogTitle>
           <SaveEditor
             initial={editing}
@@ -1343,7 +1383,10 @@ function Library(p: Common) {
               <Box
                 component="tr"
                 key={s.id}
-                onClick={() => setSel(s.id)}
+                onClick={() => {
+                  setSel(s.id);
+                  setYaml(null);
+                }}
                 sx={{ cursor: 'pointer', bgcolor: s.id === sel ? 'action.selected' : undefined }}
               >
                 <td>
@@ -1351,7 +1394,13 @@ function Library(p: Common) {
                 </td>
                 <td>{actionByKey(s.actionKey).name}</td>
                 <td>{s.owner === p.who ? 'me' : s.owner.split('@')[0]}</td>
-                <td>{isPivot(s) ? s.inputs.map((i) => i.columns[0]).join(', ') : '—'}</td>
+                <td>
+                  {isPivot(s)
+                    ? openInputs(s.inputs)
+                        .map((i) => i.columns[0])
+                        .join(', ')
+                    : '—'}
+                </td>
               </Box>
             ))}
           </tbody>
@@ -1370,18 +1419,6 @@ function Library(p: Common) {
                 Copy as action file
               </Button>
             </Stack>
-            {current.owner === p.who ? (
-              <SaveEditor
-                key={current.id + current.updated}
-                initial={current}
-                onSave={p.upsert}
-                inline
-              />
-            ) : (
-              <Typography color="text.secondary">
-                Owned by {current.owner}: read-only. Duplicate to change it.
-              </Typography>
-            )}
             {yaml && (
               <pre
                 style={{
@@ -1393,6 +1430,18 @@ function Library(p: Common) {
               >
                 {yaml}
               </pre>
+            )}
+            {current.owner === p.who ? (
+              <SaveEditor
+                key={current.id + current.updated}
+                initial={current}
+                onSave={p.upsert}
+                inline
+              />
+            ) : (
+              <Typography color="text.secondary">
+                Owned by {current.owner}: read-only. Duplicate to change it.
+              </Typography>
             )}
           </>
         ) : (
@@ -1409,7 +1458,7 @@ function MockGrid(p: Common) {
   const [menu, setMenu] = useState<{ x: number; y: number; row: Record<string, string> } | null>(
     null,
   );
-  const m = menu ? p.pivotMenu(menu.row) : null;
+  const m = menu ? p.pivotMenu() : null;
   const item = (label: ReactNode, onClick: () => void, key: string) => (
     <MenuItem
       key={key}
@@ -1468,17 +1517,10 @@ function MockGrid(p: Common) {
         {m?.actions.map((a) =>
           item(
             `${a.menu} / ${a.name}`,
-            () => {
-              const inputs = deriveInputs(a, {});
-              p.openTab(
-                a.key,
-                {
-                  ...Object.fromEntries(a.params.map((x) => [x.name, x.default ?? ''])),
-                  ...m.resolve(inputs),
-                },
-                `pivot → ${a.name}`,
-              );
-            },
+            () =>
+              p.openTab(a.key, `pivot → ${a.name}`, {
+                inputs: fromRow(syncInputs(a, {}, []), menu!.row),
+              }),
             a.key,
           ),
         )}
@@ -1493,7 +1535,7 @@ function MockGrid(p: Common) {
                 {s.owner !== p.who ? `  · ${s.owner.split('@')[0]}` : ''}
               </Typography>
             </span>,
-            () => p.openSaved(s, m.resolve(s.inputs), `pivot → ${s.name}`),
+            () => p.openSaved(s, menu!.row),
             s.id,
           ),
         )}
