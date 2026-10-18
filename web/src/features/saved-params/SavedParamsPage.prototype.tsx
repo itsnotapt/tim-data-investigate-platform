@@ -1431,7 +1431,8 @@ function InputRow({
               : 'From columns (first match wins)'
           }
           values={i.columns}
-          options={COLUMNS}
+          // No suggestions: the columns are in results the analyst will pivot from, which they know.
+          placeholder="Type a column name, then Enter"
           error={i.columns.length === 0}
           helperText={
             i.columns.length === 0 ? 'Add a column to offer it on right-click' : undefined
