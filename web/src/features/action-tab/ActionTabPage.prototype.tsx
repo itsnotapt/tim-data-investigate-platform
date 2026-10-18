@@ -6,7 +6,14 @@
 // Three variants on one route, switchable with ?variant=A|B|C. There's no API: the catalogue, runs
 // and results are mocked, and the bottom bar picks how the next run ends.
 // Run with `npm run prototype:action-tab`.
-import { useEffect, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import {
   Alert,
   AlertTitle,
@@ -1393,6 +1400,7 @@ function QueryEditor({
   onChange,
   height,
   error,
+  onRun,
 }: {
   tab: Tab;
   param: Param;
@@ -1400,7 +1408,13 @@ function QueryEditor({
   onChange: (v: string) => void;
   height: number | string;
   error?: string;
+  /** Ctrl+Enter (Cmd+Enter on macOS) in the editor. */
+  onRun?: () => void;
 }) {
+  const runRef = useRef(onRun);
+  useEffect(() => {
+    runRef.current = onRun;
+  });
   const scope = [tab.values.connection, tab.values.database].filter(Boolean).join(' / ');
   return (
     <Box>
@@ -1419,11 +1433,16 @@ function QueryEditor({
           ariaLabel={param.label}
           value={String(value ?? '')}
           onChange={onChange}
+          onMount={(editor, monaco) =>
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
+              runRef.current?.(),
+            )
+          }
         />
       </Box>
       <Typography variant="caption" color={error ? 'error' : 'text.secondary'}>
         {error ??
-          `${param.label}: completion from the ${scope} schema (not loaded in the prototype)`}
+          `${param.label}: completion from the ${scope} schema (not loaded in the prototype)${onRun ? ' · Ctrl+Enter runs' : ''}`}
       </Typography>
     </Box>
   );
@@ -2432,7 +2451,8 @@ function VariantC({ tab, action, ops }: VariantProps) {
         : run.status === 'succeeded'
           ? 'results'
           : 'run';
-  const view = pick?.key === key ? pick.view : auto;
+  /** Editor actions stay on whatever inner tab the analyst picked; others follow the run. */
+  const view = editors.length ? (pick?.view ?? 'query') : pick?.key === key ? pick.view : auto;
   const shown = run?.status === 'succeeded' ? run : tab.lastGood;
   const missingNames = Object.keys(tab.missing);
   const popParam = pop && action.params.find((x) => x.name === pop.name);
@@ -2657,6 +2677,36 @@ function VariantC({ tab, action, ops }: VariantProps) {
       </Tabs>
       <Divider sx={{ mb: 1.5 }} />
 
+      {view === 'query' && editors.length > 0 && (tab.startError || (run && !running)) && (
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', mb: 1, minHeight: 30, fontSize: 13 }}
+        >
+          {tab.startError ? <ErrorIcon fontSize="small" color="error" /> : statusIcon(run!)}
+          <Typography
+            variant="body2"
+            noWrap
+            color={tab.startError || run!.status !== 'succeeded' ? 'error' : undefined}
+            sx={{ flex: 1, minWidth: 0 }}
+          >
+            {tab.startError
+              ? `Couldn't start: ${tab.startError}`
+              : run!.status === 'succeeded'
+                ? `Succeeded · ${(run!.rows?.length ?? 0).toLocaleString()} rows · ${fmtDuration(run!.finishedAt! - run!.startedAt)}`
+                : `${STATUS[run!.status].label}${run!.error ? `: ${run!.error}` : ''}`}
+          </Typography>
+          {run?.status === 'succeeded' && !tab.startError ? (
+            <Button size="small" onClick={() => setPick({ key, view: 'results' })}>
+              Show results
+            </Button>
+          ) : (
+            <Button size="small" onClick={() => setPick({ key, view: 'run' })}>
+              Details
+            </Button>
+          )}
+        </Stack>
+      )}
       {view === 'query' &&
         editors.map((x) => (
           <QueryEditor
@@ -2667,6 +2717,7 @@ function VariantC({ tab, action, ops }: VariantProps) {
             onChange={(v) => ops.setValue(x.name, v)}
             height={sentOpen ? 260 : 'calc(100vh - 340px)'}
             error={tab.errors[x.name]}
+            onRun={() => !running && ops.run()}
           />
         ))}
       {view === 'query' && editors.length > 0 && run && (
