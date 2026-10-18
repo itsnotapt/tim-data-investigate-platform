@@ -4,8 +4,8 @@
 // Every input (an action param with from_columns, or a query parameter) is either Fixed (its
 // value is saved) or From row (filled from the selected rows when pivoting). A `dynamic` input is
 // an array, sent as JSON; the query parses it (no query rewriting beyond Snowflake's :name to :N).
-// Run with `npm run prototype:saved-params`; ◀ ▶ (or arrow keys) switch variants.
-import { Fragment, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+// Variant A only (B and C were dropped). Run with `npm run prototype:saved-params`.
+import { Fragment, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   Autocomplete,
   Box,
@@ -33,19 +33,14 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DeleteIcon from '@mui/icons-material/DeleteOutlined';
-import EditIcon from '@mui/icons-material/EditOutlined';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import SearchIcon from '@mui/icons-material/Search';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { PrototypeSwitcher, usePrototypeVariant } from '../../components/PrototypeSwitcher';
 import { buildTemplateMenuTree, type MenuNode } from '../new-query/templateMenuTree';
 import type { QueryTemplate } from '../new-query/types';
@@ -604,10 +599,7 @@ const defaults = (a: ActionDef) =>
 
 // ---------------------------------------------------------------- page
 
-const VARIANTS = [
-  { key: 'A', name: 'Save dialog + New menu' },
-  { key: 'C', name: 'A + library page' },
-] as const;
+const VARIANTS = [{ key: 'A', name: 'Save dialog + New menu' }] as const;
 
 export function SavedParamsPage() {
   const variant = usePrototypeVariant(VARIANTS.map((v) => v.key));
@@ -619,7 +611,6 @@ export function SavedParamsPage() {
   });
   const [active, setActive] = useState(1);
   const [log, setLog] = useState<string[]>(['start']);
-  const [showLibrary, setShowLibrary] = useState(false);
   const say = (s: string) => setLog((l) => [s, ...l].slice(0, 8));
 
   const tab = tabs.find((t) => t.id === active) ?? tabs[0]!;
@@ -637,7 +628,6 @@ export function SavedParamsPage() {
     const inputs = syncInputs(a, values, origin.inputs ?? []);
     setTabs((ts) => [...ts, { id, actionKey, values, inputs, via, fromSaved: origin.fromSaved }]);
     setActive(id);
-    setShowLibrary(false);
     say(`open tab ${id} (${via})`);
   };
   const openSaved = (s: Saved, rows?: Record<string, string>[]) =>
@@ -747,23 +737,19 @@ export function SavedParamsPage() {
       }}
     >
       <Box sx={{ width: 220, borderRight: 1, borderColor: 'divider', p: 1, overflow: 'auto' }}>
-        <NewMenuTree
-          {...common}
-          onLibrary={variant === 'C' ? () => setShowLibrary(true) : undefined}
-        />
+        <NewMenuTree {...common} />
         <Typography variant="overline">Tabs</Typography>
         {tabs.map((t) => (
           <Box
             key={t.id}
             onClick={() => {
               setActive(t.id);
-              setShowLibrary(false);
             }}
             sx={{
               p: 0.5,
               cursor: 'pointer',
               borderRadius: 1,
-              bgcolor: t.id === tab.id && !showLibrary ? 'action.selected' : undefined,
+              bgcolor: t.id === tab.id ? 'action.selected' : undefined,
             }}
           >
             <Typography variant="body2">
@@ -777,11 +763,7 @@ export function SavedParamsPage() {
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, p: 2, overflow: 'auto' }}>
-        {variant === 'C' && showLibrary ? (
-          <Library {...common} />
-        ) : (
-          <TabView key={tab.id} {...common} variant={variant} />
-        )}
+        <TabView key={tab.id} {...common} variant={variant} />
       </Box>
 
       <Box
@@ -874,7 +856,14 @@ const asTemplate = (s: Saved): QueryTemplate =>
     uuid: s.id,
     queryType: 'query',
     menu: s.name,
-    summary: [actionByKey(s.actionKey).name, isPivot(s) ? 'pivot' : '', s.owner, s.menu].join(' '),
+    // Search matches the action, owner, folder and every from-row column.
+    summary: [
+      actionByKey(s.actionKey).name,
+      isPivot(s) ? 'pivot' : '',
+      s.owner,
+      s.menu,
+      ...openInputs(s.inputs).flatMap((i) => i.columns),
+    ].join(' '),
     path: s.menu.split('/').filter(Boolean),
   }) as unknown as QueryTemplate;
 const actionTemplate = (a: ActionDef): QueryTemplate =>
@@ -1019,7 +1008,7 @@ function MenuSearch({ value, onChange }: { value: string; onChange: (v: string) 
         size="small"
         fullWidth
         autoFocus
-        placeholder="Search name, folder, action, owner"
+        placeholder="Search name, folder, action, owner, column"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         // Keep MUI Menu type-ahead from stealing keystrokes, but let Escape close the menu.
@@ -1041,7 +1030,7 @@ function MenuSearch({ value, onChange }: { value: string; onChange: (v: string) 
 type Filter = 'all' | 'mine' | 'others' | 'hidden';
 
 /** A: the real New menu's tree (folders by full path, search opens every folder) with one ⋯ per item. */
-function NewMenuTree(p: Common & { onLibrary?: () => void }) {
+function NewMenuTree(p: Common) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -1150,17 +1139,6 @@ function NewMenuTree(p: Common & { onLibrary?: () => void }) {
           </List>
         </li>
         {nodes.length === 0 && <MenuItem disabled>Nothing matches</MenuItem>}
-        {p.onLibrary && <Divider />}
-        {p.onLibrary && (
-          <MenuItem
-            onClick={() => {
-              p.onLibrary!();
-              close();
-            }}
-          >
-            Open library…
-          </MenuItem>
-        )}
       </Menu>
       <Menu anchorEl={more?.el} open={!!more} onClose={() => setMore(null)}>
         {m && [
@@ -1241,60 +1219,6 @@ function NewMenuTree(p: Common & { onLibrary?: () => void }) {
         </Dialog>
       )}
     </>
-  );
-}
-
-function ManageButtons(p: Common & { s: Saved; onEdit?: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const stop = (f: () => void) => (e: MouseEvent) => {
-    e.stopPropagation();
-    f();
-  };
-  const own = p.s.owner === p.who;
-  return (
-    <Box sx={{ display: 'flex' }} onClick={(e) => e.stopPropagation()}>
-      {own ? (
-        <>
-          <Tooltip title="Edit">
-            <IconButton
-              size="small"
-              onClick={stop(() => (p.onEdit ? p.onEdit() : setEditing(true)))}
-            >
-              <EditIcon fontSize="inherit" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete">
-            <IconButton size="small" onClick={stop(() => p.remove(p.s))}>
-              <DeleteIcon fontSize="inherit" />
-            </IconButton>
-          </Tooltip>
-        </>
-      ) : (
-        <Tooltip title="Hide from my menus">
-          <IconButton size="small" onClick={stop(() => p.hide(p.s))}>
-            <VisibilityOffIcon fontSize="inherit" />
-          </IconButton>
-        </Tooltip>
-      )}
-      <Tooltip title="Duplicate as mine">
-        <IconButton size="small" onClick={stop(() => p.duplicate(p.s))}>
-          <ContentCopyIcon fontSize="inherit" />
-        </IconButton>
-      </Tooltip>
-      {editing && (
-        <Dialog open onClose={() => setEditing(false)} maxWidth="md" fullWidth>
-          <DialogTitle>Edit saved params</DialogTitle>
-          <SaveEditor
-            initial={p.s}
-            onCancel={() => setEditing(false)}
-            onSave={(s) => {
-              p.upsert(s);
-              setEditing(false);
-            }}
-          />
-        </Dialog>
-      )}
-    </Box>
   );
 }
 
@@ -1624,7 +1548,7 @@ function TabView(p: Common & { variant: string }) {
   );
 }
 
-// ---------------------------------------------------------------- save editor (A dialog, C library pane)
+// ---------------------------------------------------------------- save dialog
 
 function SaveEditor({
   initial,
@@ -1632,15 +1556,13 @@ function SaveEditor({
   who,
   onSave,
   onCancel,
-  inline,
 }: {
   initial: Saved;
   /** The saved item the tab was opened from: yours can be updated; anyone else's is copied. */
   origin?: Saved;
   who?: string;
   onSave: (s: Saved) => void;
-  onCancel?: () => void;
-  inline?: boolean;
+  onCancel: () => void;
 }) {
   const own = !!origin && origin.owner === who;
   const copyName = origin ? `${origin.name} (copy)` : '';
@@ -1754,7 +1676,7 @@ function SaveEditor({
   );
   const actions = (
     <>
-      {onCancel && <Button onClick={onCancel}>Cancel</Button>}
+      <Button onClick={onCancel}>Cancel</Button>
       <Button
         variant="contained"
         onClick={() => onSave(own && target === 'update' ? { ...s, id: origin.id } : s)}
@@ -1763,132 +1685,11 @@ function SaveEditor({
       </Button>
     </>
   );
-  return inline ? (
-    <Box>
-      {body}
-      <Stack direction="row" sx={{ gap: 1, justifyContent: 'flex-end', mt: 2 }}>
-        {actions}
-      </Stack>
-    </Box>
-  ) : (
+  return (
     <>
       <DialogContent>{body}</DialogContent>
       <DialogActions>{actions}</DialogActions>
     </>
-  );
-}
-
-// ---------------------------------------------------------------- C: library page
-
-function Library(p: Common) {
-  const [q, setQ] = useState('');
-  const [sel, setSel] = useState<string | null>(null);
-  const [yaml, setYaml] = useState<string | null>(null);
-  const list = useMemo(
-    () => p.visible.filter((s) => s.name.toLowerCase().includes(q.toLowerCase())),
-    [p.visible, q],
-  );
-  const current = p.saved.find((s) => s.id === sel);
-  return (
-    <Stack direction="row" sx={{ gap: 2, height: '100%' }}>
-      <Box sx={{ width: 420 }}>
-        <Typography variant="h6">Saved params library</Typography>
-        <TextField
-          size="small"
-          fullWidth
-          placeholder="Search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          sx={{ my: 1 }}
-        />
-        <Box
-          component="table"
-          sx={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 13,
-            '& td, & th': { borderBottom: 1, borderColor: 'divider', p: 0.5, textAlign: 'left' },
-          }}
-        >
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Action</th>
-              <th>Owner</th>
-              <th>Pivot on</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((s) => (
-              <Box
-                component="tr"
-                key={s.id}
-                onClick={() => {
-                  setSel(s.id);
-                  setYaml(null);
-                }}
-                sx={{ cursor: 'pointer', bgcolor: s.id === sel ? 'action.selected' : undefined }}
-              >
-                <td>
-                  {s.name} {s.shared && <Chip size="small" label="shared" />}
-                </td>
-                <td>{actionByKey(s.actionKey).name}</td>
-                <td>{s.owner === p.who ? 'me' : s.owner.split('@')[0]}</td>
-                <td>
-                  {isPivot(s)
-                    ? openInputs(s.inputs)
-                        .map((i) => i.columns[0])
-                        .join(', ')
-                    : '—'}
-                </td>
-              </Box>
-            ))}
-          </tbody>
-        </Box>
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        {current ? (
-          <>
-            <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-              <Typography variant="h6" sx={{ flex: 1 }}>
-                {current.name}
-              </Typography>
-              <Button onClick={() => p.openSaved(current)}>Open</Button>
-              <ManageButtons {...p} s={current} onEdit={() => undefined} />
-              <Button startIcon={<ContentCopyIcon />} onClick={() => setYaml(toYaml(current))}>
-                Copy as action file
-              </Button>
-            </Stack>
-            {yaml && (
-              <pre
-                style={{
-                  fontSize: 12,
-                  padding: 8,
-                  background: 'rgba(127,127,127,.12)',
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {yaml}
-              </pre>
-            )}
-            {current.owner === p.who ? (
-              <SaveEditor
-                key={current.id + current.updated}
-                initial={current}
-                onSave={p.upsert}
-                inline
-              />
-            ) : (
-              <Typography color="text.secondary">
-                Owned by {current.owner}: read-only. Duplicate to change it.
-              </Typography>
-            )}
-          </>
-        ) : (
-          <Typography color="text.secondary">Select a saved item.</Typography>
-        )}
-      </Box>
-    </Stack>
   );
 }
 
