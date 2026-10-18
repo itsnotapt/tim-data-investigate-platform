@@ -488,12 +488,117 @@ const START_ERRORS: Record<string, string> = {
   virustotal: "virustotal: the instance's workload identity was refused (403).",
 };
 
+/** What a run sent to a backend, recorded by the connection's hook as the action calls it. */
+interface Sent {
+  target: string;
+  language: 'kql' | 'sql' | 'http';
+  text: string;
+  /** Bound values: Kusto query parameters, Snowflake :N binds, or request properties. */
+  params: [string, string][];
+  note?: string;
+}
+
+const lit = (x: Value | undefined) =>
+  Array.isArray(x) ? JSON.stringify(x) : isEmpty(x) ? 'null' : String(x);
+
+function mockSent(a: Action, v: Values): Sent[] {
+  switch (a.key) {
+    case 'run_kql':
+      return [
+        {
+          target: `${lit(v.connection)} / ${lit(v.database)}`,
+          language: 'kql',
+          text: String(v.kql),
+          params: isEmpty(v.serverTimeout) ? [] : [['servertimeout', lit(v.serverTimeout)]],
+        },
+      ];
+    case 'run_sql':
+      return [{ target: lit(v.connection), language: 'sql', text: String(v.sql), params: [] }];
+    case 'device_timeline':
+      return [
+        {
+          target: 'security-prod / DeviceEvents',
+          language: 'kql',
+          text: [
+            'declare query_parameters(devices:dynamic, around:datetime, window:timespan, eventTypes:dynamic);',
+            'union withsource=Table DeviceProcessEvents, DeviceNetworkEvents, DeviceFileEvents',
+            '| where DeviceName in (devices)',
+            '| where Timestamp between ((around - window) .. (around + window))',
+            '| extend EventType = case(Table == "DeviceProcessEvents", "process", Table == "DeviceNetworkEvents", "network", "file")',
+            '| where EventType in (eventTypes)',
+            ...(v.includeBenign ? [] : ['| where not(IsBenign)']),
+            '| project Timestamp, DeviceName, EventType, Detail = coalesce(ProcessCommandLine, RemoteUrl, FolderPath), SHA256',
+          ].join('\n'),
+          params: [
+            ['devices', `dynamic(${lit(v.devices)})`],
+            ['around', `datetime(${lit(v.around)})`],
+            ['window', `timespan(${lit(v.window)})`],
+            ['eventTypes', `dynamic(${lit(v.eventTypes)})`],
+          ],
+        },
+        {
+          target: 'security-prod / Sysmon',
+          language: 'kql',
+          text: [
+            'declare query_parameters(devices:dynamic, around:datetime, window:timespan);',
+            'Sysmon',
+            '| where Computer in (devices)',
+            '| where TimeGenerated between ((around - window) .. (around + window))',
+            '| project Timestamp = TimeGenerated, DeviceName = Computer, EventType = "process", Detail = CommandLine, SHA256',
+          ].join('\n'),
+          params: [
+            ['devices', `dynamic(${lit(v.devices)})`],
+            ['around', `datetime(${lit(v.around)})`],
+            ['window', `timespan(${lit(v.window)})`],
+          ],
+        },
+      ];
+    case 'user_signins':
+      return [
+        {
+          target: lit(v.connection),
+          language: 'sql',
+          text: [
+            'SELECT TIMESTAMP, USER_PRINCIPAL_NAME, APP, IP_ADDRESS, COUNTRY, RESULT',
+            'FROM IDENTITY.SIGNINS',
+            'WHERE USER_PRINCIPAL_NAME = :1',
+            '  AND TIMESTAMP >= :2',
+            '  AND TIMESTAMP < COALESCE(:3, CURRENT_TIMESTAMP())',
+            "  AND (:4 = FALSE OR RESULT = 'Failure')",
+            'ORDER BY TIMESTAMP DESC',
+          ].join('\n'),
+          params: [
+            [':1 upn', lit(v.upn)],
+            [':2 since', lit(v.since)],
+            [':3 until', lit(v.until)],
+            [':4 failedOnly', lit(v.failedOnly)],
+          ],
+        },
+      ];
+    case 'file_reputation': {
+      const hashes = Array.isArray(v.hashes) ? v.hashes : [];
+      return [
+        {
+          target: 'virustotal',
+          language: 'http',
+          text: hashes.map((h) => `GET https://www.virustotal.com/api/v3/files/${h}`).join('\n'),
+          params: [],
+          note: `${hashes.length} requests, ${Math.min(2, hashes.length)} answered from cache`,
+        },
+      ];
+    }
+    default:
+      return [];
+  }
+}
+
 // ---------------------------------------------------------------- tabs and runs
 
 type Status = 'running' | 'succeeded' | 'error' | 'timedOut' | 'cancelled';
-type Outcome = 'succeed' | 'slow' | 'error' | 'timeout' | 'validation' | 'connection';
+type Outcome = 'succeed' | 'empty' | 'slow' | 'error' | 'timeout' | 'validation' | 'connection';
 const OUTCOMES: [Outcome, string][] = [
   ['succeed', 'succeeds (2.5 s)'],
+  ['empty', 'succeeds, no rows'],
   ['slow', 'is slow (30 s, cancel it)'],
   ['error', 'errors'],
   ['timeout', 'times out (5 s)'],
@@ -513,6 +618,7 @@ interface Run {
   columns?: Column[];
   rows?: Row[];
   error?: string;
+  sent: Sent[];
 }
 interface Tab {
   id: string;
@@ -573,7 +679,7 @@ const fmtCell = (v: Cell) => (typeof v === 'number' ? v.toLocaleString() : Strin
 let seq = 0;
 const nextId = (prefix: string) => `${prefix}${++seq}`;
 
-function finishRun(t: Tab, status: Status, at: number): Tab {
+function finishRun(t: Tab, status: Status, at: number, empty = false): Tab {
   if (!t.run) return t;
   const duration: Detail = ['duration', fmtDuration(at - t.run.startedAt)];
   if (status !== 'succeeded') {
@@ -590,18 +696,25 @@ function finishRun(t: Tab, status: Status, at: number): Tab {
     };
   }
   const res = mockResult(actionOf(t.action), t.run.params);
+  const rows = empty ? [] : res.rows;
   const run: Run = {
     ...t.run,
     status,
     finishedAt: at,
-    details: [duration, ['rowCount', res.rows.length], ...res.details],
+    details: [duration, ['rowCount', rows.length], ...res.details],
     columns: res.columns,
-    rows: res.rows,
+    rows,
   };
   return { ...t, run, lastGood: run };
 }
 
-type Begin = { tab: Tab; result: 'started' | 'invalid' | 'refused'; delay?: number; end?: Status };
+type Begin = {
+  tab: Tab;
+  result: 'started' | 'invalid' | 'refused';
+  delay?: number;
+  end?: Status;
+  empty?: boolean;
+};
 
 function begin(t: Tab, outcome: Outcome): Begin {
   const a = actionOf(t.action);
@@ -624,6 +737,7 @@ function begin(t: Tab, outcome: Outcome): Begin {
     params: { ...t.values },
     startedAt: Date.now(),
     details: [],
+    sent: mockSent(a, t.values),
   };
   const [delay, end]: [number, Status] =
     outcome === 'slow'
@@ -632,12 +746,15 @@ function begin(t: Tab, outcome: Outcome): Begin {
         ? [1500, 'error']
         : outcome === 'timeout'
           ? [5000, 'timedOut']
-          : [2500, 'succeeded'];
+          : outcome === 'empty'
+            ? [2000, 'succeeded']
+            : [2500, 'succeeded'];
   return {
     tab: { ...t, run, errors: {}, missing: {}, startError: null },
     result: 'started',
     delay,
     end,
+    empty: outcome === 'empty',
   };
 }
 
@@ -700,6 +817,7 @@ function seedTabs(): Tab[] {
         params: { ...t.values },
         startedAt: now - ago,
         details: [],
+        sent: mockSent(actionOf(t.action), t.values),
       },
     };
     return { ...finishRun(started, 'succeeded', now - ago + 2300), formOpen: false };
@@ -765,7 +883,7 @@ export function ActionTabPage() {
       const at = Date.now();
       patch(id, (t) =>
         t.run?.runId === runId && t.run.status === 'running' && !t.run.cancelling
-          ? finishRun(t, b.end!, at)
+          ? finishRun(t, b.end!, at, b.empty)
           : t,
       );
     }, b.delay);
@@ -987,6 +1105,42 @@ const STATUS: Record<
   },
 };
 
+/** A succeeded run with no rows gets its own icon: an empty result is a finding. */
+function ZeroRowsIcon() {
+  return (
+    <Box
+      component="span"
+      sx={{
+        width: 18,
+        height: 18,
+        borderRadius: '50%',
+        border: 2,
+        borderColor: 'info.main',
+        color: 'info.main',
+        fontSize: 11,
+        fontWeight: 700,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
+      }}
+    >
+      0
+    </Box>
+  );
+}
+const isZeroRows = (r: Run) => r.status === 'succeeded' && r.rows?.length === 0;
+const statusIcon = (r: Run) =>
+  isZeroRows(r) ? (
+    <Tooltip title="Succeeded, no rows">
+      <Box component="span" sx={{ display: 'inline-flex' }}>
+        <ZeroRowsIcon />
+      </Box>
+    </Tooltip>
+  ) : (
+    STATUS[r.status].icon
+  );
+
 function Sidebar({
   tabs,
   activeId,
@@ -1013,7 +1167,7 @@ function Sidebar({
           >
             <ListItemIcon sx={{ minWidth: 26 }}>
               {t.run ? (
-                STATUS[t.run.status].icon
+                statusIcon(t.run)
               ) : Object.keys(t.missing).length ? (
                 <Tooltip title="Needs input before it can run">
                   <WarningAmberIcon fontSize="small" color="warning" />
@@ -1430,7 +1584,7 @@ function MockGrid({
             >
               <ListItemText
                 primary={`${a.menuPath} / ${a.name}`}
-                secondary={tooMany ? 'Takes one row' : undefined}
+                secondary={tooMany ? 'Takes one row' : a.description}
               />
             </MenuItem>
           );
@@ -2114,8 +2268,8 @@ function RunInfo({ run, action, width }: { run: Run; action: Action; width?: num
             <Chip
               key="s"
               size="small"
-              color={STATUS[run.status].color}
-              label={STATUS[run.status].label}
+              color={isZeroRows(run) ? 'info' : STATUS[run.status].color}
+              label={isZeroRows(run) ? 'Succeeded · no rows' : STATUS[run.status].label}
             />,
           ],
           ['started', fmtClock(run.startedAt)],
@@ -2173,6 +2327,70 @@ function RunInfo({ run, action, width }: { run: Run; action: Action; width?: num
   );
 }
 
+function SentQueries({ run }: { run: Run }) {
+  return (
+    <Stack spacing={2.5} sx={{ maxWidth: 1100 }}>
+      {run.sent.map((q, i) => (
+        <Box key={i}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+            <Chip size="small" label={q.language.toUpperCase()} />
+            <Typography variant="body2">{q.target}</Typography>
+            {q.note && (
+              <Typography variant="caption" color="text.secondary">
+                · {q.note}
+              </Typography>
+            )}
+            <Box sx={{ flex: 1 }} />
+            <Tooltip title="Copy">
+              <IconButton size="small" onClick={() => void navigator.clipboard.writeText(q.text)}>
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+          {q.params.length > 0 && (
+            <Box
+              component="dl"
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'max-content 1fr',
+                columnGap: 2,
+                m: 0,
+                mb: 0.75,
+                fontSize: 12,
+                fontFamily: 'monospace',
+                '& dt': { color: 'text.secondary' },
+                '& dd': { m: 0, wordBreak: 'break-all' },
+              }}
+            >
+              {q.params.map(([k, v]) => (
+                <Box key={k} sx={{ display: 'contents' }}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </Box>
+              ))}
+            </Box>
+          )}
+          <Box
+            sx={{ height: q.text.split('\n').length * 19 + 12, border: 1, borderColor: 'divider' }}
+          >
+            <CodeEditor
+              readOnly
+              language={q.language === 'kql' ? 'kusto' : 'plaintext'}
+              path={`${run.runId}-sent-${i}`}
+              value={q.text}
+              options={{
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                lineNumbers: 'off',
+              }}
+            />
+          </Box>
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
 // ---------------------------------------------------------------- variant C: param pills + inner tabs
 // The action reads as one line of pills (click one to edit it in a popover; missing ones are red
 // and dashed), with Run at the line's end. Below, inner tabs: Query (editors only), Results and
@@ -2197,6 +2415,10 @@ function VariantC({ tab, action, ops }: VariantProps) {
   );
   const addable = adv.filter((x) => !pills.includes(x));
   const [pop, setPop] = useState<{ name: string; el: HTMLElement } | null>(null);
+  /** Opening a tab that needs input opens the first missing pill's popover once. */
+  const [autoOpened, setAutoOpened] = useState(false);
+  const firstMissing = action.params.find((x) => tab.missing[x.name])?.name;
+  const [sentOpen, setSentOpen] = useState(false);
   const [pick, setPick] = useState<{ key: string; view: View } | null>(null);
   const key = `${run?.runId}:${run?.status}:${tab.startError ? 'x' : ''}`;
   const auto: View = tab.startError
@@ -2206,9 +2428,7 @@ function VariantC({ tab, action, ops }: VariantProps) {
         ? 'query'
         : 'results'
       : run.status === 'running'
-        ? editors.length
-          ? 'query'
-          : 'results'
+        ? 'query'
         : run.status === 'succeeded'
           ? 'results'
           : 'run';
@@ -2267,6 +2487,15 @@ function VariantC({ tab, action, ops }: VariantProps) {
                 variant={empty && !miss && !err ? 'outlined' : 'filled'}
                 color={err ? 'error' : miss ? 'warning' : 'default'}
                 disabled={single}
+                ref={
+                  x.name === firstMissing && !autoOpened
+                    ? (el: HTMLDivElement | null) => {
+                        if (!el) return;
+                        setAutoOpened(true);
+                        setPop({ name: x.name, el });
+                      }
+                    : undefined
+                }
                 onClick={single ? undefined : (e) => setPop({ name: x.name, el: e.currentTarget })}
                 onDelete={
                   x.advanced
@@ -2393,20 +2622,18 @@ function VariantC({ tab, action, ops }: VariantProps) {
         onChange={(_, v: View) => setPick({ key, view: v })}
         sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, textTransform: 'none' } }}
       >
-        {editors.length > 0 && (
-          <MuiTab
-            value="query"
-            label={
-              editors.some((x) => tab.errors[x.name]) ? (
-                <Box component="span" sx={{ color: 'error.main' }}>
-                  Query •
-                </Box>
-              ) : (
-                'Query'
-              )
-            }
-          />
-        )}
+        <MuiTab
+          value="query"
+          label={
+            editors.some((x) => tab.errors[x.name]) ? (
+              <Box component="span" sx={{ color: 'error.main' }}>
+                Query •
+              </Box>
+            ) : (
+              'Query'
+            )
+          }
+        />
         <MuiTab
           value="results"
           label={shown?.rows ? `Results · ${shown.rows.length.toLocaleString()}` : 'Results'}
@@ -2418,7 +2645,7 @@ function VariantC({ tab, action, ops }: VariantProps) {
             tab.startError ? (
               <ErrorIcon fontSize="small" color="error" />
             ) : run ? (
-              STATUS[run.status].icon
+              statusIcon(run)
             ) : undefined
           }
           label={
@@ -2438,9 +2665,42 @@ function VariantC({ tab, action, ops }: VariantProps) {
             param={x}
             value={tab.values[x.name]}
             onChange={(v) => ops.setValue(x.name, v)}
-            height="calc(100vh - 300px)"
+            height={sentOpen ? 260 : 'calc(100vh - 340px)'}
             error={tab.errors[x.name]}
           />
+        ))}
+      {view === 'query' && editors.length > 0 && run && (
+        <Box sx={{ mt: 1 }}>
+          <Button
+            size="small"
+            color="inherit"
+            startIcon={sentOpen ? <ExpandLess /> : <ExpandMore />}
+            onClick={() => setSentOpen(!sentOpen)}
+          >
+            What the last run sent
+          </Button>
+          <Collapse in={sentOpen}>
+            <Box sx={{ mt: 1 }}>
+              <SentQueries run={run} />
+            </Box>
+          </Collapse>
+        </Box>
+      )}
+      {view === 'query' &&
+        editors.length === 0 &&
+        (run ? (
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              What {action.name} sent for the run at {fmtClock(run.startedAt)}, recorded by the
+              connection's hook. Read-only: change the params above and run again.
+            </Typography>
+            <SentQueries run={run} />
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            {action.name} builds its query in Python from the params above. What it sends shows here
+            once it runs.
+          </Typography>
         ))}
       {view === 'results' &&
         (shown ? (
@@ -2457,7 +2717,32 @@ function VariantC({ tab, action, ops }: VariantProps) {
                 Showing the run from {fmtClock(shown.startedAt)}.
               </Typography>
             )}
-            <MockGrid run={shown} dim={running} onPivot={ops.pivot} height="calc(100vh - 290px)" />
+            {shown.rows?.length === 0 ? (
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{
+                  alignItems: 'center',
+                  p: 3,
+                  border: 1,
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                }}
+              >
+                <ZeroRowsIcon />
+                <Typography variant="body2">
+                  The run succeeded and returned no rows. Check the params, or what was sent in the
+                  Query tab.
+                </Typography>
+              </Stack>
+            ) : (
+              <MockGrid
+                run={shown}
+                dim={running}
+                onPivot={ops.pivot}
+                height="calc(100vh - 290px)"
+              />
+            )}
           </>
         ) : (
           <Typography variant="body2" color="text.secondary">
