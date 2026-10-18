@@ -752,7 +752,7 @@ export function ActionTabPage() {
   const [tabs, setTabs] = useState<Tab[]>(seedTabs);
   const [activeId, setActiveId] = useState<string>(() => tabs[0]!.id);
   const [outcome, setOutcome] = useState<Outcome>('succeed');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; goTo?: string } | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const active = tabs.find((t) => t.id === activeId) ?? null;
 
@@ -770,10 +770,11 @@ export function ActionTabPage() {
       );
     }, b.delay);
   };
-  const add = (t: Tab, run: boolean) => {
+  /** Pivots open in the background (`focus` false) so several can start from one row. */
+  const add = (t: Tab, run: boolean, focus = true) => {
     const b = run ? begin(t, outcome) : null;
     setTabs((ts) => [...ts, b?.tab ?? t]);
-    setActiveId(t.id);
+    if (focus) setActiveId(t.id);
     if (b) schedule(t.id, b);
   };
 
@@ -816,11 +817,20 @@ export function ActionTabPage() {
       const title = first ? `${a.name}: ${fmtShort(first, values[first.name])}` : a.name;
       const t = makeTab(key, { parentId: tab.id, title, values, missing, formOpen: true });
       const ready = Object.keys(missing).length === 0;
-      add(ready ? { ...t, formOpen: false } : { ...t, errors: {} }, ready);
+      add(ready ? { ...t, formOpen: false } : { ...t, errors: {} }, ready, false);
+      const needs = Object.keys(missing)
+        .map((n) => a.params.find((x) => x.name === n)!.label)
+        .join(', ');
+      setToast({
+        message: ready ? `Running ${title}` : `Opened ${title}: needs ${needs}`,
+        goTo: t.id,
+      });
     },
     save: () => setSaveOpen(true),
     share: () =>
-      setToast('Link copied. It opens a new tab with these params filled in, and never runs.'),
+      setToast({
+        message: 'Link copied. It opens a new tab with these params filled in, and never runs.',
+      }),
     clone: () =>
       add(
         makeTab(tab.action, {
@@ -857,8 +867,22 @@ export function ActionTabPage() {
         open={!!toast}
         autoHideDuration={4000}
         onClose={() => setToast(null)}
-        message={toast}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        message={toast?.message}
+        action={
+          toast?.goTo && (
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                setActiveId(toast.goTo!);
+                setToast(null);
+              }}
+            >
+              Go to
+            </Button>
+          )
+        }
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
       />
       <Dialog open={saveOpen} onClose={() => setSaveOpen(false)}>
         <DialogTitle>Save…</DialogTitle>
@@ -988,7 +1012,15 @@ function Sidebar({
             sx={{ pl: 1 + depth * 2 }}
           >
             <ListItemIcon sx={{ minWidth: 26 }}>
-              {t.run ? STATUS[t.run.status].icon : <EditIcon fontSize="small" color="disabled" />}
+              {t.run ? (
+                STATUS[t.run.status].icon
+              ) : Object.keys(t.missing).length ? (
+                <Tooltip title="Needs input before it can run">
+                  <WarningAmberIcon fontSize="small" color="warning" />
+                </Tooltip>
+              ) : (
+                <EditIcon fontSize="small" color="disabled" />
+              )}
             </ListItemIcon>
             <ListItemText
               primary={t.title}
