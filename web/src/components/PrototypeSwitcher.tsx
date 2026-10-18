@@ -31,7 +31,8 @@ export function PrototypeSwitcher({ variants, state }: Props) {
       if (e.defaultPrevented || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
       const t = e.target as HTMLElement | null;
       // Leave arrow keys to editors, open menus and grids.
-      if (t?.closest('input, textarea, select, [contenteditable], [role="menu"], [role="grid"]')) return;
+      if (t?.closest('input, textarea, select, [contenteditable], [role="menu"], [role="grid"]'))
+        return;
       go(e.key === 'ArrowLeft' ? -1 : 1);
     };
     window.addEventListener('keydown', onKey);
