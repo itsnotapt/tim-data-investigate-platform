@@ -270,8 +270,8 @@ const queryInput = (name: string, type = 'string'): Input => ({
   via: 'query',
   mode: 'row',
   value: '',
-  // Suggest a same-named result column; otherwise the analyst maps it.
-  columns: COLUMNS.includes(name) ? [name] : [],
+  // The analyst types the columns to fill it from; nothing is guessed.
+  columns: [],
 });
 
 /** Adds inputs for the action's from_columns params and newly typed query parameters; keeps the rest. */
