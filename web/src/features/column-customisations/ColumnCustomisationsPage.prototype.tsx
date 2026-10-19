@@ -7,9 +7,10 @@
 //      last layout per action is remembered for the next tab of it, and Save… can put the columns
 //      (and optionally the filters) into the preset. No named column views. Resets live in a
 //      Layout side-bar panel; the status bar says where the columns came from.
-//   B  Column views: named views (private or shared, for one action or any) in a Views side-bar
-//      panel, with Save / Save as / Revert; the status bar shows the view and "modified". A preset
-//      references a view.
+//   B  Column views (chosen): named views of columns and filters (private or shared, for one action
+//      or any) in a Views side-bar panel, with Save / Save as / Revert; the status bar shows the
+//      view and "modified". ★ makes a view your default for future runs of an action (open tabs
+//      keep theirs); "Revert to action default" clears it. Presets keep params only.
 //   C  Columns table (rejected: the table is too heavy): a layered definition, action file <
 //      preset < this tab, edited in a table beside the grid. Filters never leave the tab.
 // A and B: nothing above the grid; an Action file side-bar panel, the column menu and the
@@ -58,6 +59,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { AgGridReact, type CustomStatusPanelProps, type CustomToolPanelProps } from 'ag-grid-react';
 import {
   ModuleRegistry,
@@ -491,7 +494,7 @@ interface View {
   shared: boolean;
   /** An action key, or null for any action (columns matched by name). */
   scope: string | null;
-  withFilters: boolean;
+  /** Columns and filters. */
   layout: Layout;
 }
 
@@ -503,8 +506,6 @@ interface Preset {
   action: string;
   /** A: columns (and filters) captured from the grid. */
   layout?: Layout;
-  /** B: a reference to a column view. */
-  viewId?: string | null;
   /** C: column overrides on top of the action file. */
   overrides?: Overrides;
 }
@@ -521,6 +522,8 @@ interface Db {
   /** Server: presets and views. */
   presets: Preset[];
   views: View[];
+  /** B, server, per analyst: the view future runs of an action open with (★). */
+  defaults: Record<string, string>;
 }
 
 const TRIAGE_LAYOUT: Layout = {
@@ -554,6 +557,7 @@ const seedDb = (): Db => ({
   tabOverrides: {},
   tabBase: {},
   mine: {},
+  defaults: { 'defender-alerts': 'v-triage' },
   views: [
     {
       id: 'v-triage',
@@ -561,7 +565,6 @@ const seedDb = (): Db => ({
       owner: ME,
       shared: false,
       scope: 'defender-alerts',
-      withFilters: false,
       layout: TRIAGE_LAYOUT,
     },
     {
@@ -570,7 +573,6 @@ const seedDb = (): Db => ({
       owner: 'sam@contoso.com',
       shared: true,
       scope: null,
-      withFilters: false,
       layout: NETWORK_LAYOUT,
     },
     {
@@ -579,7 +581,6 @@ const seedDb = (): Db => ({
       owner: ME,
       shared: false,
       scope: null,
-      withFilters: true,
       layout: {
         columnVisibility: { hiddenColIds: ['tim:tags', 'tim:commentText'] },
         filter: { filterModel: { 'tim:label': { filterType: 'set', values: [null] } } },
@@ -594,7 +595,6 @@ const seedDb = (): Db => ({
       shared: false,
       action: 'defender-alerts',
       layout: TRIAGE_LAYOUT,
-      viewId: 'v-triage',
       overrides: {
         cols: {
           SHA256: { hide: false },
@@ -612,7 +612,6 @@ const seedDb = (): Db => ({
       shared: true,
       action: 'defender-alerts',
       layout: NETWORK_LAYOUT,
-      viewId: 'v-sam-private',
       overrides: {
         cols: {
           RemoteIP: { pinned: 'left', width: 140 },
@@ -1031,7 +1030,7 @@ function VariantA({ ctx }: { ctx: Ctx }) {
   const [withFilters, setWithFilters] = useState(false);
 
   const base = db.tabBase[`${tab.id}:${tab.gen}`];
-  const changed = !!base && !same(layoutOf(grid, false), base);
+  const changed = !!base && !same(layoutOf(grid, false), layoutOf(base, false));
 
   const apiRef = useRef<GridApi<Row> | null>(null);
   const reset = (to: 'defaults' | 'preset' | 'mine') => {
@@ -1229,7 +1228,7 @@ function applyLayout(
     setDb((d) => ({
       ...d,
       tabGrid: { ...d.tabGrid, [tab.id]: layoutOf(s, true) },
-      tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(s, false) },
+      tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(s, true) },
     }));
   }, 50);
 }
@@ -1237,7 +1236,7 @@ function applyLayout(
 /** Records the grid's layout as it first opened for this tab and reset. */
 function withBase(d: Db, tab: Tab, s: GridState): Db {
   const k = `${tab.id}:${tab.gen}`;
-  return d.tabBase[k] ? d : { ...d, tabBase: { ...d.tabBase, [k]: layoutOf(s, false) } };
+  return d.tabBase[k] ? d : { ...d, tabBase: { ...d.tabBase, [k]: layoutOf(s, true) } };
 }
 
 // ---------------------------------------------------------------- Variant B: named column views
@@ -1248,22 +1247,22 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   const grid = db.tabGrid[tab.id];
   const viewId = db.tabView[tab.id] ?? null;
   const view = db.views.find((v) => v.id === viewId) ?? null;
-  const preset = db.presets.find((p) => p.key === tab.preset);
-  const missingView = preset?.viewId && !db.views.some((v) => v.id === preset.viewId);
   const visible = db.views.filter((v) => v.owner === ME || v.shared);
   const forAction = visible.filter((v) => v.scope === tab.action);
   const anyAction = visible.filter((v) => v.scope === null);
+  const defaultId = db.defaults[tab.action] ?? null;
+  const defaultView = visible.find((v) => v.id === defaultId) ?? null;
   const [saveAs, setSaveAs] = useState(false);
-  const [presetView, setPresetView] = useState<string | null>(viewId);
 
   const base = db.tabBase[`${tab.id}:${tab.gen}`];
-  const modified = !!base && !same(layoutOf(grid, false), base);
+  const modified = !!base && !same(layoutOf(grid, true), base);
   const colIds = new Set(ctx.defs.map((d) => d.colId));
   const unknown = view
     ? [
         ...new Set([
           ...(view.layout.columnVisibility?.hiddenColIds ?? []),
           ...(view.layout.columnOrder?.orderedColIds ?? []),
+          ...Object.keys(view.layout.filter?.filterModel ?? {}),
         ]),
       ].filter((c) => !colIds.has(c))
     : [];
@@ -1272,59 +1271,106 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   const apply = (id: string | null) => {
     const v = db.views.find((x) => x.id === id);
     ctx.setDb((d) => ({ ...d, tabView: { ...d.tabView, [tab.id]: id } }));
-    // A view without filters keeps the tab's filters.
-    if (apiRef.current) applyLayout(apiRef.current, v?.layout, !!v?.withFilters, ctx.setDb, tab);
+    // Filters are part of the view: a view without filters clears the tab's.
+    if (apiRef.current) applyLayout(apiRef.current, v?.layout, true, ctx.setDb, tab);
   };
 
+  /** Your default for future runs of this action; open tabs keep their columns. */
+  const setDefault = (v: View | null) => {
+    ctx.setDb((d) => {
+      const defaults = { ...d.defaults };
+      if (v) defaults[tab.action] = v.id;
+      else delete defaults[tab.action];
+      return { ...d, defaults };
+    });
+    ctx.toast(
+      v
+        ? `New tabs of ${action.name} will open with "${v.name}". Open tabs keep their columns.`
+        : `New tabs of ${action.name} will open with the action default. Open tabs keep their columns.`,
+    );
+  };
+
+  const filters = (v: View) => Object.keys(v.layout.filter?.filterModel ?? {}).length;
   const sharing = (v: View) =>
-    `${v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`}${v.withFilters ? ', with filters' : ''}`;
-  const item = (v: View | null) => (
-    <ListItemButton
-      key={v?.id ?? '__default'}
-      dense
-      selected={(v?.id ?? null) === viewId}
-      onClick={() => apply(v?.id ?? null)}
-    >
-      <ListItemText
-        primary={
-          <>
-            {v?.name ?? 'Action default'}
-            {(v?.id ?? null) === viewId && modified && <b> •</b>}
-          </>
-        }
-        secondary={v ? sharing(v) : 'from the action file'}
-      />
-      {v && v.owner === ME && (
+    `${v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`}${filters(v) ? `, ${filters(v)} filter${filters(v) > 1 ? 's' : ''}` : ''}`;
+  const item = (v: View | null) => {
+    const id = v?.id ?? null;
+    const isDefault = id === (defaultView?.id ?? null);
+    return (
+      <ListItemButton
+        key={id ?? '__default'}
+        dense
+        selected={id === viewId}
+        onClick={() => apply(id)}
+      >
+        <ListItemText
+          primary={
+            <>
+              {v?.name ?? 'Action default'}
+              {id === viewId && modified && <b> •</b>}
+            </>
+          }
+          secondary={
+            v
+              ? sharing(v)
+              : action.key === 'run-kql'
+                ? 'columns as returned'
+                : 'from the action file'
+          }
+        />
         <IconButton
           size="small"
-          title="Delete view"
+          title={
+            isDefault
+              ? `New tabs of ${action.name} open with this`
+              : `Use for future runs of ${action.name}`
+          }
           onClick={(e) => {
             e.stopPropagation();
-            ctx.setDb((d) => ({ ...d, views: d.views.filter((x) => x.id !== v.id) }));
-            ctx.toast(`Deleted view "${v.name}"; presets pointing at it fall back to the default`);
+            if (!isDefault) setDefault(v);
           }}
         >
-          <CloseIcon fontSize="inherit" />
+          {isDefault ? (
+            <StarIcon fontSize="inherit" sx={{ color: '#f59e0b' }} />
+          ) : (
+            <StarBorderIcon fontSize="inherit" />
+          )}
         </IconButton>
-      )}
-    </ListItemButton>
-  );
+        {v && v.owner === ME && (
+          <IconButton
+            size="small"
+            title="Delete view"
+            onClick={(e) => {
+              e.stopPropagation();
+              ctx.setDb((d) => ({
+                ...d,
+                views: d.views.filter((x) => x.id !== v.id),
+                defaults: Object.fromEntries(
+                  Object.entries(d.defaults).filter(([, vid]) => vid !== v.id),
+                ),
+              }));
+              ctx.toast(
+                `Deleted view "${v.name}"${isDefault ? `; new tabs of ${action.name} go back to the action default` : ''}`,
+              );
+            }}
+          >
+            <CloseIcon fontSize="inherit" />
+          </IconButton>
+        )}
+      </ListItemButton>
+    );
+  };
   const slots: Slots = {
     panelId: 'views',
     status: (
       <>
         View: {view?.name ?? 'Action default'}
+        {(viewId ?? null) === (defaultView?.id ?? null) && ' ★'}
         {modified && <b> • modified</b>}
       </>
     ),
     panel: (
       <Stack spacing={1}>
-        {missingView && (
-          <Alert severity="warning" sx={{ py: 0 }}>
-            "{preset.name}" uses a view you can't see (private to {who(preset.owner)}, or deleted):
-            showing the action default.
-          </Alert>
-        )}
         <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
           <Button
             size="small"
@@ -1334,9 +1380,9 @@ function VariantB({ ctx }: { ctx: Ctx }) {
               ctx.setDb((d) => ({
                 ...d,
                 views: d.views.map((v) =>
-                  v.id === view!.id ? { ...v, layout: layoutOf(grid, v.withFilters) } : v,
+                  v.id === view!.id ? { ...v, layout: layoutOf(grid, true) } : v,
                 ),
-                tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(grid, false) },
+                tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(grid, true) },
               }))
             }
           >
@@ -1354,6 +1400,22 @@ function VariantB({ ctx }: { ctx: Ctx }) {
             {unknown.length} of "{view?.name}"'s columns aren't in this result: {unknown.join(', ')}
           </Typography>
         )}
+        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
+          <Typography variant="body2">
+            Future runs of {action.name}: <b>★ {defaultView?.name ?? 'Action default'}</b>
+          </Typography>
+          {defaultId && !defaultView && (
+            <Alert severity="warning" sx={{ py: 0, my: 0.5 }}>
+              Your default view is gone (deleted, or no longer shared): new tabs use the action
+              default.
+            </Alert>
+          )}
+          {defaultId && (
+            <Button size="small" sx={{ mt: 0.5 }} onClick={() => setDefault(null)}>
+              Revert to action default
+            </Button>
+          )}
+        </Box>
         <List dense disablePadding>
           {item(null)}
           <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1 }}>
@@ -1401,52 +1463,25 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           action={action}
           grid={grid}
           onClose={() => setSaveAs(false)}
-          onSave={(v) => {
+          onSave={(v, useForAction) => {
             const id = `v-${Date.now()}`;
+            const saved: View = { ...v, id, owner: ME, layout: layoutOf(grid, true) };
             ctx.setDb((d) => ({
               ...d,
-              views: [...d.views, { ...v, id, owner: ME, layout: layoutOf(grid, v.withFilters) }],
+              views: [...d.views, saved],
               tabView: { ...d.tabView, [tab.id]: id },
-              tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(grid, false) },
+              tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(grid, true) },
             }));
+            if (useForAction) setDefault(saved);
             setSaveAs(false);
           }}
         />
       )}
       {ctx.saveOpen && (
-        <SaveShell ctx={ctx} onSave={(base) => upsertPreset(ctx, base, { viewId: presetView })}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Typography variant="body2">Column view</Typography>
-            <Select
-              size="small"
-              value={presetView ?? '__default'}
-              onChange={(e) =>
-                setPresetView(e.target.value === '__default' ? null : e.target.value)
-              }
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="__default">Action default</MenuItem>
-              {[...forAction, ...anyAction].map((v) => (
-                <MenuItem key={v.id} value={v.id}>
-                  {v.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </Stack>
-          {modified && (
-            <Alert severity="info" sx={{ py: 0 }}>
-              This tab's column changes aren't in "{view?.name ?? 'Action default'}": save the view
-              first to keep them.
-            </Alert>
-          )}
-          {presetView && db.views.find((v) => v.id === presetView)?.shared === false && (
-            <Alert severity="warning" sx={{ py: 0 }}>
-              The view is private: if you share this preset, others get the action default.
-            </Alert>
-          )}
+        <SaveShell ctx={ctx} onSave={(b) => upsertPreset(ctx, b, {})}>
           <Typography variant="caption" color="text.secondary">
-            The preset points at the view: later changes to the view change the preset too. Filters
-            come with the view only if it keeps them.
+            A preset keeps the action and its params only. Each analyst's new tabs of {action.name}{' '}
+            open with their own ★ view, or the action default.
           </Typography>
         </SaveShell>
       )}
@@ -1463,12 +1498,12 @@ function SaveViewDialog({
   action: ActionDef;
   grid: GridState | undefined;
   onClose: () => void;
-  onSave: (v: Omit<View, 'id' | 'owner' | 'layout'>) => void;
+  onSave: (v: Omit<View, 'id' | 'owner' | 'layout'>, useForAction: boolean) => void;
 }) {
   const [name, setName] = useState('');
   const [scope, setScope] = useState<'action' | 'any'>('action');
   const [shared, setShared] = useState(false);
-  const [withFilters, setWithFilters] = useState(false);
+  const [useForAction, setUseForAction] = useState(false);
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Save as column view</DialogTitle>
@@ -1481,7 +1516,7 @@ function SaveViewDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <Hint>{summary(layoutOf(grid, withFilters))}</Hint>
+          <Hint>{summary(layoutOf(grid, true))}</Hint>
           <RadioGroup value={scope} onChange={(e) => setScope(e.target.value as 'action' | 'any')}>
             <FormControlLabel value="action" control={<Radio />} label={`For ${action.name}`} />
             <FormControlLabel
@@ -1491,14 +1526,17 @@ function SaveViewDialog({
             />
           </RadioGroup>
           <FormControlLabel
-            control={
-              <Checkbox checked={withFilters} onChange={(e) => setWithFilters(e.target.checked)} />
-            }
-            label={`Keep filters (${filterSummary(grid)})`}
-          />
-          <FormControlLabel
             control={<Checkbox checked={shared} onChange={(e) => setShared(e.target.checked)} />}
             label="Shared with everyone"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={useForAction}
+                onChange={(e) => setUseForAction(e.target.checked)}
+              />
+            }
+            label={`★ Use for future runs of ${action.name}`}
           />
         </Stack>
       </DialogContent>
@@ -1508,12 +1546,10 @@ function SaveViewDialog({
           variant="contained"
           disabled={!name.trim()}
           onClick={() =>
-            onSave({
-              name: name.trim(),
-              shared,
-              scope: scope === 'action' ? action.key : null,
-              withFilters,
-            })
+            onSave(
+              { name: name.trim(), shared, scope: scope === 'action' ? action.key : null },
+              useForAction,
+            )
           }
         >
           Save
@@ -1944,8 +1980,8 @@ function Page({ variant }: { variant: string }) {
       origin = 'mine';
       start = db.mine[actionKey].layout;
     }
-    // B: the preset's view, if you can see it.
-    const v = db.views.find((x) => x.id === p?.viewId && (x.owner === ME || x.shared));
+    // B: your ★ view for the action, if you can still see it; presets don't carry columns.
+    const v = db.views.find((x) => x.id === db.defaults[actionKey] && (x.owner === ME || x.shared));
     setDb((d) => ({
       ...d,
       tabGrid: {
@@ -1998,7 +2034,9 @@ function Page({ variant }: { variant: string }) {
       ? { 'as opened (to tell "changed")': db.tabBase[`${tab.id}:${tab.gen}`] }
       : {}),
     ...(variant === 'A' ? { 'mine (IndexedDB, per action)': db.mine } : {}),
-    ...(variant === 'B' ? { 'views (server)': db.views } : {}),
+    ...(variant === 'B'
+      ? { 'your ★ per action (server)': db.defaults, 'views (server)': db.views }
+      : {}),
     'presets (server)': db.presets.map((p) => ({
       key: p.key,
       name: p.name,
@@ -2008,7 +2046,7 @@ function Page({ variant }: { variant: string }) {
       ...(variant === 'A'
         ? { layout: p.layout }
         : variant === 'B'
-          ? { viewId: p.viewId }
+          ? {}
           : { overrides: p.overrides }),
     })),
   };
