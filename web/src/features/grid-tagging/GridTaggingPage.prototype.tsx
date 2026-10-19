@@ -1263,6 +1263,8 @@ function Grid({
   useEffect(() => {
     storeRef.current = ctx.store;
     apiRef.current?.redrawRows();
+    // Annotation columns are value getters: re-run the filters on the new values.
+    apiRef.current?.onFilterChanged();
   }, [ctx.store, apiRef]);
   useEffect(() => {
     const api = apiRef.current;
@@ -1330,6 +1332,7 @@ function Grid({
         rowData={ctx.rows}
         columnDefs={columnDefs}
         defaultColDef={{ sortable: true, resizable: true, filter: true }}
+        sideBar={['columns', 'filters']}
         getRowId={(p) => String(p.data._row)}
         context={context}
         rowClassRules={rowClassRules}
@@ -1429,6 +1432,9 @@ function sinkMenuItems(ctx: Ctx, targets: Row[]): MenuItemDef<Row>[] {
   }));
 }
 
+/** Formats a tags value: the array per row, or one tag in the set filter. */
+const tagsText = (v: unknown) => (Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : '');
+
 const noIdTooltip = "These rows have no id, so they can't be tagged";
 
 // ---------------------------------------------------------------- variant A: menu + dialog + drawer
@@ -1448,23 +1454,18 @@ function VariantA({ ctx }: { ctx: Ctx }) {
     drawerOpen.current = !!drawer;
   }, [drawer]);
 
+  // Label, tags and comment text are hidden columns, populated for the filters, grouping and the
+  // side bar's Columns panel; only the comment count shows.
   const lead = useMemo<ColDef<Row>[]>(
     () => [
-      {
-        colId: 'tags',
-        headerName: 'Tags',
-        width: 190,
-        pinned: 'left',
-        cellRenderer: (p: CustomCellRendererProps<Row>) => (
-          <TagChips tags={annOf(p)?.tags ?? []} max={2} />
-        ),
-      },
       {
         colId: 'comments',
         headerName: '',
         width: 56,
         pinned: 'left',
         headerTooltip: 'Comments',
+        valueGetter: (p) => annOf(p)?.comments.length || null,
+        filter: 'agNumberColumnFilter',
         cellRenderer: (p: CustomCellRendererProps<Row>) => {
           const c = annOf(p)?.comments ?? [];
           if (!c.length) return null;
@@ -1478,6 +1479,41 @@ function VariantA({ ctx }: { ctx: Ctx }) {
             </Tooltip>
           );
         },
+      },
+      {
+        colId: 'label',
+        headerName: 'Label',
+        hide: true,
+        enableRowGroup: true,
+        valueGetter: (p) => {
+          const a = annOf(p);
+          return a?.label ? labelOf(a.label.key).name : null;
+        },
+        filter: 'agSetColumnFilter',
+      },
+      {
+        colId: 'tags',
+        headerName: 'Tags',
+        hide: true,
+        enableRowGroup: true,
+        // An array: the set filter lists each tag once; grouping keys on the joined tags.
+        valueGetter: (p) => annOf(p)?.tags.map((t) => t.tag) ?? [],
+        valueFormatter: (p) => tagsText(p.value),
+        keyCreator: (p) => tagsText(p.value),
+        filter: 'agSetColumnFilter',
+        filterParams: {
+          valueFormatter: (p: { value: unknown }) => tagsText(p.value) || '(no tags)',
+        },
+      },
+      {
+        colId: 'commentText',
+        headerName: 'Comment text',
+        hide: true,
+        valueGetter: (p) =>
+          annOf(p)
+            ?.comments.map((c) => c.text)
+            .join(' · ') || null,
+        filter: 'agTextColumnFilter',
       },
     ],
     [],
