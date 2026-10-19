@@ -7,11 +7,11 @@
 //      last layout per action is remembered for the next tab of it, and Save… can put the columns
 //      (and optionally the filters) into the preset. No named column views. Resets live in a
 //      Layout side-bar panel; the status bar says where the columns came from.
-//   B  Column views (chosen): named views of columns and filters (private or shared, for one action
-//      or any) in a Views side-bar panel, with Save / Save as / Revert; the status bar shows the
-//      view and "modified". Save… updates the view or saves a new one, with "Apply this view to
-//      <action>" so new tabs of the action open with it (open tabs aren't changed); the panel shows
-//      it under "Currently applied", with "Revert to action default". Presets keep params only.
+//   B  Column views (chosen): named views of columns and filters (private or shared) in a Views
+//      side-bar panel with Save… / Apply / Revert; the status bar shows the view and "modified".
+//      A view remembers the action it was saved from: listed first there, and elsewhere by how many
+//      of its columns the result has. Apply makes new tabs of the action open with the tab's view
+//      (open tabs aren't changed); its × under "Applied to <action>" goes back to the action default.
 //   C  Columns table (rejected: the table is too heavy): a layered definition, action file <
 //      preset < this tab, edited in a table beside the grid. Filters never leave the tab.
 // A and B: nothing above the grid; an Action file side-bar panel, the column menu and the
@@ -60,6 +60,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { AgGridReact, type CustomStatusPanelProps, type CustomToolPanelProps } from 'ag-grid-react';
 import {
   ModuleRegistry,
@@ -491,8 +492,8 @@ interface View {
   name: string;
   owner: string;
   shared: boolean;
-  /** An action key, or null for any action (columns matched by name). */
-  scope: string | null;
+  /** The action it was saved from: listed first there, elsewhere by matching columns. */
+  from: string;
   /** Columns and filters. */
   layout: Layout;
 }
@@ -522,7 +523,7 @@ interface Db {
   presets: Preset[];
   views: View[];
   /** B, server, per analyst: the view applied to an action: new tabs of it open with it. */
-  defaults: Record<string, string>;
+  applied: Record<string, string>;
 }
 
 const TRIAGE_LAYOUT: Layout = {
@@ -556,14 +557,14 @@ const seedDb = (): Db => ({
   tabOverrides: {},
   tabBase: {},
   mine: {},
-  defaults: { 'defender-alerts': 'v-triage' },
+  applied: { 'defender-alerts': 'v-triage' },
   views: [
     {
       id: 'v-triage',
       name: 'Triage',
       owner: ME,
       shared: false,
-      scope: 'defender-alerts',
+      from: 'defender-alerts',
       layout: TRIAGE_LAYOUT,
     },
     {
@@ -571,7 +572,7 @@ const seedDb = (): Db => ({
       name: 'Network first',
       owner: 'sam@contoso.com',
       shared: true,
-      scope: null,
+      from: 'defender-alerts',
       layout: NETWORK_LAYOUT,
     },
     {
@@ -579,7 +580,7 @@ const seedDb = (): Db => ({
       name: 'Unlabelled only',
       owner: ME,
       shared: false,
-      scope: null,
+      from: 'run-kql',
       layout: {
         columnVisibility: { hiddenColIds: ['tim:tags', 'tim:commentText'] },
         filter: { filterModel: { 'tim:label': { filterType: 'set', values: [null] } } },
@@ -1240,6 +1241,22 @@ function withBase(d: Db, tab: Tab, s: GridState): Db {
 
 // ---------------------------------------------------------------- Variant B: named column views
 
+/** Every column a layout mentions (order, hidden, pinned, widths, sort, grouping, filters). */
+function layoutCols(l: Layout): string[] {
+  return [
+    ...new Set([
+      ...(l.columnOrder?.orderedColIds ?? []),
+      ...(l.columnVisibility?.hiddenColIds ?? []),
+      ...(l.columnPinning?.leftColIds ?? []),
+      ...(l.columnPinning?.rightColIds ?? []),
+      ...(l.columnSizing?.columnSizingModel.map((c) => c.colId) ?? []),
+      ...(l.sort?.sortModel.map((s) => s.colId) ?? []),
+      ...(l.rowGroup?.groupColIds ?? []),
+      ...Object.keys(l.filter?.filterModel ?? {}),
+    ]),
+  ].filter((c) => !c.startsWith('ag-Grid-'));
+}
+
 function VariantB({ ctx }: { ctx: Ctx }) {
   const { db, tab } = ctx;
   const action = actionOf(tab.action);
@@ -1247,27 +1264,29 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   const viewId = db.tabView[tab.id] ?? null;
   const view = db.views.find((v) => v.id === viewId) ?? null;
   const visible = db.views.filter((v) => v.owner === ME || v.shared);
-  const forAction = visible.filter((v) => v.scope === tab.action);
-  const anyAction = visible.filter((v) => v.scope === null);
-  const defaultId = db.defaults[tab.action] ?? null;
-  const defaultView = visible.find((v) => v.id === defaultId) ?? null;
+  const appliedId = db.applied[tab.action] ?? null;
+  const appliedView = visible.find((v) => v.id === appliedId) ?? null;
   const [saving, setSaving] = useState(false);
 
   const base = db.tabBase[`${tab.id}:${tab.gen}`];
   const modified = !!base && !same(layoutOf(grid, true), base);
-  const colIds = new Set(ctx.defs.map((d) => d.colId));
-  const unknown = view
-    ? [
-        ...new Set([
-          ...(view.layout.columnVisibility?.hiddenColIds ?? []),
-          ...(view.layout.columnOrder?.orderedColIds ?? []),
-          ...Object.keys(view.layout.filter?.filterModel ?? {}),
-        ]),
-      ].filter((c) => !colIds.has(c))
-    : [];
+  const colIds = new Set(ctx.defs.flatMap((d) => (d.colId ? [d.colId] : [])));
+  const unknown = view ? layoutCols(view.layout).filter((c) => !colIds.has(c)) : [];
+
+  // Views saved from this action first; the rest by how many of their columns this result has,
+  // without any that match none.
+  const match = (v: View) => {
+    const cols = layoutCols(v.layout);
+    return { n: cols.filter((c) => colIds.has(c)).length, of: cols.length };
+  };
+  const listed = visible.filter((v) => v.id !== appliedView?.id);
+  const fromHere = listed.filter((v) => v.from === tab.action);
+  const others = listed
+    .filter((v) => v.from !== tab.action && match(v).n > 0)
+    .sort((a, b) => match(b).n / match(b).of - match(a).n / match(a).of);
 
   const [api, setApi] = useState<GridApi<Row> | null>(null);
-  const apply = (id: string | null) => {
+  const show = (id: string | null) => {
     const v = db.views.find((x) => x.id === id);
     ctx.setDb((d) => ({ ...d, tabView: { ...d.tabView, [tab.id]: id } }));
     // Filters are part of the view: a view without filters clears the tab's.
@@ -1277,10 +1296,10 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   /** The view new tabs of this action open with; tabs already open aren't changed. */
   const setApplied = (v: View | null) => {
     ctx.setDb((d) => {
-      const defaults = { ...d.defaults };
-      if (v) defaults[tab.action] = v.id;
-      else delete defaults[tab.action];
-      return { ...d, defaults };
+      const applied = { ...d.applied };
+      if (v) applied[tab.action] = v.id;
+      else delete applied[tab.action];
+      return { ...d, applied };
     });
     ctx.toast(
       `New tabs of ${action.name} will open with ${v ? `"${v.name}"` : 'the action default'}. Tabs already open aren't changed.`,
@@ -1288,17 +1307,24 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   };
 
   const filters = (v: View) => Object.keys(v.layout.filter?.filterModel ?? {}).length;
-  const sharing = (v: View) =>
-    `${v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`}${filters(v) ? `, ${filters(v)} filter${filters(v) > 1 ? 's' : ''}` : ''}`;
-  const appliedId = defaultView?.id ?? null;
-  const item = (v: View | null) => {
+  const describe = (v: View) => {
+    const m = match(v);
+    return [
+      v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`,
+      filters(v) ? `${filters(v)} filter${filters(v) > 1 ? 's' : ''}` : null,
+      v.from !== tab.action ? `${m.n} of ${m.of} columns match` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  };
+  const item = (v: View | null, end?: ReactNode) => {
     const id = v?.id ?? null;
     return (
       <ListItemButton
         key={id ?? '__default'}
         dense
         selected={id === viewId}
-        onClick={() => apply(id)}
+        onClick={() => show(id)}
       >
         <ListItemText
           primary={
@@ -1309,48 +1335,41 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           }
           secondary={
             v
-              ? sharing(v)
+              ? describe(v)
               : action.key === 'run-kql'
                 ? 'columns as returned'
                 : 'from the action file'
           }
         />
-        {v && v.owner === ME && (
-          <IconButton
-            size="small"
-            title="Delete view"
-            onClick={(e) => {
-              e.stopPropagation();
-              ctx.setDb((d) => ({
-                ...d,
-                views: d.views.filter((x) => x.id !== v.id),
-                defaults: Object.fromEntries(
-                  Object.entries(d.defaults).filter(([, vid]) => vid !== v.id),
-                ),
-              }));
-              ctx.toast(
-                `Deleted view "${v.name}"${id === appliedId ? `; new tabs of ${action.name} go back to the action default` : ''}`,
-              );
-            }}
-          >
-            <CloseIcon fontSize="inherit" />
-          </IconButton>
-        )}
+        {end}
       </ListItemButton>
     );
   };
+  const del = (v: View) =>
+    v.owner === ME && (
+      <IconButton
+        size="small"
+        title="Delete view"
+        onClick={(e) => {
+          e.stopPropagation();
+          ctx.setDb((d) => ({ ...d, views: d.views.filter((x) => x.id !== v.id) }));
+          ctx.toast(`Deleted view "${v.name}"`);
+        }}
+      >
+        <DeleteIcon fontSize="inherit" />
+      </IconButton>
+    );
   const heading = (text: ReactNode) => (
     <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1 }}>
       {text}
     </ListSubheader>
   );
-  const others = (vs: View[]) => vs.filter((v) => v.id !== appliedId);
   const slots: Slots = {
     panelId: 'views',
     status: (
       <>
         View: {view?.name ?? 'Action default'}
-        {viewId === appliedId && ' (applied)'}
+        {viewId && viewId === appliedId && ' (applied)'}
         {modified && <b> • modified</b>}
       </>
     ),
@@ -1360,7 +1379,20 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           <Button size="small" variant="outlined" onClick={() => setSaving(true)}>
             Save…
           </Button>
-          <Button size="small" disabled={!modified} onClick={() => apply(viewId)}>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={!view || viewId === appliedId || modified}
+            title={
+              modified
+                ? 'Save your changes first'
+                : `New tabs of ${action.name} open with this view`
+            }
+            onClick={() => setApplied(view)}
+          >
+            Apply
+          </Button>
+          <Button size="small" disabled={!modified} onClick={() => show(viewId)}>
             Revert
           </Button>
         </Stack>
@@ -1369,33 +1401,38 @@ function VariantB({ ctx }: { ctx: Ctx }) {
             {unknown.length} of "{view?.name}"'s columns aren't in this result: {unknown.join(', ')}
           </Typography>
         )}
-        {defaultId && !defaultView && (
+        {appliedId && !appliedView && (
           <Alert severity="warning" sx={{ py: 0 }}>
             The view applied to {action.name} is gone (deleted, or no longer shared): new tabs use
             the action default.
           </Alert>
         )}
         <List dense disablePadding>
-          <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1, color: 'text.primary' }}>
-            <b>Currently applied</b> to new tabs of {action.name}
-          </ListSubheader>
-          {item(defaultView)}
-          {defaultView && (
-            <Button size="small" sx={{ ml: 1 }} onClick={() => setApplied(null)}>
-              Revert to action default
-            </Button>
+          {appliedView && (
+            <>
+              <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1, color: 'text.primary' }}>
+                <b>Applied to {action.name}</b>
+              </ListSubheader>
+              {item(
+                appliedView,
+                <IconButton
+                  size="small"
+                  title={`Stop applying: new tabs of ${action.name} open with the action default`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setApplied(null);
+                  }}
+                >
+                  <CloseIcon fontSize="inherit" />
+                </IconButton>,
+              )}
+            </>
           )}
-          {heading('Other views')}
-          {defaultView && item(null)}
-          {heading(`For ${action.name}`)}
-          {others(forAction).map(item)}
-          {others(forAction).length === 0 && (
-            <Box sx={{ px: 2 }}>
-              <Hint>none</Hint>
-            </Box>
-          )}
-          {heading('Any action (matched by column name)')}
-          {others(anyAction).map(item)}
+          {heading(`Saved from ${action.name}`)}
+          {item(null)}
+          {fromHere.map((v) => item(v, del(v)))}
+          {others.length > 0 && heading('Other views')}
+          {others.map((v) => item(v, del(v)))}
         </List>
       </Stack>
     ),
@@ -1412,13 +1449,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           rows={ctx.rows}
           columnDefs={ctx.defs}
           // A view's partial state must be fitted to this result's columns before AG Grid sees it.
-          initialState={
-            grid &&
-            fitLayout(
-              grid,
-              ctx.defs.flatMap((d) => (d.colId ? [d.colId] : [])),
-            )
-          }
+          initialState={grid && fitLayout(grid, [...colIds])}
           sideBar={SIDE_BAR_B}
           slots={slots}
           onReady={(a) => {
@@ -1432,35 +1463,28 @@ function VariantB({ ctx }: { ctx: Ctx }) {
       </Box>
       {saving && (
         <SaveViewDialog
-          action={action}
           grid={grid}
           view={view}
           modified={modified}
-          applied={viewId === appliedId}
           onClose={() => setSaving(false)}
-          onSave={({ mode, fresh, applyIt }) => {
+          onSave={({ fresh }) => {
             const layout = layoutOf(grid, true);
             const baseKey = `${tab.id}:${tab.gen}`;
-            let target = view;
-            if (mode === 'update' && view) {
-              target = { ...view, layout };
+            if (!fresh && view) {
               ctx.setDb((d) => ({
                 ...d,
-                views: d.views.map((v) => (v.id === view.id ? target! : v)),
+                views: d.views.map((v) => (v.id === view.id ? { ...v, layout } : v)),
                 tabBase: { ...d.tabBase, [baseKey]: layout },
               }));
-            } else if (mode === 'new' && fresh) {
-              target = { ...fresh, id: `v-${Date.now()}`, owner: ME, layout };
+            } else if (fresh) {
+              const id = `v-${Date.now()}`;
               ctx.setDb((d) => ({
                 ...d,
-                views: [...d.views, target!],
-                tabView: { ...d.tabView, [tab.id]: target!.id },
+                views: [...d.views, { ...fresh, id, owner: ME, from: tab.action, layout }],
+                tabView: { ...d.tabView, [tab.id]: id },
                 tabBase: { ...d.tabBase, [baseKey]: layout },
               }));
             }
-            const targetId = target?.id ?? null;
-            if (applyIt && targetId !== appliedId) setApplied(target);
-            else if (!applyIt && targetId === appliedId && appliedId) setApplied(null);
             setSaving(false);
           }}
         />
@@ -1477,60 +1501,41 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   );
 }
 
-/** Save… for the tab's view: update it (or keep it as it is), or save as new; and whether new
- * tabs of the action open with it. */
+/** Save… for the tab's view: update it (yours, changed) or save as new. */
 function SaveViewDialog({
-  action,
   grid,
   view,
   modified,
-  applied,
   onClose,
   onSave,
 }: {
-  action: ActionDef;
   grid: GridState | undefined;
   view: View | null;
   modified: boolean;
-  applied: boolean;
   onClose: () => void;
-  onSave: (r: {
-    mode: 'update' | 'keep' | 'new';
-    fresh?: Omit<View, 'id' | 'owner' | 'layout'>;
-    applyIt: boolean;
-  }) => void;
+  onSave: (r: { fresh?: Pick<View, 'name' | 'shared'> }) => void;
 }) {
-  const current = view?.name ?? 'Action default';
   const canUpdate = modified && view?.owner === ME;
-  const first = canUpdate ? 'update' : modified ? null : 'keep';
-  const [mode, setMode] = useState<'update' | 'keep' | 'new'>(first ?? 'new');
+  const [mode, setMode] = useState<'update' | 'new'>(canUpdate ? 'update' : 'new');
   const [name, setName] = useState('');
-  const [scope, setScope] = useState<'action' | 'any'>('action');
   const [shared, setShared] = useState(false);
-  const [applyIt, setApplyIt] = useState(applied);
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Save view</DialogTitle>
       <DialogContent>
         <Stack spacing={1} sx={{ pt: 1 }}>
-          <RadioGroup
-            value={mode}
-            onChange={(e) => setMode(e.target.value as 'update' | 'keep' | 'new')}
-          >
-            {first === 'update' && (
-              <FormControlLabel value="update" control={<Radio />} label={`Update "${current}"`} />
-            )}
-            {first === 'keep' && (
+          {canUpdate && (
+            <RadioGroup value={mode} onChange={(e) => setMode(e.target.value as 'update' | 'new')}>
               <FormControlLabel
-                value="keep"
+                value="update"
                 control={<Radio />}
-                label={`"${current}" (no changes)`}
+                label={`Update "${view.name}"`}
               />
-            )}
-            <FormControlLabel value="new" control={<Radio />} label="Save as new" />
-          </RadioGroup>
+              <FormControlLabel value="new" control={<Radio />} label="Save as new" />
+            </RadioGroup>
+          )}
           {mode === 'new' && (
-            <Stack spacing={1} sx={{ pl: 4 }}>
+            <>
               <TextField
                 size="small"
                 autoFocus
@@ -1538,27 +1543,15 @@ function SaveViewDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
-              <Select size="small" value={scope} onChange={(e) => setScope(e.target.value)}>
-                <MenuItem value="action">For {action.name}</MenuItem>
-                <MenuItem value="any">For any action (matched by column name)</MenuItem>
-              </Select>
               <FormControlLabel
                 control={
                   <Checkbox checked={shared} onChange={(e) => setShared(e.target.checked)} />
                 }
                 label="Shared with everyone"
               />
-            </Stack>
+            </>
           )}
           <Hint>{summary(layoutOf(grid, true))}</Hint>
-          <Divider />
-          <FormControlLabel
-            control={<Checkbox checked={applyIt} onChange={(e) => setApplyIt(e.target.checked)} />}
-            label={`Apply this view to ${action.name}`}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ mt: '-4px !important' }}>
-            New tabs of {action.name} open with it. Tabs already open aren't changed.
-          </Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -1566,16 +1559,7 @@ function SaveViewDialog({
         <Button
           variant="contained"
           disabled={mode === 'new' && !name.trim()}
-          onClick={() =>
-            onSave({
-              mode,
-              fresh:
-                mode === 'new'
-                  ? { name: name.trim(), shared, scope: scope === 'action' ? action.key : null }
-                  : undefined,
-              applyIt,
-            })
-          }
+          onClick={() => onSave(mode === 'new' ? { fresh: { name: name.trim(), shared } } : {})}
         >
           Save
         </Button>
@@ -2006,7 +1990,7 @@ function Page({ variant }: { variant: string }) {
       start = db.mine[actionKey].layout;
     }
     // B: the view you applied to the action, if you can still see it; presets don't carry columns.
-    const v = db.views.find((x) => x.id === db.defaults[actionKey] && (x.owner === ME || x.shared));
+    const v = db.views.find((x) => x.id === db.applied[actionKey] && (x.owner === ME || x.shared));
     setDb((d) => ({
       ...d,
       tabGrid: {
@@ -2060,7 +2044,7 @@ function Page({ variant }: { variant: string }) {
       : {}),
     ...(variant === 'A' ? { 'mine (IndexedDB, per action)': db.mine } : {}),
     ...(variant === 'B'
-      ? { 'applied per action (server)': db.defaults, 'views (server)': db.views }
+      ? { 'applied per action (server)': db.applied, 'views (server)': db.views }
       : {}),
     'presets (server)': db.presets.map((p) => ({
       key: p.key,
