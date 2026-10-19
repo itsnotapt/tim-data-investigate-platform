@@ -9,9 +9,10 @@
 //      Layout side-bar panel; the status bar says where the columns came from.
 //   B  Column views (chosen): named views of columns and filters (private or shared) in a Views
 //      side-bar panel with Save… / Apply / Revert; the status bar shows the view and "modified".
-//      A view remembers the action it was saved from: listed first there, and elsewhere by how many
-//      of its columns the result has. Apply makes new tabs of the action open with the tab's view
-//      (open tabs aren't changed); its × under "Applied to <action>" goes back to the action default.
+//      Apply is per analyst and goes to what the tab was opened from: its preset, else its action
+//      (no fallback from a preset to its action); new tabs of it open with the view, open tabs
+//      aren't changed, and the × under "Applied to <name>" goes back to the action default. A view
+//      remembers what it was saved from: listed first there, elsewhere by matching columns.
 //   C  Columns table (rejected: the table is too heavy): a layered definition, action file <
 //      preset < this tab, edited in a table beside the grid. Filters never leave the tab.
 // A and B: nothing above the grid; an Action file side-bar panel, the column menu and the
@@ -492,7 +493,7 @@ interface View {
   name: string;
   owner: string;
   shared: boolean;
-  /** The action it was saved from: listed first there, elsewhere by matching columns. */
+  /** The preset or action it was saved from: listed first there, elsewhere by matching columns. */
   from: string;
   /** Columns and filters. */
   layout: Layout;
@@ -522,7 +523,8 @@ interface Db {
   /** Server: presets and views. */
   presets: Preset[];
   views: View[];
-  /** B, server, per analyst: the view applied to an action: new tabs of it open with it. */
+  /** B, server, per analyst: the view applied to a preset or action (`targetOf`); new tabs of it
+   * open with it. */
   applied: Record<string, string>;
 }
 
@@ -557,14 +559,14 @@ const seedDb = (): Db => ({
   tabOverrides: {},
   tabBase: {},
   mine: {},
-  applied: { 'defender-alerts': 'v-triage' },
+  applied: { 'preset:p-mine': 'v-triage' },
   views: [
     {
       id: 'v-triage',
       name: 'Triage',
       owner: ME,
       shared: false,
-      from: 'defender-alerts',
+      from: 'action:defender-alerts',
       layout: TRIAGE_LAYOUT,
     },
     {
@@ -572,7 +574,7 @@ const seedDb = (): Db => ({
       name: 'Network first',
       owner: 'sam@contoso.com',
       shared: true,
-      from: 'defender-alerts',
+      from: 'action:defender-alerts',
       layout: NETWORK_LAYOUT,
     },
     {
@@ -580,7 +582,7 @@ const seedDb = (): Db => ({
       name: 'Unlabelled only',
       owner: ME,
       shared: false,
-      from: 'run-kql',
+      from: 'action:run-kql',
       layout: {
         columnVisibility: { hiddenColIds: ['tim:tags', 'tim:commentText'] },
         filter: { filterModel: { 'tim:label': { filterType: 'set', values: [null] } } },
@@ -604,6 +606,13 @@ const seedDb = (): Db => ({
           Timestamp: { sort: null },
         },
       },
+    },
+    {
+      key: 'p-kql',
+      name: 'Failed sign-ins',
+      owner: ME,
+      shared: false,
+      action: 'run-kql',
     },
     {
       key: 'p-soc',
@@ -1257,6 +1266,10 @@ function layoutCols(l: Layout): string[] {
   ].filter((c) => !c.startsWith('ag-Grid-'));
 }
 
+/** What a tab's applied view hangs off: the preset it was opened from, else its action. */
+const targetOf = (t: Pick<Tab, 'preset' | 'action'>) =>
+  t.preset ? `preset:${t.preset}` : `action:${t.action}`;
+
 function VariantB({ ctx }: { ctx: Ctx }) {
   const { db, tab } = ctx;
   const action = actionOf(tab.action);
@@ -1264,7 +1277,10 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   const viewId = db.tabView[tab.id] ?? null;
   const view = db.views.find((v) => v.id === viewId) ?? null;
   const visible = db.views.filter((v) => v.owner === ME || v.shared);
-  const appliedId = db.applied[tab.action] ?? null;
+  // A view is applied to what the tab was opened from: its preset, else its action. Per analyst.
+  const target = targetOf(tab);
+  const targetName = db.presets.find((p) => p.key === tab.preset)?.name ?? action.name;
+  const appliedId = db.applied[target] ?? null;
   const appliedView = visible.find((v) => v.id === appliedId) ?? null;
   const [saving, setSaving] = useState(false);
 
@@ -1280,9 +1296,9 @@ function VariantB({ ctx }: { ctx: Ctx }) {
     return { n: cols.filter((c) => colIds.has(c)).length, of: cols.length };
   };
   const listed = visible.filter((v) => v.id !== appliedView?.id);
-  const fromHere = listed.filter((v) => v.from === tab.action);
+  const fromHere = listed.filter((v) => v.from === target);
   const others = listed
-    .filter((v) => v.from !== tab.action && match(v).n > 0)
+    .filter((v) => v.from !== target && match(v).n > 0)
     .sort((a, b) => match(b).n / match(b).of - match(a).n / match(a).of);
 
   const [api, setApi] = useState<GridApi<Row> | null>(null);
@@ -1297,12 +1313,12 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   const setApplied = (v: View | null) => {
     ctx.setDb((d) => {
       const applied = { ...d.applied };
-      if (v) applied[tab.action] = v.id;
-      else delete applied[tab.action];
+      if (v) applied[target] = v.id;
+      else delete applied[target];
       return { ...d, applied };
     });
     ctx.toast(
-      `New tabs of ${action.name} will open with ${v ? `"${v.name}"` : 'the action default'}. Tabs already open aren't changed.`,
+      `New tabs of ${targetName} will open with ${v ? `"${v.name}"` : 'the action default'}. Tabs already open aren't changed.`,
     );
   };
 
@@ -1312,7 +1328,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
     return [
       v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`,
       filters(v) ? `${filters(v)} filter${filters(v) > 1 ? 's' : ''}` : null,
-      v.from !== tab.action ? `${m.n} of ${m.of} columns match` : null,
+      v.from !== target ? `${m.n} of ${m.of} columns match` : null,
     ]
       .filter(Boolean)
       .join(' · ');
@@ -1384,9 +1400,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
             variant="outlined"
             disabled={!view || viewId === appliedId || modified}
             title={
-              modified
-                ? 'Save your changes first'
-                : `New tabs of ${action.name} open with this view`
+              modified ? 'Save your changes first' : `New tabs of ${targetName} open with this view`
             }
             onClick={() => setApplied(view)}
           >
@@ -1403,7 +1417,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
         )}
         {appliedId && !appliedView && (
           <Alert severity="warning" sx={{ py: 0 }}>
-            The view applied to {action.name} is gone (deleted, or no longer shared): new tabs use
+            The view applied to {targetName} is gone (deleted, or no longer shared): new tabs use
             the action default.
           </Alert>
         )}
@@ -1411,13 +1425,13 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           {appliedView && (
             <>
               <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1, color: 'text.primary' }}>
-                <b>Applied to {action.name}</b>
+                <b>Applied to {targetName}</b>
               </ListSubheader>
               {item(
                 appliedView,
                 <IconButton
                   size="small"
-                  title={`Stop applying: new tabs of ${action.name} open with the action default`}
+                  title={`Stop applying: new tabs of ${targetName} open with the action default`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setApplied(null);
@@ -1428,7 +1442,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
               )}
             </>
           )}
-          {heading(`Saved from ${action.name}`)}
+          {heading(`Saved from ${targetName}`)}
           {item(null)}
           {fromHere.map((v) => item(v, del(v)))}
           {others.length > 0 && heading('Other views')}
@@ -1480,7 +1494,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
               const id = `v-${Date.now()}`;
               ctx.setDb((d) => ({
                 ...d,
-                views: [...d.views, { ...fresh, id, owner: ME, from: tab.action, layout }],
+                views: [...d.views, { ...fresh, id, owner: ME, from: target, layout }],
                 tabView: { ...d.tabView, [tab.id]: id },
                 tabBase: { ...d.tabBase, [baseKey]: layout },
               }));
@@ -1492,8 +1506,8 @@ function VariantB({ ctx }: { ctx: Ctx }) {
       {ctx.saveOpen && (
         <SaveShell ctx={ctx} onSave={(b) => upsertPreset(ctx, b, {})}>
           <Typography variant="caption" color="text.secondary">
-            A preset keeps the action and its params only. Each analyst's new tabs of {action.name}{' '}
-            open with the view they applied to it, or the action default.
+            A preset keeps the action and its params. Each analyst applies their own view to it in
+            the Views panel.
           </Typography>
         </SaveShell>
       )}
@@ -1989,8 +2003,9 @@ function Page({ variant }: { variant: string }) {
       origin = 'mine';
       start = db.mine[actionKey].layout;
     }
-    // B: the view you applied to the action, if you can still see it; presets don't carry columns.
-    const v = db.views.find((x) => x.id === db.applied[actionKey] && (x.owner === ME || x.shared));
+    // B: the view you applied to the preset (else the action), if you can still see it.
+    const appliedTo = db.applied[targetOf({ preset: presetKey, action: actionKey })];
+    const v = db.views.find((x) => x.id === appliedTo && (x.owner === ME || x.shared));
     setDb((d) => ({
       ...d,
       tabGrid: {
@@ -2044,7 +2059,7 @@ function Page({ variant }: { variant: string }) {
       : {}),
     ...(variant === 'A' ? { 'mine (IndexedDB, per action)': db.mine } : {}),
     ...(variant === 'B'
-      ? { 'applied per action (server)': db.applied, 'views (server)': db.views }
+      ? { 'applied (server, per analyst)': db.applied, 'views (server)': db.views }
       : {}),
     'presets (server)': db.presets.map((p) => ({
       key: p.key,
