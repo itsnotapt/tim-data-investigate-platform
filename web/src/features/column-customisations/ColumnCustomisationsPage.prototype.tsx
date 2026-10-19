@@ -9,8 +9,9 @@
 //      Layout side-bar panel; the status bar says where the columns came from.
 //   B  Column views (chosen): named views of columns and filters (private or shared, for one action
 //      or any) in a Views side-bar panel, with Save / Save as / Revert; the status bar shows the
-//      view and "modified". ★ makes a view your default for future runs of an action (open tabs
-//      keep theirs); "Revert to action default" clears it. Presets keep params only.
+//      view and "modified". "Use this view for future runs" makes the tab's current view your default
+//      (★) for new tabs of the action (open tabs aren't changed); "Revert to action default" clears
+//      it. Presets keep params only.
 //   C  Columns table (rejected: the table is too heavy): a layered definition, action file <
 //      preset < this tab, edited in a table beside the grid. Filters never leave the tab.
 // A and B: nothing above the grid; an Action file side-bar panel, the column menu and the
@@ -59,8 +60,6 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
-import StarIcon from '@mui/icons-material/Star';
-import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { AgGridReact, type CustomStatusPanelProps, type CustomToolPanelProps } from 'ag-grid-react';
 import {
   ModuleRegistry,
@@ -1252,7 +1251,9 @@ function VariantB({ ctx }: { ctx: Ctx }) {
   const anyAction = visible.filter((v) => v.scope === null);
   const defaultId = db.defaults[tab.action] ?? null;
   const defaultView = visible.find((v) => v.id === defaultId) ?? null;
-  const [saveAs, setSaveAs] = useState(false);
+  /** Save as… open, with "use for future runs" ticked when it came from that button. */
+  const [saveAs, setSaveAs] = useState<false | 'plain' | 'default'>(false);
+  const currentIsDefault = viewId === (defaultView?.id ?? null);
 
   const base = db.tabBase[`${tab.id}:${tab.gen}`];
   const modified = !!base && !same(layoutOf(grid, true), base);
@@ -1275,7 +1276,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
     if (apiRef.current) applyLayout(apiRef.current, v?.layout, true, ctx.setDb, tab);
   };
 
-  /** Your default for future runs of this action; open tabs keep their columns. */
+  /** Your default for future runs of this action; tabs already open aren't changed. */
   const setDefault = (v: View | null) => {
     ctx.setDb((d) => {
       const defaults = { ...d.defaults };
@@ -1285,8 +1286,8 @@ function VariantB({ ctx }: { ctx: Ctx }) {
     });
     ctx.toast(
       v
-        ? `New tabs of ${action.name} will open with "${v.name}". Open tabs keep their columns.`
-        : `New tabs of ${action.name} will open with the action default. Open tabs keep their columns.`,
+        ? `New tabs of ${action.name} will open with "${v.name}". Tabs already open aren't changed.`
+        : `New tabs of ${action.name} will open with the action default. Tabs already open aren't changed.`,
     );
   };
 
@@ -1307,6 +1308,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           primary={
             <>
               {v?.name ?? 'Action default'}
+              {isDefault && <span style={{ color: '#f59e0b' }}> ★</span>}
               {id === viewId && modified && <b> •</b>}
             </>
           }
@@ -1318,24 +1320,6 @@ function VariantB({ ctx }: { ctx: Ctx }) {
                 : 'from the action file'
           }
         />
-        <IconButton
-          size="small"
-          title={
-            isDefault
-              ? `New tabs of ${action.name} open with this`
-              : `Use for future runs of ${action.name}`
-          }
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!isDefault) setDefault(v);
-          }}
-        >
-          {isDefault ? (
-            <StarIcon fontSize="inherit" sx={{ color: '#f59e0b' }} />
-          ) : (
-            <StarBorderIcon fontSize="inherit" />
-          )}
-        </IconButton>
         {v && v.owner === ME && (
           <IconButton
             size="small"
@@ -1388,7 +1372,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
           >
             Save
           </Button>
-          <Button size="small" variant="outlined" onClick={() => setSaveAs(true)}>
+          <Button size="small" variant="outlined" onClick={() => setSaveAs('plain')}>
             Save as…
           </Button>
           <Button size="small" disabled={!modified} onClick={() => apply(viewId)}>
@@ -1410,11 +1394,28 @@ function VariantB({ ctx }: { ctx: Ctx }) {
               default.
             </Alert>
           )}
-          {defaultId && (
-            <Button size="small" sx={{ mt: 0.5 }} onClick={() => setDefault(null)}>
-              Revert to action default
-            </Button>
-          )}
+          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+            {(!currentIsDefault || modified) && (
+              <Button
+                size="small"
+                variant="outlined"
+                // Only the view this tab shows; unsaved changes are saved as a view first.
+                onClick={() => (modified ? setSaveAs('default') : setDefault(view))}
+                title={
+                  modified
+                    ? 'This tab has unsaved changes: save them as a view first'
+                    : `New tabs of ${action.name} will open with "${view?.name ?? 'Action default'}"`
+                }
+              >
+                {modified ? 'Save as… and use for future runs' : 'Use this view for future runs'}
+              </Button>
+            )}
+            {defaultId && (
+              <Button size="small" onClick={() => setDefault(null)}>
+                Revert to action default
+              </Button>
+            )}
+          </Stack>
         </Box>
         <List dense disablePadding>
           {item(null)}
@@ -1462,6 +1463,7 @@ function VariantB({ ctx }: { ctx: Ctx }) {
         <SaveViewDialog
           action={action}
           grid={grid}
+          useInitially={saveAs === 'default'}
           onClose={() => setSaveAs(false)}
           onSave={(v, useForAction) => {
             const id = `v-${Date.now()}`;
@@ -1492,18 +1494,20 @@ function VariantB({ ctx }: { ctx: Ctx }) {
 function SaveViewDialog({
   action,
   grid,
+  useInitially,
   onClose,
   onSave,
 }: {
   action: ActionDef;
   grid: GridState | undefined;
+  useInitially: boolean;
   onClose: () => void;
   onSave: (v: Omit<View, 'id' | 'owner' | 'layout'>, useForAction: boolean) => void;
 }) {
   const [name, setName] = useState('');
   const [scope, setScope] = useState<'action' | 'any'>('action');
   const [shared, setShared] = useState(false);
-  const [useForAction, setUseForAction] = useState(false);
+  const [useForAction, setUseForAction] = useState(useInitially);
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Save as column view</DialogTitle>
