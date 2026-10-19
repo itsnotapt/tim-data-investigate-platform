@@ -5,16 +5,28 @@
 // Three variants on one route, switchable with ?variant=A|B|C, on a real AG Grid:
 //   A  Remembered: AG Grid's own GridState is the format. Each tab keeps its whole grid state, your
 //      last layout per action is remembered for the next tab of it, and Save… can put the columns
-//      (and optionally the filters) into the preset. No named column views.
-//   B  Column views: named views (private or shared, for one action or any) picked in the grid
-//      toolbar, with modified / Save / Save as / Revert. A preset references a view.
-//   C  Columns table: a layered definition, action file < preset < this tab, edited in a Columns
-//      table beside the grid (each value shows where it comes from). Filters never leave the tab.
+//      (and optionally the filters) into the preset. No named column views. Resets live in a
+//      Layout side-bar panel; the status bar says where the columns came from.
+//   B  Column views: named views (private or shared, for one action or any) in a Views side-bar
+//      panel, with Save / Save as / Revert; the status bar shows the view and "modified". A preset
+//      references a view.
+//   C  Columns table (rejected: the table is too heavy): a layered definition, action file <
+//      preset < this tab, edited in a table beside the grid. Filters never leave the tab.
+// A and B: nothing above the grid; an Action file side-bar panel, the column menu and the
+// right-click menu copy the columns as an action file `columns:` block.
 // "IndexedDB" and the presets are one in-memory object, shown in the State panel. "Reload" re-creates
 // every grid from it; "Re-run" changes the current tab's columns (one gone, one new).
 // Run with `npm run prototype:column-customisations`.
 /* eslint-disable react-hooks/preserve-manual-memoization -- prototype: memo keyed on a JSON string */
-import { useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Alert,
   Box,
@@ -28,6 +40,9 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
   ListSubheader,
   Menu,
   MenuItem,
@@ -43,8 +58,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact, type CustomStatusPanelProps, type CustomToolPanelProps } from 'ag-grid-react';
 import {
   ModuleRegistry,
   themeBalham,
@@ -52,24 +66,17 @@ import {
   type ColumnState,
   type GridApi,
   type GridState,
+  type GridStateKey,
   type SideBarDef,
 } from 'ag-grid-community';
-import {
-  CalculatedColumnsModule,
-  ColumnHeaderEditModule,
-  RowGroupingPanelModule,
-} from 'ag-grid-enterprise';
+import { CalculatedColumnsModule, ColumnHeaderEditModule } from 'ag-grid-enterprise';
 import { initAgGrid } from '../grid/agGridSetup';
 import { PrototypeSwitcher, usePrototypeVariant } from '../../components/PrototypeSwitcher';
 
 initAgGrid({});
-// Renaming headers and calculated columns from the column menu (both kept in GridState), and the
-// drag-to-group panel.
-ModuleRegistry.registerModules([
-  ColumnHeaderEditModule,
-  CalculatedColumnsModule,
-  RowGroupingPanelModule,
-]);
+// Renaming headers and calculated columns from the column menu, both kept in GridState. Grouping
+// is in the side bar's Columns panel only: no drag-to-group bar above the grid.
+ModuleRegistry.registerModules([ColumnHeaderEditModule, CalculatedColumnsModule]);
 
 const ME = 'you@contoso.com';
 const who = (email: string) => (email === ME ? 'you' : email.split('@')[0]!);
@@ -281,6 +288,7 @@ const COLUMN_KEYS = [
   'rowGroup',
   'aggregation',
   'pivot',
+  'partialColumnState',
 ] as const;
 type Layout = Pick<GridState, (typeof COLUMN_KEYS)[number] | 'filter'>;
 
@@ -516,11 +524,13 @@ interface Db {
 }
 
 const TRIAGE_LAYOUT: Layout = {
+  partialColumnState: true,
   columnVisibility: { hiddenColIds: ['SHA256', 'AlertId', 'tim:tags', 'tim:commentText'] },
   rowGroup: { groupColIds: ['tim:label'] },
   sort: { sortModel: [{ colId: 'Severity', sort: 'asc' }] },
 };
 const NETWORK_LAYOUT: Layout = {
+  partialColumnState: true,
   columnOrder: {
     orderedColIds: ['tim:comments', 'RemoteIP', 'DeviceName', 'AccountUpn', 'Timestamp'],
   },
@@ -630,6 +640,159 @@ interface GridProps {
   onColumns?: (api: GridApi<Row>) => void;
   /** After the first rows render, when the grid's state has settled. */
   onReady?: (api: GridApi<Row>) => void;
+  /** The variant's side-bar panel and status-bar text. */
+  slots?: Slots;
+  /** For "Copy column settings": the action's declared columns, and the page's toast. */
+  action: ActionDef;
+  toast: (text: string) => void;
+}
+
+interface GridContext {
+  action: ActionDef;
+  drift: boolean;
+  toast: (text: string) => void;
+}
+
+/** TIM's columns as they open: only the comment count shows. */
+const TIM_DEFAULT_HIDDEN: Record<string, boolean> = {
+  'tim:comments': false,
+  'tim:label': true,
+  'tim:tags': true,
+  'tim:commentText': true,
+};
+
+/**
+ * The grid's columns as an action file's `columns:` block: every column in display order, with
+ * only the hints that differ from TIM's defaults. Filters are left out: not an action-file setting.
+ */
+function columnsYaml(api: GridApi<Row>): string {
+  const { action, drift } = api.getGridOption('context') as GridContext;
+  const specs = new Map(action.columns(drift).map((c) => [c.name, c]));
+  const headers = new Map(
+    (api.getState().columnHeaderName?.columnHeaderNames ?? []).map((h) => [h.colId, h.headerName]),
+  );
+  const sorted = api
+    .getColumnState()
+    .filter((c) => c.sort)
+    .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+  const lines = [
+    `# ${action.name}: column hints from this grid, to paste into its action file.`,
+    'columns:',
+  ];
+  for (const c of api.getColumnState()) {
+    if (c.colId.startsWith('ag-Grid-')) continue;
+    const def = api.getColumn(c.colId)?.getColDef();
+    const tim = c.colId.startsWith('tim:');
+    const spec = specs.get(c.colId);
+    const props: string[] = [];
+    if (spec) props.push(`type: ${spec.type}`);
+    if (def?.calculatedExpression)
+      props.push(`calculated: ${JSON.stringify(def.calculatedExpression)}`);
+    const header = headers.get(c.colId) ?? (tim ? undefined : def?.headerName);
+    if (header && header !== c.colId && !tim) props.push(`header: ${JSON.stringify(header)}`);
+    if (tim ? !!c.hide !== TIM_DEFAULT_HIDDEN[c.colId] : c.hide) props.push(`hidden: ${!!c.hide}`);
+    if (c.pinned && !(tim && c.colId === 'tim:comments')) props.push(`pinned: ${c.pinned}`);
+    if (c.width && c.width !== 150 && !tim) props.push(`width: ${c.width}`);
+    if (c.sort)
+      props.push(
+        `sort: ${c.sort}${sorted.length > 1 ? `   # ${sorted.findIndex((x) => x.colId === c.colId) + 1} of ${sorted.length}` : ''}`,
+      );
+    if (c.rowGroup) props.push('group: true');
+    // TIM's columns appear only when changed; they're always there otherwise.
+    if (tim && !props.length) continue;
+    lines.push(`  - name: ${c.colId}${tim ? "   # TIM's column" : ''}`);
+    for (const pr of props) lines.push(`    ${pr}`);
+  }
+  return lines.join('\n');
+}
+
+function copyColumns(api: GridApi<Row>) {
+  const { toast } = api.getGridOption('context') as GridContext;
+  const text = columnsYaml(api);
+  navigator.clipboard.writeText(text).then(
+    () => toast('Copied the column settings as an action file `columns:` block'),
+    () => toast("Couldn't copy to the clipboard"),
+  );
+}
+
+const COPY_ITEM = 'Copy column settings (action file)';
+
+const COLUMN_EVENTS = [
+  'columnMoved',
+  'columnResized',
+  'columnVisible',
+  'columnPinned',
+  'sortChanged',
+  'columnRowGroupChanged',
+  'columnHeaderNameChanged',
+  'calculatedColumnCreated',
+  'calculatedColumnRemoved',
+  'calculatedColumnExpressionChanged',
+  'displayedColumnsChanged',
+] as const;
+
+/**
+ * The variant's own side-bar panel and status-bar text. AG Grid renders custom components through
+ * portals, so React context reaches them and they re-render with the page.
+ */
+interface Slots {
+  panel?: ReactNode;
+  status?: ReactNode;
+  /** The tool panel the status text opens. */
+  panelId?: string;
+}
+const SlotsContext = createContext<Slots>({});
+
+function SlotPanel() {
+  const { panel } = useContext(SlotsContext);
+  return <Box sx={{ p: 1, height: '100%', overflow: 'auto', fontSize: 13 }}>{panel}</Box>;
+}
+
+function SlotStatus({ api }: CustomStatusPanelProps<Row>) {
+  const { status, panelId } = useContext(SlotsContext);
+  if (!status) return null;
+  return (
+    <Box
+      component="button"
+      type="button"
+      title="Open the panel"
+      onClick={() => panelId && api.openToolPanel(panelId)}
+      sx={{
+        all: 'unset',
+        cursor: 'pointer',
+        fontSize: 12,
+        py: 0.75,
+        '&:hover': { textDecoration: 'underline' },
+      }}
+    >
+      {status}
+    </Box>
+  );
+}
+
+/** Side-bar tool panel: the live `columns:` block with a copy button. */
+function ActionFilePanel({ api }: CustomToolPanelProps<Row>) {
+  const [yaml, setYaml] = useState(() => columnsYaml(api));
+  useEffect(() => {
+    const update = () => setYaml(columnsYaml(api));
+    for (const e of COLUMN_EVENTS) api.addEventListener(e, update);
+    return () => {
+      for (const e of COLUMN_EVENTS) if (!api.isDestroyed()) api.removeEventListener(e, update);
+    };
+  }, [api]);
+  return (
+    <Stack spacing={1} sx={{ p: 1, height: '100%', overflow: 'auto' }}>
+      <Typography variant="subtitle2">Action file</Typography>
+      <Typography variant="caption" color="text.secondary">
+        This grid's columns as hints for the action's file, for an admin to make them everyone's
+        default. Filters aren't included.
+      </Typography>
+      <Button size="small" variant="outlined" onClick={() => copyColumns(api)}>
+        Copy to clipboard
+      </Button>
+      <pre style={{ fontSize: 11, margin: 0, whiteSpace: 'pre-wrap' }}>{yaml}</pre>
+    </Stack>
+  );
 }
 
 // Constants: a new object per render makes AG Grid rebuild its columns and side bar.
@@ -655,42 +818,77 @@ const DEFAULT_COL_DEF: ColDef<Row> = {
     'separator',
     'columnChooser',
     'resetColumns',
+    'separator',
+    { name: COPY_ITEM, action: ({ api }) => copyColumns(api) },
   ],
 };
-const SIDE_BAR_BOTH = ['columns', 'filters'];
+const ACTION_FILE_PANEL = {
+  id: 'actionFile',
+  labelDefault: 'Action file',
+  labelKey: 'actionFile',
+  iconKey: 'clipboardCopy',
+  toolPanel: ActionFilePanel,
+  width: 300,
+};
+const sideBarWith = (id: string, label: string): SideBarDef => ({
+  toolPanels: [
+    'columns',
+    'filters',
+    { id, labelDefault: label, labelKey: id, iconKey: 'save', toolPanel: SlotPanel, width: 280 },
+    ACTION_FILE_PANEL,
+  ],
+  defaultToolPanel: 'columns',
+});
+const SIDE_BAR_A = sideBarWith('layout', 'Layout');
+const SIDE_BAR_B = sideBarWith('views', 'Views');
+const STATUS_BAR = {
+  statusPanels: [
+    { statusPanel: SlotStatus, align: 'left' as const },
+    { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'right' as const },
+  ],
+};
 // No defaultToolPanel: the side bar starts closed (the columns table takes the room).
 const SIDE_BAR_FILTERS: SideBarDef = { toolPanels: ['filters'] };
 const AUTO_GROUP_COL_DEF: ColDef<Row> = { minWidth: 180 };
 
 function Grid(p: GridProps) {
+  const context: GridContext = { action: p.action, drift: p.tab.drift, toast: p.toast };
   return (
-    <AgGridReact<Row>
-      key={`${p.tab.id}:${p.tab.gen}:${p.reload}:${p.tab.drift}`}
-      theme={gridTheme}
-      rowData={p.rows}
-      columnDefs={p.columnDefs}
-      defaultColDef={DEFAULT_COL_DEF}
-      calculatedColumns
-      autoGroupColumnDef={AUTO_GROUP_COL_DEF}
-      groupDefaultExpanded={1}
-      rowGroupPanelShow="always"
-      sideBar={p.sideBar}
-      getRowId={(r) => String(r.data._row)}
-      initialState={p.initialState}
-      onStateUpdated={(e) =>
-        p.onState?.(e.state, e.sources.length === 1 && e.sources[0] === 'gridInitializing')
-      }
-      onFirstDataRendered={(e) => {
-        p.onReady?.(e.api);
-        p.onColumns?.(e.api);
-      }}
-      onColumnMoved={(e) => e.finished && p.onColumns?.(e.api)}
-      onColumnResized={(e) => e.finished && p.onColumns?.(e.api)}
-      onColumnVisible={(e) => p.onColumns?.(e.api)}
-      onColumnPinned={(e) => p.onColumns?.(e.api)}
-      onSortChanged={(e) => p.onColumns?.(e.api)}
-      onColumnRowGroupChanged={(e) => p.onColumns?.(e.api)}
-    />
+    <SlotsContext.Provider value={p.slots ?? {}}>
+      <AgGridReact<Row>
+        key={`${p.tab.id}:${p.tab.gen}:${p.reload}:${p.tab.drift}`}
+        theme={gridTheme}
+        rowData={p.rows}
+        columnDefs={p.columnDefs}
+        defaultColDef={DEFAULT_COL_DEF}
+        calculatedColumns
+        autoGroupColumnDef={AUTO_GROUP_COL_DEF}
+        groupDefaultExpanded={1}
+        sideBar={p.sideBar}
+        statusBar={p.slots ? STATUS_BAR : undefined}
+        getRowId={(r) => String(r.data._row)}
+        context={context}
+        getContextMenuItems={(e) => [
+          ...(e.defaultItems ?? []),
+          'separator',
+          { name: COPY_ITEM, action: () => copyColumns(e.api) },
+        ]}
+        initialState={p.initialState}
+        onStateUpdated={(e) =>
+          p.onState?.(e.state, e.sources.length === 1 && e.sources[0] === 'gridInitializing')
+        }
+        onFirstDataRendered={(e) => {
+          p.onReady?.(e.api);
+          p.onColumns?.(e.api);
+        }}
+        onColumnMoved={(e) => e.finished && p.onColumns?.(e.api)}
+        onColumnResized={(e) => e.finished && p.onColumns?.(e.api)}
+        onColumnVisible={(e) => p.onColumns?.(e.api)}
+        onColumnPinned={(e) => p.onColumns?.(e.api)}
+        onSortChanged={(e) => p.onColumns?.(e.api)}
+        onColumnRowGroupChanged={(e) => p.onColumns?.(e.api)}
+      />
+    </SlotsContext.Provider>
   );
 }
 
@@ -829,22 +1027,18 @@ function VariantA({ ctx }: { ctx: Ctx }) {
   const preset = db.presets.find((p) => p.key === tab.preset);
   const grid = db.tabGrid[tab.id];
   const mine = db.mine[tab.action];
-  const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [withCols, setWithCols] = useState(true);
   const [withFilters, setWithFilters] = useState(false);
 
   const base = db.tabBase[`${tab.id}:${tab.gen}`];
   const changed = !!base && !same(layoutOf(grid, false), base);
 
+  const apiRef = useRef<GridApi<Row> | null>(null);
   const reset = (to: 'defaults' | 'preset' | 'mine') => {
     const layout = to === 'preset' ? preset?.layout : to === 'mine' ? mine?.layout : undefined;
-    ctx.setDb((d) => ({
-      ...d,
-      // Filters stay; the columns are replaced.
-      tabGrid: { ...d.tabGrid, [tab.id]: { ...(layout ?? {}), filter: d.tabGrid[tab.id]?.filter } },
-    }));
-    ctx.updateTab({ gen: tab.gen + 1, origin: to });
-    setMenu(null);
+    // Filters stay; the columns are replaced in place.
+    if (apiRef.current) applyLayout(apiRef.current, layout, false, ctx.setDb, tab);
+    ctx.updateTab({ origin: to });
   };
 
   const originText =
@@ -854,55 +1048,66 @@ function VariantA({ ctx }: { ctx: Ctx }) {
         ? `your last layout for ${action.name}`
         : 'action defaults';
 
+  const resetTo = (to: 'defaults' | 'preset' | 'mine', title: string, detail: string) => (
+    <ListItemButton dense selected={tab.origin === to && !changed} onClick={() => reset(to)}>
+      <ListItemText primary={title} secondary={detail} />
+    </ListItemButton>
+  );
+  const slots: Slots = {
+    panelId: 'layout',
+    status: (
+      <>
+        Columns: {originText}
+        {changed && <b> • changed</b>}
+      </>
+    ),
+    panel: (
+      <Stack spacing={1}>
+        <Typography variant="subtitle2">This tab</Typography>
+        <Box>
+          Started from {originText}
+          {changed && <b> • changed</b>}
+        </Box>
+        <Hint>{summary(layoutOf(grid, true), ctx.defs)}</Hint>
+        <Hint>Kept with the tab, filters too, across reloads.</Hint>
+        <Divider />
+        <Typography variant="subtitle2">Reset columns to</Typography>
+        <List dense disablePadding>
+          {resetTo('defaults', 'Action defaults', 'from the action file')}
+          {preset?.layout &&
+            resetTo('preset', `Preset "${preset.name}"`, summary(preset.layout, ctx.defs))}
+          {mine &&
+            resetTo(
+              'mine',
+              `Your last layout for ${action.name}`,
+              `${summary(mine.layout, ctx.defs)} (from ${mine.fromTab})`,
+            )}
+        </List>
+        <Hint>
+          A new tab of {action.name} opens with its preset's columns, else your last layout, else
+          the action defaults. Filters stay put.
+        </Hint>
+      </Stack>
+    ),
+  };
+
   return (
     <>
-      <Toolbar>
-        <Chip size="small" label={`Columns: ${originText}${changed ? ' • changed' : ''}`} />
-        <Hint>{summary(layoutOf(grid, true), ctx.defs)}</Hint>
-        <Box sx={{ flex: 1 }} />
-        <Button
-          size="small"
-          startIcon={<RestartAltIcon />}
-          onClick={(e) => setMenu(e.currentTarget)}
-        >
-          Reset columns
-        </Button>
-        <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}>
-          <MenuItem onClick={() => reset('defaults')}>
-            <Stack>
-              <span>Action defaults</span>
-              <Hint>from the action file</Hint>
-            </Stack>
-          </MenuItem>
-          {preset?.layout && (
-            <MenuItem onClick={() => reset('preset')}>
-              <Stack>
-                <span>Preset "{preset.name}"</span>
-                <Hint>{summary(preset.layout, ctx.defs)}</Hint>
-              </Stack>
-            </MenuItem>
-          )}
-          {mine && (
-            <MenuItem onClick={() => reset('mine')}>
-              <Stack>
-                <span>Your last layout for {action.name}</span>
-                <Hint>
-                  {summary(mine.layout, ctx.defs)} (from {mine.fromTab})
-                </Hint>
-              </Stack>
-            </MenuItem>
-          )}
-        </Menu>
-      </Toolbar>
       <Box sx={{ flex: 1, minHeight: 0 }}>
         <Grid
           tab={tab}
+          action={actionOf(tab.action)}
+          toast={ctx.toast}
           reload={ctx.reload}
           rows={ctx.rows}
           columnDefs={ctx.defs}
           initialState={grid}
-          sideBar={SIDE_BAR_BOTH}
-          onReady={(api) => ctx.setDb((d) => withBase(d, tab, api.getState()))}
+          sideBar={SIDE_BAR_A}
+          slots={slots}
+          onReady={(api) => {
+            apiRef.current = api;
+            ctx.setDb((d) => withBase(d, tab, api.getState()));
+          }}
           onState={(s, initial) =>
             ctx.setDb((d) => {
               const cols = layoutOf(s, false);
@@ -962,6 +1167,73 @@ function VariantA({ ctx }: { ctx: Ctx }) {
   );
 }
 
+/**
+ * Fits a layout saved for other columns (a view for any action, or an older result) to this
+ * result's columns. Raw, AG Grid drops the whole `columnVisibility` when `columnOrder` misses
+ * many current columns, and a layout without `columnPinning` unpins the action's pinned columns.
+ * So: unknown columns are dropped, the order is completed with the missing columns in their
+ * default order, and the state is partial (anything the layout doesn't mention keeps its default).
+ */
+function fitLayout(l: Layout, colIds: string[]): Layout {
+  const known = new Set(colIds);
+  const keep = (ids: string[]) => ids.filter((c) => known.has(c));
+  const out: Layout = { ...l, partialColumnState: true };
+  if (l.columnOrder) {
+    const listed = keep(l.columnOrder.orderedColIds);
+    out.columnOrder = { orderedColIds: [...listed, ...colIds.filter((c) => !listed.includes(c))] };
+  }
+  if (l.columnVisibility)
+    out.columnVisibility = { hiddenColIds: keep(l.columnVisibility.hiddenColIds) };
+  if (l.columnPinning)
+    out.columnPinning = {
+      leftColIds: keep(l.columnPinning.leftColIds),
+      rightColIds: keep(l.columnPinning.rightColIds),
+    };
+  if (l.sort) out.sort = { sortModel: l.sort.sortModel.filter((x) => known.has(x.colId)) };
+  if (l.rowGroup) out.rowGroup = { groupColIds: keep(l.rowGroup.groupColIds) };
+  return out;
+}
+
+/** Grid state that isn't columns: never replaced by a layout. */
+const NOT_COLUMNS: GridStateKey[] = [
+  'sideBar',
+  'scroll',
+  'focusedCell',
+  'rowSelection',
+  'cellSelection',
+  'pagination',
+  'rowGroupExpansion',
+  'quickFilter',
+  'find',
+];
+
+/**
+ * Applies a layout in place (no new grid, so the open side-bar panel stays): back to the action
+ * defaults, then the layout fitted to this result's columns. The result is the tab's new "as
+ * opened", so "changed" starts again from here.
+ */
+function applyLayout(
+  api: GridApi<Row>,
+  layout: Layout | undefined,
+  withFilters: boolean,
+  setDb: Ctx['setDb'],
+  tab: Tab,
+) {
+  api.resetColumnState();
+  if (layout) {
+    const colIds = (api.getColumns() ?? []).map((c) => c.getColId());
+    api.setState(fitLayout(layout, colIds), withFilters ? NOT_COLUMNS : [...NOT_COLUMNS, 'filter']);
+  }
+  setTimeout(() => {
+    const s = api.getState();
+    setDb((d) => ({
+      ...d,
+      tabGrid: { ...d.tabGrid, [tab.id]: layoutOf(s, true) },
+      tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(s, false) },
+    }));
+  }, 50);
+}
+
 /** Records the grid's layout as it first opened for this tab and reset. */
 function withBase(d: Db, tab: Tab, s: GridState): Db {
   const k = `${tab.id}:${tab.gen}`;
@@ -996,123 +1268,129 @@ function VariantB({ ctx }: { ctx: Ctx }) {
       ].filter((c) => !colIds.has(c))
     : [];
 
+  const apiRef = useRef<GridApi<Row> | null>(null);
   const apply = (id: string | null) => {
     const v = db.views.find((x) => x.id === id);
-    ctx.setDb((d) => ({
-      ...d,
-      tabView: { ...d.tabView, [tab.id]: id },
-      tabGrid: {
-        ...d.tabGrid,
-        // A view without filters keeps the tab's filters.
-        [tab.id]: { ...(v?.layout ?? {}), filter: v?.withFilters ? v.layout.filter : grid?.filter },
-      },
-    }));
-    ctx.updateTab({ gen: tab.gen + 1 });
+    ctx.setDb((d) => ({ ...d, tabView: { ...d.tabView, [tab.id]: id } }));
+    // A view without filters keeps the tab's filters.
+    if (apiRef.current) applyLayout(apiRef.current, v?.layout, !!v?.withFilters, ctx.setDb, tab);
+  };
+
+  const sharing = (v: View) =>
+    `${v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`}${v.withFilters ? ', with filters' : ''}`;
+  const item = (v: View | null) => (
+    <ListItemButton
+      key={v?.id ?? '__default'}
+      dense
+      selected={(v?.id ?? null) === viewId}
+      onClick={() => apply(v?.id ?? null)}
+    >
+      <ListItemText
+        primary={
+          <>
+            {v?.name ?? 'Action default'}
+            {(v?.id ?? null) === viewId && modified && <b> •</b>}
+          </>
+        }
+        secondary={v ? sharing(v) : 'from the action file'}
+      />
+      {v && v.owner === ME && (
+        <IconButton
+          size="small"
+          title="Delete view"
+          onClick={(e) => {
+            e.stopPropagation();
+            ctx.setDb((d) => ({ ...d, views: d.views.filter((x) => x.id !== v.id) }));
+            ctx.toast(`Deleted view "${v.name}"; presets pointing at it fall back to the default`);
+          }}
+        >
+          <CloseIcon fontSize="inherit" />
+        </IconButton>
+      )}
+    </ListItemButton>
+  );
+  const slots: Slots = {
+    panelId: 'views',
+    status: (
+      <>
+        View: {view?.name ?? 'Action default'}
+        {modified && <b> • modified</b>}
+      </>
+    ),
+    panel: (
+      <Stack spacing={1}>
+        {missingView && (
+          <Alert severity="warning" sx={{ py: 0 }}>
+            "{preset.name}" uses a view you can't see (private to {who(preset.owner)}, or deleted):
+            showing the action default.
+          </Alert>
+        )}
+        <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap' }}>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={!view || view.owner !== ME || !modified}
+            onClick={() =>
+              ctx.setDb((d) => ({
+                ...d,
+                views: d.views.map((v) =>
+                  v.id === view!.id ? { ...v, layout: layoutOf(grid, v.withFilters) } : v,
+                ),
+                tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(grid, false) },
+              }))
+            }
+          >
+            Save
+          </Button>
+          <Button size="small" variant="outlined" onClick={() => setSaveAs(true)}>
+            Save as…
+          </Button>
+          <Button size="small" disabled={!modified} onClick={() => apply(viewId)}>
+            Revert
+          </Button>
+        </Stack>
+        {unknown.length > 0 && (
+          <Typography variant="caption" color="text.secondary">
+            {unknown.length} of "{view?.name}"'s columns aren't in this result: {unknown.join(', ')}
+          </Typography>
+        )}
+        <List dense disablePadding>
+          {item(null)}
+          <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1 }}>
+            For {action.name}
+          </ListSubheader>
+          {forAction.map(item)}
+          {forAction.length === 0 && (
+            <Box sx={{ px: 2 }}>
+              <Hint>none yet</Hint>
+            </Box>
+          )}
+          <ListSubheader disableSticky sx={{ lineHeight: 2, px: 1 }}>
+            Any action (matched by column name)
+          </ListSubheader>
+          {anyAction.map(item)}
+        </List>
+      </Stack>
+    ),
   };
 
   return (
     <>
-      <Toolbar>
-        <Select
-          size="small"
-          value={viewId ?? '__default'}
-          onChange={(e) => apply(e.target.value === '__default' ? null : e.target.value)}
-          renderValue={() => (
-            <span>
-              Column view: <b>{view?.name ?? 'Action default'}</b>
-              {modified && ' •'}
-            </span>
-          )}
-          sx={{ minWidth: 240 }}
-        >
-          <MenuItem value="__default">Action default</MenuItem>
-          <ListSubheader>For {action.name}</ListSubheader>
-          {forAction.map((v) => (
-            <MenuItem key={v.id} value={v.id}>
-              {v.name}
-              <Box sx={{ ml: 1 }}>
-                <Hint>
-                  {v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`}
-                </Hint>
-              </Box>
-            </MenuItem>
-          ))}
-          {forAction.length === 0 && (
-            <MenuItem disabled>
-              <Hint>none yet</Hint>
-            </MenuItem>
-          )}
-          <ListSubheader>Any action (matched by column name)</ListSubheader>
-          {anyAction.map((v) => (
-            <MenuItem key={v.id} value={v.id}>
-              {v.name}
-              <Box sx={{ ml: 1 }}>
-                <Hint>
-                  {v.owner === ME ? (v.shared ? 'shared' : 'private') : `${who(v.owner)}, shared`}
-                  {v.withFilters && ', with filters'}
-                </Hint>
-              </Box>
-            </MenuItem>
-          ))}
-        </Select>
-        {modified && <Hint>modified</Hint>}
-        <Button
-          size="small"
-          disabled={!view || view.owner !== ME || !modified}
-          onClick={() =>
-            ctx.setDb((d) => ({
-              ...d,
-              views: d.views.map((v) =>
-                v.id === view!.id ? { ...v, layout: layoutOf(grid, v.withFilters) } : v,
-              ),
-              tabBase: { ...d.tabBase, [`${tab.id}:${tab.gen}`]: layoutOf(grid, false) },
-            }))
-          }
-        >
-          Save view
-        </Button>
-        <Button size="small" onClick={() => setSaveAs(true)}>
-          Save as view…
-        </Button>
-        <Button size="small" disabled={!modified} onClick={() => apply(viewId)}>
-          Revert
-        </Button>
-        {view && view.owner === ME && (
-          <Button
-            size="small"
-            color="error"
-            onClick={() => {
-              ctx.setDb((d) => ({ ...d, views: d.views.filter((v) => v.id !== view.id) }));
-              ctx.toast(
-                `Deleted view "${view.name}"; presets pointing at it fall back to the default`,
-              );
-            }}
-          >
-            Delete view
-          </Button>
-        )}
-        <Box sx={{ flex: 1 }} />
-        {unknown.length > 0 && (
-          <Hint>
-            {unknown.length} of this view's columns aren't in this result ({unknown.join(', ')})
-          </Hint>
-        )}
-        {missingView && (
-          <Alert severity="warning" sx={{ py: 0 }}>
-            "{preset.name}" uses a column view you can't see (private to {who(preset.owner)}, or
-            deleted): showing the action default.
-          </Alert>
-        )}
-      </Toolbar>
       <Box sx={{ flex: 1, minHeight: 0 }}>
         <Grid
           tab={tab}
+          action={actionOf(tab.action)}
+          toast={ctx.toast}
           reload={ctx.reload}
           rows={ctx.rows}
           columnDefs={ctx.defs}
           initialState={grid}
-          sideBar={SIDE_BAR_BOTH}
-          onReady={(api) => ctx.setDb((d) => withBase(d, tab, api.getState()))}
+          sideBar={SIDE_BAR_B}
+          slots={slots}
+          onReady={(api) => {
+            apiRef.current = api;
+            ctx.setDb((d) => withBase(d, tab, api.getState()));
+          }}
           onState={(s) =>
             ctx.setDb((d) => ({ ...d, tabGrid: { ...d.tabGrid, [tab.id]: layoutOf(s, true) } }))
           }
@@ -1385,6 +1663,8 @@ function VariantC({ ctx }: { ctx: Ctx }) {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Grid
             tab={tab}
+            action={action}
+            toast={ctx.toast}
             reload={ctx.reload}
             rows={ctx.rows}
             columnDefs={defs}
