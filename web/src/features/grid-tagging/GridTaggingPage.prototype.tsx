@@ -1232,7 +1232,7 @@ interface GridProps {
   selectionRenderer?: (p: CustomCellRendererProps<Row>) => ReactNode;
   fill: boolean;
   /** Native AG Grid menu; ignored with `onMenu`. */
-  menu?: (targets: Row[], clicked: Row | null) => MenuItems;
+  menu?: (targets: Row[], clicked: Row | null, at: { x: number; y: number }) => MenuItems;
   /** Own menu instead of AG Grid's. */
   onMenu?: (x: number, y: number, targets: Row[], clicked: Row) => void;
   onKey?: (key: string, targets: Row[]) => boolean;
@@ -1348,8 +1348,13 @@ function Grid({
         preventDefaultOnContextMenu={!!onMenu}
         getContextMenuItems={
           menu && !onMenu
-            ? (p: GetContextMenuItemsParams<Row>) =>
-                menu(targetsFor(p.api, p.node), p.node?.data ?? null)
+            ? (p: GetContextMenuItemsParams<Row>) => {
+                const ev = p.event as MouseEvent;
+                return menu(targetsFor(p.api, p.node), p.node?.data ?? null, {
+                  x: ev.clientX ?? 0,
+                  y: ev.clientY ?? 0,
+                });
+              }
             : undefined
         }
         onCellContextMenu={(e) => {
@@ -1441,7 +1446,9 @@ const noIdTooltip = "These rows have no id, so they can't be tagged";
 // Today's flow, evolved: AG Grid's own right-click menu with Label ▸ (keys 1–5, 0 clears), the
 // full Annotate dialog for tags, comments and the sink picker, the row's fill, stripe and symbol
 // for its label, Tags and Comments columns, and the timeline in a side drawer that follows the
-// focused row. Quick actions are fixed: the labels in config order.
+// focused row. Quick actions are fixed: the labels in config order. Pivot ▸ opens with Search
+// pivots… (also on /), which AG Grid's menu can't hold inline, so it opens a popover at the
+// right-click point; then the last 3 pivots, then the tree.
 
 function VariantA({ ctx }: { ctx: Ctx }) {
   const [dialog, setDialog] = useState<{
@@ -1449,6 +1456,7 @@ function VariantA({ ctx }: { ctx: Ctx }) {
     focus: 'label' | 'tags' | 'comment';
   } | null>(null);
   const [drawer, setDrawer] = useState<Row | null>(null);
+  const [search, setSearch] = useState<{ x: number; y: number; targets: Row[] } | null>(null);
   const drawerOpen = useRef(false);
   useEffect(() => {
     drawerOpen.current = !!drawer;
@@ -1519,7 +1527,7 @@ function VariantA({ ctx }: { ctx: Ctx }) {
     [],
   );
 
-  const menu = (targets: Row[], clicked: Row | null): MenuItems => {
+  const menu = (targets: Row[], clicked: Row | null, at: { x: number; y: number }): MenuItems => {
     const ids = idsOf(targets);
     const none = ids.length === 0;
     const anns = ids.map((id) => ctx.store[id] ?? EMPTY);
@@ -1565,7 +1573,19 @@ function VariantA({ ctx }: { ctx: Ctx }) {
         action: () => setDrawer(clicked),
       },
       'separator',
-      { name: 'Pivot', subMenu: pivotMenuItems(ctx, targets, false) },
+      {
+        name: 'Pivot',
+        subMenu: [
+          {
+            name: 'Search pivots…',
+            shortcut: '/',
+            icon: searchIconHtml,
+            action: () => setSearch({ ...at, targets }),
+          },
+          'separator',
+          ...pivotMenuItems(ctx, targets, true),
+        ],
+      },
       ...sinkMenuItems(ctx, targets),
       'separator',
       'copy',
@@ -1575,7 +1595,7 @@ function VariantA({ ctx }: { ctx: Ctx }) {
   };
 
   const onKey = (key: string, targets: Row[]) => {
-    if (!idsOf(targets).length) return false;
+    if (!idsOf(targets).length && key !== '/') return false;
     const n = Number(key);
     if (key >= '1' && key <= String(LABELS.length))
       ctx.annotate(targets, { label: LABELS[n - 1]!.key });
@@ -1583,7 +1603,11 @@ function VariantA({ ctx }: { ctx: Ctx }) {
     else if (key === 't') setDialog({ targets, focus: 'tags' });
     else if (key === 'c') setDialog({ targets, focus: 'comment' });
     else if (key === 'h') setDrawer(targets[0] ?? null);
-    else return false;
+    else if (key === '/') {
+      // From the keyboard: open under the focused cell.
+      const r = document.activeElement?.getBoundingClientRect();
+      setSearch({ x: r?.left ?? 200, y: r?.bottom ?? 200, targets });
+    } else return false;
     return true;
   };
 
@@ -1653,7 +1677,166 @@ function VariantA({ ctx }: { ctx: Ctx }) {
           onClose={() => setDialog(null)}
         />
       )}
+      {search && <PivotSearch ctx={ctx} {...search} onClose={() => setSearch(null)} />}
     </Stack>
+  );
+}
+
+const searchIconHtml =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14"/></svg>';
+
+/**
+ * Search pivots…: AG Grid's menu can't hold a text field, so this popover opens where the menu
+ * was. Matches name, menu path and description; ↑↓ move, Enter runs, Esc closes. Empty, it lists
+ * Recent then every pivot by menu path.
+ */
+function PivotSearch({
+  ctx,
+  x,
+  y,
+  targets,
+  onClose,
+}: {
+  ctx: Ctx;
+  x: number;
+  y: number;
+  targets: Row[];
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
+  const needle = q.trim().toLowerCase();
+  const all = availablePivots();
+  const recent = ctx.recentPivots
+    .map((k) => all.find((p) => p.key === k))
+    .filter((p): p is PivotDef => !!p);
+  const groups: { section: string; pivots: PivotDef[] }[] = needle
+    ? [
+        {
+          section: 'Matches',
+          pivots: all.filter((p) =>
+            `${p.menuPath} ${p.name} ${p.description}`.toLowerCase().includes(needle),
+          ),
+        },
+      ]
+    : [
+        { section: 'Recent', pivots: recent },
+        ...[...new Set(all.map((p) => p.menuPath))].map((m) => ({
+          section: m,
+          pivots: all.filter((p) => p.menuPath === m),
+        })),
+      ];
+  const flat = groups.flatMap((g) => g.pivots.map((p) => ({ p, section: g.section })));
+  const tooMany = (p: PivotDef) => p.rows === 'row' && targets.length > 1;
+  const run = (p: PivotDef) => {
+    if (tooMany(p)) return;
+    onClose();
+    ctx.pivot(p.key, targets);
+  };
+  const highlight = (text: string) => {
+    const i = needle ? text.toLowerCase().indexOf(needle) : -1;
+    if (i < 0) return text;
+    return (
+      <>
+        {text.slice(0, i)}
+        <mark style={{ background: 'none', color: 'inherit', fontWeight: 700 }}>
+          {text.slice(i, i + needle.length)}
+        </mark>
+        {text.slice(i + needle.length)}
+      </>
+    );
+  };
+  let i = -1;
+  return (
+    <Popover
+      open
+      onClose={onClose}
+      anchorReference="anchorPosition"
+      anchorPosition={{ top: y, left: x }}
+      marginThreshold={8}
+      slotProps={{
+        paper: { sx: { width: 380, maxHeight: '70vh', display: 'flex', flexDirection: 'column' } },
+      }}
+    >
+      <Box sx={{ p: 1, pb: 0.5 }}>
+        <TextField
+          inputRef={focusLater}
+          fullWidth
+          size="small"
+          placeholder="Search pivots"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setActive(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') setActive((a) => Math.min(a + 1, flat.length - 1));
+            else if (e.key === 'ArrowUp') setActive((a) => Math.max(a - 1, 0));
+            else if (e.key === 'Enter' && flat[active]) run(flat[active].p);
+            else return;
+            e.preventDefault();
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          On {plural(targets.length, 'row')} · opens in a background tab
+        </Typography>
+      </Box>
+      <List dense sx={{ overflow: 'auto', py: 0 }}>
+        {groups
+          .filter((g) => g.pivots.length)
+          .map((g) => (
+            <li key={g.section}>
+              <ul style={{ padding: 0 }}>
+                <ListSubheader sx={{ lineHeight: '28px' }}>{g.section}</ListSubheader>
+                {g.pivots.map((p) => {
+                  const idx = ++i;
+                  return (
+                    <ListItemButton
+                      key={`${g.section}-${p.key}`}
+                      disabled={tooMany(p)}
+                      selected={idx === active}
+                      onMouseEnter={() => setActive(idx)}
+                      onClick={() => run(p)}
+                      sx={{ py: 0.25 }}
+                    >
+                      <ListItemText
+                        primary={highlight(p.name)}
+                        secondary={
+                          tooMany(p) ? (
+                            'Takes one row'
+                          ) : (
+                            <>
+                              {(needle || g.section === 'Recent') && (
+                                <>{highlight(p.menuPath)} · </>
+                              )}
+                              {highlight(p.description)}
+                            </>
+                          )
+                        }
+                        slotProps={{ secondary: { sx: { fontSize: 11 } } }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+        {flat.length === 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+            No pivot matches “{q.trim()}”.
+          </Typography>
+        )}
+      </List>
+    </Popover>
   );
 }
 
