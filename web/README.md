@@ -62,6 +62,8 @@ Each test gets a fresh browser context, so IndexedDB starts empty.
   - It picks the scheme from **Settings › Appearance**, or seeds `localStorage['tim-theme-mode']` with `page.addInitScript`.
   - It emulates the OS scheme with `page.emulateMedia`.
   - It reaches the config error page by serving a `/config.js` without `auth`.
+  - The colour contrast sweep walks several screens on one page through hash routes.
+  - The sweep's Export / Import step comes last, so the snackbar fading out never overlaps an axe run.
   - The rest of the suite runs light, because Playwright emulates a light OS.
 
 ## Layout
