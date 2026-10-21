@@ -1,0 +1,21 @@
+# e2e and local development scenarios: one action each, run by the dev actions (TIM_DEV_ACTIONS).
+type: dev_rows
+key: dev-slow
+name: Slow
+menu: Development / Runs
+description: Waits 20 seconds before its rows, so it can be cancelled
+pivot: none
+delay: 20
+rows:
+  - { Step: done }
+---
+type: dev_rows
+key: dev-failing
+name: Failing
+menu: Development / Runs
+description: Ends in error, with run details
+pivot: none
+error: The sign-in log is unavailable
+details:
+  cluster: dev
+  scanned: 1200

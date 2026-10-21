@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, Request, status
 
 from tim_api.auth.jwt import InvalidTokenError, TokenValidator
 from tim_api.auth.obo import OboTokenProvider, build_obo_provider
-from tim_api.auth.principal import DEV_PRINCIPAL, Principal
+from tim_api.auth.principal import DEV_PRINCIPAL, STUB_TOKEN_PREFIX, Principal, stub_principal
 from tim_api.config import Settings, get_settings
 
 
@@ -36,16 +36,24 @@ async def get_current_principal(
     settings: Annotated[Settings, Depends(get_settings)],
     validator: Annotated[TokenValidator, Depends(get_token_validator)],
 ) -> Principal:
+    header = request.headers.get("Authorization", "")
+    scheme, _, token = header.partition(" ")
+    token = token.strip()
+    bearer = scheme.lower() == "bearer" and bool(token)
+
     if settings.auth_disabled:
         # Settings already refuse this in production; re-check as defence in depth.
         if settings.environment == "production":
             raise RuntimeError("auth bypass is not allowed in production")
-        return DEV_PRINCIPAL
+        # The stub token names the analyst; any other request is the fixed dev user (ADR-0011).
+        if not bearer or not token.startswith(STUB_TOKEN_PREFIX):
+            return DEV_PRINCIPAL
+        principal = stub_principal(token)
+        if principal is None:
+            raise _unauthorized()
+        return principal
 
-    header = request.headers.get("Authorization", "")
-    scheme, _, token = header.partition(" ")
-    token = token.strip()
-    if scheme.lower() != "bearer" or not token:
+    if not bearer:
         raise _unauthorized()
     try:
         return await validator.validate(token)

@@ -74,7 +74,7 @@ React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores,
 | `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
 | `web/src/lib/uuid.ts` | `generateUuid` (v4 UUID via `crypto.randomUUID`) |
 | `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
-| `web/e2e/` | Playwright e2e tests: `flows/` specs, `mocks/` (api and editor mocks), fixtures, screenshot helper |
+| `web/e2e/` | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `mocks/` and `fixtures.ts` (the mocked flows), screenshot helper |
 
 Features import `lib/*` and `components/*`. Eight features (`new-query`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid`, `column-views`) have a public `index.ts`, and most imports between features go through it. About twenty imports reach into another feature's modules directly, for example `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery`, `share/shareLink` and `grid/rowUpdates`. Code outside `features/grid` imports `features/grid/rowUpdates` directly, and code loaded at startup imports `lib/kql-templates/params` directly, because those `index.ts` files pull in AG Grid and Handlebars (see Bundle). `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs`, `share` and `export-import` directly.
 
@@ -245,7 +245,7 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
 - The caller is a `Principal`: `oid`, `tid`, and a name taken from `unique_name`, then `upn`, then `preferred_username`. The name is the owner and audit identity (`requestedBy`, `createdBy`, `updatedBy`).
 - Query and schema calls exchange the caller's token for a Kusto token with `msal.ConfidentialClientApplication.acquire_token_on_behalf_of`, scope `TIM_KUSTO_OBO_SCOPE` (default `{cluster}/.default`). One MSAL app (and token cache) per process; credential is `TIM_AUTH_CLIENT_SECRET` or a federated token file (`AZURE_FEDERATED_TOKEN_FILE`); startup fails with neither (when auth is enabled).
 - OBO failures: `invalid_grant` or `interaction_required` gives `403 consent-required` (the SPA prompts again); an Entra or network failure gives `502`; OBO not available (auth disabled, or no token) gives `503`.
-- `TIM_AUTH_DISABLED=true` runs every request as a fixed development user and disables OBO. Settings validation fails at startup when it is combined with `TIM_ENVIRONMENT=production` (the default environment).
+- `TIM_AUTH_DISABLED=true` runs every request as the analyst its stub token (`dev:<upn>`) names, or a fixed development user without one, and disables OBO. Settings validation fails at startup when it is combined with `TIM_ENVIRONMENT=production` (the default environment).
 
 ### Kusto client and cluster validation
 
@@ -329,7 +329,7 @@ Every non-2xx response is `application/problem+json` with `type` (`urn:tim:probl
 - Runs and query runs are owner-scoped: another user's run id is indistinguishable from an unknown one (`404`).
 - Cluster URLs are validated against an allow-list before any token is acquired or sent, so the API cannot be used to forward user tokens to arbitrary hosts.
 - Kusto access runs as the user (OBO); only tag ingestion and table creation use the app identity.
-- The development auth bypass (`TIM_AUTH_DISABLED`) and the in-memory store fail startup in production. The SPA's auth stub throws in a production build.
+- The development auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store fail startup in production. The SPA's auth stub throws in a production build.
 - Request bodies are capped: `TIM_MAX_REQUEST_BYTES` on the API (default 16 MiB, `413`), `client_max_body_size 25m` on nginx. Tagged-event batches are limited to 1000 items and each `eventAsJson` to 1,000,000 bytes serialised; queries to 100,000 characters.
 - API responses carry `x-content-type-options: nosniff` and `cache-control: no-store`.
 - The web container (nginx, port 8080) sends on every response: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, microphone, geolocation off) and, behind an https proxy, `Strict-Transport-Security`. The CSP allows only same-origin scripts (plus `unsafe-eval`, needed by Handlebars and the Kusto language service), same-origin and `login.microsoftonline.com` for `connect-src`, a cross-origin `API_BASEPATH` origin when set, `frame-ancestors 'self'` and `object-src 'none'`. `server_tokens` is off.

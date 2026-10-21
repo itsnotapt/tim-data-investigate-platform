@@ -8,7 +8,7 @@ export { AuthClientError } from './errors';
 export { apiScopes } from './msalAuth';
 export { AuthProvider } from './AuthProvider';
 export { useAuth } from './useAuth';
-export { DEV_ACCOUNT, DEV_TOKEN } from './devStubAuth';
+export { DEV_ACCOUNT, DEV_STUB_UPN_KEY, DEV_TOKEN } from './devStubAuth';
 
 export interface AuthEnv {
   VITE_AUTH_STUB?: unknown;

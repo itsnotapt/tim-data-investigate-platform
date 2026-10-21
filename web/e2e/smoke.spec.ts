@@ -22,6 +22,6 @@ test('sign in, new query, run shows the mocked rows', async ({ page, api }) => {
   await shot(page, '00-e2e-smoke-results');
 
   const [post] = api.callsTo('POST', '/api/kusto/query');
-  expect(post?.authorization).toBe('Bearer dev-stub-token');
+  expect(post?.authorization).toBe('Bearer dev:dev.user@example.com');
   expect(post?.body).toMatchObject({ database: 'Samples' });
 });

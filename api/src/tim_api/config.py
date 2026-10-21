@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # --- actions (ADR-0017) --------------------------------------------------------------
     # One flat directory of action files, read at startup.
     actions_dir: Path | None = None
+    # Dev only: registers the development actions (ADR-0011). Rejected in production.
+    dev_actions: bool = False
 
     # --- storage (ADR-0004) ------------------------------------------------------------
     database_url: SecretStr
@@ -153,6 +155,15 @@ class Settings(BaseSettings):
         if self.auth_disabled and self.environment == "production":
             raise ValueError(
                 f"{ENV_PREFIX}AUTH_DISABLED must not be enabled when "
+                f"{ENV_PREFIX}ENVIRONMENT=production"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _no_dev_actions_in_production(self) -> Settings:
+        if self.dev_actions and self.environment == "production":
+            raise ValueError(
+                f"{ENV_PREFIX}DEV_ACTIONS must not be enabled when "
                 f"{ENV_PREFIX}ENVIRONMENT=production"
             )
         return self

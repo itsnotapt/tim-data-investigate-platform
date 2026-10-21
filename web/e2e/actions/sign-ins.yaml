@@ -1,0 +1,58 @@
+# e2e and local development scenarios: one action each, run by the dev actions (TIM_DEV_ACTIONS).
+type: dev_rows
+key: dev-sign-ins
+name: Sign-ins
+menu: Development / Rows
+description: A few sign-ins, filtered by user
+pivot: rows
+id: CorrelationId
+params:
+  - name: users
+    kind: string
+    title: Users
+    many: true
+    required: false
+    from_columns: [User, UserPrincipalName]
+columns:
+  - { name: Timestamp, type: datetime }
+  - { name: User, type: string }
+  - { name: CorrelationId, type: string, title: Correlation id }
+rows:
+  - {
+      Timestamp: '2026-10-01T08:00:00Z',
+      User: alice@example.com,
+      CorrelationId: c-1,
+      Result: Success,
+    }
+  - {
+      Timestamp: '2026-10-01T08:05:00Z',
+      User: bob@example.com,
+      CorrelationId: c-2,
+      Result: Failure,
+    }
+  - {
+      Timestamp: '2026-10-01T08:07:00Z',
+      User: alice@example.com,
+      CorrelationId: c-3,
+      Result: Failure,
+    }
+  - {
+      Timestamp: '2026-10-01T08:09:00Z',
+      User: carol@example.com,
+      CorrelationId: c-1,
+      Result: Success,
+    }
+---
+type: dev_rows
+key: dev-generated
+name: Generated rows
+menu: Development / Rows
+description: Many generated rows
+pivot: rows
+id: Host
+generate: 2500
+columns:
+  - { name: Host, type: string }
+  - { name: Bytes, type: number }
+  - { name: Blocked, type: boolean }
+  - { name: Seen, type: datetime }

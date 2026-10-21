@@ -41,9 +41,9 @@ export default defineConfig({
     ],
   },
   server: {
-    // Dev loop: forward API calls to the api run locally.
+    // Dev loop: forward API calls to the api run locally (Playwright's on its own port).
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': process.env['TIM_API_PROXY_TARGET'] ?? 'http://localhost:8080',
     },
   },
   test: {
