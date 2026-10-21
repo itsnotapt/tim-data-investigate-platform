@@ -1,26 +1,29 @@
-"""The action registry: providers discovered through ``tim.actions`` and their action files,
-validated at startup."""
+"""The action registry: providers discovered through ``tim.actions``, their action files and the
+connections file, validated at startup."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from importlib.resources.abc import Traversable
+from pathlib import Path
 
 from pydantic import ValidationError
-from tim_actions import ENTRY_POINT_GROUP, Action, Hook, Provider, dev
+from tim_actions import ENTRY_POINT_GROUP, Action, Connection, Hook, Provider, dev
+from tim_actions.connections_file import load_connections_file
 from tim_actions.files import LoadedFiles, ReadFile, load_action_files
 
 BUILTIN_DISTRIBUTION = "tim-actions"
 RESERVED_PREFIX = "tim."
 
 
-class ActionsConfigError(RuntimeError):
-    """The installed providers can't make a valid instance; startup stops with every problem."""
+class InstanceConfigError(RuntimeError):
+    """The installed providers, action files and connections file can't make a valid instance;
+    startup stops with every problem."""
 
     def __init__(self, problems: Sequence[str]) -> None:
-        super().__init__("Invalid actions:\n" + "\n".join(f"  - {p}" for p in problems))
+        super().__init__("Invalid instance:\n" + "\n".join(f"  - {p}" for p in problems))
         self.problems = list(problems)
 
 
@@ -37,14 +40,20 @@ class LoadedProvider:
 
 @dataclass(frozen=True)
 class Registry:
-    """Everything the providers and action files add, keyed as it is looked up, and every action
-    file and sidecar read."""
+    """Everything the providers, action files and connections file add, keyed as it is looked
+    up, and every file read.
+
+    ``left_out`` says why each action left out of ``actions`` is: a connection param with no
+    connection of its type.
+    """
 
     actions: dict[str, Action] = field(default_factory=dict)
     action_types: dict[str, type[Action]] = field(default_factory=dict)
     hooks: dict[str, type[Hook]] = field(default_factory=dict)
+    connections: dict[str, Connection] = field(default_factory=dict)
     packages: tuple[str, ...] = ()
     files: tuple[ReadFile, ...] = ()
+    left_out: tuple[str, ...] = ()
 
 
 def _describe(exc: Exception) -> str:
@@ -85,7 +94,7 @@ def discover_providers() -> list[LoadedProvider]:
             )
         )
     if problems:
-        raise ActionsConfigError(problems)
+        raise InstanceConfigError(problems)
     return loaded
 
 
@@ -139,15 +148,47 @@ def _add_file_actions(
     return problems
 
 
+def _fixed_connection_problems(
+    actions: Mapping[str, tuple[Action, str]], connections: Mapping[str, Connection]
+) -> list[str]:
+    """An action's fixed connection must be configured, and of the type the action expects."""
+    problems: list[str] = []
+    for key, (action, source) in actions.items():
+        for name, connection_type in action.connections().items():
+            connection = connections.get(name)
+            if connection is None:
+                problems.append(f"{source}: action {key}: no connection named {name}")
+            elif connection.type != connection_type:
+                problems.append(
+                    f"{source}: action {key}: connection {name} is {connection.type}, not "
+                    f"{connection_type}"
+                )
+    return problems
+
+
+def _missing_choice(action: Action, connections: Mapping[str, Connection]) -> str | None:
+    """Why ``action`` can't run on this instance: a connection param with no connection of its
+    type, or ``None``."""
+    types = {connection.type for connection in connections.values()}
+    for param in action.params:
+        if param.kind == "connection" and param.connection_type not in types:
+            return (
+                f"Action {action.key} left out: no {param.connection_type} connection for its "
+                f"{param.name} param"
+            )
+    return None
+
+
 def build_registry(
     loaded: Sequence[LoadedProvider],
     actions_dir: Traversable | None = None,
     *,
     action_files: bool = True,
+    connections_file: Path | None = None,
 ) -> Registry:
     """Check the providers against each other, load their action files and those in
-    ``actions_dir``, and index what they add. ``action_files=False`` loads no files, for what
-    needs only the action types."""
+    ``actions_dir`` and the connections file, and index what they add. ``action_files=False``
+    loads no files, for what needs only the action types."""
     problems: list[str | None] = []
     actions: dict[str, tuple[Action, str]] = {}
     action_types: dict[str, tuple[type[Action], str]] = {}
@@ -188,13 +229,33 @@ def build_registry(
         problems.extend(_add_file_actions(actions, from_files, builtin))
         files.extend(from_files.files)
 
+    installed = {name: h for name, (h, _) in hooks.items()}
+    connections: dict[str, Connection] = {}
+    if connections_file is not None and action_files:
+        from_file = load_connections_file(connections_file, installed)
+        problems.extend(from_file.problems)
+        connections = from_file.connections
+        files.extend(from_file.files)
+    if action_files:
+        problems.extend(_fixed_connection_problems(actions, connections))
+
     found = [problem for problem in problems if problem]
     if found:
-        raise ActionsConfigError(found)
+        raise InstanceConfigError(found)
+    available: dict[str, Action] = {}
+    left_out: list[str] = []
+    for key, (action, _) in actions.items():
+        reason = _missing_choice(action, connections)
+        if reason is None:
+            available[key] = action
+        else:
+            left_out.append(reason)
     return Registry(
-        actions={key: action for key, (action, _) in actions.items()},
+        actions=available,
         action_types=types,
-        hooks={name: h for name, (h, _) in hooks.items()},
+        hooks=installed,
+        connections=connections,
         packages=tuple(sorted({item.package for item in loaded if item.package})),
         files=tuple(files),
+        left_out=tuple(left_out),
     )

@@ -34,7 +34,7 @@ Logger `tim_api` (child loggers such as `tim_api.retention`), level from `TIM_LO
 - Every request logs one line `METHOD path -> status duration traceId=<id>`. The path has no query string; headers and bodies are never logged. Control characters in paths are escaped.
 - The trace id is the request's W3C `traceparent` if valid, else a valid `x-request-id` header (letters, digits, `.`, `_`, `-`, up to 128 characters), else a generated `traceparent`-shaped value.
 - The id is returned in the `x-trace-id` response header, and error bodies (`application/problem+json`) carry it as `traceId`. To investigate a user-reported error, take the `traceId` from the error response or the browser network tab and search the api log for it. Unhandled exceptions log `Unhandled exception traceId=... method=... path=...` with a stack trace.
-- Other notable lines: `AUTHENTICATION IS DISABLED` warning at startup (must never appear in production), `Retention sweep deleted N expired query run(s)`, `Marked N interrupted query run(s) as error`, `OBO exchange failed (...)` / `OBO exchange rejected: error=... scope=...` (token exchange problems).
+- Other notable lines: `AUTHENTICATION IS DISABLED` warning at startup (must never appear in production), `Retention sweep deleted N expired query run(s)`, `Marked N interrupted query run(s) as error`, `OBO exchange failed (...)` / `OBO exchange rejected: error=... scope=...` (token exchange problems), and at startup an info line `Action <key> left out: ...` for each action that has no connection to run on.
 
 ### web
 
@@ -82,16 +82,24 @@ In the api image use `python -m tim_api.tagged_events.cli create-tables` with th
 
 The command runs `.create-merge table`, `.create-or-alter table ... ingestion json mapping` and `.alter table ... policy streamingingestion enable` for each tag table. It authenticates with `DefaultAzureCredential` (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_CLIENT_SECRET`, workload or managed identity, or an Azure CLI login). The identity needs permission to run these management commands on the database, which in Kusto means database admin (or table admin on the tag tables). At runtime tag writes use the same credential chain and need ingest rights on the tag tables. On failure the command prints the failing command and error and exits non-zero (`2` when no cluster URI is given).
 
+The streaming ingestion policy is what makes a saved tag, comment or saved event queryable about a second after the request answers. The ingest client streams first and falls back to queued ingestion for a payload too large to stream (over 4 MB) or after a transient streaming failure. Queued rows, and every row of a table without the policy, wait for the table's ingestion batching window, up to 5 minutes by default, so the analyst doesn't see what they just saved.
+
+- **Cluster:** a cluster created in Azure also needs streaming ingestion turned on for the cluster itself (portal: **Settings → Configurations → Streaming ingestion**, or `az kusto cluster update --enable-streaming-ingest true`). A free cluster has it on already, so the table policy is all it needs.
+- **Check a table:** `.show table EventTag policy streamingingestion` shows `"IsEnabled": true`, and `.show journal | where Event has 'STREAMING-INGESTION'` shows when the policy was set.
+- **New roles:** a new role on the database, such as ingest rights for a new identity, can take a few minutes to apply. Until then ingestion answers `403` and the routes answer `502`.
+
 ### `tim-api check`
 
-The api image runs the startup validation of its providers and an action files directory without a database, credentials or other settings:
+The api image runs the startup validation of its providers, an action files directory and a connections file without a database, credentials or other settings:
 
 ```bash
 docker run --rm -v "$PWD/actions:/actions:ro" <api image> tim-api check --actions /actions
+docker run --rm -v "$PWD/connections.yaml:/connections.yaml:ro" <api image> tim-api check --connections /connections.yaml
 docker run --rm <api image> tim-api schema actions > action-file.schema.json
+docker run --rm <api image> tim-api schema connections > connections.schema.json
 ```
 
-`check` prints `OK: <n> actions` and exits 0, or prints `Invalid actions:` and the same problems startup would report, one per line, and exits 1. A `--actions` path that isn't a directory exits 2. Without `--actions` it checks the installed providers and their package data only. From a checkout, run `uv run tim-api check --actions <dir>` in `api/`. Use the image you deploy: the action types a file may name are the ones installed in it. Writing files and the schema: [actions.md](actions.md#checking-files).
+`check` prints one line for each action left out of the catalogue (such as `Action tim.run_kql left out: no kusto connection for its connection param`), then `OK: <n> actions, <m> connections`, and exits 0. Or it prints `Invalid instance:` and the same problems startup would report, one per line, and exits 1. A `--actions` path that isn't a directory, or a `--connections` path that isn't a file, exits 2. Without `--actions` it checks the installed providers and their package data only; without `--connections` the instance has no connections. From a checkout, run `uv run tim-api check --actions <dir>` in `api/`. Use the image you deploy: the action types a file may name are the ones installed in it. Writing files and the schema: [actions.md](actions.md#checking-files).
 
 ### Query run retention and cleanup
 
@@ -135,10 +143,10 @@ Browsers fetch `/config.js` uncached, so users receive web changes on their next
 
 ## Startup failures from the files
 
-The api reads the action files once, at startup: its providers' package data and `TIM_ACTIONS_DIR`. Any problem stops it before it serves, so in a rolling update the new pods never become ready and the old ones keep serving. The api exits with `Invalid actions:` and one line per problem, every problem at once:
+The api reads the action files and the connections file once, at startup: its providers' package data, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE`. Any problem stops it before it serves, so in a rolling update the new pods never become ready and the old ones keep serving. The api exits with `Invalid instance:` and one line per problem, every problem at once:
 
 ```
-Invalid actions:
+Invalid instance:
   - /srv/tim/actions/identity.yaml:7: type: unknown action type 'kql_querry' (installed action types: rows)
   - /srv/tim/actions/identity.yaml:14: params[0].from_column: Unexpected keyword argument
   - /srv/tim/actions/sign-ins.yaml:3: key: duplicate action key acme.users, also in /srv/tim/actions/identity.yaml:2
@@ -153,21 +161,26 @@ Each line names the file, the line and the field. Fix the file, check it with [`
 | `no file <name> next to the action file` | A `<field>_file:` sidecar is missing. It must be a file name in the same directory as the action file. |
 | `duplicate action key` | Two actions share a key, in two files or a file and an installed provider. Keys are unique across the instance. |
 | `not valid YAML` | The file doesn't parse; the line is where the parser stopped, which can be after the mistake. |
+| `unknown connection type` | A connection's `type` is misspelt, or the provider that adds the type isn't installed in this image. The message lists the installed connection types. |
+| `duplicate connection name` | Two connections share a `name`. |
+| `scope is required for auth obo` | The connection type has no default scope, so the connection must give one. |
+| `no connection named <name>`, `connection <name> is <type>, not <type>` | An action's fixed connection isn't in the connections file, or is of another connection type. |
 | `TIM_ACTIONS_DIR: invalid (Value error, no directory ...)` | `TIM_ACTIONS_DIR` names a path that isn't a directory. The api exits with `Invalid configuration:`. |
+| `TIM_CONNECTIONS_FILE: invalid (Value error, no file ...)` | `TIM_CONNECTIONS_FILE` names a path that isn't a file. The api exits with `Invalid configuration:`. |
 
 ## Common failures
 
 | Symptom                                                  | Cause and fix                                                                                                                                                         |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | api exits at startup with `Invalid configuration:` and lines like `- TIM_AUTH_TENANT_ID: missing (...)` | A required `TIM_*` variable is missing or invalid; the message names each one (never the value). Common: `TIM_DATABASE_URL` not `postgresql+asyncpg://`, a non-https `TIM_TAG_CLUSTER_URI`, `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production`. |
-| api exits at startup with `Invalid actions:`             | A provider or an action file has a problem; see [Startup failures from the files](#startup-failures-from-the-files). |
-| api exits at startup about the OBO credential            | Neither `TIM_AUTH_CLIENT_SECRET` nor a readable `AZURE_FEDERATED_TOKEN_FILE` is set (the message says which).                                                          |
+| api exits at startup with `Invalid instance:`            | A provider, an action file or the connections file has a problem; see [Startup failures from the files](#startup-failures-from-the-files). |
+| api exits at startup about the OBO credential            | A connection uses `obo`, and neither `TIM_AUTH_CLIENT_SECRET` nor a readable `AZURE_FEDERATED_TOKEN_FILE` is set (the message says which).                                                          |
 | api starts but requests fail with database errors; `/api/healthChecks/readiness` returns `503`; problem responses say "Service unavailable" | PostgreSQL is down or unreachable (or the schema is not migrated; run the migrations). The connection pool checks connections before use, so the api serves again once the database is back.                 |
 | Every API call returns 401                               | Token rejected: wrong `TIM_AUTH_TENANT_ID` / `TIM_AUTH_CLIENT_ID` (audience `api://<client id>`), or an expired token.                                                |
 | Kusto calls return `403` with title "Consent or sign-in is required for the downstream service" (`consent-required`) | The OBO exchange was refused (`invalid_grant` / `interaction_required`): the user or tenant has not consented to the API's Kusto permission, or MFA or conditional access needs interaction. The SPA prompts the user to sign in again; if it persists, grant admin consent on the API app registration. |
 | Kusto calls return `403` "Access to the Kusto database was denied" | The signed-in user has no rights on that cluster or database.                                                                                              |
 | Kusto calls return `502` "identity provider could not be reached" | The OBO exchange failed for another reason (network to Entra, misconfigured secret). The api log has `OBO exchange failed` or `OBO exchange rejected: error=...`.   |
-| Kusto calls return `503` "Token exchange is not available" | The api runs with `TIM_AUTH_DISABLED=true`.                                                                                                                         |
+| Kusto calls return `503` "Token exchange is not available" | The api runs with `TIM_AUTH_DISABLED=true`, or the api has no OBO credential, which startup allows only when no connection uses `obo`, so only the Kusto tab is affected.                                                                                                                         |
 | Tag writes return `502` "Tag ingestion failed"           | Ingest endpoint unreachable, tables missing (run `create-tables`), or the app identity lacks ingest rights.                                                            |
 | Query rejected with `400` "The cluster is not allowed"   | Cluster is not https, or its host matches no pattern in `TIM_ALLOWED_KUSTO_HOSTS`. Regional clusters (`<name>.<region>.kusto.windows.net`) need a `**.` pattern; Fabric needs `**.kusto.fabric.microsoft.com`.                                                                    |
 | Web container exits immediately: `tim-web: missing required environment variable(s): ...` | Set `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`, `TAG_CLUSTER`. Other `tim-web:` messages name an invalid value (`BACKEND_URI` with a path, bad `DEFAULT_CLUSTERS` JSON, bad `API_BASEPATH`, and so on). |

@@ -2040,7 +2040,7 @@
     },
     "/api/runs": {
       "post": {
-        "description": "Start a run; ``200`` when it ends within about a second, else ``202``.",
+        "description": "Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``\nconnection's token is got first, so OBO problems answer this request.",
         "operationId": "startRun",
         "requestBody": {
           "content": {
@@ -2101,6 +2101,16 @@
               }
             }
           },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+          },
           "422": {
             "content": {
               "application/problem+json": {
@@ -2120,6 +2130,26 @@
               }
             },
             "description": "Unhandled error (`internal`)."
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Upstream failure (`upstream`)."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Dependency unavailable (`unavailable`)."
           }
         },
         "security": [

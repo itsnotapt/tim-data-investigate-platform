@@ -30,10 +30,12 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
   - `TIM_TAG_INGEST_FAKE`.
 
   `api/.env.example` sets it to `development`.
-- **Startup needs a credential unless auth is disabled.** Set one of:
+- **A connection that uses `obo` needs a credential at startup, unless auth is disabled.** This applies when `TIM_CONNECTIONS_FILE` names such a connection. Set one of:
   - `TIM_AUTH_CLIENT_SECRET`;
   - `AZURE_FEDERATED_TOKEN_FILE`;
   - `TIM_AUTH_DISABLED=true`: uncomment it in `api/.env`.
+
+  Without a connections file, no credential is needed.
 - **The api must listen on 8080.** `web/vite.config.ts` proxies `/api` there, so there is no CORS setup. `TIM_API_PROXY_TARGET` changes the target.
 - **UI work without Entra:** set both:
   - `TIM_AUTH_DISABLED=true` for the api;
@@ -43,13 +45,17 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
   - You are signed in as `dev.user@example.com`.
   - To be another analyst, run `localStorage.setItem('tim.devStubUpn', 'bob@example.com')` in the browser console and reload.
   - The stub sends `Bearer dev:<upn>`. The api runs the request as that analyst.
-  - Kusto schema and query calls answer 503. The on-behalf-of exchange needs a real token.
+  - Kusto tab calls and runs on `obo` connections answer 503. The on-behalf-of exchange needs a real token.
   - `TIM_TAG_INGEST_FAKE=true` exercises tag writes without a cluster.
   - The [development actions](#development-actions) give you actions without a connection.
 - **The compose web container can't stub sign-in.** The UI at `:8081` needs a real Entra app registration (`REDIRECT_URI`). For UI work without one, use the main loop. The root `.env` (compose) and `api/.env` (main loop) are separate files.
 - **Tests that don't run by default:** see [configuration.md](configuration.md#test-only-variables) for the variables.
   - **`slow` tests** are deselected. `uv run pytest -m slow` runs them. CI doesn't.
-  - **`kusto` tests** skip unless `TIM_TEST_KUSTO_INGEST_URL` is set.
+  - **`kusto` tests** skip unless one of these is set:
+    - `TIM_TEST_KUSTO_INGEST_URL`, for tag ingestion;
+    - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL on a real cluster as an `AZURE_*` identity.
+
+    CI runs them only in the [`kusto-live` job](#ci-and-releases).
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
 - **Playwright reuses a running Vite server on port 5180 locally.** A stray dev server started without `VITE_AUTH_STUB` breaks the e2e tests.
@@ -269,6 +275,15 @@ Things the workflows don't tell you:
   - `nginx-unprivileged` comes from its publisher's `ghcr.io/nginx`.
   - When you change one, keep the same image and tag.
   - Check the tag exists on the mirror: `docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`.
+- **`kusto-live`** (`build-api.yml`) runs `pytest -m kusto` on pushes to `main` that change the api.
+  - It signs in as an Entra test app through GitHub OIDC (`azure/login`, no secret).
+  - The app needs a federated credential with subject `repo:itsnotapt/tim-data-investigate-platform:ref:refs/heads/main`. That is why pull requests can't run the job.
+  - The app also needs Ingestor and Viewer on the test database.
+  - The job reads the repository variables `TIM_TESTS_CLIENT_ID`, `TIM_TESTS_TENANT_ID`, `TIM_TEST_KUSTO_CLUSTER` and `TIM_TEST_KUSTO_INGEST_URL`.
+  - It also reads `TIM_TEST_KUSTO_QUERY_DATABASE` and `TIM_TEST_KUSTO_DATABASE`, both defaulting to `Research`.
+  - It is skipped while `TIM_TESTS_CLIENT_ID` is unset.
+  - It is not part of `build-api-gate`. A failure shows on the commit but blocks nothing.
+  - Each run adds an `itest` row to the ingest table.
 - **Actions use their major tag (`@vN`).** `astral-sh/setup-uv` publishes only full version tags, so it is pinned to `v10.2.0`.
 
 Repository settings that the branch flow depends on. They live in GitHub, not in the repo:

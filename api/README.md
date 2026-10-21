@@ -75,13 +75,15 @@ rejected); the raw token is kept as a `SecretStr` for OBO. Any failure returns 4
 
 ### OBO (`auth/obo.py`)
 
-`OboTokenProvider.get_token(principal, cluster_url)` exchanges the caller's token for a Kusto token
-(inject with `Depends(get_obo_provider)`; pass the cluster already normalised by
-`validate_cluster_url`). One `msal.ConfidentialClientApplication` (built lazily, once) with MSAL's
-shared in-memory token cache; blocking calls run via `asyncio.to_thread`. Scope is
+`OboTokenProvider.token_for(principal, scope)` exchanges the caller's token for a token for `scope`
+(inject with `Depends(get_obo_provider)`). It is blocking: call it from a worker thread. Runs use it
+for each `obo` connection's scope, and hooks get it as a `token_for(scope)` callable, never the user's
+token. `get_token(principal, cluster_url)`, for the Kusto tab, passes a cluster already normalised by
+`validate_cluster_url`. One `msal.ConfidentialClientApplication` (built lazily, once) with MSAL's
+shared in-memory token cache. `get_token`'s scope is
 `TIM_KUSTO_OBO_SCOPE` with `{cluster}` substituted. Credential: `TIM_AUTH_CLIENT_SECRET`, else a
 client assertion re-read from `AZURE_FEDERATED_TOKEN_FILE`; with neither, startup fails
-(`OboConfigError`). Errors for endpoints to map: `OboAuthError` (`invalid_grant` /
+(`OboConfigError`) when a connection uses `obo`, and otherwise OBO answers 503 when used. Errors for endpoints to map: `OboAuthError` (`invalid_grant` /
 `interaction_required`) -> 403 `consent-required`, `OboUpstreamError` -> 502, `OboUnavailableError` (auth disabled or
 no token) -> 503. With `TIM_AUTH_DISABLED=true` the provider always raises `OboUnavailableError`,
 so Kusto calls need real auth even in dev.
@@ -96,15 +98,18 @@ settings load and app startup. Routes use it with
 
 ## Actions and providers
 
-At startup the lifespan discovers providers through the `tim.actions` entry-point group (`actions/registry.py`, `discover_providers`): each entry point names a callable returning a `tim_actions.Provider`. `build_registry` checks them against each other and indexes their actions, action types and hooks. Any problem raises `ActionsConfigError`, which lists every problem and stops startup:
+At startup the lifespan discovers providers through the `tim.actions` entry-point group (`actions/registry.py`, `discover_providers`): each entry point names a callable returning a `tim_actions.Provider`. `build_registry` checks them against each other and indexes their actions, action types and hooks. Any problem raises `InstanceConfigError` ("Invalid instance:"), which lists every problem and stops startup:
 
 - an entry point that fails to load, raises, or returns something other than a `Provider`;
 - an action that fails validation again from its fields (so one built with `model_construct` is caught);
 - a key with the `tim.` prefix from any distribution other than `tim-actions`;
 - a duplicate action key, action type `type_name` or connection type;
-- a problem in an action file, from a provider's package data (`Provider(action_files=...)`) or from `TIM_ACTIONS_DIR`. The loader is `tim_actions.files.load_action_files`, and each problem names the file, line and field.
+- a problem in an action file, from a provider's package data (`Provider(action_files=...)`) or from `TIM_ACTIONS_DIR`. The loader is `tim_actions.files.load_action_files`, and each problem names the file, line and field;
+- a problem in the connections file (`TIM_CONNECTIONS_FILE`, loaded by `tim_actions.connections_file.load_connections_file`, each problem naming the file, line and field), or an action's fixed connection (`Action.connections()`, name to connection type) that is missing or of another type.
 
-`tim-api check [--actions <dir>]` (`cli.py`) runs the same validation without a database or settings, and `tim-api schema actions` prints the action files' JSON Schema; see [actions.md](../docs/actions.md#checking-files).
+An action with a `connection` param is left out, with an info log line, when no connection has the param's type.
+
+`tim-api check [--actions <dir>] [--connections <file>]` (`cli.py`) runs the same validation without a database or settings, and `tim-api schema actions|connections` prints the JSON Schema of the action files or the connections file; see [actions.md](../docs/actions.md#checking-files).
 
 `create_app(providers=[...])` skips discovery and uses the given providers (none of them built-in); `tests/app_factory.create_test_app` passes none unless a test gives some. `actions/instance.py` builds the `GET /api/instance` body once, at startup (see [api.md](../docs/api.md#instance)). The interface itself, param validation included, is in `tim-actions`.
 

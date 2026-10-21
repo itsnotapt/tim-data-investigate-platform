@@ -46,7 +46,8 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     # Token exchange failures happen before the run exists, hence 403/502/503 here.
     ("post", "/api/kusto/query"): ("runQuery", (400, 403, 502, 503)),
     ("get", "/api/kusto/query/{queryRunId}"): ("getQueryRun", (400, 404)),
-    ("post", "/api/runs"): ("startRun", (400, 422)),
+    # Each obo connection's token is got before the run exists, hence 403/502/503 here.
+    ("post", "/api/runs"): ("startRun", (400, 403, 422, 502, 503)),
     ("get", "/api/runs/{runId}"): ("getRun", (400, 404)),
     ("post", "/api/runs/{runId}/cancel"): ("cancelRun", (400, 404)),
     ("get", "/api/runs/{runId}/rows"): ("getRunRows", (400, 404, 409, 410)),

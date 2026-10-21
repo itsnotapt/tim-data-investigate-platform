@@ -1,0 +1,284 @@
+"""Run KQL on a Kusto connection, as TIM runs it: the ``KustoHook`` against a fake SDK client, and
+the URL and value rules the hook shares with the API."""
+
+import threading
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+from azure.kusto.data import ClientRequestProperties
+from azure.kusto.data import exceptions as kusto_exc
+
+from tim_actions import Analyst, Column, DetailValue, Hook, RunError, validate_params
+from tim_actions.kusto import (
+    RUN_KQL,
+    KustoConnection,
+    KustoHook,
+    error_message,
+    normalise_cluster_url,
+    serialise_value,
+)
+
+CLUSTER = "https://help.kusto.windows.net"
+CONNECTION = KustoConnection(
+    name="security", title="Security", type="kusto", auth="obo", cluster=CLUSTER
+)
+
+
+def table(kind: str, columns: list[tuple[str, str]], rows: list[list[Any]]) -> Any:
+    return SimpleNamespace(
+        table_kind=SimpleNamespace(value=kind),
+        raw_columns=[{"ColumnName": n, "ColumnType": t} for n, t in columns],
+        raw_rows=rows,
+    )
+
+
+STATS = table(
+    "QueryCompletionInformation",
+    [("LevelName", "string"), ("Payload", "string")],
+    [["Stats", '{"ExecutionTime": 0.25, "input_dataset_statistics": {"extents": {"total": 3}}}']],
+)
+
+
+class FakeKusto:
+    """The SDK client: answers with ``tables`` or raises ``error``; with ``hold``, a query waits
+    for a ``.cancel query`` naming it."""
+
+    def __init__(self) -> None:
+        self.tables: list[Any] = []
+        self.error: Exception | None = None
+        self.hold = False
+        self.clients: list[tuple[str, str]] = []
+        self.queries: list[tuple[str, str, ClientRequestProperties]] = []
+        self.commands: list[tuple[str | None, str]] = []
+        self.querying = threading.Event()
+        self.cancelled = threading.Event()
+
+    def __call__(self, cluster: str, token: str) -> "FakeKusto":
+        self.clients.append((cluster, token))
+        return self
+
+    def execute_query(self, database: str, query: str, properties: ClientRequestProperties) -> Any:
+        self.queries.append((database, query, properties))
+        self.querying.set()
+        if self.hold:
+            self.cancelled.wait(10)
+            raise kusto_exc.KustoServiceError("Query was cancelled")
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(tables=self.tables)
+
+    def execute_mgmt(
+        self, database: str | None, query: str, properties: ClientRequestProperties
+    ) -> Any:
+        self.commands.append((database, query))
+        self.cancelled.set()
+
+    def close(self) -> None:
+        pass
+
+
+class Context:
+    def __init__(self, hook: Hook) -> None:
+        self._hook = hook
+        self.deadline = datetime.now(UTC) + timedelta(seconds=30)
+        self.analyst = Analyst("Alice", "alice@example.com")
+        self.details: dict[str, DetailValue] = {}
+        self.columns: list[Column] = []
+
+    def hook(self, connection: str) -> Hook:
+        assert connection == "security"
+        return self._hook
+
+    def detail(self, key: str, value: DetailValue) -> None:
+        self.details[key] = value
+
+    def declare_columns(self, columns: Sequence[Column]) -> None:
+        self.columns.extend(columns)
+
+
+class OtherHook(Hook):
+    def cancel(self) -> None:
+        pass
+
+
+@pytest.fixture
+def kusto(monkeypatch: pytest.MonkeyPatch) -> FakeKusto:
+    fake = FakeKusto()
+    monkeypatch.setattr(KustoHook, "client_factory", staticmethod(fake))
+    return fake
+
+
+def hook() -> KustoHook:
+    return KustoHook(CONNECTION, lambda scope: f"token for {scope}")
+
+
+def run_kql(ctx: Context, values: Mapping[str, Any]) -> list[tuple[Any, Any]]:
+    params = validate_params(
+        RUN_KQL.params,
+        {"connection": "security", "database": "Samples", "kql": "T", **values},
+        connections={"security": "kusto"},
+    )
+    row_id = RUN_KQL.row_id(params)
+    return [(row_id(row) if row_id else None, dict(row)) for row in RUN_KQL.run(params, ctx)]
+
+
+def test_run_kql_queries_as_the_analyst_and_reports_columns_and_metrics(kusto: FakeKusto) -> None:
+    kusto.tables = [
+        table(
+            "PrimaryResult",
+            [("Id", "long"), ("At", "datetime"), ("Extra", "dynamic"), ("Who", "guid")],
+            [[7, "2026-01-02T03:04:05.1000000Z", '{"a": 1}', "0f8fad5b"]],
+        ),
+        STATS,
+    ]
+    ctx = Context(hook())
+    assert run_kql(ctx, {"kql": "T | take 1", "idColumn": "Id"}) == [
+        (7, {"Id": 7, "At": "2026-01-02T03:04:05.1Z", "Extra": {"a": 1}, "Who": "0f8fad5b"})
+    ]
+    assert [(c.name, c.type) for c in ctx.columns] == [
+        ("Id", "number"),
+        ("At", "datetime"),
+        ("Extra", "json"),
+        ("Who", "string"),
+    ]
+    assert ctx.details == {"executionTime": 0.25, "extentsTotal": 3}
+    assert kusto.clients == [(CLUSTER, f"token for {CLUSTER}/.default")]
+    [(database, kql, properties)] = kusto.queries
+    assert (database, kql) == ("Samples", "T | take 1")
+    assert properties.client_request_id.startswith("TIM.RunKql;")
+    timeout: Any = properties.get_option(ClientRequestProperties.request_timeout_option_name, None)
+    assert timedelta(seconds=25) < timeout <= timedelta(seconds=30)
+
+
+def test_a_kusto_error_ends_the_run_with_its_message(kusto: FakeKusto) -> None:
+    kusto.error = kusto_exc.KustoServiceError("Semantic error: no T\n   at Kusto.Engine.Run()")
+    with pytest.raises(RunError, match=r"^Semantic error: no T$"):
+        run_kql(Context(hook()), {})
+
+
+def test_run_kql_refuses_a_connection_of_another_type() -> None:
+    other = Context(OtherHook(CONNECTION, lambda scope: "token"))
+    with pytest.raises(RunError, match="security is not a Kusto connection"):
+        run_kql(other, {})
+
+
+def test_cancel_cancels_the_running_query_and_refuses_new_ones(kusto: FakeKusto) -> None:
+    kusto.hold = True
+    running = hook()
+    errors: list[Exception] = []
+
+    def query() -> None:
+        try:
+            running.query("Samples", "T", deadline=datetime.now(UTC) + timedelta(seconds=30))
+        except RunError as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=query)
+    worker.start()
+    assert kusto.querying.wait(5)
+    running.cancel()
+    worker.join(5)
+    [(_, _, properties)] = kusto.queries
+    assert kusto.commands == [("Samples", f'.cancel query "{properties.client_request_id}"')]
+    assert len(errors) == 1
+    with pytest.raises(RunError, match="cancelled"):
+        running.query("Samples", "T", deadline=datetime.now(UTC))
+
+
+def test_cancel_with_nothing_running_sends_nothing(kusto: FakeKusto) -> None:
+    hook().cancel()
+    assert kusto.clients == []
+
+
+@pytest.mark.parametrize(
+    ("url", "normalised"),
+    [
+        ("https://Help.Kusto.Windows.Net/", CLUSTER),
+        ("  https://help.kusto.windows.net:443 ", CLUSTER),
+        ("https://bücher.example", "https://xn--bcher-kva.example"),
+    ],
+)
+def test_a_cluster_url_is_normalised(url: str, normalised: str) -> None:
+    assert normalise_cluster_url(url) == normalised
+
+
+@pytest.mark.parametrize(
+    ("url", "reason"),
+    [
+        ("", "value is required"),
+        ("https://a b", "whitespace"),
+        ("http://help.kusto.windows.net", "absolute https"),
+        ("https://help.kusto.windows.net?x=1", "query or fragment"),
+        ("https://help.kusto.windows.net/db", "path"),
+        ("https://user@help.kusto.windows.net", "credentials"),
+        ("https://[::1]", "IP address"),
+        ("https://10.0.0.1", "IP address"),
+        ("https://help.kusto.windows.net:8443", "port"),
+        ("https://help.kusto.windows.net:x", "invalid port"),
+        ("https://", "host is missing"),
+        ("https://-bad-.example", "valid domain name"),
+    ],
+)
+def test_a_cluster_url_of_another_shape_is_refused(url: str, reason: str) -> None:
+    with pytest.raises(ValueError, match=reason):
+        normalise_cluster_url(url)
+
+
+@pytest.mark.parametrize(
+    ("kusto_type", "value", "stored"),
+    [
+        ("timespan", "1.02:03:04.5000000", "1.02:03:04.5000000"),
+        ("timespan", "00:00:01", "00:00:01"),
+        ("timespan", "not a timespan", "not a timespan"),
+        ("datetime", "2026-01-02T03:04:05Z", "2026-01-02T03:04:05Z"),
+        ("dynamic", "not json", "not json"),
+        ("dynamic", [1], [1]),
+        ("decimal", "1.5", 1.5),
+        ("decimal", "0.1000000000000000000001", "0.1000000000000000000001"),
+        ("decimal", "NaN", "NaN"),
+        ("string", None, None),
+        ("long", 3, 3),
+    ],
+)
+def test_values_are_stored_as_json(kusto_type: str, value: Any, stored: Any) -> None:
+    assert serialise_value(kusto_type, value) == stored
+
+
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (
+            kusto_exc.KustoServiceError("no", http_response=SimpleNamespace(status_code=403)),
+            "Access to the Kusto cluster or database was denied.",
+        ),
+        (
+            kusto_exc.KustoApiError(
+                {"error": {"code": "BadRequest", "message": "Bad", "@message": "Bad request: x"}}
+            ),
+            "Bad request: x",
+        ),
+        (
+            kusto_exc.KustoMultiApiError(
+                [
+                    {
+                        "OneApiErrors": [
+                            {"error": {"code": "One", "message": "One", "@message": "First"}}
+                        ]
+                    }
+                ]
+            ),
+            "First",
+        ),
+        (kusto_exc.KustoNetworkError(CLUSTER), "Could not reach the Kusto cluster."),
+        (
+            kusto_exc.KustoAuthenticationError("token", Exception("x")),
+            "Authentication to the Kusto cluster failed.",
+        ),
+        (kusto_exc.KustoClientError("x"), "Kusto query failed."),
+    ],
+)
+def test_sdk_errors_have_safe_messages(error: Exception, message: str) -> None:
+    assert error_message(error) == message

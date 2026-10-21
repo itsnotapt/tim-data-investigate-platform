@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from scripted_actions import FileLines, FileRows, Rows
 from tim_actions import Provider
 
-from tim_api.actions import ActionsConfigError
+from tim_api.actions import InstanceConfigError
 from tim_api.config import SettingsError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "action_files"
@@ -112,7 +112,7 @@ def test_package_data_and_the_instance_directory_load_together(
 def startup_problems(case: str, providers: list[Provider] | None = None) -> list[str]:
     os.environ["TIM_ACTIONS_DIR"] = str(FIXTURES / case)
     with (
-        pytest.raises(ActionsConfigError) as caught,
+        pytest.raises(InstanceConfigError) as caught,
         TestClient(create_test_app(providers=providers or [FILE_TYPES])),
     ):
         pass
@@ -188,7 +188,7 @@ def test_the_tim_prefix_is_reserved_in_action_files(tmp_path: Path) -> None:
     (tmp_path / "tim.yaml").write_text("type: rows\nkey: tim.users\nname: Users\npivot: none\n")
     os.environ["TIM_ACTIONS_DIR"] = str(tmp_path)
     with (
-        pytest.raises(ActionsConfigError) as caught,
+        pytest.raises(InstanceConfigError) as caught,
         TestClient(create_test_app(providers=[FILE_TYPES])),
     ):
         pass

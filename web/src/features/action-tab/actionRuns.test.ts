@@ -278,22 +278,31 @@ describe('runActionTab', () => {
     expect(tab('b').state.run).toEqual(succeeded(3));
   });
 
-  it('shows a refused param that has no pill as why the run could not start', async () => {
+  it('marks a refused query param, which the editor shows', async () => {
     server.use(
       http.post(apiUrl('/api/runs'), () =>
         problemResponse(422, {
           type: 'urn:tim:problem:validation',
-          errors: {
-            'params.query': ['Not valid KQL'],
-            'params.extra': ['Unknown param'],
-            'params.users': ['Required'],
-          },
+          errors: { 'params.query': ['Not valid KQL'] },
+        }),
+      ),
+    );
+    await runActionTab('a', { store, sleep });
+    expect(tab().state).toMatchObject({ error: null, paramErrors: { query: 'Not valid KQL' } });
+  });
+
+  it('shows a refused param the tab does not show as why the run could not start', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () =>
+        problemResponse(422, {
+          type: 'urn:tim:problem:validation',
+          errors: { 'params.extra': ['Unknown param'], 'params.users': ['Required'] },
         }),
       ),
     );
     await runActionTab('a', { store, sleep });
     expect(tab().state).toMatchObject({
-      error: { message: "Couldn't start: query: Not valid KQL; extra: Unknown param" },
+      error: { message: "Couldn't start: extra: Unknown param" },
       paramErrors: { users: 'Required' },
     });
   });

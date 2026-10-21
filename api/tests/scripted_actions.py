@@ -1,18 +1,22 @@
 """Scripted action types for API tests: actions whose behaviour the test spells out."""
 
+from __future__ import annotations
+
 import threading
 from collections.abc import Iterator, Mapping
-from typing import Annotated, Any
+from typing import Annotated, Any, ClassVar
 
 from tim_actions import (
     Action,
     ActionDocument,
     Column,
+    Connection,
     DetailValue,
     Hook,
     RunContext,
     RunError,
     Sidecar,
+    TokenFor,
 )
 
 
@@ -43,11 +47,15 @@ class Echo(Action):
 
 
 class CancellableHook(Hook):
-    """A connection whose work ends when it is cancelled."""
+    """A connection whose work ends when it is cancelled. Every hook built is kept in
+    ``built``."""
 
     connection_type = "fake"
+    built: ClassVar[list[CancellableHook]] = []
 
-    def __init__(self) -> None:
+    def __init__(self, connection: Connection, token_for: TokenFor) -> None:
+        super().__init__(connection, token_for)
+        CancellableHook.built.append(self)
         self.cancelled = threading.Event()
         self.cancel_threads: list[str] = []
 
@@ -63,8 +71,8 @@ class WaitUntilCancelled(Action):
     connection: str = "fake"
     rows: tuple[dict[str, Any], ...] = ()
 
-    def connections(self) -> tuple[str, ...]:
-        return (self.connection,)
+    def connections(self) -> Mapping[str, str]:
+        return {self.connection: "fake"}
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
         hook = ctx.hook(self.connection)

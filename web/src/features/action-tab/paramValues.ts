@@ -137,6 +137,39 @@ const EDITOR_KINDS = new Set<CatalogueParam['kind']>(['kql', 'sql']);
 /** Whether the param is edited in a pill of the pills bar. */
 export const hasPill = (param: CatalogueParam): boolean => !EDITOR_KINDS.has(param.kind);
 
+/** The connections a `connection` param can name: those of its connection type. */
+export function connectionChoices(
+  param: CatalogueParam,
+  connections: readonly InstanceConnection[],
+): InstanceConnection[] {
+  return connections.filter((c) => c.type === param.connectionType);
+}
+
+/** The connection a `connection` param must name, when its connection type has only one. */
+export function onlyConnection(
+  param: CatalogueParam,
+  connections: readonly InstanceConnection[],
+): InstanceConnection | null {
+  const choices = param.kind === 'connection' ? connectionChoices(param, connections) : [];
+  return choices.length === 1 ? choices[0]! : null;
+}
+
+/**
+ * The databases suggested for `param`: those of the connection chosen for an editor param whose
+ * schema comes from that connection and `param` (`schemaFrom: [connection, database]`).
+ */
+export function databaseSuggestions(
+  param: CatalogueParam,
+  params: readonly CatalogueParam[],
+  values: Record<string, unknown>,
+  connections: readonly InstanceConnection[],
+): readonly string[] | null {
+  const editor = params.find((p) => !hasPill(p) && p.schemaFrom?.[1] === param.name);
+  const connection = editor?.schemaFrom?.[0];
+  if (connection === undefined) return null;
+  return connections.find((c) => c.name === values[connection])?.databases ?? null;
+}
+
 export const isUnset = (value: unknown): boolean =>
   value === undefined ||
   value === null ||

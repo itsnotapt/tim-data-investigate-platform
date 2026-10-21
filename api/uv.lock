@@ -1104,20 +1104,28 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
+[package.optional-dependencies]
+kusto = [
+    { name = "azure-kusto-data" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "tim-actions", extra = ["kusto"] },
     { name = "types-pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "azure-kusto-data", marker = "extra == 'kusto'", specifier = ">=6.0.4" },
     { name = "pydantic", specifier = ">=2.13" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
+provides-extras = ["kusto"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1125,6 +1133,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.16.10" },
+    { name = "tim-actions", extras = ["kusto"], editable = "tim-actions" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260906" },
 ]
 
@@ -1146,7 +1155,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "tim-actions" },
+    { name = "tim-actions", extra = ["kusto"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1178,7 +1187,7 @@ requires-dist = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2" },
-    { name = "tim-actions", editable = "tim-actions" },
+    { name = "tim-actions", extras = ["kusto"], editable = "tim-actions" },
     { name = "uvicorn", extras = ["standard"] },
 ]
 

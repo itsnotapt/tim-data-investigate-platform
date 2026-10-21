@@ -225,12 +225,16 @@ class _Document:
         if (line, text) not in self._problems:
             self._problems.append((line, text))
 
-    def validation_errors(self, exc: ValidationError, skip: Sequence[str] = ()) -> None:
+    def validation_errors(
+        self, exc: ValidationError, skip: Sequence[str] = (), prefix: Sequence[str | int] = ()
+    ) -> None:
+        """Report each error of ``exc``, at its location under ``prefix``, but none whose first
+        field is in ``skip``."""
         for error in exc.errors(include_url=False, include_input=False):
             loc = error["loc"]
             if loc and loc[0] in skip:
                 continue
-            self.problem(loc, error["msg"].removeprefix("Value error, "))
+            self.problem((*prefix, *loc), error["msg"].removeprefix("Value error, "))
 
 
 def _duplicate_keys(node: yaml.Node, loc: tuple[str | int, ...], doc: _Document) -> None:

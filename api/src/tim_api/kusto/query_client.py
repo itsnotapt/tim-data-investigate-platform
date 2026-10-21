@@ -16,24 +16,20 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
-import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Protocol
 
 from azure.kusto.data import ClientRequestProperties, KustoClient, KustoConnectionStringBuilder
 from azure.kusto.data import exceptions as kusto_exc
 from fastapi import Depends
+from tim_actions.kusto import error_message, is_forbidden, sanitise_message, serialise_value
 
 from tim_api.config import Settings, get_settings
 from tim_api.query_runs.models import KustoQueryStats
 
 logger = logging.getLogger(__name__)
-
-_MAX_ERROR_CHARS = 2000
 
 
 class KustoQueryError(Exception):
@@ -85,73 +81,6 @@ class KustoQueryClient(Protocol):
         ...
 
 
-# --- value serialisation ---------------------------------------------------------------
-
-_TIMESPAN_RE = re.compile(r"^(-)?(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$")
-_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z?$")
-
-
-def _datetime(value: str) -> str:
-    """ISO 8601 form with the fraction trimmed of trailing zeros and a ``Z`` suffix."""
-    match = _DATETIME_RE.match(value)
-    if not match:
-        return value
-    base, frac = match.groups()
-    frac = (frac or "").rstrip("0")
-    return f"{base}.{frac}Z" if frac else f"{base}Z"
-
-
-def _timespan(value: str) -> str:
-    """Normalise to ``[-][d.]hh:mm:ss[.fffffff]``: days omitted when zero, 7-digit fraction."""
-    match = _TIMESPAN_RE.match(value)
-    if not match:
-        return value
-    sign, days, hours, minutes, seconds, frac = match.groups()
-    out = f"{sign or ''}{f'{int(days)}.' if days and int(days) else ''}"
-    out += f"{int(hours):02d}:{minutes}:{seconds}"
-    if frac and frac.strip("0"):
-        out += "." + frac.ljust(7, "0")[:7]
-    return out
-
-
-def _decimal(value: Any) -> Any:
-    """Number when it survives a float round trip, else the exact string."""
-    try:
-        exact = Decimal(str(value))
-        as_float = float(exact)
-    except (InvalidOperation, ValueError):
-        return value
-    if math.isfinite(as_float) and Decimal(repr(as_float)) == exact:
-        return as_float
-    return str(value)
-
-
-def _dynamic(value: Any) -> Any:
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except ValueError:
-            return value
-    return value
-
-
-def serialise_value(column_type: str, value: Any) -> Any:
-    if value is None:
-        return None
-    kind = column_type.lower()
-    if kind in ("datetime", "date") and isinstance(value, str):
-        return _datetime(value)
-    if kind in ("timespan", "time") and isinstance(value, str):
-        return _timespan(value)
-    if kind == "dynamic":
-        return _dynamic(value)
-    if kind == "decimal":
-        return _decimal(value)
-    if kind in ("guid", "uniqueid"):
-        return str(value)
-    return value
-
-
 # --- frame parsing ---------------------------------------------------------------------
 
 
@@ -163,13 +92,6 @@ def _one_api_error_message(errors: Any) -> str | None:
         message = err.get("@message") or err.get("message") if isinstance(err, dict) else None
         return str(message) if message else "Kusto reported an error"
     return None
-
-
-def sanitise_message(text: str) -> str:
-    """Keep the Kusto message, drop stack-trace lines, cap the length."""
-    lines = [ln for ln in text.splitlines() if not re.match(r"^\s+at\s", ln)]
-    cleaned = "\n".join(lines).strip() or "Kusto query failed"
-    return cleaned[:_MAX_ERROR_CHARS]
 
 
 def _stats_from_table(table: Mapping[str, Any]) -> KustoQueryStats | None:
@@ -306,31 +228,11 @@ def _frames_from_response(response: Any) -> list[dict[str, Any]]:
     return frames
 
 
-def _is_forbidden(exc: Exception) -> bool:
-    if not isinstance(exc, kusto_exc.KustoServiceError):
-        return False
-    return getattr(exc.http_response, "status_code", None) == 403
-
-
 def map_sdk_error(exc: Exception) -> KustoQueryError:
     """Translate SDK exceptions to a user-safe `KustoQueryError` (no stack, no headers)."""
-    if _is_forbidden(exc):
-        return KustoForbiddenError("Access to the Kusto cluster or database was denied.")
-    if isinstance(exc, kusto_exc.KustoApiError):
-        err = exc.get_api_error()
-        return KustoQueryError(sanitise_message(err.description or err.message or exc.message_text))
-    if isinstance(exc, kusto_exc.KustoMultiApiError):
-        errors = exc.get_api_errors()
-        first = errors[0] if errors else None
-        text = (first.description or first.message) if first else None
-        return KustoQueryError(sanitise_message(text or exc.message_text))
-    if isinstance(exc, kusto_exc.KustoNetworkError):
-        return KustoQueryError("Could not reach the Kusto cluster.")
-    if isinstance(exc, kusto_exc.KustoAuthenticationError):
-        return KustoQueryError("Authentication to the Kusto cluster failed.")
-    if isinstance(exc, kusto_exc.KustoServiceError):
-        return KustoQueryError(sanitise_message(exc.message_text))
-    return KustoQueryError("Kusto query failed.")
+    if is_forbidden(exc):
+        return KustoForbiddenError(error_message(exc))
+    return KustoQueryError(error_message(exc))
 
 
 class AzureKustoQueryClient:

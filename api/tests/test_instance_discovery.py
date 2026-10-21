@@ -13,7 +13,7 @@ import pytest
 from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
 
-from tim_api.actions import ActionsConfigError
+from tim_api.actions import InstanceConfigError
 
 ROWS_PROVIDER = """
     from scripted_actions import Rows
@@ -53,7 +53,7 @@ def discovered_instance(auth: AuthKit) -> dict[str, Any]:
 
 
 def startup_problems() -> list[str]:
-    with pytest.raises(ActionsConfigError) as caught, TestClient(create_test_app(providers=None)):
+    with pytest.raises(InstanceConfigError) as caught, TestClient(create_test_app(providers=None)):
         pass
     return caught.value.problems
 

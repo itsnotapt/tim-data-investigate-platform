@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { newTestStore } from '../../test/tabsTestUtils';
+import { useInstanceStore } from '../instance';
 import { DEFAULT_QUERY_EXAMPLE } from '../kusto-query/defaultQuery';
 import { NewQueryMenu } from './NewQueryMenu';
 import type { CatalogueAction } from '../../lib/api';
@@ -62,6 +63,25 @@ const actions: CatalogueAction[] = [
     pivot: null,
   },
   {
+    key: 'tim.run_kql',
+    kind: 'query',
+    name: 'Run KQL',
+    menuPath: [],
+    connections: [],
+    params: [
+      {
+        name: 'connection',
+        title: 'Connection',
+        kind: 'connection',
+        connectionType: 'kusto',
+        required: true,
+        many: false,
+      },
+      { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
+    ],
+    pivot: null,
+  },
+  {
     key: 'dev-slow',
     kind: 'query',
     name: 'Slow',
@@ -92,6 +112,8 @@ function setup() {
   );
   return store;
 }
+
+afterEach(() => useInstanceStore.setState({ instance: null }));
 
 describe('NewQueryMenu', () => {
   it('creates an ad-hoc draft with the default query and navigates', async () => {
@@ -155,6 +177,24 @@ describe('NewQueryMenu', () => {
     expect(tab?.params).toEqual({ action: 'dev-sign-ins', params: { since: 'PT1H' } });
     expect(screen.getByTestId('loc')).toHaveTextContent(`/view/${tab?.componentUuid}`);
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('fills in a connection param that has only one choice', async () => {
+    useInstanceStore.setState({
+      instance: {
+        version: 'v1',
+        actions,
+        connections: [{ name: 'security', type: 'kusto', title: 'Security' }],
+        labels: [],
+        limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 1, runTimeoutSeconds: 1 },
+      },
+    });
+    const store = setup();
+    await userEvent.click(screen.getByRole('button', { name: 'New' }));
+    await userEvent.click(screen.getByText('Actions'));
+    await userEvent.click(screen.getByText('Run KQL'));
+    const [tab] = Object.values(store.getState().tabs);
+    expect(tab?.params).toEqual({ action: 'tim.run_kql', params: { connection: 'security' } });
   });
 
   it('search finds actions by name and folder', async () => {
