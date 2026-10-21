@@ -25,6 +25,9 @@ from tim_api.storage import MemoryStorage
 
 ALICE = "alice@example.com"
 CLUSTER = "https://help.kusto.windows.net"
+# Read before the autouse fixture in conftest.py clears TIM_* variables.
+LIVE_CLUSTER = os.environ.get("TIM_TEST_KUSTO_CLUSTER")
+LIVE_DATABASE = os.environ.get("TIM_TEST_KUSTO_QUERY_DATABASE", "Samples")
 
 
 def connections_file(cluster: str, database: str) -> str:
@@ -342,15 +345,13 @@ async def test_an_unknown_connection_is_unprocessable(env: Env) -> None:
 
 
 @pytest.mark.kusto
-@pytest.mark.skipif(
-    not os.environ.get("TIM_TEST_KUSTO_CLUSTER"), reason="TIM_TEST_KUSTO_CLUSTER not set"
-)
+@pytest.mark.skipif(not LIVE_CLUSTER, reason="TIM_TEST_KUSTO_CLUSTER not set")
 async def test_run_kql_on_a_real_cluster(
     auth: AuthKit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Needs an ``AZURE_*`` identity that can query ``TIM_TEST_KUSTO_QUERY_DATABASE``."""
-    cluster = os.environ["TIM_TEST_KUSTO_CLUSTER"].rstrip("/")
-    database = os.environ.get("TIM_TEST_KUSTO_QUERY_DATABASE", "Samples")
+    assert LIVE_CLUSTER
+    cluster, database = LIVE_CLUSTER.rstrip("/"), LIVE_DATABASE
     async with open_client(
         auth, AzureObo(), tmp_path, monkeypatch, cluster=cluster, database=database
     ) as client:
