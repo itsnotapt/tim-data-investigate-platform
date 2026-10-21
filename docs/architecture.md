@@ -211,6 +211,7 @@ Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv wor
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions`, `schema connections` and `check` |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
+| `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
 | `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
@@ -308,6 +309,10 @@ The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fiel
 - `databases` are suggestions the browser offers for the `database` param; they don't restrict it.
 
 `KustoHook` runs the synchronous `azure-kusto-data` client on a worker thread with a token from `token_for`. It passes the time left until the run's deadline as the Kusto server timeout and sets the client request id `TIM.RunKql;<uuid>`; `cancel()` sends `.cancel query` for the queries in flight and refuses new ones. Result values are serialised (datetime, timespan, decimal, dynamic, guid), every `PrimaryResult` table is concatenated, and columns are declared from Kusto's types. The query's execution metrics are reported as run details: `executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`. Kusto errors become sanitised messages (stack-trace lines removed, capped at 2000 characters).
+
+A hook can also give the editor schema of its connection, `Hook.editor_schema(scope)`: an `EditorSchema` of a `kind` and a `schema`, or `None`. `scope` holds the values of the editor param's `schemaFrom` params without its `connection` param. `KustoHook` runs `.show schema as json` in the scope's `database` and returns kind `kql`, or `None` without a `database`; a Kusto error or an unrecognised result is a `RunError`. `POST /api/connections/{name}/schema` ([api.md](api.md#post-apiconnectionsnameschema)) gets the connection's `obo` token as `POST /api/runs` does, calls the hook on a worker thread and answers `502` with a `RunError`'s message.
+
+In the browser, an editor param with `schemaFrom` loads its schema once its connection and scope params have values. Schemas are cached per connection and scope, and the browser has one completion adapter per kind. The `kql` adapter gives Monaco's Kusto worker the schema with the connection name where Monaco wants a cluster. `useEditorSchema` and the adapters are in `web/src/features/action-tab/editorSchema.ts`.
 
 **Run KQL** (`tim.run_kql`) is the built-in action on a Kusto connection. Its params are `connection` (a Kusto connection), `database`, `kql` (a `kql` param scoped by the `connection` and `database` params) and an optional `idColumn`, the column that gives each row its `id`; without it rows have no `id`. It sets `pivot: none`.
 

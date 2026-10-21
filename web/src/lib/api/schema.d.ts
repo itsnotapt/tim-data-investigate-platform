@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/connections/{name}/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Editor Schema
+         * @description The editor schema for ``scope`` on the connection ``name``, got as the analyst. The
+         *     connection's ``obo`` token is got first, so OBO problems answer as they do on runs.
+         */
+        post: operations["getEditorSchema"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/healthChecks/liveness": {
         parameters: {
             query?: never;
@@ -374,6 +395,27 @@ export interface components {
              * @enum {string}
              */
             rows: "row" | "rows";
+        };
+        /**
+         * EditorSchemaRequest
+         * @description Body of ``POST /api/connections/{name}/schema``: the values of the editor param's
+         *     ``schemaFrom`` params, by name, without its connection param.
+         */
+        EditorSchemaRequest: {
+            /** Scope */
+            scope?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+        };
+        /**
+         * EditorSchemaResponse
+         * @description What the editor completes from: ``kind`` picks the browser's adapter. Both are ``null``
+         *     when the connection type has no schema for the scope.
+         */
+        EditorSchemaResponse: {
+            /** Kind */
+            kind: string | null;
+            schema: components["schemas"]["JsonValue"];
         };
         /** EventComment */
         EventComment: {
@@ -911,6 +953,97 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getEditorSchema: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditorSchemaRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorSchemaResponse"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Upstream failure (`upstream`). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Dependency unavailable (`unavailable`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     liveness: {
         parameters: {
             query?: never;
