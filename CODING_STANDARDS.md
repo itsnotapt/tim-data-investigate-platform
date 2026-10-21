@@ -26,6 +26,7 @@ Commands are in [docs/development.md](docs/development.md).
 - A code comment may link an ADR where the code would otherwise look surprising.
 - Domain terms come from [GLOSSARY.md](GLOSSARY.md); code and docs use its terms and avoid the synonyms it lists. A new or renamed concept updates the glossary in the same PR ([docs/agents/domain.md](docs/agents/domain.md#updating-glossarymd)).
 - Dates are `YYYY-MM-DD`.
+- Docs are written as short sentences, one fact each. A paragraph that lists several things becomes a lead sentence and bullets, with a **bold lead-in** when each bullet names a thing. Facts that share columns go in a table.
 
 ## Security
 
