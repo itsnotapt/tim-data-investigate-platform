@@ -123,12 +123,21 @@ describe('useEditorSchema', () => {
     expect(setSchema).toHaveBeenCalledWith(doc('Samples'), 'security', 'Samples');
   });
 
+  it('waits for a typed database to settle before fetching', async () => {
+    const { rerender } = render({ connection: 'security', database: 'S' });
+    rerender({ e: editor, values: { connection: 'security', database: 'Sa' } });
+    rerender({ e: editor, values: { connection: 'security', database: 'Samples' } });
+    await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
+    expect(calls).toEqual([{ name: 'security', scope: { database: 'Samples' } }]);
+  });
+
   it('ignores a schema that arrives after the database changed', async () => {
-    delays['Slow'] = 100;
+    delays['Slow'] = 300;
     const { rerender } = render({ connection: 'security', database: 'Slow' });
+    await waitFor(() => expect(calls).toHaveLength(1));
     rerender({ e: editor, values: { connection: 'security', database: 'Fast' } });
     await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 400));
     expect(setSchema).toHaveBeenCalledTimes(1);
     expect(setSchema).toHaveBeenCalledWith(doc('Fast'), 'security', 'Fast');
     delete delays['Slow'];

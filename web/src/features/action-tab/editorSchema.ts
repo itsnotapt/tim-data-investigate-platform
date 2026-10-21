@@ -84,10 +84,14 @@ function schemaTarget(
   return connection === null ? null : { connection, scope };
 }
 
+/** How long the connection and scope must stay unchanged before their schema loads. */
+const SETTLE_MS = 400;
+
 /**
- * Loads the schema of an editor param into `editor` whenever its connection or scope changes, once
- * the editor has mounted and each of its `schemaFrom` params has a value. A schema that arrives
- * after they changed is ignored, and a failure is shown in the snackbar.
+ * Loads the schema of an editor param into `editor` once its connection and scope have stayed
+ * unchanged for `SETTLE_MS` (a pill's value changes on each keystroke), the editor has mounted and
+ * each of its `schemaFrom` params has a value. A schema that arrives after they changed is
+ * ignored, and a failure is shown in the snackbar.
  */
 export function useEditorSchema(
   editor: CodeEditorInstance | null,
@@ -102,14 +106,19 @@ export function useEditorSchema(
     if (!editor || key === null) return;
     const [connection, entries] = JSON.parse(key) as [string, [string, unknown][]];
     const controller = new AbortController();
-    loadEditorSchema(editor, connection, Object.fromEntries(entries), {
-      signal: controller.signal,
-    }).catch((e: unknown) => {
-      if (!controller.signal.aborted) {
-        notify(`Failed to load the editor schema: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    });
-    return () => controller.abort();
+    const timer = setTimeout(() => {
+      loadEditorSchema(editor, connection, Object.fromEntries(entries), {
+        signal: controller.signal,
+      }).catch((e: unknown) => {
+        if (!controller.signal.aborted) {
+          notify(`Failed to load the editor schema: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      });
+    }, SETTLE_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [editor, key, notify]);
 }
 
