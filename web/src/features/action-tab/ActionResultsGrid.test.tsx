@@ -1,9 +1,7 @@
-import 'fake-indexeddb/auto';
 import { render, waitFor } from '@testing-library/react';
 import type { ColumnState, GridApi } from 'ag-grid-community';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
-import { rowResultsDao } from '../../lib/storage';
 import { tabColumnState } from '../column-views';
 import { ActionResultsGrid } from './ActionResultsGrid';
 
@@ -60,21 +58,32 @@ const rows: RunRow[] = [
   },
 ];
 
-async function renderGrid(uuid: string) {
-  await rowResultsDao.put(uuid, rows);
+function renderGrid(uuid: string, shown: readonly RunRow[] = rows) {
   let api: GridApi | undefined;
-  render(
+  const grid = (r: readonly RunRow[]) => (
     <ActionResultsGrid
       uuid={uuid}
-      rowDataTrigger={1}
+      rows={r}
       declaredColumns={declared}
       runColumns={columns}
       height={400}
       onGridReady={(e) => (api = e.api)}
-    />,
+    />
   );
-  await waitFor(() => expect(api?.getDisplayedRowCount()).toBeGreaterThan(0));
-  return api!;
+  const { rerender } = render(grid(shown));
+  return {
+    api: async () => {
+      await waitFor(() => expect(api).toBeDefined());
+      return api!;
+    },
+    rerender: (r: readonly RunRow[]) => rerender(grid(r)),
+  };
+}
+
+async function gridOf(uuid: string) {
+  const api = await renderGrid(uuid).api();
+  await waitFor(() => expect(api.getDisplayedRowCount()).toBeGreaterThan(0));
+  return api;
 }
 
 const stateOf = (api: GridApi, colId: string): ColumnState | undefined =>
@@ -84,7 +93,7 @@ beforeEach(() => tabColumnState.clear());
 
 describe('ActionResultsGrid', () => {
   it('applies the declared columns as initial settings', async () => {
-    const api = await renderGrid('declared');
+    const api = await gridOf('declared');
     expect(stateOf(api, 'Timestamp')).toMatchObject({ width: 180, pinned: 'left', sort: 'desc' });
     expect(stateOf(api, 'Raw')).toMatchObject({ hide: true });
     expect(stateOf(api, 'User')).toMatchObject({ rowGroup: true });
@@ -92,7 +101,7 @@ describe('ActionResultsGrid', () => {
   });
 
   it('keys rows by `row`, and a result column called `row` keeps its own values', async () => {
-    const api = await renderGrid('ids');
+    const api = await gridOf('ids');
     const node = api.getRowNode('1');
     expect(node).toBeDefined();
     expect(api.getCellValue({ rowNode: node!, colKey: 'row' })).toBe('second');
@@ -103,13 +112,13 @@ describe('ActionResultsGrid', () => {
       { colId: 'Raw', hide: false },
       { colId: 'Timestamp', width: 90, pinned: null, sort: null },
     ]);
-    const api = await renderGrid('restored');
+    const api = await gridOf('restored');
     expect(stateOf(api, 'Raw')).toMatchObject({ hide: false });
     expect(stateOf(api, 'Timestamp')).toMatchObject({ width: 90, pinned: null, sort: null });
   });
 
   it('evaluates a declared calculated column, after the declared column before it', async () => {
-    const api = await renderGrid('calculated');
+    const api = await gridOf('calculated');
     const node = api.getRowNode('0');
     expect(api.getCellValue({ rowNode: node!, colKey: 'KiB' })).toBe(2);
     expect(api.getColumn('KiB')?.getColDef().headerName).toBe('Size (KiB)');
@@ -118,5 +127,17 @@ describe('ActionResultsGrid', () => {
       .map((c) => c.colId)
       .filter((id) => !id.startsWith('ag-Grid-'));
     expect(order).toEqual(['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes']);
+  });
+
+  it('adds the rows of each page that arrives, and replaces rows that are not a continuation', async () => {
+    const grid = renderGrid('growing', rows.slice(0, 1));
+    const api = await grid.api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
+    grid.rerender(rows);
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    expect(api.getCellValue({ rowNode: api.getRowNode('1')!, colKey: 'User' })).toBe('bob');
+    grid.rerender([{ row: 0, id: 'c-9', data: { User: 'dave' } }]);
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
+    expect(api.getCellValue({ rowNode: api.getRowNode('0')!, colKey: 'User' })).toBe('dave');
   });
 });

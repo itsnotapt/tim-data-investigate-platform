@@ -194,7 +194,15 @@ Behaviour notes: falsy defaults (`false`, `0`) are kept by both `getDefaultParam
 
 ## Action tab (`src/features/action-tab`, `src/features/instance`)
 
-`ActionTab` is registered for `ActionResult`. It shows the header (menu path · action, title), `PillsBar` (one pill per non-`kql`/`sql` param, edited in a popover by kind: `DatetimeEditor` uses MUI X date pickers with dayjs, in UTC, and `TimespanEditor` has preset chips and an amount with a unit; Run at the right, a spinner while running) and the inner tab "Results · N". The action comes from `useInstanceStore` (`src/features/instance`) by the tab's `params.action`; params are plain values in `params.params`. `runActionTab(uuid)` (`actionRuns.ts`) posts the run, saves the tab, polls (1 s for 10 s, then 3 s) and stores the rows in `row_results` as `{row, id, data}`; `resumeActionRuns` follows runs again after a reload. `ActionResultsGrid` wraps `ResultsGrid` with `columnId="row"` and the `columnDefs` from `buildActionColumnDefs` (`actionColumns.ts`: the run's columns, the action's declared settings as `initial*`, declared `calculated` columns as `calculatedExpression`). `onRun` is injectable for tests. Details: [architecture.md](../docs/architecture.md#the-tab-and-new-menu).
+The tab that runs an action. How it behaves is in [architecture.md](../docs/architecture.md#the-tab-and-new-menu); this is where the code is.
+
+- `ActionTab.tsx`: the tab, registered for `ActionResult`. Header, pills bar with Run, and the inner tab "Results · N". It finds its action in `useInstanceStore` by `params.action`; the param values are plain values in `params.params`.
+- `PillsBar.tsx`: one pill per param except `kql`/`sql`, each edited in a popover. `DatetimeEditor.tsx` (MUI X date pickers with dayjs, in UTC) and `TimespanEditor.tsx` (preset chips, or an amount and a unit) edit those kinds; `paramValues.ts` parses and shows values.
+- `actionRuns.ts`: `runActionTab` starts a run, polls it (every second for 10 s, then every 3 s) and loads its rows; `resumeActionRuns` picks runs up again after a reload.
+- `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
+- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. `StoredActionResultsGrid` reads `row_results` instead, after a reload.
+- `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
+- Tests pass `onRun` to `ActionTab` instead of running.
 
 ## Pivots (`src/features/pivots`)
 

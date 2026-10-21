@@ -9,6 +9,7 @@ import {
 } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
 import { useTabsStore, type TabsStore } from '../tabs';
+import { runRowsStore } from './runRows';
 
 const FAST_POLL_MS = 1000;
 const FAST_POLLS = 10;
@@ -82,14 +83,20 @@ function startMessage(e: unknown): string {
   return `Couldn't start: ${e instanceof Error ? e.message : String(e)}`;
 }
 
-/** Every row of a succeeded run, page by page: the server returns at most its page size. */
-async function loadRows(run: Run, signal: AbortSignal): Promise<RunRow[]> {
+/**
+ * Every row of a succeeded run, page by page (the server returns at most its page size). Each page
+ * is shown in the tab's grid as it arrives.
+ */
+async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<RunRow[]> {
   const rowCount = run.rowCount ?? 0;
+  const shown = runRowsStore.getState();
+  shown.start(uuid, run.runId, run.columns ?? null, rowCount);
   const rows: RunRow[] = [];
   while (rows.length < rowCount) {
     const page = await getRunRows(run.runId, rows.length, rowCount, { signal });
     if (page.rows.length === 0) break;
     rows.push(...page.rows);
+    shown.append(uuid, run.runId, page.rows);
   }
   return rows;
 }
@@ -108,6 +115,8 @@ async function followRun(
   const update = (run: Run) => tabs.updateState(uuid, { run });
   const fail = (message: string) => showError(store, uuid, message);
   let run = first;
+  /** The run whose rows are being shown as they load; dropped unless they all load. */
+  let loading: string | null = null;
   try {
     for (let n = 0; run.status === 'running'; n++) {
       await sleep(runPollDelay(n), signal);
@@ -117,9 +126,11 @@ async function followRun(
     }
     const message = endMessage(run);
     if (message !== null) return fail(message);
-    const rows = await loadRows(run, signal);
+    loading = run.runId;
+    const rows = await loadRows(uuid, run, signal);
     if (signal.aborted) return;
     await rowResultsDao.put(uuid, rows);
+    runRowsStore.getState().finish(uuid, run.runId);
     store.getState().updateState(uuid, {
       isExecuting: false,
       error: null,
@@ -136,6 +147,8 @@ async function followRun(
     if (isApiError(e) && e.status === 404) return fail(RUN_GONE);
     fail(e instanceof Error ? e.message : String(e));
   } finally {
+    const shown = runRowsStore.getState().byTab[uuid];
+    if (shown && shown.runId === loading && !shown.done) runRowsStore.getState().drop(uuid);
     if (following.get(uuid)?.signal === signal) following.delete(uuid);
   }
 }

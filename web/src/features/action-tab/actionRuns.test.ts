@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { HttpResponse, http } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Run, RunRow } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
@@ -9,6 +9,7 @@ import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { newTestStore } from '../../test/tabsTestUtils';
 import { createTabsStore, type Tab, type TabState } from '../tabs';
 import { resumeActionRuns, runActionTab } from './actionRuns';
+import { runRowsStore } from './runRows';
 
 const server = setupMswServer();
 const store = newTestStore();
@@ -77,6 +78,7 @@ const tab = (uuid = 'a') => store.getState().tabs[uuid]!;
 beforeEach(async () => {
   configureTestApp();
   store.reset();
+  runRowsStore.getState().clear();
   delays = [];
   await rowResultsDao.deleteMany(['a', 'b', 'c']);
   createActionTab('a');
@@ -109,6 +111,47 @@ describe('runActionTab', () => {
       run: { runId: RUN_ID, status: 'succeeded' },
     });
     expect(tab().rowDataTrigger).not.toBeNull();
+  });
+
+  it('shows each page of rows as it arrives, before every page is stored', async () => {
+    let releaseSecondPage = () => {};
+    const secondPage = new Promise<void>((resolve) => (releaseSecondPage = resolve));
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(3))),
+      http.get(apiUrl(`/api/runs/${RUN_ID}/rows`), async ({ request }) => {
+        const start = Number(new URL(request.url).searchParams.get('startRow'));
+        if (start > 0) await secondPage;
+        return HttpResponse.json({ rows: rows.slice(start, start + 2), lastRow: rows.length });
+      }),
+    );
+    const running = runActionTab('a', { store, sleep });
+    await vi.waitFor(() => expect(runRowsStore.getState().byTab.a?.rows).toHaveLength(2));
+    expect(runRowsStore.getState().byTab.a).toMatchObject({
+      runId: RUN_ID,
+      total: 3,
+      done: false,
+      columns: [{ name: 'User', type: 'string', declared: true }],
+    });
+    expect(runRowsStore.getState().byTab.a?.rows).toEqual(rows.slice(0, 2));
+    expect(await rowResultsDao.get('a')).toEqual([]);
+    releaseSecondPage();
+    await running;
+    expect(runRowsStore.getState().byTab.a).toMatchObject({ rows, done: true });
+    expect(await rowResultsDao.get('a')).toEqual(rows);
+  });
+
+  it('drops the rows shown so far when loading the rest fails', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(3))),
+      http.get(apiUrl(`/api/runs/${RUN_ID}/rows`), ({ request }) => {
+        const start = Number(new URL(request.url).searchParams.get('startRow'));
+        if (start > 0) return problemResponse(410, { type: 'urn:tim:problem:results-gone' });
+        return HttpResponse.json({ rows: rows.slice(0, 2), lastRow: rows.length });
+      }),
+    );
+    await runActionTab('a', { store, sleep });
+    expect(runRowsStore.getState().byTab.a).toBeUndefined();
+    expect(tab().state.error).toEqual({ message: 'Results are no longer available; run again' });
   });
 
   it('counts only the rows it stored when the server runs out of rows early', async () => {

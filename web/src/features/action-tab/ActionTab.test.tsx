@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import { useInstanceStore } from '../instance';
 import type { TabState } from '../tabs';
 import { useTabsStore } from '../tabs/tabStore';
 import { ActionTab } from './ActionTab';
+import { runRowsStore } from './runRows';
 
 const action: CatalogueAction = {
   key: 'dev-sign-ins',
@@ -56,6 +57,7 @@ function setup(state: Partial<TabState> = {}, key = 'dev-sign-ins') {
 beforeEach(() => {
   useTabsStore.reset();
   useInstanceStore.setState({ instance });
+  runRowsStore.getState().clear();
 });
 
 describe('ActionTab', () => {
@@ -103,5 +105,26 @@ describe('ActionTab', () => {
     setup({}, 'gone');
     expect(screen.getByText('This action is no longer available.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+  });
+
+  it('shows the rows loaded so far while the rest load', async () => {
+    const { uuid } = setup({ isExecuting: true, run: { ...succeeded, rowCount: 3 } });
+    act(() => {
+      runRowsStore
+        .getState()
+        .start(uuid, 'r1', [{ name: 'User', type: 'string', declared: false }], 3);
+      runRowsStore.getState().append(uuid, 'r1', [
+        { row: 0, id: null, data: { User: 'alice' } },
+        { row: 1, id: null, data: { User: 'bob' } },
+      ]);
+    });
+    expect(screen.getByRole('tab', { name: 'Results · 2 of 3' })).toBeInTheDocument();
+    expect(await screen.findByText('bob')).toBeInTheDocument();
+    act(() => {
+      runRowsStore.getState().append(uuid, 'r1', [{ row: 2, id: null, data: { User: 'carol' } }]);
+      runRowsStore.getState().finish(uuid, 'r1');
+    });
+    expect(screen.getByRole('tab', { name: 'Results · 3' })).toBeInTheDocument();
+    expect(await screen.findByText('carol')).toBeInTheDocument();
   });
 });

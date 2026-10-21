@@ -14,9 +14,10 @@ import { NewQueryMenu } from '../new-query';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
-import { ActionResultsGrid } from './ActionResultsGrid';
+import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { runActionTab } from './actionRuns';
 import { PillsBar } from './PillsBar';
+import { useRunRows } from './runRows';
 
 export interface ActionTabProps extends TabComponentProps {
   /** Overrides the run (default `runActionTab`). */
@@ -34,6 +35,7 @@ export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
+  const shown = useRunRows(uuid);
   const templates = useTemplatesStore((s) => s.templates);
   const queryOptions = useTemplatesStore((s) => s.queryOptions);
 
@@ -42,6 +44,13 @@ export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
   const action = actions?.find((a) => a.key === params.action);
   const actionName = action?.name ?? state.run?.action.name ?? params.action;
   const hasResults = state.resultsRunId != null && state.rowCount !== null;
+  // Rows loaded in this session, as each page arrives; else the stored rows of the last run.
+  const rowCount = shown ? shown.rows.length : state.rowCount;
+  const resultsLabel = shown
+    ? `Results · ${shown.rows.length}${shown.done ? '' : ` of ${shown.total}`}`
+    : hasResults
+      ? `Results · ${state.rowCount}`
+      : 'Results';
 
   const setParam = (name: string, value: unknown) => {
     const next = { ...params.params };
@@ -114,20 +123,25 @@ export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
       )}
 
       <Tabs value="results" sx={{ px: 1, minHeight: 36 }}>
-        <Tab
-          value="results"
-          label={hasResults ? `Results · ${state.rowCount}` : 'Results'}
-          sx={{ minHeight: 36, py: 0 }}
-        />
+        <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
       </Tabs>
       <Box data-slot="results-grid" sx={{ px: 1 }}>
-        {hasResults && state.rowCount === 0 && (
+        {(shown?.done ?? hasResults) && rowCount === 0 && (
           <Typography color="text.secondary" sx={{ p: 2 }}>
             The run succeeded with no rows.
           </Typography>
         )}
-        {hasResults && state.rowCount !== 0 && (
+        {shown && rowCount !== 0 && (
           <ActionResultsGrid
+            key={shown.runId}
+            uuid={uuid}
+            rows={shown.rows}
+            declaredColumns={action?.columns}
+            runColumns={shown.columns}
+          />
+        )}
+        {!shown && hasResults && rowCount !== 0 && (
+          <StoredActionResultsGrid
             uuid={uuid}
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}
