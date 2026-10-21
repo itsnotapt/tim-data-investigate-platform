@@ -8,7 +8,16 @@ Write an ADR only when all three hold:
 2. **Surprising without context**: a future reader would wonder why it was done this way.
 3. **A real trade-off**: there were genuine alternatives and one was picked for specific reasons.
 
-Typical subjects: architectural shape, technology choices with lock-in, boundary and scope decisions (including what TIM deliberately does not do), deliberate deviations from the obvious path, constraints not visible in the code, and rejected alternatives whose rejection is not obvious. If any test fails, skip the ADR.
+If any test fails, skip the ADR.
+
+Typical subjects:
+
+- architectural shape;
+- technology choices with lock-in;
+- boundary and scope decisions, including what TIM deliberately does not do;
+- deliberate deviations from the obvious path;
+- constraints not visible in the code;
+- rejected alternatives whose rejection is not obvious.
 
 ## Adding an ADR
 

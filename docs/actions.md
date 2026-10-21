@@ -1,6 +1,9 @@
 # Actions
 
-The guide for operators and action authors: what configures an instance's actions, how to write action files, and how to check them. How TIM loads them is in [architecture.md](architecture.md#actions-and-providers); the decisions are [ADR-0017](adr/0017-actions-from-providers.md) and, for connections, [ADR-0018](adr/0018-fixed-connections.md).
+The guide for operators and action authors. It covers what configures an instance's actions, how to write action files, and how to check them.
+
+- How TIM loads them is in [architecture.md](architecture.md#actions-and-providers).
+- The decisions are [ADR-0017](adr/0017-actions-from-providers.md) and, for connections, [ADR-0018](adr/0018-fixed-connections.md).
 
 ## What an instance holds
 
@@ -83,13 +86,33 @@ Dates and times in a file stay strings, as the browser sends them.
 
 ### Columns
 
-An action can declare some or all of its result columns. Each entry takes `name` and `type` (`string`, `number`, `boolean`, `datetime`, `timespan` or `json`), and optionally `title`, `hidden`, `width` (pixels), `pinned` (`left` or `right`), `sort` (`asc` or `desc`), `group` and `calculated`. A `calculated` column isn't in the result: it is an AG Grid calculated-column expression over the row's other columns, which names columns in brackets, such as `[Bytes] / 1024`. The tab's grid evaluates it, placed after the declared column before it. Analysts can add their own calculated columns from the grid's column menu.
+An action can declare some or all of its result columns. Each entry takes:
 
-The tab's grid uses the declared settings as AG Grid's initial column settings: `title` is the header, and `hidden`, `width`, `pinned`, `sort` and `group` become `initialHide`, `initialWidth`, `initialPinned`, `initialSort` and `initialRowGroup`. They apply the first time the grid shows the columns; a column state the analyst has changed and the tab restored wins over them.
+- `name` and `type`: `string`, `number`, `boolean`, `datetime`, `timespan` or `json`;
+- optionally `title`, `hidden`, `width` (pixels), `pinned` (`left` or `right`), `sort` (`asc` or `desc`), `group` and `calculated`.
+
+A `calculated` column isn't in the result.
+
+- It is an AG Grid calculated-column expression over the row's other columns.
+- The expression names columns in brackets, such as `[Bytes] / 1024`.
+- The tab's grid evaluates it, and places it after the declared column before it.
+- Analysts can add their own calculated columns from the grid's column menu.
+
+The tab's grid uses the declared settings as AG Grid's initial column settings.
+
+- `title` is the header.
+- `hidden`, `width`, `pinned`, `sort` and `group` become `initialHide`, `initialWidth`, `initialPinned`, `initialSort` and `initialRowGroup`.
+- They apply the first time the grid shows the columns.
+- A column state that the analyst has changed, and the tab restored, wins over them.
 
 ### Sidecars
 
-A query can be written inline (`query: |`) or in a sidecar file next to the action file, where an editor highlights it: `query_file: sign_ins.kql`. Give one or the other, not both. The action type marks which of its fields take a sidecar. The sidecar is a file name in the same directory as the action file, not a path.
+A query can be written in one of two places. Give one or the other, not both.
+
+- **Inline:** `query: |`.
+- **In a sidecar file** next to the action file, where an editor highlights it: `query_file: sign_ins.kql`.
+  - The action type marks which of its fields take a sidecar.
+  - The sidecar is a file name in the same directory as the action file, not a path.
 
 ## Connections file
 
@@ -107,7 +130,14 @@ The connections file lists the instance's **connections**: the fixed endpoints a
 
 Every entry has `name`, `title`, `type` and `auth`, and an optional `scope`, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it; an unknown `type` or field stops startup, with the file and line.
 
-`auth` says whose identity the system behind the connection sees. `obo` runs as the analyst: TIM exchanges the analyst's token for the connection's `scope` ([ADR-0009](adr/0009-obo-token-exchange.md)), and an instance that has an `obo` connection needs the OBO credential ([configuration.md](configuration.md#authentication)). `workload_identity`, which would run as TIM and so give every analyst TIM's access, is in the connection model, but the `kusto` connection type supports only `obo`. Every analyst sees every connection, and the system behind it enforces access.
+`auth` says whose identity the system behind the connection sees.
+
+- **`obo`** runs as the analyst.
+  - TIM exchanges the analyst's token for the connection's `scope` ([ADR-0009](adr/0009-obo-token-exchange.md)).
+  - An instance that has an `obo` connection needs the OBO credential ([configuration.md](configuration.md#authentication)).
+- **`workload_identity`** would run as TIM, and so give every analyst TIM's access. It is in the connection model, but the `kusto` connection type supports only `obo`.
+
+Every analyst sees every connection. The system behind it enforces access.
 
 The `kusto` connection type, from the `kusto` extra of `tim-actions`:
 
@@ -117,7 +147,10 @@ The `kusto` connection type, from the `kusto` extra of `tim-actions`:
 | `databases` | no | Database names suggested for the `database` param of actions on this connection. The analyst can type another. |
 | `scope` | no | The OBO scope, `{cluster}/.default` when left out. |
 
-An action names its connections in two ways: a fixed one, which the action type's `connections()` returns as each name with the connection type it must be, and a `connection` param, where the analyst picks among the connections of the param's `connection_type`. Startup fails when a fixed connection is missing or of the wrong type. A connection param whose type has no connection leaves its action out of the catalogue.
+An action names its connections in two ways:
+
+- **A fixed one.** The action type's `connections()` returns each name, with the connection type it must be. Startup fails when a fixed connection is missing or of the wrong type.
+- **A `connection` param.** The analyst picks among the connections of the param's `connection_type`. A connection param whose type has no connection leaves its action out of the catalogue.
 
 Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in problem answers the start request. A hook gets a `token_for(scope)` callable and never sees the analyst's own token.
 
@@ -144,7 +177,11 @@ docker run --rm <api image> tim-api schema connections > connections.schema.json
 docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connections.yaml:ro" <api image> tim-api check --actions /actions --connections /connections.yaml
 ```
 
-- **In the editor:** commit `action-file.schema.json` next to the files and point `yaml-language-server` at it, with a `# yaml-language-server: $schema=./action-file.schema.json` line at the top of each file or a `yaml.schemas` setting. It completes and checks the fields of each document by its `type`. Do the same with `connections.schema.json` for the connections file. Regenerate both when the image's providers change.
+- **In the editor:** commit `action-file.schema.json` next to the files, and point `yaml-language-server` at it.
+  - Point it with a `# yaml-language-server: $schema=./action-file.schema.json` line at the top of each file, or with a `yaml.schemas` setting.
+  - It completes and checks the fields of each document by its `type`.
+  - Do the same with `connections.schema.json` for the connections file.
+  - Regenerate both when the image's providers change.
 - **In CI:** run `tim-api check --actions <dir> --connections <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
 
 ## Writing file-capable action types
@@ -175,7 +212,11 @@ class AcmeQuery(Action):
         ...
 ```
 
-TIM validates each document against the `File` model, then builds the action with `AcmeQuery.from_file(file)`. The default passes the file's fields, all but `type`, to the action by name; override `from_file` when the action's fields differ from the file's. The action type's docstring becomes the type's description in the schema.
+TIM validates each document against the `File` model, then builds the action with `AcmeQuery.from_file(file)`.
+
+- The default passes the file's fields, all but `type`, to the action by name.
+- Override `from_file` when the action's fields differ from the file's.
+- The action type's docstring becomes the type's description in the schema.
 
 ## Providers
 

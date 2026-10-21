@@ -1,6 +1,9 @@
 # Operations
 
-Runbook for a running TIM deployment: health, logs, routine tasks and failure diagnosis. Variable details are in [configuration.md](configuration.md); deploying is covered in [deployment.md](deployment.md).
+Runbook for a running TIM deployment: health, logs, routine tasks and failure diagnosis.
+
+- Variable details are in [configuration.md](configuration.md).
+- Deploying is covered in [deployment.md](deployment.md).
 
 ## Health checks
 
@@ -15,30 +18,58 @@ Container health checks (every 30 s, timeout 5 s, 3 retries):
 - api image: Python `urlopen` against `http://127.0.0.1:8080/api/healthChecks/liveness` (start period 15 s).
 - web image: `wget` against `http://127.0.0.1:8080/healthz` (start period 5 s).
 
-On Kubernetes the chart's probes use these same paths: api liveness `/api/healthChecks/liveness` and readiness `/api/healthChecks/readiness`, web liveness and readiness `/healthz` (the image `HEALTHCHECK`s are not used by Kubernetes). A pod that fails readiness is removed from the Service endpoints; `helm test <release> --logs` checks `/healthz`, `/config.js` and the api readiness through web.
+On Kubernetes, the chart's probes use the same paths. Kubernetes doesn't use the image `HEALTHCHECK`s.
+
+- api liveness: `/api/healthChecks/liveness`.
+- api readiness: `/api/healthChecks/readiness`.
+- web liveness and readiness: `/healthz`.
+
+A pod that fails readiness is removed from the Service endpoints. `helm test <release> --logs` checks `/healthz`, `/config.js` and the api readiness, through web.
 
 Use readiness, not liveness, to decide whether the api can take traffic. Through the web container, the api endpoints are also reachable under `/api/healthChecks/...`.
 
 ## Logs
 
-All services log to stdout and stderr; collect them with the container runtime. On Kubernetes use `kubectl -n <namespace> logs deploy/<release>-tim-api` (and `deploy/<release>-tim-web`), or `kubectl logs -l app.kubernetes.io/component=api --tail=200` to read across replicas. Add `--previous` for a crashed container. Resource names are `<release>-tim-...` unless the release name already contains `tim` or `fullnameOverride` is set; see [deployment.md](deployment.md#kubernetes-helm).
+All services log to stdout and stderr. Collect them with the container runtime.
+
+On Kubernetes:
+
+- `kubectl -n <namespace> logs deploy/<release>-tim-api` reads the api, and `deploy/<release>-tim-web` the web container.
+- `kubectl logs -l app.kubernetes.io/component=api --tail=200` reads across replicas.
+- Add `--previous` for a crashed container.
+- Resource names are `<release>-tim-...`, unless the release name already contains `tim` or `fullnameOverride` is set; see [deployment.md](deployment.md#kubernetes-helm).
 
 ### api
 
-Logger `tim_api` (child loggers such as `tim_api.retention`), level from `TIM_LOG_LEVEL`, one line format:
+The logger is `tim_api`, with child loggers such as `tim_api.retention`. Its level comes from `TIM_LOG_LEVEL`. Every line has one format:
 
 ```
 2026-10-06 09:30:12,345 INFO tim_api GET /api/healthChecks/readiness -> 204 1.2ms traceId=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 ```
 
-- Every request logs one line `METHOD path -> status duration traceId=<id>`. The path has no query string; headers and bodies are never logged. Control characters in paths are escaped.
-- The trace id is the request's W3C `traceparent` if valid, else a valid `x-request-id` header (letters, digits, `.`, `_`, `-`, up to 128 characters), else a generated `traceparent`-shaped value.
-- The id is returned in the `x-trace-id` response header, and error bodies (`application/problem+json`) carry it as `traceId`. To investigate a user-reported error, take the `traceId` from the error response or the browser network tab and search the api log for it. Unhandled exceptions log `Unhandled exception traceId=... method=... path=...` with a stack trace.
-- Other notable lines: `AUTHENTICATION IS DISABLED` warning at startup (must never appear in production), `Retention sweep deleted N expired query run(s)`, `Marked N interrupted query run(s) as error`, `OBO exchange failed (...)` / `OBO exchange rejected: error=... scope=...` (token exchange problems), and at startup an info line `Action <key> left out: ...` for each action that has no connection to run on.
+- **Requests:** every request logs one line, `METHOD path -> status duration traceId=<id>`.
+  - The path has no query string. Headers and bodies are never logged.
+  - Control characters in paths are escaped.
+- **Trace id:** the request's W3C `traceparent` if valid, else a valid `x-request-id` header (letters, digits, `.`, `_`, `-`, up to 128 characters), else a generated `traceparent`-shaped value.
+  - The id is returned in the `x-trace-id` response header.
+  - Error bodies (`application/problem+json`) carry it as `traceId`.
+  - To investigate a user-reported error, take the `traceId` from the error response or the browser network tab, and search the api log for it.
+- **Unhandled exceptions** log `Unhandled exception traceId=... method=... path=...`, with a stack trace.
+- **Other notable lines:**
+  - `AUTHENTICATION IS DISABLED`: a warning at startup. It must never appear in production;
+  - `Retention sweep deleted N expired query run(s)`;
+  - `Marked N interrupted query run(s) as error`;
+  - `OBO exchange failed (...)` and `OBO exchange rejected: error=... scope=...`: token exchange problems;
+  - `Action <key> left out: ...`: an info line at startup, for each action that has no connection to run on.
 
 ### web
 
-nginx writes its standard access and error logs to the container's stdout and stderr. The entrypoint prints `tim-web: ...` messages before nginx starts: a note when `AGGRID_LICENSE` is unset, or the reason it refuses to start.
+nginx writes its standard access and error logs to the container's stdout and stderr.
+
+The entrypoint prints `tim-web: ...` messages before nginx starts:
+
+- a note when `AGGRID_LICENSE` is unset;
+- or the reason it refuses to start.
 
 ### Metrics
 
@@ -48,28 +79,49 @@ There is no metrics endpoint. Use the request log lines and health endpoints.
 
 ### Run database migrations
 
-The api never creates or changes tables on its own; a new or upgraded database must be migrated before the api can serve requests that use it.
+The api never creates or changes tables on its own. A new or upgraded database must be migrated before the api can serve requests that use it.
 
-- Compose: the one-shot `migrate` service runs `alembic upgrade head`; `api` starts after it succeeds. Rerun with `docker compose up migrate`.
-- Kubernetes (Helm): the chart runs the migrations as a Job, `<release>-tim-migrate` (`<fullname>-migrate`), using the api image and only `TIM_DATABASE_URL` from the release Secret. It is a Helm hook with weight 0 and delete policy `before-hook-creation`, and Helm waits for it to finish before the install or upgrade completes:
-  - external database: `pre-install,pre-upgrade`, so the schema is current before the api Deployment is created or rolled out;
-  - in-cluster PostgreSQL (`postgresql.enabled`): `post-install,pre-upgrade`, because the database does not exist before an install. An init container waits until PostgreSQL accepts connections. On a first install the api pods start alongside PostgreSQL and pass readiness before the schema exists; until the database is up and migrated they log non-fatal `Stale query-run sweep failed`, `Stale run sweep failed` and `Retention sweep failed` tracebacks (database unavailable), and requests that use the database fail.
-  - `migrations.enabled: false` omits the Job; migrate by other means then.
-- Elsewhere: run the api image with the command `alembic upgrade head` (`alembic.ini` and `migrations/` are in `/app`) and `TIM_DATABASE_URL` set. Alembic reads only `TIM_DATABASE_URL` from the process environment.
-- From a checkout: `cd api && uv run alembic upgrade head`. Check the current revision with `alembic current`.
+- **Compose:** the one-shot `migrate` service runs `alembic upgrade head`. `api` starts after it succeeds. Rerun it with `docker compose up migrate`.
+- **Kubernetes (Helm):** the chart runs the migrations as a Job, `<release>-tim-migrate` (`<fullname>-migrate`).
+  - It uses the api image, and only `TIM_DATABASE_URL` from the release Secret.
+  - It is a Helm hook, with weight 0 and delete policy `before-hook-creation`.
+  - Helm waits for it to finish before the install or upgrade completes.
+  - With an external database, it runs `pre-install,pre-upgrade`. So the schema is current before the api Deployment is created or rolled out.
+  - With in-cluster PostgreSQL (`postgresql.enabled`), it runs `post-install,pre-upgrade`, because the database does not exist before an install. An init container waits until PostgreSQL accepts connections.
+  - `migrations.enabled: false` omits the Job. Migrate by other means then.
+- **Elsewhere:** run the api image with the command `alembic upgrade head`, and `TIM_DATABASE_URL` set.
+  - `alembic.ini` and `migrations/` are in `/app`.
+  - Alembic reads only `TIM_DATABASE_URL` from the process environment.
+- **From a checkout:** `cd api && uv run alembic upgrade head`. Check the current revision with `alembic current`.
 
-On Kubernetes the Job retries a failed pod up to `migrations.backoffLimit` times (default 3) and is stopped after `migrations.activeDeadlineSeconds` (default 600). When it fails, the hook fails, so `helm install` or `helm upgrade` reports an error and the api is not rolled out (on upgrade the running pods keep the previous version). Read the output with:
+On a first install with in-cluster PostgreSQL, the api pods start alongside PostgreSQL, and pass readiness before the schema exists. Until the database is up and migrated:
+
+- they log non-fatal `Stale query-run sweep failed`, `Stale run sweep failed` and `Retention sweep failed` tracebacks (database unavailable);
+- requests that use the database fail.
+
+On Kubernetes, the Job retries a failed pod up to `migrations.backoffLimit` times (default 3). It is stopped after `migrations.activeDeadlineSeconds` (default 600).
+
+- When it fails, the hook fails. So `helm install` or `helm upgrade` reports an error, and the api is not rolled out.
+- On upgrade, the running pods keep the previous version.
+
+Read the output with:
 
 ```bash
 kubectl -n <namespace> logs job/<release>-tim-migrate
 kubectl -n <namespace> get pods -l app.kubernetes.io/component=migrate
 ```
 
-Fix the cause (usually an unreachable or wrong `TIM_DATABASE_URL`) and run `helm upgrade` again: the Job is recreated by the next hook run. The Job object is removed `migrations.ttlSecondsAfterFinished` seconds (default 3600) after it finishes, so read its logs before then. To migrate without a chart upgrade, run `alembic upgrade head` in a pod of the api image (for example `kubectl exec deploy/<release>-tim-api -- alembic upgrade head`).
+Then:
+
+- Fix the cause, usually an unreachable or wrong `TIM_DATABASE_URL`.
+- Run `helm upgrade` again. The next hook run recreates the Job.
+- The Job object is removed `migrations.ttlSecondsAfterFinished` seconds (default 3600) after it finishes. Read its logs before then.
+
+To migrate without a chart upgrade, run `alembic upgrade head` in a pod of the api image. For example: `kubectl exec deploy/<release>-tim-api -- alembic upgrade head`.
 
 ### Create the Kusto tag tables
 
-Tagged events are stored in Kusto tables in `TIM_TAG_DATABASE` on `TIM_TAG_CLUSTER_URI`. Create them once per database (idempotent, safe to repeat):
+Tagged events are stored in Kusto tables, in `TIM_TAG_DATABASE` on `TIM_TAG_CLUSTER_URI`. Create them once per database. The command is idempotent, so it is safe to repeat:
 
 ```bash
 cd api
@@ -78,19 +130,38 @@ python -m tim_api.tagged_events.cli create-tables               # apply
 # options: --cluster-uri <https://...> (default TIM_TAG_CLUSTER_URI), --database <name> (default TIM_TAG_DATABASE or Research)
 ```
 
-In the api image use `python -m tim_api.tagged_events.cli create-tables` with the api's environment. From a checkout prefix with `uv run`.
+In the api image, use `python -m tim_api.tagged_events.cli create-tables` with the api's environment. From a checkout, prefix it with `uv run`.
 
-The command runs `.create-merge table`, `.create-or-alter table ... ingestion json mapping` and `.alter table ... policy streamingingestion enable` for each tag table. It authenticates with `DefaultAzureCredential` (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_CLIENT_SECRET`, workload or managed identity, or an Azure CLI login). The identity needs permission to run these management commands on the database, which in Kusto means database admin (or table admin on the tag tables). At runtime tag writes use the same credential chain and need ingest rights on the tag tables. On failure the command prints the failing command and error and exits non-zero (`2` when no cluster URI is given).
+For each tag table, the command runs:
 
-The streaming ingestion policy is what makes a saved tag, comment or saved event queryable about a second after the request answers. The ingest client streams first and falls back to queued ingestion for a payload too large to stream (over 4 MB) or after a transient streaming failure. Queued rows, and every row of a table without the policy, wait for the table's ingestion batching window, up to 5 minutes by default, so the analyst doesn't see what they just saved.
+- `.create-merge table`;
+- `.create-or-alter table ... ingestion json mapping`;
+- `.alter table ... policy streamingingestion enable`.
 
-- **Cluster:** a cluster created in Azure also needs streaming ingestion turned on for the cluster itself (portal: **Settings → Configurations → Streaming ingestion**, or `az kusto cluster update --enable-streaming-ingest true`). A free cluster has it on already, so the table policy is all it needs.
-- **Check a table:** `.show table EventTag policy streamingingestion` shows `"IsEnabled": true`, and `.show journal | where Event has 'STREAMING-INGESTION'` shows when the policy was set.
-- **New roles:** a new role on the database, such as ingest rights for a new identity, can take a few minutes to apply. Until then ingestion answers `403` and the routes answer `502`.
+It authenticates with `DefaultAzureCredential`: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_CLIENT_SECRET`, a workload or managed identity, or an Azure CLI login.
+
+- The identity needs permission to run these management commands on the database. In Kusto, that means database admin, or table admin on the tag tables.
+- At runtime, tag writes use the same credential chain. They need ingest rights on the tag tables.
+- On failure, the command prints the failing command and error, and exits non-zero. It exits `2` when no cluster URI is given.
+
+The streaming ingestion policy makes a saved tag, comment or saved event queryable about a second after the request answers.
+
+- The ingest client streams first.
+- It falls back to queued ingestion for a payload too large to stream (over 4 MB), or after a transient streaming failure.
+- Queued rows, and every row of a table without the policy, wait for the table's ingestion batching window. That is up to 5 minutes by default, so the analyst doesn't see what they just saved.
+
+- **Cluster:** a cluster created in Azure also needs streaming ingestion turned on for the cluster itself.
+  - In the portal: **Settings → Configurations → Streaming ingestion**.
+  - Or: `az kusto cluster update --enable-streaming-ingest true`.
+  - A free cluster has it on already, so the table policy is all it needs.
+- **Check a table:**
+  - `.show table EventTag policy streamingingestion` shows `"IsEnabled": true`.
+  - `.show journal | where Event has 'STREAMING-INGESTION'` shows when the policy was set.
+- **New roles:** a new role on the database, such as ingest rights for a new identity, can take a few minutes to apply. Until then, ingestion answers `403`, and the routes answer `502`.
 
 ### `tim-api check`
 
-The api image runs the startup validation of its providers, an action files directory and a connections file without a database, credentials or other settings:
+The api image runs the startup validation of its providers, an action files directory and a connections file. It needs no database, credentials or other settings:
 
 ```bash
 docker run --rm -v "$PWD/actions:/actions:ro" <api image> tim-api check --actions /actions
@@ -99,25 +170,49 @@ docker run --rm <api image> tim-api schema actions > action-file.schema.json
 docker run --rm <api image> tim-api schema connections > connections.schema.json
 ```
 
-`check` prints one line for each action left out of the catalogue (such as `Action tim.run_kql left out: no kusto connection for its connection param`), then `OK: <n> actions, <m> connections`, and exits 0. Or it prints `Invalid instance:` and the same problems startup would report, one per line, and exits 1. A `--actions` path that isn't a directory, or a `--connections` path that isn't a file, exits 2. Without `--actions` it checks the installed providers and their package data only; without `--connections` the instance has no connections. From a checkout, run `uv run tim-api check --actions <dir>` in `api/`. Use the image you deploy: the action types a file may name are the ones installed in it. Writing files and the schema: [actions.md](actions.md#checking-files).
+`check` ends in one of three ways:
+
+- **Valid:** it prints one line for each action left out of the catalogue, such as `Action tim.run_kql left out: no kusto connection for its connection param`. Then it prints `OK: <n> actions, <m> connections`, and exits 0.
+- **Invalid:** it prints `Invalid instance:` and the same problems startup would report, one per line, and exits 1.
+- **Bad path:** a `--actions` path that isn't a directory, or a `--connections` path that isn't a file, exits 2.
+
+Options and use:
+
+- Without `--actions`, it checks only the installed providers and their package data.
+- Without `--connections`, the instance has no connections.
+- From a checkout, run `uv run tim-api check --actions <dir>` in `api/`.
+- Use the image you deploy. The action types a file may name are the ones installed in it.
+
+Writing files and the schema: [actions.md](actions.md#checking-files).
 
 ### Query run retention and cleanup
 
 These apply to runs (`/api/runs`) and query runs (`/api/kusto/query`) alike.
 
-- Each run has an expiry (`TIM_RUN_RETENTION_SECONDS`, default 24 h), refreshed when it finishes. An expired run is treated as not found immediately.
-- A background task deletes expired runs every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300 s) and logs the count. Runs, with their rows, go ten at a time, so no single delete holds locks for long; then the expired query runs go. A failed sweep is logged with a stack trace and retried at the next interval.
-- At api startup, runs still `running` (query runs still `created`) that started more than `TIM_RUN_TIMEOUT_SECONDS` ago, left behind by a restart or crash, are set to `error` with the message `Run interrupted by server restart`, and a warning logs the count.
-- At shutdown, runs in flight are stopped and set to `error` the same way. A run's action keeps running in its thread until the process exits, but its rows are no longer stored.
+- **Expiry:** each run has an expiry (`TIM_RUN_RETENTION_SECONDS`, default 24 h), refreshed when it finishes. An expired run is treated as not found immediately.
+- **Sweep:** a background task deletes expired runs every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300 s), and logs the count.
+  - Runs, with their rows, go ten at a time, so no single delete holds locks for long.
+  - Then the expired query runs go.
+  - A failed sweep is logged with a stack trace, and retried at the next interval.
+- **Startup:** some runs are left behind by a restart or crash. These are runs still `running` (query runs still `created`) that started more than `TIM_RUN_TIMEOUT_SECONDS` ago.
+  - They are set to `error`, with the message `Run interrupted by server restart`.
+  - A warning logs the count.
+- **Shutdown:** runs in flight are stopped, and set to `error` the same way. A run's action keeps running in its thread until the process exits, but its rows are no longer stored.
 - A run that doesn't succeed has its rows deleted when it ends, so only succeeded runs hold rows.
 
 ### Rows lost after a crash
 
-A run's rows are in the `UNLOGGED` table `run_rows`, which isn't written to the WAL. After PostgreSQL crashes or fails over to a replica, `run_rows` is empty while `runs` is intact. Rows of succeeded runs then answer `410 results-gone`, and the analyst runs the action again. Nothing needs repairing: the runs expire as usual. A clean PostgreSQL shutdown and restart keeps the rows. Physical backups (`pg_basebackup`) and streaming replicas don't hold them either.
+A run's rows are in the `UNLOGGED` table `run_rows`, which isn't written to the WAL.
+
+- After PostgreSQL crashes or fails over to a replica, `run_rows` is empty, while `runs` is intact.
+- Rows of succeeded runs then answer `410 results-gone`, and the analyst runs the action again.
+- Nothing needs repairing. The runs expire as usual.
+- A clean PostgreSQL shutdown and restart keeps the rows.
+- Physical backups (`pg_basebackup`) and streaming replicas don't hold them either.
 
 ### Tune limits
 
-Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM_RUN_RETENTION_*` variables on the api and restart it (see [configuration.md](configuration.md#http-and-run-limits)).
+Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM_RUN_RETENTION_*` variables on the api, and restart it (see [configuration.md](configuration.md#http-and-run-limits)).
 
 | Symptom                                      | Variable                                  |
 | -------------------------------------------- | ----------------------------------------- |
@@ -129,7 +224,12 @@ Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM
 
 ### Rotate secrets and keys
 
-All configuration is read at process start, so each change needs a restart of the container. On Kubernetes, pods restart on their own when the chart's ConfigMaps or chart-created Secret change at `helm upgrade`; a Secret you manage (`secrets.existingSecret`) is not watched, so run `kubectl -n <namespace> rollout restart deploy/<release>-tim-api` (or `-web`) after changing it.
+All configuration is read at process start, so each change needs a restart of the container.
+
+On Kubernetes:
+
+- Pods restart on their own when the chart's ConfigMaps or chart-created Secret change at `helm upgrade`.
+- A Secret you manage (`secrets.existingSecret`) is not watched. After changing it, run `kubectl -n <namespace> rollout restart deploy/<release>-tim-api` (or `-web`).
 
 | Item                          | Where                                                  | Restart |
 | ----------------------------- | ------------------------------------------------------ | ------- |
@@ -143,7 +243,12 @@ Browsers fetch `/config.js` uncached, so users receive web changes on their next
 
 ## Startup failures from the files
 
-The api reads the action files and the connections file once, at startup: its providers' package data, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE`. Any problem stops it before it serves, so in a rolling update the new pods never become ready and the old ones keep serving. The api exits with `Invalid instance:` and one line per problem, every problem at once:
+The api reads the action files and the connections file once, at startup: its providers' package data, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE`.
+
+- Any problem stops it before it serves.
+- So in a rolling update, the new pods never become ready, and the old ones keep serving.
+
+The api exits with `Invalid instance:` and one line per problem, every problem at once:
 
 ```
 Invalid instance:
@@ -152,7 +257,11 @@ Invalid instance:
   - /srv/tim/actions/sign-ins.yaml:3: key: duplicate action key acme.users, also in /srv/tim/actions/identity.yaml:2
 ```
 
-Each line names the file, the line and the field. Fix the file, check it with [`tim-api check`](#tim-api-check) against the image you deploy, and roll out again.
+Each line names the file, the line and the field.
+
+1. Fix the file.
+2. Check it with [`tim-api check`](#tim-api-check), against the image you deploy.
+3. Roll out again.
 
 | Problem | Cause and fix |
 | ------- | ------------- |
