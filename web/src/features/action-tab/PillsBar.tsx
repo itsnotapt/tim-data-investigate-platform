@@ -1,3 +1,4 @@
+import UndoIcon from '@mui/icons-material/Undo';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
@@ -11,12 +12,10 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useState, type ReactNode } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
+import type { ParamErrors } from '../tabs/types';
 import { DatetimeEditor } from './DatetimeEditor';
-import { isUnset, parseParamText, splitPasted, summarize, valueText } from './paramValues';
+import { hasPill, isUnset, parseParamText, splitPasted, summarize, valueText } from './paramValues';
 import { TimespanEditor } from './TimespanEditor';
-
-/** Params edited in the tab's editor rather than in a pill. */
-const EDITOR_KINDS = new Set<CatalogueParam['kind']>(['kql', 'sql']);
 
 export interface PillsBarProps {
   params: readonly CatalogueParam[];
@@ -26,6 +25,10 @@ export interface PillsBarProps {
   connections: readonly InstanceConnection[];
   /** `undefined` unsets the param. */
   onChange: (name: string, value: unknown) => void;
+  /** Why the server refused a param, by name; its pill is marked with the reason. */
+  errors?: ParamErrors | null;
+  /** Given when the values differ from the last run's: shows Edited, which resets them. */
+  onReset?: () => void;
   /** Rendered at the right (Run). */
   end?: ReactNode;
 }
@@ -227,26 +230,52 @@ function Editor(props: EditorProps) {
 }
 
 /** One pill per non-editor param, each edited in a popover by its kind. */
-export function PillsBar({ params, values, connections, onChange, end }: PillsBarProps) {
+export function PillsBar({
+  params,
+  values,
+  connections,
+  onChange,
+  errors,
+  onReset,
+  end,
+}: PillsBarProps) {
   const [open, setOpen] = useState<{ name: string; anchor: HTMLElement } | null>(null);
-  const pills = params.filter((p) => !EDITOR_KINDS.has(p.kind));
+  const pills = params.filter(hasPill);
   const editing = pills.find((p) => p.name === open?.name);
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, px: 1, py: 0.5 }}>
-      {pills.map((p) => (
-        <Chip
-          key={p.name}
-          variant="outlined"
-          label={`${p.title}: ${summarize(p, values[p.name], connections)}`}
-          title={p.help ?? undefined}
-          onClick={(e) => setOpen({ name: p.name, anchor: e.currentTarget })}
-          sx={isUnset(values[p.name]) ? { color: 'text.secondary' } : undefined}
-        />
-      ))}
+      {pills.map((p) => {
+        const error = errors?.[p.name];
+        return (
+          <Chip
+            key={p.name}
+            variant="outlined"
+            color={error === undefined ? 'default' : 'error'}
+            label={`${p.title}: ${summarize(p, values[p.name], connections)}`}
+            title={error ?? p.help ?? undefined}
+            onClick={(e) => setOpen({ name: p.name, anchor: e.currentTarget })}
+            sx={
+              isUnset(values[p.name]) && error === undefined
+                ? { color: 'text.secondary' }
+                : undefined
+            }
+          />
+        );
+      })}
       {pills.length === 0 && (
         <Typography variant="body2" color="text.secondary">
           No params
         </Typography>
+      )}
+      {onReset && (
+        <Chip
+          size="small"
+          color="info"
+          icon={<UndoIcon />}
+          label="Edited"
+          title="Reset to the params of the last run"
+          onClick={onReset}
+        />
       )}
       <Box sx={{ ml: 'auto' }}>{end}</Box>
       <Popover

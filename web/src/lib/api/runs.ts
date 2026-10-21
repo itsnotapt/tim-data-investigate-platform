@@ -33,6 +33,15 @@ export async function getRun(
   return (await client.request<Run>({ path: item(runId), ...rest })).data;
 }
 
+/** Asks the run to stop; the answer may still be `running`, and an ended run comes back unchanged. */
+export async function cancelRun(
+  runId: string,
+  { client = getApiClient(), ...rest }: CallOptions = {},
+): Promise<Run> {
+  return (await client.request<Run>({ method: 'POST', path: `${item(runId)}/cancel`, ...rest }))
+    .data;
+}
+
 /** The rows with `startRow <= row < endRow`; the server may return fewer, up to its page size. */
 export async function getRunRows(
   runId: string,

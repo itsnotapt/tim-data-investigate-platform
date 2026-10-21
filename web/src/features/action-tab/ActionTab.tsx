@@ -1,4 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -8,6 +9,8 @@ import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
+import { useState } from 'react';
+import { useNavigate } from 'react-router';
 import type { InstanceConnection } from '../../lib/api';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
@@ -15,29 +18,50 @@ import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
-import { runActionTab } from './actionRuns';
+import { cancelActionTab, runActionTab } from './actionRuns';
+import { cloneActionTab } from './cloneActionTab';
+import { datetimeText, sameParams } from './paramValues';
 import { PillsBar } from './PillsBar';
+import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
+import { durationText, outcomeText } from './runText';
+import { useElapsed } from './useElapsed';
 
 export interface ActionTabProps extends TabComponentProps {
   /** Overrides the run (default `runActionTab`). */
   onRun?: (uuid: string) => void;
+  /** Overrides the cancel (default `cancelActionTab`). */
+  onCancel?: (uuid: string) => void;
 }
+
+type InnerTab = 'results' | 'run';
 
 const NO_CONNECTIONS: readonly InstanceConnection[] = [];
 const defaultRun = (uuid: string) => void runActionTab(uuid);
+const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
 
 /**
- * An action tab: the header (menu path, action and title), the pills bar with Run, and the
- * results of the last run that succeeded.
+ * An action tab: the header (menu path, action and title) with Clone, the pills bar with Run or
+ * the run going, and the inner tabs: the results of the last run that succeeded, and the latest
+ * run's details.
  */
-export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
+export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
+  const navigate = useNavigate();
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
   const shown = useRunRows(uuid);
   const templates = useTemplatesStore((s) => s.templates);
   const queryOptions = useTemplatesStore((s) => s.queryOptions);
+  const actionState = tab?.componentName === 'ActionResult' ? tab.state : undefined;
+  const elapsed = useElapsed(
+    actionState?.isExecuting && actionState.run?.status === 'running'
+      ? actionState.run.startedAt
+      : null,
+  );
+  // The inner tab the analyst picked, held until the run changes: a run starts, gets its id or ends.
+  const runKey = `${actionState?.run?.runId ?? ''}:${String(actionState?.isExecuting ?? false)}`;
+  const [picked, setPicked] = useState<{ tab: InnerTab; runKey: string } | null>(null);
 
   if (tab?.componentName !== 'ActionResult') return null;
   const { state, params } = tab;
@@ -52,17 +76,55 @@ export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
       ? `Results · ${state.rowCount}`
       : 'Results';
 
+  const duration = state.run?.details?.duration;
+  const runLabel =
+    state.run?.status !== 'running' && typeof duration === 'number'
+      ? `Run · ${durationText(duration)}`
+      : 'Run';
+  const inner: InnerTab = picked?.runKey === runKey ? picked.tab : state.error ? 'run' : 'results';
+  // Rows of the run going load into `shown`; any other rows on show are from an earlier run.
+  const showingPrevious = state.isExecuting && !(shown && !shown.done);
+  const resultsFrom = state.resultsStartedAt
+    ? `the run from ${datetimeText(state.resultsStartedAt)}`
+    : 'the previous run';
+  const edited = state.runParams != null && !sameParams(state.runParams, params.params);
+
   const setParam = (name: string, value: unknown) => {
     const next = { ...params.params };
     if (value === undefined) delete next[name];
     else next[name] = value;
-    useTabsStore.getState().updateParams(uuid, { params: next });
+    const tabs = useTabsStore.getState();
+    tabs.updateParams(uuid, { params: next });
+    if (state.paramErrors?.[name] !== undefined) {
+      const paramErrors = { ...state.paramErrors };
+      delete paramErrors[name];
+      tabs.updateState(uuid, { paramErrors });
+    }
+  };
+  const reset = () => {
+    if (!state.runParams) return;
+    useTabsStore.getState().updateParams(uuid, { params: state.runParams });
+    useTabsStore.getState().updateState(uuid, { paramErrors: null });
+  };
+  const clone = () => {
+    const copy = cloneActionTab(uuid);
+    if (copy) void navigate(`/view/${copy}`);
   };
 
   const run = state.isExecuting ? (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
       <CircularProgress size={16} aria-label="Running" />
-      <Typography variant="body2">Running…</Typography>
+      <Typography variant="body2" sx={{ minWidth: 48 }}>
+        {state.cancelling ? 'Cancelling…' : elapsed !== null ? durationText(elapsed) : 'Starting…'}
+      </Typography>
+      <Button
+        size="small"
+        variant="outlined"
+        disabled={state.cancelling === true || state.run?.status !== 'running'}
+        onClick={() => onCancel(uuid)}
+      >
+        Cancel
+      </Button>
     </Box>
   ) : (
     <Button
@@ -98,6 +160,14 @@ export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
             {tab.title}
           </Typography>
         </Box>
+        <Button
+          size="small"
+          startIcon={<ContentCopyIcon />}
+          onClick={clone}
+          sx={{ ml: 'auto', flexShrink: 0 }}
+        >
+          Clone
+        </Button>
       </Box>
 
       {!action && (
@@ -111,21 +181,40 @@ export function ActionTab({ uuid, onRun = defaultRun }: ActionTabProps) {
         values={params.params}
         connections={connections}
         onChange={setParam}
+        errors={state.paramErrors}
+        onReset={edited ? reset : undefined}
         end={run}
       />
 
-      {state.error && (
-        <Alert severity="error" variant="outlined" sx={{ mx: 1, mb: 1 }}>
-          <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-            {state.error.message}
-          </Box>
+      <Tabs
+        value={inner}
+        onChange={(_, value: InnerTab) => setPicked({ tab: value, runKey })}
+        sx={{ px: 1, minHeight: 36 }}
+      >
+        <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
+        <Tab value="run" label={runLabel} sx={{ minHeight: 36, py: 0 }} />
+      </Tabs>
+      <Box role="tabpanel" aria-label={runLabel} hidden={inner !== 'run'} sx={{ px: 1 }}>
+        <RunPanel run={state.run ?? null} error={state.error?.message ?? null} />
+      </Box>
+      {inner === 'results' && hasResults && showingPrevious && (
+        <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 0.5 }}>
+          Showing {resultsFrom}
+        </Typography>
+      )}
+      {inner === 'results' && hasResults && !state.isExecuting && state.error && (
+        <Alert severity="warning" variant="outlined" role="status" sx={{ mx: 1, mb: 0.5 }}>
+          {outcomeText(state.run)} Showing {resultsFrom}
         </Alert>
       )}
-
-      <Tabs value="results" sx={{ px: 1, minHeight: 36 }}>
-        <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
-      </Tabs>
-      <Box data-slot="results-grid" sx={{ px: 1 }}>
+      <Box
+        data-slot="results-grid"
+        role="tabpanel"
+        aria-label={resultsLabel}
+        aria-busy={hasResults && showingPrevious ? true : undefined}
+        hidden={inner !== 'results'}
+        sx={{ px: 1, opacity: hasResults && showingPrevious ? 0.5 : 1 }}
+      >
         {(shown?.done ?? hasResults) && rowCount === 0 && (
           <Typography color="text.secondary" sx={{ p: 2 }}>
             The run succeeded with no rows.

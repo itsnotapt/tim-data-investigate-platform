@@ -13,6 +13,9 @@ export interface StoredError {
   code?: string;
 }
 
+/** Why each param was refused, by param name. */
+export type ParamErrors = Record<string, string>;
+
 export interface DisplayComponentState {
   isVisited: boolean;
   error: StoredError | null;
@@ -27,10 +30,18 @@ export interface DisplayComponentState {
   memoryUsage?: string | null;
   /** Action tabs only: the envelope of the latest run, picked up again by `runId`. */
   run?: Run | null;
+  /** Action tabs only: a cancel was asked for and the run has not ended yet. */
+  cancelling?: boolean;
+  /** Action tabs only: why each param was refused when the run could not start, by name. */
+  paramErrors?: ParamErrors | null;
+  /** Action tabs only: the plain params the latest run started with. */
+  runParams?: Record<string, unknown> | null;
   /** Action tabs only: the run whose rows are in `row_results`. */
   resultsRunId?: string | null;
   /** Action tabs only: the columns of that run. */
   resultColumns?: RunColumn[] | null;
+  /** Action tabs only: when that run started. */
+  resultsStartedAt?: string | null;
 }
 
 /** Custom Kusto query params. */

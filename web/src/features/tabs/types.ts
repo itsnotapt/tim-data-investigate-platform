@@ -9,6 +9,7 @@ import type {
   DisplayComponentState,
   KustoQueryDisplayComponent,
   KustoQueryParams,
+  ParamErrors,
   StoredError,
   TemplateQueryDisplayComponent,
   TemplateQueryParams,
@@ -20,6 +21,7 @@ export type {
   DisplayComponentName as TabKind,
   DisplayComponentState as TabState,
   KustoQueryParams,
+  ParamErrors,
   StoredError,
   TemplateQueryParams,
 };
