@@ -78,7 +78,8 @@ describe('CodeEditor', () => {
     expect(opts.suggest).toBeUndefined(); // suggestions stay enabled
     (props.onChange as (v: string | undefined) => void)(undefined);
     expect(onChange).toHaveBeenCalledWith('');
-    expect(onMount).toHaveBeenCalledWith(h.editor, { fake: true });
+    // The fake editor calls onMount from an effect, which can run after findByTestId returns.
+    await waitFor(() => expect(onMount).toHaveBeenCalledWith(h.editor, { fake: true }));
   });
 
   it('loads the Kusto service for language kusto', async () => {
