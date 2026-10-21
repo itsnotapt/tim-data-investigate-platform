@@ -82,6 +82,12 @@ In the api image use `python -m tim_api.tagged_events.cli create-tables` with th
 
 The command runs `.create-merge table`, `.create-or-alter table ... ingestion json mapping` and `.alter table ... policy streamingingestion enable` for each tag table. It authenticates with `DefaultAzureCredential` (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_CLIENT_SECRET`, workload or managed identity, or an Azure CLI login). The identity needs permission to run these management commands on the database, which in Kusto means database admin (or table admin on the tag tables). At runtime tag writes use the same credential chain and need ingest rights on the tag tables. On failure the command prints the failing command and error and exits non-zero (`2` when no cluster URI is given).
 
+The streaming ingestion policy is what makes a saved tag, comment or saved event queryable about a second after the request answers. The ingest client streams first and falls back to queued ingestion for a payload too large to stream (over 4 MB) or after a transient streaming failure. Queued rows, and every row of a table without the policy, wait for the table's ingestion batching window, up to 5 minutes by default, so the analyst doesn't see what they just saved.
+
+- **Cluster:** a cluster created in Azure also needs streaming ingestion turned on for the cluster itself (portal: **Settings → Configurations → Streaming ingestion**, or `az kusto cluster update --enable-streaming-ingest true`). A free cluster has it on already, so the table policy is all it needs.
+- **Check a table:** `.show table EventTag policy streamingingestion` shows `"IsEnabled": true`, and `.show journal | where Event has 'STREAMING-INGESTION'` shows when the policy was set.
+- **New roles:** a new role on the database, such as ingest rights for a new identity, can take a few minutes to apply. Until then ingestion answers `403` and the routes answer `502`.
+
 ### `tim-api check`
 
 The api image runs the startup validation of its providers, an action files directory and a connections file without a database, credentials or other settings:
