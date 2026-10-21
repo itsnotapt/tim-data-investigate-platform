@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resetConfigCache } from '../config/runtimeConfig';
-import { DEV_ACCOUNT, DEV_TOKEN, createAuthClient } from './index';
+import { DEV_ACCOUNT, DEV_STUB_UPN_KEY, DEV_TOKEN, createAuthClient } from './index';
 
 beforeEach(() => {
   window.appConfig = {
@@ -13,6 +13,7 @@ beforeEach(() => {
 afterEach(() => {
   delete window.appConfig;
   resetConfigCache();
+  localStorage.clear();
 });
 
 describe('createAuthClient', () => {
@@ -44,5 +45,13 @@ describe('createAuthClient', () => {
     await expect(client.acquireToken([])).rejects.toThrow('Not signed in');
     expect(await client.login()).toEqual(DEV_ACCOUNT);
     expect(await client.getAccount()).toEqual(DEV_ACCOUNT);
+  });
+
+  it('stub signs in as the analyst named in localStorage, with their stub token', async () => {
+    localStorage.setItem(DEV_STUB_UPN_KEY, 'bob@example.com');
+    const client = createAuthClient({ VITE_AUTH_STUB: 'true', MODE: 'development' });
+    expect(await client.getAccount()).toMatchObject({ name: 'bob@example.com' });
+    expect(await client.acquireToken([])).toBe('dev:bob@example.com');
+    expect(DEV_TOKEN).toBe('dev:dev.user@example.com');
   });
 });

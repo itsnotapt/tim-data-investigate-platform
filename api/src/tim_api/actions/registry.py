@@ -9,7 +9,7 @@ from importlib.metadata import entry_points
 from importlib.resources.abc import Traversable
 
 from pydantic import ValidationError
-from tim_actions import ENTRY_POINT_GROUP, Action, Hook, Provider
+from tim_actions import ENTRY_POINT_GROUP, Action, Hook, Provider, dev
 from tim_actions.files import LoadedFiles, ReadFile, load_action_files
 
 BUILTIN_DISTRIBUTION = "tim-actions"
@@ -89,11 +89,18 @@ def discover_providers() -> list[LoadedProvider]:
     return loaded
 
 
-def load_providers(providers: Sequence[Provider] | None) -> list[LoadedProvider]:
-    """``providers``, named by position, or when ``None`` the discovered ones."""
+def load_providers(
+    providers: Sequence[Provider] | None, *, dev_actions: bool = False
+) -> list[LoadedProvider]:
+    """``providers``, named by position, or when ``None`` the discovered ones; with
+    ``dev_actions``, also the development actions, as built-ins (ADR-0011)."""
     if providers is None:
-        return discover_providers()
-    return [LoadedProvider(f"providers[{i}]", p) for i, p in enumerate(providers)]
+        loaded = discover_providers()
+    else:
+        loaded = [LoadedProvider(f"providers[{i}]", p) for i, p in enumerate(providers)]
+    if dev_actions:
+        loaded.append(LoadedProvider("development actions", dev.provider(), builtin=True))
+    return loaded
 
 
 def _revalidated(action: Action) -> Action:

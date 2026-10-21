@@ -10,7 +10,7 @@ Settings are read by pydantic-settings from the process environment and from a `
 
 | Variable          | Default      | Required | Description                                                                                                |
 | ----------------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `TIM_ENVIRONMENT` | `production` | no       | `development` or `production`. Production refuses `TIM_AUTH_DISABLED=true` and a `memory://` database URL. |
+| `TIM_ENVIRONMENT` | `production` | no       | `development` or `production`. Production refuses `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true` and a `memory://` database URL. |
 | `TIM_LOG_LEVEL`   | `INFO`       | no       | `CRITICAL`, `ERROR`, `WARNING`, `INFO` or `DEBUG`. Applies to the `tim_api` logger.                        |
 
 ### Authentication
@@ -23,7 +23,7 @@ See [ADR-0005](adr/0005-auth-entra-popup-obo.md) for the design.
 | `TIM_AUTH_CLIENT_ID`      | none                                | yes      | Client id of the API app registration. The API audience is `api://<client id>`.                                                                                                                      |
 | `TIM_AUTH_CLIENT_SECRET`  | unset                               | see note | Client secret for the on-behalf-of (OBO) exchange. When unset, a workload-identity token file is used (`AZURE_FEDERATED_TOKEN_FILE`, below).                                                         |
 | `TIM_AUTH_AUTHORITY_HOST` | `https://login.microsoftonline.com` | no       | Authority host, override for sovereign clouds. Must be https.                                                                                                                                        |
-| `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as a fixed dev user. Kusto calls then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
+| `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as the analyst its stub token (`Authorization: Bearer dev:<upn>`) names, or as a fixed dev user (`dev.user@example.com`) without one. A stub token with a blank upn gets 401. Kusto calls then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
 
 Note: unless `TIM_AUTH_DISABLED=true`, the api needs an OBO credential at startup: either `TIM_AUTH_CLIENT_SECRET` or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file. Without one it fails to start.
 
@@ -78,6 +78,7 @@ A set value replaces the default rather than adding to it, so keep `**.kusto.win
 
 | Variable          | Default | Description                                                                                                                                                                                                  |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TIM_DEV_ACTIONS` | `false` | Development only. Registers the development actions: `tim.dev_json` and the `dev_rows` action type ([development.md](development.md#development-actions)). Refused when `TIM_ENVIRONMENT=production`. |
 | `TIM_ACTIONS_DIR` | none    | One flat directory of action files ([actions.md](actions.md#action-files)), read once at startup: `*.yaml` and `*.yml`, not recursing, dot-entries skipped. Empty means none. A path that isn't a directory stops startup. |
 
 A problem in any action file stops startup too ([operations.md](operations.md#startup-failures-from-the-files)). Check a directory before deploying it with `tim-api check --actions <dir>` ([operations.md](operations.md#tim-api-check)).
@@ -120,10 +121,11 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 
 | Variable                                                                       | Used by           | Description                                                                                            |
 | ------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `TIM_TEST_DATABASE_URL`                                                        | `pytest`          | Postgres server for storage tests; falls back to `pgserver`.                                           |
+| `TIM_TEST_DATABASE_URL`                                                        | `pytest`, Playwright | Postgres server for storage tests, and the e2e api's database, which Playwright empties at the start of each run; falls back to `pgserver`. |
 | `TIM_TEST_KUSTO_INGEST_URL`, `TIM_TEST_KUSTO_DATABASE`, `TIM_TEST_KUSTO_TABLE` | `pytest -m kusto` | Real ingest endpoint for the integration test (database default `Research`, table default `EventTag`). |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
 | `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |
+| `TIM_API_PROXY_TARGET`                                                         | Vite dev server   | Where `/api` is proxied (default `http://localhost:8080`); Playwright points it at its own api.        |
 
 ## Web container
 
@@ -165,7 +167,7 @@ The entrypoint also honours `TIM_RUNTIME_DIR` (output directory, default `/tmp/t
 | `VITE_TAG_CLUSTER`        | `tagCluster` / `TAG_CLUSTER`                                                                                                |
 | `VITE_TAG_DATABASE`       | `tagDatabase` / `TAG_DATABASE` (default `Research`)                                                                         |
 | `VITE_DEFAULT_CLUSTERS`   | `defaultClusters` / `DEFAULT_CLUSTERS` (JSON)                                                                               |
-| `VITE_AUTH_STUB`          | `true` signs in a fixed fake account without Entra. A production build refuses it and shows the configuration error screen. |
+| `VITE_AUTH_STUB`          | `true` signs in a fake account without Entra and sends its stub token (`dev:<upn>`). The account is `dev.user@example.com`, or the upn in the `localStorage` key `tim.devStubUpn`. A production build refuses it and shows the configuration error screen. |
 
 ### How the SPA merges and validates configuration
 

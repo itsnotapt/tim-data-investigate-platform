@@ -9,7 +9,7 @@ test('welcome page and account menu', async ({ page, api }) => {
   // Bootstrap loaded the templates with the stub token.
   await expect.poll(() => api.callsTo('GET', '/api/templates/queries').length).toBeGreaterThan(0);
   expect(api.callsTo('GET', '/api/templates/queries')[0]?.authorization).toBe(
-    'Bearer dev-stub-token',
+    'Bearer dev:dev.user@example.com',
   );
   await shot(page, '01-welcome');
 

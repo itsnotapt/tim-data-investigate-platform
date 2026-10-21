@@ -8,14 +8,14 @@ You need Node 24+, uv (it installs Python 3.12) and Docker Compose v2. Commands 
 
 - **Run migrations before starting the api.** The api never creates tables. Alembic reads `TIM_DATABASE_URL` only from the process environment, not from `api/.env`, so export it (see the main loop below).
 - **`api/.env.example` doesn't match the compose database.** Its URL uses the password `change-me`, but compose Postgres is `tim:tim`. Fix the URL in `api/.env` or export `TIM_DATABASE_URL`, which overrides `.env`. The api reads `.env` from the current directory, so start it from `api/`.
-- **`TIM_ENVIRONMENT` defaults to `production`.** The dev-only switches (`TIM_AUTH_DISABLED`, `TIM_DATABASE_URL=memory://`, `TIM_TAG_INGEST_FAKE`) are refused or silently ignored unless it is `development` ([ADR-0011](adr/0011-development-only-modes.md)). `api/.env.example` sets it.
+- **`TIM_ENVIRONMENT` defaults to `production`.** The dev-only switches (`TIM_AUTH_DISABLED`, `TIM_DEV_ACTIONS`, `TIM_DATABASE_URL=memory://`, `TIM_TAG_INGEST_FAKE`) are refused or silently ignored unless it is `development` ([ADR-0011](adr/0011-development-only-modes.md)). `api/.env.example` sets it.
 - **Startup needs a credential unless auth is disabled.** Set `TIM_AUTH_CLIENT_SECRET` or `AZURE_FEDERATED_TOKEN_FILE`, or uncomment `TIM_AUTH_DISABLED=true` in `api/.env`.
-- **The api must listen on 8080.** `web/vite.config.ts` proxies `/api` there, so there is no CORS setup.
-- **UI work without Entra:** set both `TIM_AUTH_DISABLED=true` (api) and `VITE_AUTH_STUB=true` (`web/.env.local`). Kusto schema and query calls then answer 503, because the on-behalf-of exchange needs a real token. Use `TIM_TAG_INGEST_FAKE=true` to exercise tag writes without a cluster.
+- **The api must listen on 8080.** `web/vite.config.ts` proxies `/api` there (unless `TIM_API_PROXY_TARGET` says otherwise), so there is no CORS setup.
+- **UI work without Entra:** set both `TIM_AUTH_DISABLED=true` (api) and `VITE_AUTH_STUB=true` (`web/.env.local`). You are signed in as `dev.user@example.com`; to be another analyst, run `localStorage.setItem('tim.devStubUpn', 'bob@example.com')` in the browser console and reload. The stub sends `Bearer dev:<upn>`, and the api runs the request as that analyst. Kusto schema and query calls answer 503, because the on-behalf-of exchange needs a real token. Use `TIM_TAG_INGEST_FAKE=true` to exercise tag writes without a cluster, and the [development actions](#development-actions) for actions without a connection.
 - **The compose web container can't stub sign-in.** The UI at `:8081` needs a real Entra app registration (`REDIRECT_URI`), so use the main loop for UI work without one. The root `.env` (compose) and `api/.env` (main loop) are separate files.
 - **Tests that don't run by default:** `slow` tests are deselected (`uv run pytest -m slow` runs them, and CI doesn't). `kusto` tests skip unless `TIM_TEST_KUSTO_INGEST_URL` is set. PostgreSQL tests use `TIM_TEST_DATABASE_URL`, falling back to a temporary `pgserver` (no Docker needed), and skip if neither works. See [configuration.md](configuration.md#test-only-variables).
 - **`pytest` fails below 80 % coverage**, even when every test passes.
-- **Playwright reuses a running server on port 5180 locally.** A stray dev server started without `VITE_AUTH_STUB` breaks the e2e tests. They run against the Vite dev server rather than a build, because production builds refuse the auth stub. Install the browser once with `npx playwright install chromium`. The e2e tests mock every `/api/**` call (`web/e2e/mocks`), so they need no api or database. Set `E2E_SHOTS=1` to save screenshots.
+- **Playwright reuses a running Vite server on port 5180 locally.** A stray dev server started without `VITE_AUTH_STUB` breaks the e2e tests. They run against the Vite dev server rather than a build, because production builds refuse the auth stub. Install the browser once with `npx playwright install chromium`. Playwright also starts its own api, so uv must be installed: see [e2e tests](#e2e-tests). Set `E2E_SHOTS=1` to save screenshots.
 - **`npm ls` reports `msw` as invalid.** That is expected: `@vitest/mocker` peers on `msw@^2` for browser mode, which TIM doesn't use (tests run in jsdom). It clears once `vitest` accepts `msw` 3.
 
 ## Main loop: Postgres in Docker, api and web on the host
@@ -51,10 +51,63 @@ Where CI differs from a local run:
 | `uv sync --locked --all-packages` and `npm ci`                                                   | A stale `uv.lock` or `package-lock.json` passes `uv sync` / `npm install` but fails CI         |
 | `npm audit --omit=dev --audit-level=high`                                                        | Not part of any script; run it yourself after changing dependencies                           |
 | PostgreSQL tests against a `postgres:17` service (`TIM_TEST_DATABASE_URL`)                       | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                             |
-| Playwright with `CI` set: `forbidOnly`, 1 retry, 2 workers, HTML report, never reuses a server    | `list` reporter only, no retries, reuses a running server                                     |
+| Playwright with `CI` set: `forbidOnly`, 1 retry, 2 workers, HTML report, never reuses a server    | `list` reporter only, no retries, reuses a running Vite server                                |
+| The e2e job's api on a `postgres:17` service (`TIM_TEST_DATABASE_URL`); it also runs when `api/` changes | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                       |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
 | `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions           | Needs those tools installed; read the workflow for the exact commands                         |
 | `lint-workflows.yml`: actionlint and shellcheck on workflows, plus the `.github/scripts` tests     | `python3 -B -m unittest discover -s .github/scripts` (`-B` keeps `__pycache__` out of the tree) |
+
+## e2e tests
+
+`npm run e2e` in `web/` runs every Playwright flow in `web/e2e/`. `playwright.config.ts` starts two servers:
+
+- **The api**, on port 5181, through `web/e2e/api_server.py` (`uv run --project ../api`). It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true` and `TIM_ACTIONS_DIR=web/e2e/actions`. Its Postgres is `TIM_TEST_DATABASE_URL`, or a temporary `pgserver` deleted when the run ends. The script empties that database and applies the migrations once per run, so never point `TIM_TEST_DATABASE_URL` at a database you want to keep. This server is never reused.
+- **Vite**, on port 5180, with `VITE_AUTH_STUB=true`, proxying `/api` to that api (`TIM_API_PROXY_TARGET`).
+
+There are two kinds of flow, picked by what the spec imports:
+
+| Flow | Imports | Talks to |
+|---|---|---|
+| Against the real api | `e2e/realApi.ts` | The api above. Nothing is intercepted; `page.route` is only for faults the server can't produce. New flows are written this way |
+| Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the template and Kusto features, which predate actions |
+
+In a real-api flow:
+
+- `page` is signed in as a new analyst for each test, `analyst.upn`, through the stub's `localStorage` key `tim.devStubUpn`. `signIn(upn)` opens a second browser context signed in as another analyst, for flows with several analysts.
+- `idPrefix` is a random per-test prefix. The database is shared by the whole run, so give the `id`s a test creates this prefix (for example in the rows it pastes into `tim.dev_json`), and annotations from other tests never show up.
+- Each scenario is one action in `web/e2e/actions/*.yaml`. Add an action there rather than mocking a response.
+
+## Development actions
+
+With `TIM_DEV_ACTIONS=true` (development only, [ADR-0011](adr/0011-development-only-modes.md)) the api registers actions that need no connection, for e2e tests and for UI work. They are in `tim_actions.dev`. Validate a directory that uses them with `uv run tim-api check --dev-actions --actions <dir>`, and print their schema with `uv run tim-api schema actions --dev-actions`.
+
+- **`tim.dev_json` "JSON (development)"**: the analyst pastes rows into its `rows` param, a JSON array of objects, and the run yields them. The optional `idColumn` param names the column that gives each row its `id`. Its `pivot` is `rows`, for running it on selected rows.
+- **`dev_rows`**, an action file type. Besides the common fields (`key`, `name`, `menu`, `description`, `pivot`, `params`, `columns`, `id`):
+
+  | Field | What it does |
+  |---|---|
+  | `rows` | The rows the run yields |
+  | `generate: <n>` | Yields `n` rows instead, numbered from 1. Each declared column gets a value made from the row number (`Host-2`, `2`, `true`, `2026-01-01T00:02:00Z`, `PT2S`, `{"n": 2}` by type); without `columns`, each row is `{n}`. Give `rows` or `generate`, not both |
+  | `params` with `from_columns` | Filter the rows: a param with a value keeps the rows whose first non-empty `from_columns` value equals it (or is one of its values, for `many`). Only `string`, `number` and `boolean` params filter |
+  | `delay` | Seconds to wait before the rows. Cancel or the timeout ends the run at once, though its worker thread sleeps on until the delay or the timeout |
+  | `error` | Ends the run in error with this message, after the delay |
+  | `details` | Run details (scalars) the run reports |
+
+  ```yaml
+  type: dev_rows
+  key: dev-sign-ins
+  name: Sign-ins
+  menu: Development / Rows
+  pivot: rows
+  id: CorrelationId
+  params:
+    - { name: users, kind: string, many: true, required: false, from_columns: [User] }
+  rows:
+    - { User: alice@example.com, CorrelationId: c-1 }
+    - { User: bob@example.com, CorrelationId: c-2 }
+  ```
+
+To use them with the main loop, uncomment `TIM_DEV_ACTIONS` and `TIM_ACTIONS_DIR` in `api/.env` (the actions in `web/e2e/actions` are the e2e scenarios); the dev `compose.yaml` carries the same variables, commented out.
 
 ## The uv workspace
 

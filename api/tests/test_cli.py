@@ -123,3 +123,27 @@ def test_with_no_file_capable_types_the_schema_accepts_no_file(
 ) -> None:
     validator = jsonschema.Draft202012Validator(schema(capsys, []))
     assert not validator.is_valid({"type": "rows", "key": "a", "name": "A", "pivot": "none"})
+
+
+DEV_ROWS = {"type": "dev_rows", "key": "dev-a", "name": "A", "pivot": "none", "generate": 2}
+
+
+def test_check_with_dev_actions_accepts_dev_action_files(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    (tmp_path / "dev.yaml").write_text(yaml.safe_dump(DEV_ROWS))
+    code, _, err = check(capsys, "--actions", str(tmp_path))
+    assert code == 1
+    assert "unknown action type 'dev_rows'" in err
+    assert check(capsys, "--dev-actions", "--actions", str(tmp_path)) == (
+        0,
+        "OK: 2 actions\n",
+        "",
+    )
+
+
+def test_the_schema_with_dev_actions_covers_dev_rows(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["schema", "actions", "--dev-actions"], providers=[]) == 0
+    validator = jsonschema.Draft202012Validator(json.loads(capsys.readouterr().out))
+    assert validator.is_valid(DEV_ROWS)
+    assert not validator.is_valid({**DEV_ROWS, "delay": "soon"})

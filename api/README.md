@@ -24,8 +24,8 @@ Configuration is via `TIM_*` environment variables, optionally loaded from a `.e
 `src/tim_api/config.py`). Copy `.env.example` to `.env` for local development; it lists every
 variable with comments. Required: `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`,
 `TIM_TAG_CLUSTER_URI`, `TIM_DATABASE_URL`. Startup fails with a message naming any missing or
-invalid variable (values are never printed). `TIM_AUTH_DISABLED` is rejected when
-`TIM_ENVIRONMENT=production` (the default). The Kusto app identity uses the standard `AZURE_*`
+invalid variable (values are never printed). `TIM_AUTH_DISABLED` and `TIM_DEV_ACTIONS` (the
+development actions) are rejected when `TIM_ENVIRONMENT=production` (the default). The Kusto app identity uses the standard `AZURE_*`
 variables read by `azure-identity`.
 
 ## Storage
@@ -89,8 +89,8 @@ Tests override the `get_token_validator` dependency with a `TokenValidator` buil
 fetcher.
 
 For local work and tests set `TIM_ENVIRONMENT=development` and `TIM_AUTH_DISABLED=true`: the
-dependency returns a fixed dev `Principal` (`DEV_PRINCIPAL`) and startup logs a loud warning
-once. `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production` (the default environment) fails
+dependency returns the analyst a stub token (`Bearer dev:<upn>`) names, or a fixed dev
+`Principal` (`DEV_PRINCIPAL`) without one, and startup logs a loud warning once. `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production` (the default environment) fails
 settings load and app startup. Routes use it with
 `principal: Principal = Depends(get_current_principal)`; there is no debug endpoint.
 

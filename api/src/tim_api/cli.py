@@ -4,6 +4,8 @@
   files, for ``yaml-language-server``.
 - ``tim-api check [--actions <dir>]`` runs the startup validation of the installed providers
   and the action files, without a database, credentials or other settings.
+
+``--dev-actions`` adds the development actions and action types, as ``TIM_DEV_ACTIONS`` does.
 """
 
 from __future__ import annotations
@@ -27,15 +29,29 @@ def build_parser() -> argparse.ArgumentParser:
     schema.add_argument("file", choices=["actions"], help="actions: an action file")
     check = sub.add_parser("check", help="validate as startup does, without a database")
     check.add_argument("--actions", type=Path, help="the action files directory")
+    for command in (schema, check):
+        command.add_argument(
+            "--dev-actions",
+            action="store_true",
+            help="include the development actions, as TIM_DEV_ACTIONS=true does",
+        )
     return parser
 
 
 def _checked_registry(
-    providers: Sequence[Provider] | None, actions_dir: Path | None, *, action_files: bool
+    providers: Sequence[Provider] | None,
+    actions_dir: Path | None,
+    *,
+    action_files: bool,
+    dev_actions: bool,
 ) -> Registry | None:
     """The registry, or ``None`` with its problems printed."""
     try:
-        return build_registry(load_providers(providers), actions_dir, action_files=action_files)
+        return build_registry(
+            load_providers(providers, dev_actions=dev_actions),
+            actions_dir,
+            action_files=action_files,
+        )
     except ActionsConfigError as exc:
         print(exc, file=sys.stderr)
         return None
@@ -46,7 +62,9 @@ def main(argv: Sequence[str] | None = None, *, providers: Sequence[Provider] | N
     points."""
     args = build_parser().parse_args(argv)
     if args.command == "schema":
-        registry = _checked_registry(providers, None, action_files=False)
+        registry = _checked_registry(
+            providers, None, action_files=False, dev_actions=args.dev_actions
+        )
         if registry is None:
             return 1
         print(json.dumps(action_files_schema(registry.action_types), indent=2))
@@ -54,7 +72,9 @@ def main(argv: Sequence[str] | None = None, *, providers: Sequence[Provider] | N
     if args.actions is not None and not args.actions.is_dir():
         print(f"error: --actions: no directory {args.actions}", file=sys.stderr)
         return 2
-    registry = _checked_registry(providers, args.actions, action_files=True)
+    registry = _checked_registry(
+        providers, args.actions, action_files=True, dev_actions=args.dev_actions
+    )
     if registry is None:
         return 1
     print(f"OK: {len(registry.actions)} actions")

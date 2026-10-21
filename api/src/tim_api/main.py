@@ -46,11 +46,17 @@ async def _lifespan(
     configure_logging(settings.log_level)
     if settings.auth_disabled:
         logger.warning(
-            "*** AUTHENTICATION IS DISABLED (TIM_AUTH_DISABLED=true): every request runs as a "
-            "fixed dev user. Development only. ***"
+            "*** AUTHENTICATION IS DISABLED (TIM_AUTH_DISABLED=true): every request runs as the "
+            "analyst its stub token (dev:<upn>) names, or a fixed dev user. Development only. ***"
         )
     # Any problem with the installed providers or the action files stops startup (ADR-0017).
-    registry = build_registry(load_providers(providers), settings.actions_dir)
+    if settings.dev_actions:
+        logger.warning(
+            "Development actions are registered (TIM_DEV_ACTIONS=true). Development only."
+        )
+    registry = build_registry(
+        load_providers(providers, dev_actions=settings.dev_actions), settings.actions_dir
+    )
     app.state.instance = build_instance(registry, settings)
     app.state.actions = registry.actions
     app.state.connections = NoConnections()
