@@ -20,7 +20,7 @@ ROWS_PROVIDER = """
     from tim_actions import Provider
 
     def provider():
-        return Provider(actions=[Rows(key="{key}", name="Users")])
+        return Provider(actions=[Rows(key="{key}", name="Users", pivot="none")])
 """
 
 

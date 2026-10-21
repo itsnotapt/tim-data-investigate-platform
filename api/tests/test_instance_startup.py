@@ -20,8 +20,8 @@ def startup_problems(providers: list[Provider]) -> list[str]:
 
 def test_a_duplicate_action_key_stops_startup() -> None:
     providers = [
-        Provider(actions=[Rows(key="acme.users", name="Users")]),
-        Provider(actions=[Rows(key="acme.users", name="Other users")]),
+        Provider(actions=[Rows(key="acme.users", name="Users", pivot="none")]),
+        Provider(actions=[Rows(key="acme.users", name="Other users", pivot="none")]),
     ]
     assert startup_problems(providers) == [
         "duplicate action key acme.users: providers[0] and providers[1]"
@@ -43,20 +43,27 @@ def test_a_duplicate_connection_type_stops_startup() -> None:
 
 
 def test_the_tim_prefix_is_reserved_for_the_built_ins() -> None:
-    assert startup_problems([Provider(actions=[Rows(key="tim.users", name="Users")])]) == [
-        "providers[0]: action tim.users: the tim. prefix is reserved for TIM's built-ins"
-    ]
+    assert startup_problems(
+        [Provider(actions=[Rows(key="tim.users", name="Users", pivot="none")])]
+    ) == ["providers[0]: action tim.users: the tim. prefix is reserved for TIM's built-ins"]
 
 
 def test_an_action_built_without_validation_stops_startup() -> None:
-    action = Rows.model_construct(key="Bad Key", name="Users")
+    action = Rows.model_construct(key="Bad Key", name="Users", pivot="none")
     [problem] = startup_problems([Provider(actions=[action])])
     assert problem.startswith("providers[0]: action Bad Key: key: String should match pattern")
 
 
 def test_every_problem_is_reported_at_once() -> None:
     providers = [
-        Provider(actions=[Rows(key="tim.a", name="A"), Rows(key="b", name="B")]),
-        Provider(actions=[Rows(key="b", name="B")], hooks=[FakeKustoHook, OtherKustoHook]),
+        Provider(
+            actions=[
+                Rows(key="tim.a", name="A", pivot="none"),
+                Rows(key="b", name="B", pivot="none"),
+            ]
+        ),
+        Provider(
+            actions=[Rows(key="b", name="B", pivot="none")], hooks=[FakeKustoHook, OtherKustoHook]
+        ),
     ]
     assert len(startup_problems(providers)) == 3

@@ -88,17 +88,19 @@ def test_the_instance_carries_its_limits(auth: AuthKit, monkeypatch: pytest.Monk
     assert (body["actions"], body["connections"], body["labels"]) == ([], [], [])
 
 
-def test_an_action_without_a_pivot_has_a_null_pivot(auth: AuthKit) -> None:
-    [action] = get_instance(auth, [Provider(actions=[Rows(key="a", name="A")])])["actions"]
+def test_an_action_that_does_not_pivot_has_a_null_pivot(auth: AuthKit) -> None:
+    [action] = get_instance(auth, [Provider(actions=[Rows(key="a", name="A", pivot="none")])])[
+        "actions"
+    ]
     assert action["pivot"] is None
     assert action["menuPath"] == []
     assert "description" not in action
 
 
 def test_the_version_changes_with_the_catalogue(auth: AuthKit) -> None:
-    one = [Provider(actions=[Rows(key="a", name="A")])]
-    same = [Provider(actions=[Rows(key="a", name="A")])]
-    renamed = [Provider(actions=[Rows(key="a", name="B")])]
+    one = [Provider(actions=[Rows(key="a", name="A", pivot="none")])]
+    same = [Provider(actions=[Rows(key="a", name="A", pivot="none")])]
+    renamed = [Provider(actions=[Rows(key="a", name="B", pivot="none")])]
     versions = [get_instance(auth, providers)["version"] for providers in (one, same, renamed)]
     assert versions[0] == versions[1] != versions[2]
 

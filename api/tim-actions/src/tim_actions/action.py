@@ -23,9 +23,10 @@ class Action(BaseModel, ABC):
     """A query action. An action type subclasses this, adds its own configuration fields and
     implements ``run``; each instance is one action.
 
-    ``menu`` is a ``/``-separated folder path. ``pivot`` says whether the action is offered on
-    one row, several rows or not at all in the grid's context menu. ``id`` is the column,
-    or alternatives where the first non-empty one wins, that gives each row its ``id``.
+    ``menu`` is a ``/``-separated folder path. ``pivot``, which has no default, says whether the
+    action is offered on one row, several rows or not at all in the grid's context menu. ``id`` is
+    the column, or alternatives where the first non-empty one wins, that gives each row its
+    ``id``.
     """
 
     model_config = STRICT | {"frozen": True}
@@ -38,7 +39,7 @@ class Action(BaseModel, ABC):
     menu: str = ""
     description: NonBlankStr | None = None
     params: Sequence[Param] = ()
-    pivot: Pivot = "none"
+    pivot: Pivot
     columns: Sequence[Column] | None = None
     id: NonBlankStr | Sequence[NonBlankStr] | None = None
 

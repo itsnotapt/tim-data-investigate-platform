@@ -139,7 +139,12 @@ def test_an_action_with_its_menu_path_and_pivot_columns() -> None:
 )
 def test_an_invalid_action_fails_on_construction(kwargs: dict[str, Any], message: str) -> None:
     with pytest.raises(ValidationError, match=message):
-        Users(**({"key": "acme.users", "name": "Users"} | kwargs))
+        Users(**({"key": "acme.users", "name": "Users", "pivot": "row"} | kwargs))
+
+
+def test_an_action_must_say_whether_it_pivots() -> None:
+    with pytest.raises(ValidationError, match="pivot"):
+        Users(key="acme.users", name="Users")  # type: ignore[call-arg]
 
 
 def test_an_action_type_must_implement_run() -> None:
@@ -147,12 +152,14 @@ def test_an_action_type_must_implement_run() -> None:
         pass
 
     with pytest.raises(TypeError, match="abstract"):
-        NoRun(key="a", name="A")  # type: ignore[abstract]
+        NoRun(key="a", name="A", pivot="none")  # type: ignore[abstract]
 
 
 def test_a_provider_lists_actions_action_types_and_hooks() -> None:
     provider = Provider(
-        actions=[Users(key="a", name="A")], action_types=[FileUsers], hooks=[KustoHook]
+        actions=[Users(key="a", name="A", pivot="none")],
+        action_types=[FileUsers],
+        hooks=[KustoHook],
     )
     assert (len(provider.actions), provider.action_types, provider.hooks) == (
         1,
