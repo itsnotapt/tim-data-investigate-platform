@@ -98,7 +98,10 @@ At startup the lifespan discovers providers through the `tim.actions` entry-poin
 - an entry point that fails to load, raises, or returns something other than a `Provider`;
 - an action that fails validation again from its fields (so one built with `model_construct` is caught);
 - a key with the `tim.` prefix from any distribution other than `tim-actions`;
-- a duplicate action key, action type `type_name` or connection type.
+- a duplicate action key, action type `type_name` or connection type;
+- a problem in an action file, from a provider's package data (`Provider(action_files=...)`) or from `TIM_ACTIONS_DIR`. The loader is `tim_actions.files.load_action_files`, and each problem names the file, line and field.
+
+`tim-api check [--actions <dir>]` (`cli.py`) runs the same validation without a database or settings, and `tim-api schema actions` prints the action files' JSON Schema; see [actions.md](../docs/actions.md#checking-files).
 
 `create_app(providers=[...])` skips discovery and uses the given providers (none of them built-in); `tests/app_factory.create_test_app` passes none unless a test gives some. `actions/instance.py` builds the `GET /api/instance` body once, at startup (see [api.md](../docs/api.md#instance)). The interface itself, param validation included, is in `tim-actions`.
 

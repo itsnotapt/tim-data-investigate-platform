@@ -1,0 +1,6 @@
+type: rows
+key: acme.users
+name: Users
+pivot: none
+id:
+  columns: [UserPrincipalName]

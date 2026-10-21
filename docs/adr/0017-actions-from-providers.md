@@ -14,9 +14,9 @@ TIM stops being a Kusto query tool and runs actions instead, which needs an exte
 - **Startup only.** Action files come from package data and one instance directory (`TIM_ACTIONS_DIR`). Any error (a bad file, a duplicate key, a missing connection) stops startup, with file:line errors. `tim-api check` runs the same validation offline.
 - **`id`.** TIM never makes up an `id`: the action type's `row_id(params)` decides it, or returns none, and rows without one can't be annotated (0020).
 
-Code: the interface in `api/tim-actions/src/tim_actions/` (`action.py`, `params.py`, `provider.py`), loading and validation in `api/src/tim_api/actions/registry.py`.
+Code: the interface in `api/tim-actions/src/tim_actions/` (`action.py`, `params.py`, `provider.py`), action files in `api/tim-actions/src/tim_actions/files.py`, loading and validation in `api/src/tim_api/actions/registry.py`, `tim-api check` in `api/src/tim_api/cli.py`.
 
-Decided by the user. Related: 0018, 0019, [0021](0021-tim-actions-and-derived-images.md), [architecture](../architecture.md).
+Decided by the user. Related: 0018, 0019, [0021](0021-tim-actions-and-derived-images.md), [architecture](../architecture.md), [actions](../actions.md).
 
 ## Considered Options
 

@@ -7,6 +7,7 @@ from tim_api.actions.registry import (
     Registry,
     build_registry,
     discover_providers,
+    load_providers,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "build_instance",
     "build_registry",
     "discover_providers",
+    "load_providers",
 ]

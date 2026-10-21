@@ -1,0 +1,8 @@
+type: rows
+key: acme.users
+name: Users
+pivot: none
+params:
+  - name: user
+    kind: string
+    from_column: [Upn]

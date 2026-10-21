@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Response, status
 from tim_actions import Provider
 
-from tim_api.actions import LoadedProvider, build_instance, build_registry, discover_providers
+from tim_api.actions import build_instance, build_registry, load_providers
 from tim_api.actions.router import router as instance_router
 from tim_api.auth.obo import build_obo_provider
 from tim_api.config import Settings, get_settings
@@ -33,12 +33,6 @@ logger = logging.getLogger("tim_api")
 StorageFactory = Callable[[Settings], Storage]
 
 
-def _load_providers(providers: Sequence[Provider] | None) -> list[LoadedProvider]:
-    if providers is None:
-        return discover_providers()
-    return [LoadedProvider(f"providers[{i}]", p) for i, p in enumerate(providers)]
-
-
 @asynccontextmanager
 async def _lifespan(
     app: FastAPI, storage_factory: StorageFactory, providers: Sequence[Provider] | None
@@ -52,8 +46,8 @@ async def _lifespan(
             "*** AUTHENTICATION IS DISABLED (TIM_AUTH_DISABLED=true): every request runs as a "
             "fixed dev user. Development only. ***"
         )
-    # Any problem with the installed providers stops startup (ADR-0017).
-    registry = build_registry(_load_providers(providers))
+    # Any problem with the installed providers or the action files stops startup (ADR-0017).
+    registry = build_registry(load_providers(providers), settings.actions_dir)
     app.state.instance = build_instance(registry, settings)
     # Fails fast when auth is enabled but no OBO client credential is configured.
     app.state.obo_provider = build_obo_provider(settings)

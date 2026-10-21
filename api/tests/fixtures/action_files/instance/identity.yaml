@@ -1,0 +1,37 @@
+# Two actions in one file, one YAML document each.
+type: rows
+key: acme.users
+name: Users
+menu: Identity / Entra
+description: Every user
+pivot: none
+id: UserPrincipalName
+rows:
+  - UserPrincipalName: alice@example.com
+---
+type: rows
+key: acme.sign_ins
+name: Sign-ins
+menu: Identity / Entra
+pivot: rows
+params:
+  - name: user
+    kind: string
+    title: User
+    many: true
+    from_columns: [UserPrincipalName, Upn]
+  - name: since
+    kind: datetime
+    required: false
+    default: 2026-10-01T00:00:00Z
+columns:
+  - name: Timestamp
+    type: datetime
+    pinned: left
+    sort: desc
+  - name: IpAddress
+    type: string
+    hidden: true
+    width: 120
+id: [CorrelationId, RequestId]
+rows: []

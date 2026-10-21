@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Annotated, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Self
 
-from pydantic import BaseModel, StringConstraints, model_validator
+from pydantic import BaseModel, StringConstraints, field_validator
 
 from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
 from tim_actions.params import Param
 from tim_actions.run import RunContext
+
+if TYPE_CHECKING:
+    from tim_actions.files import ActionDocument
 
 ActionKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_.-]+$")]
 """Lowercase letters, digits, ``_``, ``-`` and ``.``; the ``tim.`` prefix is TIM's own."""
@@ -32,7 +35,9 @@ class Action(BaseModel, ABC):
     model_config = STRICT | {"frozen": True}
 
     type_name: ClassVar[str | None] = None
-    """Set by action types that action files can name."""
+    """Set by action types that action files can name, with ``File``."""
+    File: ClassVar[type[ActionDocument] | None] = None
+    """The model an action file of this type is validated against."""
 
     key: ActionKey
     name: NonBlankStr
@@ -43,24 +48,47 @@ class Action(BaseModel, ABC):
     columns: Sequence[Column] | None = None
     id: NonBlankStr | Sequence[NonBlankStr] | None = None
 
-    @model_validator(mode="after")
-    def _check(self) -> Action:
-        if self.menu and not all(part.strip() for part in self.menu.split("/")):
-            raise ValueError("menu: every folder in the path must be non-blank")
-        names = [param.name for param in self.params]
+    @field_validator("menu")
+    @classmethod
+    def _menu(cls, value: str) -> str:
+        if value and not all(part.strip() for part in value.split("/")):
+            raise ValueError("every folder in the path must be non-blank")
+        return value
+
+    @field_validator("params")
+    @classmethod
+    def _params(cls, value: Sequence[Param]) -> Sequence[Param]:
+        names = [param.name for param in value]
         if len(set(names)) != len(names):
-            raise ValueError("params: names must be unique")
-        for param in self.params:
+            raise ValueError("names must be unique")
+        for param in value:
             unknown = [name for name in param.schema_from if name not in names]
             if unknown:
-                raise ValueError(f"params.{param.name}.schema_from: unknown params {unknown}")
-        if self.columns is not None:
-            column_names = [column.name for column in self.columns]
-            if len(set(column_names)) != len(column_names):
-                raise ValueError("columns: names must be unique")
-        if self.id is not None and not self.id:
-            raise ValueError("id: give a column name, or leave id out")
-        return self
+                raise ValueError(f"{param.name}.schema_from: unknown params {unknown}")
+        return value
+
+    @field_validator("columns")
+    @classmethod
+    def _columns(cls, value: Sequence[Column] | None) -> Sequence[Column] | None:
+        if value is not None:
+            names = [column.name for column in value]
+            if len(set(names)) != len(names):
+                raise ValueError("names must be unique")
+        return value
+
+    @field_validator("id")
+    @classmethod
+    def _id(cls, value: str | Sequence[str] | None) -> str | Sequence[str] | None:
+        if value is not None and not value:
+            raise ValueError("give a column name, or leave id out")
+        return value
+
+    @classmethod
+    def from_file(cls, file: ActionDocument) -> Self:
+        """Build the action from its validated document in an action file. The default passes the
+        document's fields, all but ``type``, through by name; override it when the action type's
+        fields differ."""
+        return cls.model_validate({name: value for name, value in file if name != "type"})
 
     @property
     def menu_path(self) -> list[str]:

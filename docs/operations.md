@@ -82,6 +82,17 @@ In the api image use `python -m tim_api.tagged_events.cli create-tables` with th
 
 The command runs `.create-merge table`, `.create-or-alter table ... ingestion json mapping` and `.alter table ... policy streamingingestion enable` for each tag table. It authenticates with `DefaultAzureCredential` (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_CLIENT_SECRET`, workload or managed identity, or an Azure CLI login). The identity needs permission to run these management commands on the database, which in Kusto means database admin (or table admin on the tag tables). At runtime tag writes use the same credential chain and need ingest rights on the tag tables. On failure the command prints the failing command and error and exits non-zero (`2` when no cluster URI is given).
 
+### `tim-api check`
+
+The api image runs the startup validation of its providers and an action files directory without a database, credentials or other settings:
+
+```bash
+docker run --rm -v "$PWD/actions:/actions:ro" <api image> tim-api check --actions /actions
+docker run --rm <api image> tim-api schema actions > action-file.schema.json
+```
+
+`check` prints `OK: <n> actions` and exits 0, or prints `Invalid actions:` and the same problems startup would report, one per line, and exits 1. A `--actions` path that isn't a directory exits 2. Without `--actions` it checks the installed providers and their package data only. From a checkout, run `uv run tim-api check --actions <dir>` in `api/`. Use the image you deploy: the action types a file may name are the ones installed in it. Writing files and the schema: [actions.md](actions.md#checking-files).
+
 ### Query run retention and cleanup
 
 - Each run has an expiry (`TIM_RUN_RETENTION_SECONDS`, default 24 h) set when it finishes. An expired run is treated as not found immediately.
@@ -113,11 +124,34 @@ All configuration is read at process start, so each change needs a restart of th
 
 Browsers fetch `/config.js` uncached, so users receive web changes on their next page load.
 
+## Startup failures from the files
+
+The api reads the action files once, at startup: its providers' package data and `TIM_ACTIONS_DIR`. Any problem stops it before it serves, so in a rolling update the new pods never become ready and the old ones keep serving. The api exits with `Invalid actions:` and one line per problem, every problem at once:
+
+```
+Invalid actions:
+  - /srv/tim/actions/identity.yaml:7: type: unknown action type 'kql_querry' (installed action types: rows)
+  - /srv/tim/actions/identity.yaml:14: params[0].from_column: Unexpected keyword argument
+  - /srv/tim/actions/sign-ins.yaml:3: key: duplicate action key acme.users, also in /srv/tim/actions/identity.yaml:2
+```
+
+Each line names the file, the line and the field. Fix the file, check it with [`tim-api check`](#tim-api-check) against the image you deploy, and roll out again.
+
+| Problem | Cause and fix |
+| ------- | ------------- |
+| `unknown action type` | The `type` is misspelt, or the provider that adds it isn't installed in this image. The message lists the installed types. |
+| `Unexpected keyword argument`, `Extra inputs are not permitted` | A misspelt or unknown field. `tim-api schema actions` lists the fields each type takes. |
+| `no file <name> next to the action file` | A `<field>_file:` sidecar is missing. It must be a file name in the same directory as the action file. |
+| `duplicate action key` | Two actions share a key, in two files or a file and an installed provider. Keys are unique across the instance. |
+| `not valid YAML` | The file doesn't parse; the line is where the parser stopped, which can be after the mistake. |
+| `TIM_ACTIONS_DIR: invalid (Value error, no directory ...)` | `TIM_ACTIONS_DIR` names a path that isn't a directory. The api exits with `Invalid configuration:`. |
+
 ## Common failures
 
 | Symptom                                                  | Cause and fix                                                                                                                                                         |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | api exits at startup with `Invalid configuration:` and lines like `- TIM_AUTH_TENANT_ID: missing (...)` | A required `TIM_*` variable is missing or invalid; the message names each one (never the value). Common: `TIM_DATABASE_URL` not `postgresql+asyncpg://`, a non-https `TIM_TAG_CLUSTER_URI`, `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production`. |
+| api exits at startup with `Invalid actions:`             | A provider or an action file has a problem; see [Startup failures from the files](#startup-failures-from-the-files). |
 | api exits at startup about the OBO credential            | Neither `TIM_AUTH_CLIENT_SECRET` nor a readable `AZURE_FEDERATED_TOKEN_FILE` is set (the message says which).                                                          |
 | api starts but requests fail with database errors; `/api/healthChecks/readiness` returns `503`; problem responses say "Service unavailable" | PostgreSQL is down or unreachable (or the schema is not migrated; run the migrations). The connection pool checks connections before use, so the api serves again once the database is back.                 |
 | Every API call returns 401                               | Token rejected: wrong `TIM_AUTH_TENANT_ID` / `TIM_AUTH_CLIENT_ID` (audience `api://<client id>`), or an expired token.                                                |

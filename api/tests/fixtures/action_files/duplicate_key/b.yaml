@@ -1,0 +1,9 @@
+type: rows
+key: acme.other
+name: Other
+pivot: none
+---
+type: rows
+key: acme.users
+name: Users again
+pivot: none

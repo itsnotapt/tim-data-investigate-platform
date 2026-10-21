@@ -173,7 +173,8 @@ Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv wor
 | `deps.py` | FastAPI dependencies returning the storage and its template and query-run stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
-| `actions/` | Provider discovery and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
+| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
+| `cli.py` | The `tim-api` command: `schema actions` and `check` |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `kusto/` | Cluster validation, query client, `POST /api/kusto/schema` |
 | `query_runs/` | Query-run routes, models and the run lifecycle (`runner.py`) |
@@ -194,6 +195,7 @@ Database migrations are in `api/migrations` (Alembic).
 | `hooks.py` | `Hook`, the base of a connection type's access, and `EditorSchema` |
 | `run.py` | `RunContext`, the protocol `run` is given, and `Analyst` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
+| `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`) |
 | `builtin.py` | TIM's built-in provider |
 
 ### Request flow and middleware
@@ -211,9 +213,25 @@ Loading happens once, in the lifespan, before storage is opened. `discover_provi
 - an entry point that fails to load, raises, or doesn't return a `Provider`;
 - an invalid action. `Action`, `Param` and `Column` are pydantic models that check themselves when they are built, and the registry validates each action again from its fields;
 - a key outside lowercase letters, digits, `_`, `-` and `.`, or a `tim.` key from any distribution but `tim-actions`;
-- a duplicate action key, `type_name` or connection type.
+- a duplicate action key, `type_name` or connection type;
+- a file-capable action type without a `File` model.
 
-The registry serves the catalogue in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version) and the rest of the body, so it changes whenever the catalogue or an installed provider does. Nothing runs an action: queries run through the query-run lifecycle below.
+**Action files** ([actions.md](actions.md#action-files)) come next, once every provider's action types are indexed, so a file can name an action type from any provider. `build_registry` loads, in this order, each provider's package-data directory (`Provider(action_files=...)`) and then `TIM_ACTIONS_DIR`. Each directory is read non-recursively, `*.yaml` and `*.yml` in file name order, skipping dot-entries (so a ConfigMap's `..data` is skipped). `tim_actions.files.load_action_files` parses each file with PyYAML, keeping timestamps as strings, and takes each YAML document as one action:
+
+1. `type` picks the action type by `type_name`.
+2. Each `<field>_file` of a field marked `Sidecar` is replaced by that file's text, read next to the action file.
+3. The type's `File` model validates the document, and `Action.from_file` builds the action, which validates it again as an `Action`.
+
+Each document is validated on its own, so a file reports all of its problems at once. A problem names the file and the line of the field, from the YAML nodes, as `<file>:<line>: <field>: <message>`. A field given twice in a mapping is a problem too. Action files add these to the problems that stop startup:
+
+- a file that isn't YAML or UTF-8, or a document that isn't a mapping;
+- an unknown `type`, an unknown field, or a value its `File` model or the action rejects;
+- a missing sidecar, a sidecar given as a path rather than a file name in the action file's directory, or both `<field>` and `<field>_file`;
+- a key already taken by another file or a Python action, or a `tim.` key outside the built-in distribution's package data.
+
+`tim-api check` (`cli.py`) runs `build_registry` the same way without the rest of the lifespan, so it needs no settings, database or credentials ([operations.md](operations.md#tim-api-check)). `tim-api schema actions` prints `action_files_schema`: one `File` model per installed type, with `type` fixed to its `type_name` and each sidecar field accepting `<field>_file` instead.
+
+The registry serves the catalogue in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version), the name (relative to its directory) and content of every action file and sidecar read, and the rest of the body, so it changes whenever the catalogue, an installed provider or a file does. Nothing runs an action: queries run through the query-run lifecycle below.
 
 Params are declared as data: `Param(name, kind, title, required, default, many, choices, connection_type, schema_from, from_columns, help)`. `kind` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json`, `kql`, `sql` or `connection`. `tim_actions.validate_params` validates and converts the values in a request: a `datetime` is an ISO 8601 string (UTC when it has no offset), a `timespan` an ISO 8601 duration or `HH:MM:SS`, a `many` param a list, and a `connection` param the name of a connection of its `connection_type`. A missing or blank value takes the default; errors are keyed `params.<name>`. The catalogue's `pivot.columns` comes from `Action.pivot_columns()`: each required param's `from_columns` is one group, and a row needs one column from each. Every action sets `pivot`, which has no default: `row` or `rows` offers it on one or several selected rows, and `none` keeps it out of the context menu.
 

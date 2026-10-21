@@ -1,0 +1,5 @@
+type: lines
+key: acme.hidden
+name: Not read, being a dot-entry
+pivot: none
+text: x
