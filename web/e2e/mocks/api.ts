@@ -29,6 +29,20 @@ export interface ApiMock {
 
 const RUN_ID = 'c1b7f1f6-9a34-4a52-8c1e-5f2e0f7b2a90';
 
+/** An instance with no actions: the mocked flows use templates and Kusto tabs. */
+const instance = {
+  version: 'e2e',
+  actions: [],
+  connections: [],
+  labels: [],
+  limits: {
+    maxResultRows: 1000000,
+    maxResultBytes: 536870912,
+    rowsPageSize: 10000,
+    runTimeoutSeconds: 600,
+  },
+};
+
 export const json = (route: Route, body: unknown, status = 200): Promise<void> =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -89,6 +103,7 @@ export async function mockApi(page: Page, options: ApiMockOptions = {}): Promise
         expiresAt: '2026-09-30T10:00:00.000Z',
       });
 
+      if (path === '/api/instance' && method === 'GET') return json(route, instance);
       if (path === '/api/templates/queries' && method === 'GET') return json(route, tpls);
       if (path.startsWith('/api/templates/queries/') && method === 'GET') {
         const found = (tpls as { uuid: string }[]).find((t) => path.endsWith(t.uuid));

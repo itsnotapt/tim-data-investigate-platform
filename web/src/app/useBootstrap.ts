@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { resumeActionRuns } from '../features/action-tab';
+import { refreshInstanceOnFocus, useInstanceStore } from '../features/instance';
 import { useTabsStore } from '../features/tabs';
 import { useTemplatesStore } from '../features/templates';
 import { useAuth } from '../lib/auth';
@@ -7,9 +9,14 @@ import { loadColumnViews } from './columnViewsState';
 type BootstrapStatus = 'signedOut' | 'loading' | 'loaded' | 'error';
 
 export interface BootstrapSteps {
+  loadInstance: () => Promise<void>;
   loadTemplates: () => Promise<void>;
   loadColumnViews: () => Promise<void>;
   loadTabs: () => Promise<void>;
+  /** Picks up the runs the loaded tabs were following. */
+  resumeRuns: () => void;
+  /** Refetches the instance on window focus while loaded; returns the cleanup. */
+  watchInstance: () => () => void;
 }
 
 async function loadTabs(): Promise<void> {
@@ -20,9 +27,12 @@ async function loadTabs(): Promise<void> {
 }
 
 const defaultSteps: BootstrapSteps = {
+  loadInstance: () => useInstanceStore.getState().load(),
   loadTemplates: () => useTemplatesStore.getState().load(),
   loadColumnViews,
   loadTabs,
+  resumeRuns: () => void resumeActionRuns(),
+  watchInstance: () => refreshInstanceOnFocus(useInstanceStore),
 };
 
 export interface UseBootstrap {
@@ -36,7 +46,8 @@ export interface UseBootstrap {
 }
 
 /**
- * Startup sequence: sign in, then templates, column views and tabs.
+ * Startup sequence: sign in, then the instance, templates, column views and tabs, then the tabs'
+ * runs are picked up again.
  * A failed attempt leaves the app retryable.
  */
 export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap {
@@ -55,9 +66,11 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
     let cancelled = false;
     void (async () => {
       try {
+        await steps.loadInstance();
         await steps.loadTemplates();
         await steps.loadColumnViews();
         await steps.loadTabs();
+        if (!cancelled) steps.resumeRuns();
         if (!cancelled) setResult({ attempt, status: 'loaded', error: null });
       } catch (e) {
         console.error(e);
@@ -75,6 +88,9 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
     };
     // `steps` is expected to be stable (module constant or memoised).
   }, [signedIn, attempt, steps]);
+
+  const loaded = signedIn && result?.attempt === attempt && result.status === 'loaded';
+  useEffect(() => (loaded ? steps.watchInstance() : undefined), [loaded, steps]);
 
   const { login } = auth;
   const retry = useCallback(() => {

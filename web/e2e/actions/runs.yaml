@@ -19,3 +19,14 @@ error: The sign-in log is unavailable
 details:
   cluster: dev
   scanned: 1200
+---
+type: dev_rows
+key: dev-delayed
+name: Delayed
+menu: Development / Runs
+description: Waits 6 seconds before its rows, so a reload can pick the run up again
+pivot: none
+delay: 6
+rows:
+  - { Step: one }
+  - { Step: two }

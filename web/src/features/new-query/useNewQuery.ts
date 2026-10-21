@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router';
+import type { CatalogueAction } from '../../lib/api';
 import { getDefaultParams } from '../../lib/kql-templates/params';
 import { defaultNewQuery } from '../kusto-query/defaultQuery';
 import { useTabsStore, type TabsStore } from '../tabs';
@@ -12,6 +13,8 @@ export interface NewQueryActions {
   createAdHoc: () => string;
   /** New root template tab in edit mode (not auto-run). */
   createFromTemplate: (template: QueryTemplate) => string;
+  /** New root action tab with the action's defaults as its params (not run). */
+  createFromAction: (action: CatalogueAction) => string;
 }
 
 /** Creates tabs from the New menu (W1) and navigates to them. */
@@ -48,5 +51,21 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
     },
     [store, navigate],
   );
-  return { createAdHoc, createFromTemplate };
+  const createFromAction = useCallback(
+    (action: CatalogueAction) => {
+      const params = Object.fromEntries(
+        action.params.filter((p) => p.default !== undefined).map((p) => [p.name, p.default]),
+      );
+      const uuid = store.getState().createTab({
+        componentName: 'ActionResult',
+        parentUuid: null,
+        title: action.name,
+        params: { action: action.key, params },
+      });
+      void navigate(`/view/${uuid}`);
+      return uuid;
+    },
+    [store, navigate],
+  );
+  return { createAdHoc, createFromTemplate, createFromAction };
 }

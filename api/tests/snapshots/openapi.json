@@ -3,6 +3,20 @@
     "schemas": {
       "CatalogueAction": {
         "properties": {
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CatalogueColumn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
           "connections": {
             "items": {
               "type": "string"
@@ -69,6 +83,106 @@
           "pivot"
         ],
         "title": "CatalogueAction",
+        "type": "object"
+      },
+      "CatalogueColumn": {
+        "description": "A column the action declares, with the grid's initial settings for it.",
+        "properties": {
+          "calculated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculated"
+          },
+          "group": {
+            "title": "Group",
+            "type": "boolean"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "enum": [
+                  "left",
+                  "right"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "asc",
+                  "desc"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "datetime",
+              "timespan",
+              "json"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "hidden",
+          "group"
+        ],
+        "title": "CatalogueColumn",
         "type": "object"
       },
       "CatalogueParam": {

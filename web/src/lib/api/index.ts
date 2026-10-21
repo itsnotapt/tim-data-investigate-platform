@@ -4,3 +4,5 @@ export * from './templates';
 export * from './kustoSchema';
 export * from './queryRuns';
 export * from './taggedEvents';
+export * from './instance';
+export * from './runs';

@@ -28,6 +28,7 @@ import {
 import type { Module } from 'ag-grid-community';
 import {
   AggregationModule,
+  CalculatedColumnsModule,
   CellSelectionModule,
   ClipboardModule,
   ColumnMenuModule,
@@ -49,7 +50,7 @@ import { getConfig } from '../../lib/config/runtimeConfig';
  * The AG Grid modules for the grid features in use (each pulls in its own dependencies): client-side
  * row model and transactions, multi / text / number / date / set filters, quick filter, row grouping
  * with aggregation, pivot mode (columns tool panel), row and cell selection, side bar, status bar,
- * context and column menus, clipboard, CSV / Excel export, the large text editor, row / cell styles,
+ * context and column menus, calculated columns (an action's declared `calculated` columns), clipboard, CSV / Excel export, the large text editor, row / cell styles,
  * tooltips, column state and autosize. Template `columns` may use any of these.
  * A missing module logs AG Grid console error #200 naming it; the e2e fixture fails on it.
  */
@@ -92,6 +93,7 @@ const MODULES: Module[] = [
   SideBarModule,
   StatusBarModule,
   ExcelExportModule,
+  CalculatedColumnsModule,
   // Descriptive missing-module errors; dev only.
   ...(import.meta.env.DEV ? [ValidationModule] : []),
 ];

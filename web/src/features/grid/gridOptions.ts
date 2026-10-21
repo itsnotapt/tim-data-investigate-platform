@@ -136,6 +136,9 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
   aggFuncs,
   animateRows: false,
   cacheQuickFilter: true,
+  // Evaluates `calculatedExpression` columns (an action's declared `calculated` columns), and lets
+  // the analyst add their own from the column menu.
+  calculatedColumns: true,
   defaultColDef,
   getRowId: (p) => p.data[ROW_ID_FIELD],
   groupDisplayType: 'groupRows',

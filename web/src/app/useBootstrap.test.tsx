@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from '../lib/auth';
@@ -30,20 +30,36 @@ function makeSteps(calls: string[] = []) {
   return {
     calls,
     steps: {
+      loadInstance: step('instance'),
       loadTemplates: step('templates'),
       loadColumnViews: step('columnViews'),
       loadTabs: step('tabs'),
+      resumeRuns: vi.fn(() => void calls.push('resumeRuns')),
+      watchInstance: vi.fn(() => {
+        calls.push('watchInstance');
+        return () => void calls.push('unwatchInstance');
+      }),
     } satisfies BootstrapSteps,
   };
 }
 
 describe('useBootstrap', () => {
-  it('runs templates, column views, tabs in order, then loaded', async () => {
+  it('runs instance, templates, column views, tabs in order, then loaded', async () => {
     const { steps, calls } = makeSteps();
     setup(client(), steps);
     expect(screen.getByText('Authenticating and loading queries...')).toBeInTheDocument();
     expect(await screen.findByText('app ready')).toBeInTheDocument();
-    expect(calls).toEqual(['templates', 'columnViews', 'tabs']);
+    // The instance is watched from an effect once loaded, which can run after the loaded render.
+    await waitFor(() =>
+      expect(calls).toEqual([
+        'instance',
+        'templates',
+        'columnViews',
+        'tabs',
+        'resumeRuns',
+        'watchInstance',
+      ]),
+    );
   });
 
   it('does not load anything while signed out', async () => {

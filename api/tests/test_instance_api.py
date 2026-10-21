@@ -4,7 +4,7 @@ import pytest
 from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
 from scripted_actions import Rows
-from tim_actions import Param, Provider
+from tim_actions import Column, Param, Provider
 
 
 def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
@@ -97,6 +97,39 @@ def test_an_action_that_does_not_pivot_has_a_null_pivot(auth: AuthKit) -> None:
     assert action["pivot"] is None
     assert action["menuPath"] == []
     assert "description" not in action
+    assert "columns" not in action
+
+
+def test_an_actions_declared_columns_are_in_the_catalogue(auth: AuthKit) -> None:
+    columns = (
+        Column("Timestamp", "datetime", sort="desc", pinned="left", width=180),
+        Column("User", "string", title="User", group=True),
+        Column("Raw", "json", hidden=True),
+        Column("KiB", "number", calculated="[Bytes] / 1024"),
+    )
+    [action] = get_instance(
+        auth, [Provider(actions=[Rows(key="a", name="A", pivot="none", columns=columns)])]
+    )["actions"]
+    assert action["columns"] == [
+        {
+            "name": "Timestamp",
+            "type": "datetime",
+            "hidden": False,
+            "width": 180,
+            "pinned": "left",
+            "sort": "desc",
+            "group": False,
+        },
+        {"name": "User", "type": "string", "title": "User", "hidden": False, "group": True},
+        {"name": "Raw", "type": "json", "hidden": True, "group": False},
+        {
+            "name": "KiB",
+            "type": "number",
+            "hidden": False,
+            "group": False,
+            "calculated": "[Bytes] / 1024",
+        },
+    ]
 
 
 def test_the_version_changes_with_the_catalogue(auth: AuthKit) -> None:
