@@ -169,30 +169,6 @@ describe('PillsBar', () => {
 
   it.each([
     ['number', 'Limit', '42', 42, 'abc', 'Must be a number'],
-    [
-      'datetime',
-      'Since',
-      '2026-10-01T08:00:00Z',
-      '2026-10-01T08:00:00Z',
-      'yesterday',
-      'Must be an ISO 8601 datetime',
-    ],
-    [
-      'timespan',
-      'Window',
-      'PT1H30M',
-      'PT1H30M',
-      '90 minutes',
-      'Must be an ISO 8601 duration or HH:MM:SS',
-    ],
-    [
-      'timespan',
-      'Window',
-      '01:30:00',
-      '01:30:00',
-      '1h',
-      'Must be an ISO 8601 duration or HH:MM:SS',
-    ],
     ['string', 'User', 'alice', 'alice', null, null],
   ] as const)('edits a %s param as text', async (kind, title, good, parsed, bad, message) => {
     render(<Harness params={[param({ name: 'p', kind, title })]} />);
@@ -206,6 +182,76 @@ describe('PillsBar', () => {
     await userEvent.type(input, bad);
     expect(within(popover()).getByText(message)).toBeInTheDocument();
     expect(values()).toEqual({});
+  });
+
+  it('sets a datetime in UTC by pasting an ISO datetime, picking a day and an hour', async () => {
+    render(<Harness params={[param({ name: 'since', kind: 'datetime', title: 'Since' })]} />);
+    await openPill(/Since/);
+    const field = within(popover()).getByRole('group', { name: 'Since (UTC)' });
+    fireEvent.paste(field, { clipboardData: { getData: () => '2026-10-01T10:00:00+02:00' } });
+    expect(values()).toEqual({ since: '2026-10-01T08:00:00Z' });
+    await userEvent.click(within(popover()).getByRole('gridcell', { name: '15' }));
+    expect(values()).toEqual({ since: '2026-10-15T08:00:00Z' });
+    await userEvent.click(within(popover()).getByRole('option', { name: '21 hours' }));
+    expect(values()).toEqual({ since: '2026-10-15T21:00:00Z' });
+    await userEvent.keyboard('{Escape}');
+    expect(
+      screen.getByRole('button', { name: 'Since: 2026-10-15 21:00:00 UTC' }),
+    ).toBeInTheDocument();
+  });
+
+  it('unsets a datetime', async () => {
+    render(
+      <Harness
+        params={[param({ name: 'since', kind: 'datetime', title: 'Since' })]}
+        initial={{ since: '2026-10-01T08:00:00Z' }}
+      />,
+    );
+    await openPill(/Since/);
+    await userEvent.click(within(popover()).getByRole('button', { name: 'Not set' }));
+    expect(values()).toEqual({});
+  });
+
+  it('picks a timespan preset', async () => {
+    render(<Harness params={[param({ name: 'window', kind: 'timespan', title: 'Window' })]} />);
+    await openPill(/Window/);
+    await userEvent.click(within(popover()).getByRole('button', { name: '7 days' }));
+    expect(values()).toEqual({ window: 'P7D' });
+    expect(screen.getByRole('button', { name: 'Window: 7 days' })).toBeInTheDocument();
+  });
+
+  it('sets a timespan as an amount of a unit', async () => {
+    render(<Harness params={[param({ name: 'window', kind: 'timespan', title: 'Window' })]} />);
+    await openPill(/Window/);
+    const amount = within(popover()).getByRole('spinbutton', { name: 'Window' });
+    await userEvent.type(amount, '90');
+    expect(values()).toEqual({ window: 'PT90M' });
+    await userEvent.click(within(popover()).getByRole('combobox', { name: 'Unit' }));
+    await userEvent.click(screen.getByRole('option', { name: 'hours' }));
+    expect(values()).toEqual({ window: 'PT90H' });
+    await userEvent.clear(amount);
+    expect(values()).toEqual({});
+  });
+
+  it.each([
+    ['PT2H', '2', 'hours', 'Window: 2 hours'],
+    ['01:30:00', '90', 'minutes', 'Window: 90 minutes'],
+    ['P1DT12H', '36', 'hours', 'Window: 36 hours'],
+    ['PT1S', '1', 'seconds', 'Window: 1 second'],
+  ])('shows the timespan %s in its largest whole unit', async (value, amount, unit, pill) => {
+    render(
+      <Harness
+        params={[param({ name: 'window', kind: 'timespan', title: 'Window' })]}
+        initial={{ window: value }}
+      />,
+    );
+    await openPill(/Window/);
+    expect(within(popover()).getByRole('spinbutton', { name: 'Window' })).toHaveValue(
+      Number(amount),
+    );
+    expect(within(popover()).getByRole('combobox', { name: 'Unit' })).toHaveTextContent(unit);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: pill })).toBeInTheDocument();
   });
 
   it('edits a JSON param', async () => {

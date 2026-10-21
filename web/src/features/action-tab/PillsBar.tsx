@@ -11,7 +11,9 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useState, type ReactNode } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
+import { DatetimeEditor } from './DatetimeEditor';
 import { isUnset, parseParamText, splitPasted, summarize, valueText } from './paramValues';
+import { TimespanEditor } from './TimespanEditor';
 
 /** Params edited in the tab's editor rather than in a pill. */
 const EDITOR_KINDS = new Set<CatalogueParam['kind']>(['kql', 'sql']);
@@ -219,6 +221,8 @@ function Editor(props: EditorProps) {
     );
   }
   if (param.many) return <ChipsEditor {...props} />;
+  if (param.kind === 'datetime') return <DatetimeEditor {...props} />;
+  if (param.kind === 'timespan') return <TimespanEditor {...props} />;
   return <TextEditor {...props} />;
 }
 
