@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from '../lib/auth';
@@ -49,14 +49,17 @@ describe('useBootstrap', () => {
     setup(client(), steps);
     expect(screen.getByText('Authenticating and loading queries...')).toBeInTheDocument();
     expect(await screen.findByText('app ready')).toBeInTheDocument();
-    expect(calls).toEqual([
-      'instance',
-      'templates',
-      'columnViews',
-      'tabs',
-      'resumeRuns',
-      'watchInstance',
-    ]);
+    // The instance is watched from an effect once loaded, which can run after the loaded render.
+    await waitFor(() =>
+      expect(calls).toEqual([
+        'instance',
+        'templates',
+        'columnViews',
+        'tabs',
+        'resumeRuns',
+        'watchInstance',
+      ]),
+    );
   });
 
   it('does not load anything while signed out', async () => {
