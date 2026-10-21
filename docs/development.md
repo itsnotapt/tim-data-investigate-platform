@@ -51,7 +51,7 @@ Where CI differs from a local run:
 | `uv sync --locked --all-packages` and `npm ci`                                                   | A stale `uv.lock` or `package-lock.json` passes `uv sync` / `npm install` but fails CI         |
 | `npm audit --omit=dev --audit-level=high`                                                        | Not part of any script; run it yourself after changing dependencies                           |
 | PostgreSQL tests against a `postgres:17` service (`TIM_TEST_DATABASE_URL`)                       | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                             |
-| Playwright with `CI` set: `forbidOnly`, 1 retry, 2 workers, HTML report, never reuses a server    | `list` reporter only, no retries, reuses a running Vite server                                |
+| Playwright with `CI` set: `forbidOnly`, 1 retry, 3 workers, HTML report, never reuses a server    | `list` reporter only, no retries, reuses a running Vite server                                |
 | The e2e job's api on a `postgres:17` service (`TIM_TEST_DATABASE_URL`); it also runs when `api/` changes | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                       |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
 | `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions           | Needs those tools installed; read the workflow for the exact commands                         |
