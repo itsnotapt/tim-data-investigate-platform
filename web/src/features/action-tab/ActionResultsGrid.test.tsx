@@ -19,23 +19,44 @@ const declared: CatalogueColumn[] = [
   },
   { name: 'User', type: 'string', title: 'Analyst', hidden: false, group: true },
   { name: 'Raw', type: 'json', hidden: true, group: false },
+  {
+    name: 'KiB',
+    type: 'number',
+    title: 'Size (KiB)',
+    hidden: false,
+    group: false,
+    calculated: '[Raw Bytes] / 1024',
+  },
 ];
 const columns: RunColumn[] = [
   { name: 'Timestamp', type: 'datetime', declared: true },
   { name: 'User', type: 'string', declared: true },
   { name: 'Raw', type: 'json', declared: true },
   { name: 'row', type: 'string', declared: false },
+  { name: 'Raw Bytes', type: 'number', declared: false },
 ];
 const rows: RunRow[] = [
   {
     row: 0,
     id: 'c-1',
-    data: { Timestamp: '2026-10-01T08:00:00Z', User: 'alice', Raw: {}, row: 'first' },
+    data: {
+      Timestamp: '2026-10-01T08:00:00Z',
+      User: 'alice',
+      Raw: {},
+      row: 'first',
+      'Raw Bytes': 2048,
+    },
   },
   {
     row: 1,
     id: 'c-1',
-    data: { Timestamp: '2026-10-01T08:05:00Z', User: 'bob', Raw: {}, row: 'second' },
+    data: {
+      Timestamp: '2026-10-01T08:05:00Z',
+      User: 'bob',
+      Raw: {},
+      row: 'second',
+      'Raw Bytes': 512,
+    },
   },
 ];
 
@@ -85,5 +106,17 @@ describe('ActionResultsGrid', () => {
     const api = await renderGrid('restored');
     expect(stateOf(api, 'Raw')).toMatchObject({ hide: false });
     expect(stateOf(api, 'Timestamp')).toMatchObject({ width: 90, pinned: null, sort: null });
+  });
+
+  it('evaluates a declared calculated column, after the declared column before it', async () => {
+    const api = await renderGrid('calculated');
+    const node = api.getRowNode('0');
+    expect(api.getCellValue({ rowNode: node!, colKey: 'KiB' })).toBe(2);
+    expect(api.getColumn('KiB')?.getColDef().headerName).toBe('Size (KiB)');
+    const order = api
+      .getColumnState()
+      .map((c) => c.colId)
+      .filter((id) => !id.startsWith('ag-Grid-'));
+    expect(order).toEqual(['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes']);
   });
 });

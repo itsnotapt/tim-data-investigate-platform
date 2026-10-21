@@ -41,6 +41,7 @@ vi.mock('ag-grid-enterprise', () => ({
   ...Object.fromEntries(
     [
       'AggregationModule',
+      'CalculatedColumnsModule',
       'CellSelectionModule',
       'ClipboardModule',
       'ColumnMenuModule',
