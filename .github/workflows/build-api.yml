@@ -117,6 +117,47 @@ jobs:
         working-directory: api/tim-actions
         run: uv run pytest
 
+  # The live Kusto tests (`pytest -m kusto`), on pushes to main only: the test app's federated
+  # credential trusts refs/heads/main, so a PR could not sign in. Skipped until the repository
+  # variables are set, and not part of build-api-gate.
+  kusto-live:
+    needs: changes
+    if: >-
+      github.event_name == 'push' && needs.changes.outputs.api == 'true'
+      && vars.TIM_TESTS_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked --all-packages
+
+      # DefaultAzureCredential in the tests picks up this Azure CLI login.
+      - name: Sign in as the test app
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.TIM_TESTS_CLIENT_ID }}
+          tenant-id: ${{ vars.TIM_TESTS_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Live Kusto tests
+        run: uv run pytest -m kusto --no-cov
+        env:
+          TIM_TEST_KUSTO_CLUSTER: ${{ vars.TIM_TEST_KUSTO_CLUSTER }}
+          TIM_TEST_KUSTO_QUERY_DATABASE: ${{ vars.TIM_TEST_KUSTO_QUERY_DATABASE || 'Research' }}
+          TIM_TEST_KUSTO_INGEST_URL: ${{ vars.TIM_TEST_KUSTO_INGEST_URL }}
+          TIM_TEST_KUSTO_DATABASE: ${{ vars.TIM_TEST_KUSTO_DATABASE || 'Research' }}
+
   docker-build-api:
     needs: changes
     if: needs.changes.outputs.api == 'true'
