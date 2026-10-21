@@ -3,6 +3,8 @@
  * The shapes are shared with the IndexedDB layer (`src/lib/storage`).
  */
 import type {
+  ActionDisplayComponent,
+  ActionParams,
   DisplayComponentName,
   DisplayComponentState,
   KustoQueryDisplayComponent,
@@ -14,6 +16,7 @@ import type {
 import type { QueryTemplate } from '../../lib/kql-templates';
 
 export type {
+  ActionParams,
   DisplayComponentName as TabKind,
   DisplayComponentState as TabState,
   KustoQueryParams,
@@ -23,8 +26,9 @@ export type {
 
 type KustoQueryTab = KustoQueryDisplayComponent;
 export type TemplateQueryTab = TemplateQueryDisplayComponent;
+export type ActionTab = ActionDisplayComponent;
 /** Discriminated on `componentName`. */
-export type Tab = KustoQueryTab | TemplateQueryTab;
+export type Tab = KustoQueryTab | TemplateQueryTab | ActionTab;
 
 interface CreateTabInput {
   /** Generated when omitted. */
@@ -41,7 +45,11 @@ type CreateTemplateTabInput = CreateTabInput & {
   componentName: 'TemplateQueryResult';
   params: TemplateQueryParams;
 };
-export type CreateTabArgs = CreateKustoTabInput | CreateTemplateTabInput;
+type CreateActionTabInput = CreateTabInput & {
+  componentName: 'ActionResult';
+  params: ActionParams;
+};
+export type CreateTabArgs = CreateKustoTabInput | CreateTemplateTabInput | CreateActionTabInput;
 
 /** Partial state update. `error` may be anything thrown; it is reduced to `{message, code?}`. */
 export type TabStateUpdate = Partial<Omit<DisplayComponentState, 'error'>> & {

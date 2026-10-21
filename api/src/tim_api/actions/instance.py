@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-from tim_actions import Action, Param
+from tim_actions import Action, Column, Param
 
 from tim_api.actions.models import (
     CatalogueAction,
+    CatalogueColumn,
     CatalogueParam,
     CataloguePivot,
     Instance,
@@ -34,6 +35,20 @@ def _param(param: Param) -> CatalogueParam:
     )
 
 
+def _column(column: Column) -> CatalogueColumn:
+    return CatalogueColumn(
+        name=column.name,
+        type=column.type,
+        title=column.title,
+        hidden=column.hidden,
+        width=column.width,
+        pinned=column.pinned,
+        sort=column.sort,
+        group=column.group,
+        calculated=column.calculated,
+    )
+
+
 def _action(action: Action) -> CatalogueAction:
     pivot = (
         None
@@ -49,6 +64,7 @@ def _action(action: Action) -> CatalogueAction:
         connections=list(action.connections()),
         params=[_param(param) for param in action.params],
         pivot=pivot,
+        columns=None if action.columns is None else [_column(c) for c in action.columns],
     )
 
 

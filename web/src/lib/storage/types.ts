@@ -2,9 +2,10 @@
  * Entities persisted in the browser (IndexedDB database `tim`).
  */
 
+import type { Run, RunColumn } from '../api/runs';
 import type { TimeRange } from '../time-range';
 
-export type DisplayComponentName = 'KustoQueryResult' | 'TemplateQueryResult';
+export type DisplayComponentName = 'KustoQueryResult' | 'TemplateQueryResult' | 'ActionResult';
 
 /** Serialisable error only; never store Error instances. */
 export interface StoredError {
@@ -24,6 +25,12 @@ export interface DisplayComponentState {
   executionTime?: number | null;
   cpuUsage?: string | null;
   memoryUsage?: string | null;
+  /** Action tabs only: the envelope of the latest run, picked up again by `runId`. */
+  run?: Run | null;
+  /** Action tabs only: the run whose rows are in `row_results`. */
+  resultsRunId?: string | null;
+  /** Action tabs only: the columns of that run. */
+  resultColumns?: RunColumn[] | null;
 }
 
 /** Custom Kusto query params. */
@@ -31,6 +38,12 @@ export interface KustoQueryParams {
   query: string;
   cluster: string;
   database: string;
+}
+
+/** Action component params: the action's key and plain param values, never re-resolved. */
+export interface ActionParams {
+  action: string;
+  params: Record<string, unknown>;
 }
 
 /** Template component params: user inputs plus a full template snapshot (not a reference). */
@@ -61,10 +74,19 @@ export interface TemplateQueryDisplayComponent extends DisplayComponentBase {
   params: TemplateQueryParams;
 }
 
-/** A tab node without `children` (the tree is rebuilt in memory). */
-export type DisplayComponent = KustoQueryDisplayComponent | TemplateQueryDisplayComponent;
+export interface ActionDisplayComponent extends DisplayComponentBase {
+  componentName: 'ActionResult';
+  params: ActionParams;
+}
 
-/** One raw Kusto row. `_id` is client-only and never stored. */
+/** A tab node without `children` (the tree is rebuilt in memory). */
+export type DisplayComponent =
+  KustoQueryDisplayComponent | TemplateQueryDisplayComponent | ActionDisplayComponent;
+
+/**
+ * One stored row: a raw Kusto row (`_id` is client-only and never stored), or for action
+ * components a run row `{row, id, data}`.
+ */
 export type RowResult = Record<string, unknown>;
 
 /** Global named AG Grid column state. */

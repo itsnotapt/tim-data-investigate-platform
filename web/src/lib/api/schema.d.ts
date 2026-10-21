@@ -282,6 +282,8 @@ export interface components {
     schemas: {
         /** CatalogueAction */
         CatalogueAction: {
+            /** Columns */
+            columns?: components["schemas"]["CatalogueColumn"][] | null;
             /** Connections */
             connections: string[];
             /** Description */
@@ -300,6 +302,33 @@ export interface components {
             /** Params */
             params: components["schemas"]["CatalogueParam"][];
             pivot: components["schemas"]["CataloguePivot"] | null;
+        };
+        /**
+         * CatalogueColumn
+         * @description A column the action declares, with the grid's initial settings for it.
+         */
+        CatalogueColumn: {
+            /** Calculated */
+            calculated?: string | null;
+            /** Group */
+            group: boolean;
+            /** Hidden */
+            hidden: boolean;
+            /** Name */
+            name: string;
+            /** Pinned */
+            pinned?: ("left" | "right") | null;
+            /** Sort */
+            sort?: ("asc" | "desc") | null;
+            /** Title */
+            title?: string | null;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
+            /** Width */
+            width?: number | null;
         };
         /**
          * CatalogueParam

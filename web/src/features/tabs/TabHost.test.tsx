@@ -26,6 +26,7 @@ function useMountLog(kind: string, uuid: string) {
 const registry: TabRegistry = {
   KustoQueryResult: (p: TabComponentProps) => <Probe kind="kusto" uuid={p.uuid} />,
   TemplateQueryResult: (p: TabComponentProps) => <Probe kind="template" uuid={p.uuid} />,
+  ActionResult: (p: TabComponentProps) => <Probe kind="action" uuid={p.uuid} />,
 };
 
 function renderAt(entry: string) {

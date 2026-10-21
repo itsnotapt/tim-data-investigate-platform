@@ -1,6 +1,6 @@
 import type { Tab } from '../tabs';
 
-export type NodeStatus = 'executing' | 'error' | 'results' | 'draft';
+export type NodeStatus = 'executing' | 'error' | 'noRows' | 'results' | 'draft';
 
 /** Draft: never run, not running, no error. */
 const isDraft = (t: Tab): boolean =>
@@ -10,10 +10,14 @@ const isDraft = (t: Tab): boolean =>
 export const isNew = (t: Tab): boolean =>
   t.state.rowCount !== null && !t.state.isVisited && t.state.error === null;
 
-/** Icon precedence: spinner, error, badge (has row count), plain folder. */
+/**
+ * Icon precedence: spinner, error, ringed 0 (an action tab whose run succeeded with no rows), badge
+ * (has row count), plain folder.
+ */
 export function nodeStatus(t: Tab): NodeStatus {
   if (t.state.isExecuting) return 'executing';
   if (t.state.error) return 'error';
+  if (t.componentName === 'ActionResult' && t.state.rowCount === 0) return 'noRows';
   if (t.state.rowCount !== null && t.state.rowCount >= 0) return 'results';
   return 'draft';
 }

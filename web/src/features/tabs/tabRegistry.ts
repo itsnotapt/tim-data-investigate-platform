@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { ActionTab } from '../action-tab/ActionTab';
 import { KustoQueryTab } from '../kusto-query/KustoQueryTab';
 import { TemplateQueryTab } from '../template-query/TemplateQueryTab';
 import type { TabKind } from './types';
@@ -10,8 +11,9 @@ export interface TabComponentProps {
 
 export type TabRegistry = Record<TabKind, ComponentType<TabComponentProps>>;
 
-/** tabType to component. Both tab kinds are real components. */
+/** tabType to component. */
 export const tabRegistry: TabRegistry = {
+  ActionResult: ActionTab,
   KustoQueryResult: KustoQueryTab,
   TemplateQueryResult: TemplateQueryTab,
 };

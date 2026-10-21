@@ -1,7 +1,7 @@
 import type { MenuItemDef } from 'ag-grid-community';
 import type { QueryOptions } from '../../lib/storage';
 import type { QueryTemplate } from '../../lib/api';
-import { buildTemplateMenuTree, type MenuNode } from '../new-query/templateMenuTree';
+import { buildTemplateMenuTree, type MenuNode } from '../new-query/menuTree';
 
 /** What the menu reports when a pivot item is chosen. */
 interface PivotChoice {
@@ -27,8 +27,8 @@ function sortTemplates(templates: readonly QueryTemplate[]): QueryTemplate[] {
   );
 }
 
-function sortNodes(nodes: MenuNode[]): MenuNode[] {
-  const title = (n: MenuNode) => (n.kind === 'folder' ? n.title : n.template.menu);
+function sortNodes(nodes: MenuNode<QueryTemplate>[]): MenuNode<QueryTemplate>[] {
+  const title = (n: MenuNode<QueryTemplate>) => (n.kind === 'folder' ? n.title : n.label);
   return [...nodes]
     .sort((a, b) => (a.kind === b.kind ? byText(title(a), title(b)) : a.kind === 'folder' ? -1 : 1))
     .map((n) => (n.kind === 'folder' ? { ...n, children: sortNodes(n.children) } : n));
@@ -60,12 +60,12 @@ export function buildPivotMenuItems(
   const tree = sortNodes(
     buildTemplateMenuTree(sortTemplates(templates), { queryType: 'query', queryOptions }),
   );
-  const toItem = (node: MenuNode): MenuItemDef =>
+  const toItem = (node: MenuNode<QueryTemplate>): MenuItemDef =>
     node.kind === 'folder'
       ? { name: node.title, subMenu: node.children.map(toItem) }
       : {
-          name: node.template.menu,
-          action: (params) => onPivot({ template: node.template, ...pivotTargets(params) }),
+          name: node.label,
+          action: (params) => onPivot({ template: node.item, ...pivotTargets(params) }),
         };
   return tree.map(toItem);
 }

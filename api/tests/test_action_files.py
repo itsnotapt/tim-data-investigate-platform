@@ -69,6 +69,23 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
                 },
             ],
             "pivot": {"rows": "rows", "columns": [["UserPrincipalName", "Upn"]]},
+            "columns": [
+                {
+                    "name": "Timestamp",
+                    "type": "datetime",
+                    "hidden": False,
+                    "pinned": "left",
+                    "sort": "desc",
+                    "group": False,
+                },
+                {
+                    "name": "IpAddress",
+                    "type": "string",
+                    "hidden": True,
+                    "width": 120,
+                    "group": False,
+                },
+            ],
         },
     ]
 

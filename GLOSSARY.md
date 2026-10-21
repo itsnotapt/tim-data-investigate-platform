@@ -11,7 +11,7 @@ An analyst's tree of tabs. Each pivot adds a child tab under the tab it was made
 _Avoid_: session, case
 
 **Tab**:
-One node of an investigation: either a Kusto tab or a template tab, with its results.
+One node of an investigation: a Kusto tab, a template tab or an action tab, with its results.
 _Avoid_: display component, view
 
 **Kusto tab**:
@@ -20,6 +20,9 @@ _Avoid_: ad-hoc tab
 
 **Template tab**:
 A tab that runs a snapshot of a query template with the analyst's params. Later edits to the template do not change it.
+
+**Action tab**:
+A tab that runs an action with the analyst's param values and shows the rows of its run. It keeps those values as they are, so a later change to the action does not change them.
 
 **Column view**:
 A named, saved arrangement of the results grid's columns, usable in any tab.

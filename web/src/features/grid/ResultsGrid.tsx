@@ -8,6 +8,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { themeBalham } from 'ag-grid-community';
 import type {
   CellEditRequestEvent,
+  ColDef,
   CellFocusedEvent,
   GridApi,
   GridReadyEvent,
@@ -55,6 +56,8 @@ export interface ResultsGridProps {
   templateColumns?: TemplateColumns;
   /** Template `columnId`: row-id column (default `EventId`). */
   columnId?: string | null;
+  /** Column definitions to use instead of those built from the rows and `templateColumns`. */
+  columnDefs?: ColDef[];
   stats?: ExecutionStats;
   /**
    * Extra context menu items, placed above copy / export. An array is a list of groups: the first
@@ -84,6 +87,7 @@ export function ResultsGrid({
   rows,
   templateColumns,
   columnId,
+  columnDefs: givenColumnDefs,
   stats,
   getContextMenuItems,
   onGridReady,
@@ -111,7 +115,10 @@ export function ResultsGrid({
   const context = useMemo(() => ({ statsStore }), [statsStore]);
 
   const rowData = useMemo(() => prepareRows(rows, columnId), [rows, columnId]);
-  const columnDefs = useMemo(() => buildColumnDefs(rows, templateColumns), [rows, templateColumns]);
+  const columnDefs = useMemo(
+    () => givenColumnDefs ?? buildColumnDefs(rows, templateColumns),
+    [givenColumnDefs, rows, templateColumns],
+  );
   const extraMenuItems = useMemo<GetExtraContextMenuItems | undefined>(() => {
     const groups = Array.isArray(getContextMenuItems)
       ? getContextMenuItems

@@ -5,27 +5,26 @@ import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import { useState } from 'react';
-import type { MenuNode } from './templateMenuTree';
-import type { QueryTemplate } from './types';
+import type { MenuNode } from './menuTree';
 
-export interface TemplateSubMenuProps {
+export interface SubMenuProps<T> {
   title: string;
-  nodes: MenuNode[];
+  nodes: MenuNode<T>[];
   /** Expanded while searching. */
   forceOpen?: boolean;
-  onSelect: (template: QueryTemplate) => void;
+  onSelect: (item: T) => void;
   /** Nesting level, for indentation. */
   depth?: number;
 }
 
 /** Recursive collapsible list; folders are keyed by full path. */
-export function TemplateSubMenu({
+export function SubMenu<T>({
   title,
   nodes,
   forceOpen = false,
   onSelect,
   depth = 0,
-}: TemplateSubMenuProps) {
+}: SubMenuProps<T>) {
   const [open, setOpen] = useState(false);
   const expanded = forceOpen || open;
   return (
@@ -42,7 +41,7 @@ export function TemplateSubMenu({
         <List disablePadding dense>
           {nodes.map((n) =>
             n.kind === 'folder' ? (
-              <TemplateSubMenu
+              <SubMenu
                 key={`folder:${n.key}`}
                 title={n.title}
                 nodes={n.children}
@@ -54,9 +53,9 @@ export function TemplateSubMenu({
               <ListItemButton
                 key={`item:${n.key}`}
                 sx={{ pl: 2 + (depth + 1) * 2 }}
-                onClick={() => onSelect(n.template)}
+                onClick={() => onSelect(n.item)}
               >
-                <ListItemText primary={n.template.menu} />
+                <ListItemText primary={n.label} />
               </ListItemButton>
             ),
           )}

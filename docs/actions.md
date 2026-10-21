@@ -82,7 +82,9 @@ Dates and times in a file stay strings, as the browser sends them.
 
 ### Columns
 
-An action can declare some or all of its result columns. Each entry takes `name` and `type` (`string`, `number`, `boolean`, `datetime`, `timespan` or `json`), and optionally `title`, `hidden`, `width` (pixels), `pinned` (`left` or `right`), `sort` (`asc` or `desc`), `group` and `calculated`. A `calculated` column isn't in the result: the grid computes it from the row's other columns with an AG Grid calculated-column expression, which names columns in brackets, such as `[Bytes] / 1024`.
+An action can declare some or all of its result columns. Each entry takes `name` and `type` (`string`, `number`, `boolean`, `datetime`, `timespan` or `json`), and optionally `title`, `hidden`, `width` (pixels), `pinned` (`left` or `right`), `sort` (`asc` or `desc`), `group` and `calculated`. A `calculated` column isn't in the result: it is an AG Grid calculated-column expression over the row's other columns, which names columns in brackets, such as `[Bytes] / 1024`. The tab's grid doesn't show `calculated` columns: it builds its columns from the run's, which never include them.
+
+The tab's grid uses the declared settings as AG Grid's initial column settings: `title` is the header, and `hidden`, `width`, `pinned`, `sort` and `group` become `initialHide`, `initialWidth`, `initialPinned`, `initialSort` and `initialRowGroup`. They apply the first time the grid shows the columns; a column state the analyst has changed and the tab restored wins over them.
 
 ### Sidecars
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import JsonValue
-from tim_actions import ParamKind
+from tim_actions import ColumnType, ParamKind
 
 from tim_api.models_common import ApiModel, omitted
 
@@ -34,6 +34,20 @@ class CataloguePivot(ApiModel):
     columns: list[list[str]]
 
 
+class CatalogueColumn(ApiModel):
+    """A column the action declares, with the grid's initial settings for it."""
+
+    name: str
+    type: ColumnType
+    title: str | None = omitted()
+    hidden: bool
+    width: int | None = omitted()
+    pinned: Literal["left", "right"] | None = omitted()
+    sort: Literal["asc", "desc"] | None = omitted()
+    group: bool
+    calculated: str | None = omitted()
+
+
 class CatalogueAction(ApiModel):
     key: str
     kind: Literal["query"]
@@ -43,6 +57,7 @@ class CatalogueAction(ApiModel):
     connections: list[str]
     params: list[CatalogueParam]
     pivot: CataloguePivot | None
+    columns: list[CatalogueColumn] | None = omitted()
 
 
 class InstanceConnection(ApiModel):

@@ -5,6 +5,7 @@ import { indexedDbTabPersistence, PersistQueue, type TabPersistence } from './pe
 import { selectSubtreeUuids } from './selectors';
 import {
   DEFAULT_TAB_STATE,
+  type ActionParams,
   type CreateTabArgs,
   type KustoQueryParams,
   type Tab,
@@ -29,7 +30,7 @@ interface TabsState {
   updateState(uuid: string, update: TabStateUpdate): void;
   updateParams(
     uuid: string,
-    params: Partial<KustoQueryParams> | Partial<TemplateQueryParams>,
+    params: Partial<KustoQueryParams> | Partial<TemplateQueryParams> | Partial<ActionParams>,
   ): void;
   updateTitle(uuid: string, title: string): void;
   /** Template tab becomes a Kusto tab; uuid, parent and row results are kept. */
@@ -138,7 +139,9 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
         const tab: Tab =
           args.componentName === 'KustoQueryResult'
             ? { ...base, componentName: 'KustoQueryResult', params: args.params }
-            : { ...base, componentName: 'TemplateQueryResult', params: args.params };
+            : args.componentName === 'TemplateQueryResult'
+              ? { ...base, componentName: 'TemplateQueryResult', params: args.params }
+              : { ...base, componentName: 'ActionResult', params: args.params };
         set({
           tabs: { ...state.tabs, [uuid]: tab },
           order: [...state.order.filter((id) => id !== uuid), uuid],

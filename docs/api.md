@@ -93,12 +93,13 @@ What the browser needs to know about this instance, built once at startup from t
 ```
 
 - `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, and the rest of this body. It changes when any of them does, for example after a rolling update.
-- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot}`:
+- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?}`:
   - `kind` is `query`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
+  - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the result columns the action declares ([actions.md](actions.md#columns)); it is left out when the action declares none.
 - `connections` and `labels` are empty.
 - `limits`: `{maxResultRows, maxResultBytes, rowsPageSize, runTimeoutSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_ROWS_PAGE_SIZE` and `TIM_RUN_TIMEOUT_SECONDS`.
 

@@ -64,8 +64,8 @@ React 19, TypeScript (strict), Vite, react-router (hash routes), zustand stores,
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `templates`, `templates-admin`, `new-query`, `pivots`, `grid`, `column-views`, `tagging`, `share`, `export-import` |
-| `web/src/lib/api/` | Typed API client, problem handling, query-run polling; `schema.d.ts` is generated |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `pivots`, `grid`, `column-views`, `tagging`, `share`, `export-import` |
+| `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
 | `web/src/lib/config/` | Runtime config loader |
 | `web/src/lib/kql-templates/` | Template engine, escaping, param building, `getTagEvents` partial |
@@ -86,7 +86,7 @@ Hash routes; unknown hashes redirect to `#/`. Pages are lazy-loaded.
 |---|---|
 | `#/` | Welcome |
 | `#/queries` | Query Manager (template administration) |
-| `#/view/:uuid` | A tab (`uuid` is the tab's component uuid) |
+| `#/view/:uuid` | A tab of any kind: Kusto, template or action (`uuid` is the tab's component uuid) |
 | `#/share/:uuid?p=<base64url params>&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it |
 | `#/exportimport` | Export and import of the investigation as JSON; template tabs are exported without the template's `name`, `isDeleted`, `isManaged`, `createdBy`, `updatedBy` and `updated` |
 
@@ -105,6 +105,8 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 - Visited tabs stay mounted up to a cap of 100 (least recently visited are evicted).
 - `templatesStore` caches the template list from the API plus local query options. `columnViewsStore` holds column views.
 - Each tab stores a snapshot of its template, so later template edits do not change existing tabs.
+- A tab is one of three kinds, named by `componentName`: `KustoQueryResult`, `TemplateQueryResult` and `ActionResult`. An action tab's params are `{action, params}`: the action's key and the param values as plain values, as the browser sends them. They are never resolved again, so the tab keeps working when the instance's catalogue changes. Its state holds, besides the common fields, `run` (the envelope of the latest run), `resultsRunId` (the run whose rows are stored) and `resultColumns` (that run's columns).
+- `instanceStore` holds the instance from `GET /api/instance` (actions, connections, labels, limits). Bootstrap loads it before the templates, and a refetch on every window focus replaces it only when its `version` differs, so a rolling update shows up without a reload. A failed refetch keeps the instance already loaded.
 
 ### Data flow: run, poll, pivot, tag
 
@@ -114,16 +116,40 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 4. Pivot. A context-menu pivot builds params from the clicked or selected rows (`fields`), creates a child template tab with a template snapshot and runs it when the data is complete.
 5. Tag. The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments` in batches of at most 1000 items. The next run of a query using `{{> getTagEvents}}` returns the updated `TagEvent` column.
 
+An action tab runs differently:
+
+1. Run. `runActionTab` sends `POST /api/runs` with the tab's `{action, params}`. A `422` becomes the tab's error, listing each invalid param. The run's envelope goes to the tab's `run` and the tab is saved at once, so a reload finds the run id.
+2. Poll. While the run is `running`, `GET /api/runs/{runId}` every second for the first 10 s, then every 3 s. A run that ends in `error`, `timedOut` or `cancelled` becomes the tab's error.
+3. Store. For a succeeded run the rows are loaded page by page from `GET /api/runs/{runId}/rows` into IndexedDB `row_results` as `{row, id, data}` rows. The tab's `resultsRunId`, `resultColumns` and row count are saved with them. A tab whose rows are stored needs no API call, so it still shows them after the run has expired on the server.
+4. Resume. After a reload, bootstrap calls `resumeActionRuns` once the tabs are loaded: it follows again a run still `running` by its `runId`, and loads the rows of a succeeded run that is not yet stored. A tab marked executing with no run id to follow stops executing.
+5. Run gone. A `404` on the run shows "The run is no longer available; run again". A `410` on the rows (results gone) shows "Results are no longer available; run again".
+
+One run is followed per tab: starting another run stops following the previous one.
+
 ### IndexedDB
 
 Database `tim` (version 1):
 
 | Store | Key | Value |
 |---|---|---|
-| `display_components` | `componentUuid` | Tab: name (`KustoQueryResult` or `TemplateQueryResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
-| `row_results` | tab uuid (out-of-line) | Array of raw result rows |
+| `display_components` | `componentUuid` | Tab: name (`KustoQueryResult`, `TemplateQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
+| `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
 | `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state) |
 | `query_options` | template uuid (out-of-line) | `{hide?, ...}` |
+
+### The tab and New menu
+
+The New menu offers an **Actions** group beside Views and Queries. Its folders are each action's `menuPath`; the search matches the action's name, its folders and its key. Choosing an action creates a root action tab, titled with the action's name, whose params are the params' defaults, and takes focus. It does not run.
+
+The action tab has:
+
+- A header: the action's menu path · the action, and the tab's title.
+- A pills bar with one pill per param that is not edited in an editor (`kql` and `sql` params are left out). A pill shows the param's title and value, and opens a popover that edits it by kind: a switch for `boolean`; chips for a many-valued param, where pasted text is split on newlines, tabs, commas and semicolons; a pick list for a param with `choices` and for a `connection` param (the instance's connections of the param's `connectionType`); text for `string`, `number`, `datetime` and `timespan`; JSON text for `json`. **Run** sits at the right of the bar, replaced by a spinner while the run is going. An action no longer in the catalogue shows a warning and cannot be run.
+- The inner tab **Results · N**, with the row count.
+
+The results grid is AG Grid with its client-side row model, keyed by each row's row number (`row`). The columns are those of the run, with the action's declared `columns` as `initial*` settings, so a restored column state wins over them ([actions.md](actions.md#columns)). A succeeded run with no rows shows "The run succeeded with no rows." instead of a grid. CSV and Excel export are AG Grid's own.
+
+The tree shows an action tab's status like any tab's: a spinner while running, a red alert on error, a row-count badge, and for a succeeded run with no rows a ringed 0 ("Succeeded, no rows").
 
 ### Template engine
 

@@ -50,6 +50,28 @@ describe('SideTree', () => {
     expect(node('exec')).toHaveTextContent(/^T-exec$/);
   });
 
+  it('shows a ringed 0 for an action tab whose run succeeded with no rows', async () => {
+    const store = newTestStore();
+    const action = (componentUuid: string, rowCount: number) =>
+      store.getState().createTab({
+        componentName: 'ActionResult',
+        componentUuid,
+        parentUuid: null,
+        title: componentUuid,
+        params: { action: 'dev-slow', params: {} },
+        state: { rowCount },
+      });
+    action('none', 0);
+    action('some', 2);
+    renderTree(store);
+    await expand();
+    const status = (id: string) => within(node(id)).getByTestId('tree-icon');
+    expect(status('none')).toHaveAttribute('data-status', 'noRows');
+    expect(status('none')).toHaveAccessibleName('Succeeded, no rows');
+    expect(status('none')).toHaveTextContent('0');
+    expect(status('some')).toHaveAttribute('data-status', 'results');
+  });
+
   it('click marks visited and navigates', async () => {
     const store = newTestStore();
     store.getState().createTab(kusto('a', null, { state: { rowCount: 2 } }));

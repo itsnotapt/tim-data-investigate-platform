@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTemplateMenuTree, type MenuNode } from './templateMenuTree';
+import { buildTemplateMenuTree, type MenuNode } from './menuTree';
 import type { QueryTemplate } from './types';
 
 let n = 0;
@@ -23,8 +23,8 @@ function tpl(over: Partial<QueryTemplate>): QueryTemplate {
     ...over,
   };
 }
-const titles = (nodes: MenuNode[]): string[] =>
-  nodes.map((x) => (x.kind === 'folder' ? `${x.title}/` : x.template.menu));
+const titles = (nodes: MenuNode<QueryTemplate>[]): string[] =>
+  nodes.map((x) => (x.kind === 'folder' ? `${x.title}/` : x.label));
 
 describe('buildTemplateMenuTree', () => {
   it('keeps same segment name under different paths apart', () => {

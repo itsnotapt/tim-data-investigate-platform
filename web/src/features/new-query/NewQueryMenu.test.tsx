@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { newTestStore } from '../../test/tabsTestUtils';
 import { DEFAULT_QUERY_EXAMPLE } from '../kusto-query/defaultQuery';
 import { NewQueryMenu } from './NewQueryMenu';
+import type { CatalogueAction } from '../../lib/api';
 import type { QueryTemplate } from './types';
 
 const base = {
@@ -40,12 +41,48 @@ const templates: QueryTemplate[] = [
   { ...base, uuid: '4', menu: 'Overview', summary: 'o', path: [], queryType: 'view' },
 ];
 
+const actions: CatalogueAction[] = [
+  {
+    key: 'dev-sign-ins',
+    kind: 'query',
+    name: 'Sign-ins',
+    menuPath: ['Identity', 'Entra'],
+    connections: [],
+    params: [
+      { name: 'users', title: 'Users', kind: 'string', required: false, many: true },
+      {
+        name: 'since',
+        title: 'Since',
+        kind: 'timespan',
+        required: false,
+        many: false,
+        default: 'PT1H',
+      },
+    ],
+    pivot: null,
+  },
+  {
+    key: 'dev-slow',
+    kind: 'query',
+    name: 'Slow',
+    menuPath: [],
+    connections: [],
+    params: [],
+    pivot: null,
+  },
+];
+
 const Loc = () => <div data-testid="loc">{useLocation().pathname}</div>;
 function setup() {
   const store = newTestStore();
   render(
     <MemoryRouter>
-      <NewQueryMenu templates={templates} queryOptions={{ '3': { hide: true } }} store={store}>
+      <NewQueryMenu
+        templates={templates}
+        queryOptions={{ '3': { hide: true } }}
+        actions={actions}
+        store={store}
+      >
         New
       </NewQueryMenu>
       <Routes>
@@ -102,5 +139,29 @@ describe('NewQueryMenu', () => {
     expect(screen.getByText('User')).toBeInTheDocument();
     expect(screen.queryByText('Machine')).not.toBeInTheDocument();
     expect(screen.queryByText('Views')).not.toBeInTheDocument();
+  });
+
+  it('opens an action under its menu path as an action tab with its defaults, and focuses it', async () => {
+    const store = setup();
+    await userEvent.click(screen.getByRole('button', { name: 'New' }));
+    await userEvent.click(screen.getByText('Actions'));
+    expect(screen.getByText('Slow')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Identity'));
+    await userEvent.click(screen.getByText('Entra'));
+    await userEvent.click(screen.getByText('Sign-ins'));
+    const [tab] = Object.values(store.getState().tabs);
+    expect(tab?.componentName).toBe('ActionResult');
+    expect(tab?.title).toBe('Sign-ins');
+    expect(tab?.params).toEqual({ action: 'dev-sign-ins', params: { since: 'PT1H' } });
+    expect(screen.getByTestId('loc')).toHaveTextContent(`/view/${tab?.componentUuid}`);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('search finds actions by name and folder', async () => {
+    setup();
+    await userEvent.click(screen.getByRole('button', { name: 'New' }));
+    await userEvent.type(screen.getByLabelText('Search queries'), 'entra');
+    expect(screen.getByText('Sign-ins')).toBeInTheDocument();
+    expect(screen.queryByText('Slow')).not.toBeInTheDocument();
   });
 });

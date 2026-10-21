@@ -2,6 +2,7 @@ import ErrorIcon from '@mui/icons-material/Warning';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Badge from '@mui/material/Badge';
+import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import type { Tab } from '../tabs';
 import { badgeText, badgeTone, nodeStatus } from './nodeStatus';
@@ -12,7 +13,7 @@ export interface TreeNodeIconProps {
   active: boolean;
 }
 
-/** Spinner, red alert, row-count badge over a folder, or a faded folder. */
+/** Spinner, red alert, ringed 0, row-count badge over a folder, or a faded folder. */
 export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
   const status = nodeStatus(tab);
   const Folder = open ? FolderOpenIcon : FolderIcon;
@@ -31,6 +32,34 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
   if (status === 'error') {
     return (
       <ErrorIcon color="error" titleAccess="Error" data-testid="tree-icon" data-status="error" />
+    );
+  }
+  if (status === 'noRows') {
+    return (
+      <Box
+        component="span"
+        role="img"
+        aria-label="Succeeded, no rows"
+        title="Succeeded, no rows"
+        data-testid="tree-icon"
+        data-status="noRows"
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          border: 2,
+          borderColor: active ? 'primary.main' : 'text.secondary',
+          color: active ? 'primary.main' : 'text.secondary',
+          fontSize: 10,
+          fontWeight: 'bold',
+          lineHeight: 1,
+        }}
+      >
+        0
+      </Box>
     );
   }
   if (status === 'results') {
