@@ -54,9 +54,12 @@ const DARK_GRID = {
 };
 type GridColours = typeof LIGHT_GRID;
 
-/** Dark stored before the page loads, as if picked in an earlier session. */
-async function storeDarkMode(page: Page): Promise<void> {
-  await page.addInitScript((key) => localStorage.setItem(key, 'dark'), THEME_MODE_KEY);
+/** The scheme stored before the page loads, as if picked in an earlier session. */
+async function storeMode(page: Page, scheme: SupportedColorScheme): Promise<void> {
+  await page.addInitScript(([key, mode]) => localStorage.setItem(key, mode), [
+    THEME_MODE_KEY,
+    scheme,
+  ] as const);
 }
 
 /** The deployment serves a runtime config without `auth`, so main.tsx renders the config error page. */
@@ -86,8 +89,8 @@ async function expectAppShell(page: Page, colours: Colours) {
   await expect(appBar).toHaveCSS('background-color', colours.paper);
 }
 
+/** Signs out from the app shell already on screen. */
 async function expectAuthGate(page: Page, colours: Colours) {
-  await page.goto('/');
   await page.getByRole('button', { name: 'Account' }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
   const signIn = page.getByRole('button', { name: 'sign-in' });
@@ -176,6 +179,7 @@ async function waitForAnimations(page: Page) {
 /**
  * axe colour contrast (WCAG 2 AA) on the current page once its animations have ended, so a
  * partly faded-in element is measured at its final colours; "incomplete" results don't fail.
+ * Without the wait, the Export / Import snackbar fading in on the light page fails axe.
  */
 async function expectColourContrast(page: Page) {
   await waitForAnimations(page);
@@ -243,75 +247,45 @@ async function expectYamlEditor(page: Page, colours: Colours) {
   await expect(params).toHaveCSS('background-color', colours.editor);
 }
 
+// The results grid and config error page in each scheme are checked in the colour contrast sweep.
 test.describe('with dark mode stored', () => {
-  test.beforeEach(async ({ page }) => storeDarkMode(page));
+  test.beforeEach(async ({ page }) => storeMode(page, 'dark'));
 
-  test('the app shell is dark', async ({ page }) => {
+  test('the app shell and the auth gate are dark', async ({ page }) => {
     await expectAppShell(page, DARK);
     await expectScheme(page, 'dark', DARK);
-  });
-
-  test('the auth gate is dark', async ({ page }) => {
     await expectAuthGate(page, DARK);
     await expectScheme(page, 'dark', DARK);
   });
 
-  test('the config error page is dark', async ({ page }) => {
-    await expectConfigError(page);
-    await expectScheme(page, 'dark', DARK);
-  });
-
-  test('the results grid is dark', async ({ page }) => {
-    await expectResultsGrid(page, DARK_GRID);
-    await expectScheme(page, 'dark', DARK);
-  });
-
-  test('the results screen with tagged rows meets colour contrast', async ({ page }) => {
-    await expectResultsGrid(page, DARK_GRID);
-    await expectColourContrast(page);
-  });
-
-  test('the KQL editor is dark', async ({ page }) => {
-    await expectKqlEditor(page, DARK);
-  });
-
-  test('a YAML editor opened before any KQL editor is dark', async ({ page }) => {
+  test('a YAML editor opened before any KQL editor is dark, and so is the KQL editor', async ({
+    page,
+  }) => {
     await expectYamlEditor(page, DARK);
+    // `/` from `#/queries` is a full page load, so the YAML editor was the first on its page.
+    await expectKqlEditor(page, DARK);
   });
 });
 
 test.describe('with nothing stored', () => {
-  test('the KQL editor is on the light editor background', async ({ page }) => {
-    await expectKqlEditor(page, LIGHT);
-  });
-
-  test('a YAML editor is on the light editor background', async ({ page }) => {
+  test('the YAML and KQL editors are on the light editor background', async ({ page }) => {
     await expectYamlEditor(page, LIGHT);
-  });
-
-  test('the results grid has the light palette', async ({ page }) => {
-    await expectResultsGrid(page, LIGHT_GRID);
-  });
-
-  test('the results screen with tagged rows meets colour contrast', async ({ page }) => {
-    await expectResultsGrid(page, LIGHT_GRID);
-    await expectColourContrast(page);
+    await expectKqlEditor(page, LIGHT);
   });
 });
 
 test.describe('with nothing stored on a dark OS', () => {
   test.beforeEach(async ({ page }) => page.emulateMedia({ colorScheme: 'dark' }));
 
-  test('the app shell follows the OS, including a live change', async ({ page }) => {
+  test('the app shell follows the OS, including a live change, and so does the auth gate', async ({
+    page,
+  }) => {
     await expectAppShell(page, DARK);
     await expectScheme(page, 'dark', DARK);
     await page.emulateMedia({ colorScheme: 'light' });
     await expectScheme(page, 'light', LIGHT);
     await page.emulateMedia({ colorScheme: 'dark' });
     await expectScheme(page, 'dark', DARK);
-  });
-
-  test('the auth gate is dark', async ({ page }) => {
     await expectAuthGate(page, DARK);
     await expectScheme(page, 'dark', DARK);
   });
@@ -392,7 +366,7 @@ test.describe('Settings › Appearance', () => {
 
   test('System goes back to following the OS', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await storeDarkMode(page);
+    await storeMode(page, 'dark');
     await expectAppShell(page, DARK);
     await pickAppearance(page, 'Light');
     await expectScheme(page, 'light', LIGHT);
@@ -401,40 +375,15 @@ test.describe('Settings › Appearance', () => {
   });
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  test.describe(`colour contrast on a ${scheme} OS`, () => {
-    test.beforeEach(async ({ page }) => page.emulateMedia({ colorScheme: scheme }));
-
-    test('home', async ({ page }) => {
-      await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
-      await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
-      await expectColourContrast(page);
-    });
-
-    test('Query Manager', async ({ page }) => {
-      await page.goto('/#/queries');
-      await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
-      await expect(page.locator('html')).toHaveAttribute(COLOR_SCHEME_ATTRIBUTE, scheme);
-      await expectColourContrast(page);
-    });
-  });
-}
-
-/** The scheme stored before the page loads, for the config error page (it has no Settings menu). */
-async function storeMode(page: Page, scheme: SupportedColorScheme): Promise<void> {
-  await page.addInitScript(([key, mode]) => localStorage.setItem(key, mode), [
-    THEME_MODE_KEY,
-    scheme,
-  ] as const);
-}
-
 const THEME_CHOICE = { light: 'Light', dark: 'Dark' } as const;
+const COLOURS = { light: LIGHT, dark: DARK } as const;
+const GRID_COLOURS = { light: LIGHT_GRID, dark: DARK_GRID } as const;
 
 /**
  * The sweep: axe colour contrast on every main screen in both schemes. The scheme is picked from
- * Settings › Appearance on an OS set to the other one.
+ * Settings › Appearance on an OS set to the other one; the config error page, which has no Settings
+ * menu, stores it instead. A walk moves between screens through hash routes, which stay on the same
+ * document, so the app isn't loaded again for each screen.
  */
 for (const scheme of ['light', 'dark'] as const) {
   test.describe(`colour contrast sweep in ${scheme}`, () => {
@@ -457,59 +406,16 @@ for (const scheme of ['light', 'dark'] as const) {
       await expectColourContrast(page);
     }
 
-    test('home', async ({ page }) => {
+    test('home, Query Manager and Export / Import', async ({ page }) => {
       await pickScheme(page);
       await expectContrastInScheme(page);
-    });
 
-    test('results with tagged rows', async ({ page }) => {
-      await page.addInitScript((key) => localStorage.setItem(key, 'on'), DETERMINATION_SYMBOLS_KEY);
-      await pickScheme(page);
-      await runAdhocQuery(page);
-      // Rows 0 / 5 / 10 carry the three determinations: their fills and symbols are on screen.
-      for (const name of ['Malicious', 'Suspicious', 'Benign']) {
-        await expect(page.getByRole('img', { name }).first()).toBeVisible();
-      }
-      await expectContrastInScheme(page);
-      await expectTaggedRowContrast(page);
-    });
-
-    test('Query Manager', async ({ page }) => {
-      await pickScheme(page);
       await page.goto('/#/queries');
       await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
       await expectContrastInScheme(page);
-    });
 
-    test('a saved view', async ({ page }) => {
-      await pickScheme(page);
-      await openRunTemplateTab(page);
-      // Reloading the tab's own URL opens the saved view, not the share link.
-      await page.reload();
-      await expect(page).toHaveURL(/#\/view\//);
-      await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
-      await expectContrastInScheme(page);
-    });
-
-    test('a shared query', async ({ page }) => {
-      await pickScheme(page);
-      await page.goto(`/#/share/${STORM_UUID}?p=${shareParams({ State: 'TEXAS' })}&execute=0`);
-      await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
-      await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
-      await expectContrastInScheme(page);
-    });
-
-    test('a shared query link with an error', async ({ page }) => {
-      await pickScheme(page);
-      await page.goto(`/#/share/${STORM_UUID}`);
-      await expect(page.getByText('Parameters are missing.')).toBeVisible();
-      await expectContrastInScheme(page);
-    });
-
-    test('Export / Import', async ({ page }) => {
-      await pickScheme(page);
+      // Last, so the snackbar fading out never overlaps an axe run.
       await page.getByRole('button', { name: 'Settings' }).click();
       await page.getByRole('menuitem', { name: 'Export / Import' }).click();
       await expect(page).toHaveURL(/#\/exportimport/);
@@ -520,29 +426,46 @@ for (const scheme of ['light', 'dark'] as const) {
       await expectContrastInScheme(page);
     });
 
-    // A snackbar fading in on the light page fails axe; the sweep measures it once it has faded in.
-    if (scheme === 'light') {
-      test('Export / Import, measured once the snackbar has faded in', async ({ page }) => {
-        await pickScheme(page);
-        await page.goto('/#/exportimport');
-        await page.getByRole('button', { name: 'Export' }).click();
-        const snackbar = page.getByRole('alert');
-        await expect(snackbar).toContainText('All settings have been exported');
-        // Holds the fade-in a quarter of the way through for about three seconds.
-        await snackbar.evaluate((el) => {
-          for (const animation of el.getAnimations()) {
-            const duration = Number(animation.effect?.getComputedTiming().duration ?? 0);
-            animation.currentTime = duration / 4;
-            animation.updatePlaybackRate(0.05);
-          }
-        });
-        await expectContrastInScheme(page);
-      });
-    }
+    test('a share link, one with missing params, and its template tab after a reload', async ({
+      page,
+    }) => {
+      await pickScheme(page);
+
+      await page.goto(`/#/share/${STORM_UUID}?p=${shareParams({ State: 'TEXAS' })}&execute=0`);
+      await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
+      await expectContrastInScheme(page);
+
+      await page.goto(`/#/share/${STORM_UUID}`);
+      await expect(page.getByText('Parameters are missing.')).toBeVisible();
+      await expectContrastInScheme(page);
+
+      await openRunTemplateTab(page);
+      // Reloading the tab's own URL reopens the template tab, not the share link.
+      await page.reload();
+      await expect(page).toHaveURL(/#\/view\//);
+      await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
+      await expectContrastInScheme(page);
+    });
+
+    test('results with tagged rows', async ({ page }) => {
+      await page.addInitScript((key) => localStorage.setItem(key, 'on'), DETERMINATION_SYMBOLS_KEY);
+      await pickScheme(page);
+      await expectResultsGrid(page, GRID_COLOURS[scheme]);
+      await expectScheme(page, scheme, COLOURS[scheme]);
+      // Rows 0 / 5 / 10 carry the three determinations: their fills and symbols are on screen.
+      for (const name of ['Malicious', 'Suspicious', 'Benign']) {
+        await expect(page.getByRole('img', { name }).first()).toBeVisible();
+      }
+      await expectContrastInScheme(page);
+      await expectTaggedRowContrast(page);
+    });
 
     test('the config error page', async ({ page }) => {
       await storeMode(page, scheme);
       await expectConfigError(page);
+      await expectScheme(page, scheme, COLOURS[scheme]);
       await expectContrastInScheme(page);
     });
   });

@@ -40,7 +40,7 @@ Each test gets a fresh browser context, so IndexedDB starts empty.
 
 - `shot(page, 'NN-name')` in `e2e/shot.ts` writes screenshots only when `E2E_SHOTS=1`, into `e2e/.screenshots/` (gitignored). Each light `NN-name.png` gets a dark copy `NN-name-dark.png` beside it, for a person to review. There are no `toHaveScreenshot` baselines.
 - Reports go to `test-results/` and `playwright-report/` (gitignored).
-- `e2e/flows/theme.spec.ts` checks the colour scheme. It picks from **Settings › Appearance** or seeds `localStorage['tim-theme-mode']` with `page.addInitScript`, and it emulates the OS scheme with `page.emulateMedia`. It reaches the config error page by serving a `/config.js` without `auth`. The rest of the suite runs light, because Playwright emulates a light OS.
+- `e2e/flows/theme.spec.ts` checks the colour scheme. It picks from **Settings › Appearance** or seeds `localStorage['tim-theme-mode']` with `page.addInitScript`, and it emulates the OS scheme with `page.emulateMedia`. It reaches the config error page by serving a `/config.js` without `auth`. The colour contrast sweep walks several screens on one page through hash routes, and its Export / Import step comes last so the snackbar fading out never overlaps an axe run. The rest of the suite runs light, because Playwright emulates a light OS.
 
 ## Layout
 
