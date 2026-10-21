@@ -31,7 +31,6 @@ def _param(param: Param) -> CatalogueParam:
         from_columns=list(param.from_columns) or None,
         schema_from=list(param.schema_from) or None,
         help=param.help,
-        advanced=True if param.advanced else None,
     )
 
 

@@ -74,18 +74,6 @@
       "CatalogueParam": {
         "description": "A param of an action, as the tab builds its form from it.",
         "properties": {
-          "advanced": {
-            "anyOf": [
-              {
-                "const": true,
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Advanced"
-          },
           "choices": {
             "anyOf": [
               {

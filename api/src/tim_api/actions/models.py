@@ -29,7 +29,6 @@ class CatalogueParam(ApiModel):
     from_columns: list[str] | None = _omitted()
     schema_from: list[str] | None = _omitted()
     help: str | None = _omitted()
-    advanced: Literal[True] | None = _omitted()
 
 
 class CataloguePivot(ApiModel):

@@ -37,7 +37,7 @@ class Param:
     ``default`` and ``choices`` are wire values, as the browser sends them, and are served
     to it unchanged. ``from_columns`` lists the result columns a pivot takes the value from,
     first non-empty one wins. ``schema_from`` names the params that scope a ``kql``/``sql``
-    editor's schema. ``advanced`` tucks an optional param away in the tab.
+    editor's schema.
     """
 
     name: str
@@ -51,7 +51,6 @@ class Param:
     schema_from: tuple[NonBlankStr, ...] = ()
     from_columns: tuple[NonBlankStr, ...] = ()
     help: NonBlankStr | None = None
-    advanced: StrictBool = False
 
     @model_validator(mode="after")
     def _check(self) -> Param:
@@ -71,8 +70,6 @@ class Param:
             raise ValueError(f"many is not allowed for kind {self.kind}")
         if self.schema_from and self.kind not in ("kql", "sql"):
             raise ValueError("schema_from is only for kind kql or sql")
-        if self.advanced and self.required:
-            raise ValueError("advanced params must be optional (required=False)")
         for choice in self.choices:
             try:
                 _CONVERTERS[self.kind](choice)

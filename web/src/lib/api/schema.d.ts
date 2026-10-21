@@ -228,8 +228,6 @@ export interface components {
          * @description A param of an action, as the tab builds its form from it.
          */
         CatalogueParam: {
-            /** Advanced */
-            advanced?: true | null;
             /** Choices */
             choices?: components["schemas"]["JsonValue"][] | null;
             /** Connectiontype */

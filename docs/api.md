@@ -90,7 +90,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `kind` is `query`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
-  - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?, advanced?}]`. `default` and `choices` are values as the browser sends them. `advanced` is present only when `true`.
+  - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
 - `connections` and `labels` are empty.
 - `limits`: `{maxResultRows, maxResultBytes, runTimeoutSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES` and `TIM_QUERY_TIMEOUT_SECONDS`.

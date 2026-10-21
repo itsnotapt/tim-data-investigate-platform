@@ -19,7 +19,6 @@ def test_a_param_with_every_field() -> None:
         default="T | take 10",
         schema_from=("connection", "database"),
         help="Any KQL",
-        advanced=True,
     )
     assert param.title == "Query"
     assert param.from_columns == ()
@@ -48,7 +47,6 @@ def test_the_title_defaults_to_the_name() -> None:
         (("n", "number"), {"choices": (1,), "default": 2}, "default: Must be one of: 1"),
         (("kql", "kql"), {"many": True}, "many is not allowed"),
         (("user", "string"), {"schema_from": ("connection",)}, "only for kind kql or sql"),
-        (("user", "string"), {"advanced": True}, "advanced params must be optional"),
         (("user", "string"), {"from_columns": ("User", " ")}, "from_columns"),
         (("user", "string"), {"title": " "}, "title"),
         (("user", "string"), {"colour": "red"}, "colour"),
