@@ -182,7 +182,7 @@ api:
 
 The workload identity webhook then injects `AZURE_FEDERATED_TOKEN_FILE` (used for OBO when `TIM_AUTH_CLIENT_SECRET` is unset) together with `AZURE_CLIENT_ID` / `AZURE_TENANT_ID`, which `DefaultAzureCredential` uses for tag ingest. Without workload identity, pass `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_CLIENT_SECRET` through `api.extraEnv` / `api.extraEnvFrom` (Compose: not wired; add them to the api environment if tag ingest needs a separate app identity).
 
-Other api limits (`TIM_MAX_REQUEST_BYTES`, `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_QUERY_TIMEOUT_SECONDS`, `TIM_MAX_CONCURRENT_RUNS`, `TIM_RUN_RETENTION_SECONDS`, `TIM_RUN_RETENTION_SWEEP_SECONDS`, `TIM_AUTH_AUTHORITY_HOST`, `TIM_KUSTO_OBO_SCOPE`, `TIM_TAG_INGEST_URL`) keep their defaults unless set through `api.extraEnv`; see [configuration.md](configuration.md).
+Other api limits (`TIM_MAX_REQUEST_BYTES`, `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_CONCURRENT_RUNS`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_RETENTION_SECONDS`, `TIM_RUN_RETENTION_SWEEP_SECONDS`, `TIM_AUTH_AUTHORITY_HOST`, `TIM_KUSTO_OBO_SCOPE`, `TIM_TAG_INGEST_URL`) keep their defaults unless set through `api.extraEnv`; see [configuration.md](configuration.md).
 
 ### Database
 
@@ -221,7 +221,7 @@ helm uninstall tim -n tim
 | `<component>.resources` | api 100m / 256Mi request, 1Gi limit; web 25m / 32Mi, 128Mi | |
 | `<component>.livenessProbe` / `readinessProbe` | health endpoints above | |
 | `<component>.podSecurityContext` / `securityContext` | non-root, seccomp `RuntimeDefault`, no privilege escalation, all capabilities dropped, read-only root filesystem | web mounts an `emptyDir` at `/tmp` |
-| `<component>.extraEnv` / `extraEnvFrom` | empty | Further variables, e.g. `TIM_QUERY_TIMEOUT_SECONDS` |
+| `<component>.extraEnv` / `extraEnvFrom` | empty | Further variables, e.g. `TIM_RUN_TIMEOUT_SECONDS` |
 | `<component>.podLabels`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity`, `topologySpreadConstraints` | empty | Scheduling and metadata |
 | `api.logLevel` | `INFO` | `TIM_LOG_LEVEL` |
 | `api.allowedKustoHosts` | empty (api default `**.kusto.windows.net`) | `TIM_ALLOWED_KUSTO_HOSTS` |

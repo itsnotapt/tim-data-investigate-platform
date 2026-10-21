@@ -406,4 +406,4 @@ class AzureKustoQueryClient:
 
 
 def get_kusto_client(settings: Annotated[Settings, Depends(get_settings)]) -> KustoQueryClient:
-    return AzureKustoQueryClient(timeout_seconds=settings.query_timeout_seconds)
+    return AzureKustoQueryClient(timeout_seconds=settings.run_timeout_seconds)

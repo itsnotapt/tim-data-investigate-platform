@@ -7,7 +7,7 @@ Schema changes go through Alembic (``migrations/``); the app does not create tab
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
@@ -17,19 +17,23 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    ForeignKey,
     Index,
+    Integer,
     MetaData,
+    PrimaryKeyConstraint,
     String,
     Table,
     Text,
     Uuid,
     delete,
+    exists,
     insert,
     select,
     text,
     update,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
@@ -39,10 +43,12 @@ from tim_api.query_runs.models import (
     KustoQueryStats,
     QueryRunStatus,
 )
+from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
     AlreadyExistsError,
     NotFoundError,
     QueryRunStore,
+    RunStore,
     Storage,
     StorageUnavailableError,
     TemplateStore,
@@ -102,6 +108,41 @@ query_runs = Table(
     ),
 )
 
+runs = Table(
+    "runs",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("owner", Text, nullable=False),
+    Column("status", String(16), nullable=False),
+    Column("action", _JSON, nullable=False),
+    Column("params", _JSON, nullable=False),
+    # json, not jsonb: details keep the order they were reported in.
+    Column("details", JSON(none_as_null=True), nullable=False),
+    Column("columns", _JSON),
+    Column("row_count", Integer),
+    Column("error", Text),
+    Column("started_at", _TS, nullable=False),
+    Column("finished_at", _TS),
+    Column("expires_at", _TS, nullable=False),
+    Column("cancel_requested", Boolean, nullable=False, server_default=text("false")),
+    Index("ix_runs_expires_at", "expires_at"),
+    # The startup sweep only ever looks at runs still ``running``.
+    Index("ix_runs_running_started", "started_at", postgresql_where=text("status = 'running'")),
+)
+
+# UNLOGGED: no WAL for result rows, which a crash empties; the rows endpoint then answers 410
+# (ADR-0012).
+run_rows = Table(
+    "run_rows",
+    metadata,
+    Column("run_id", Uuid, ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False),
+    Column("ordinal", Integer, nullable=False),
+    Column("id", Text),
+    Column("data", _JSON, nullable=False),
+    PrimaryKeyConstraint("run_id", "ordinal"),
+    prefixes=["UNLOGGED"],
+)
+
 _TEMPLATE_JSON_COLUMNS = ("path", "params", "fields", "columns")
 _TEMPLATE_EDITABLE = (
     "name",
@@ -146,7 +187,7 @@ def _template_from_row(row: Any) -> QueryTemplate:
     return QueryTemplate.model_validate(dict(row._mapping))
 
 
-def _run_values(run: KustoQueryRun) -> dict[str, Any]:
+def _query_run_values(run: KustoQueryRun) -> dict[str, Any]:
     return {
         "query_run_id": run.query_run_id,
         "requested_by": run.kusto_query.requested_by,
@@ -162,7 +203,7 @@ def _run_values(run: KustoQueryRun) -> dict[str, Any]:
     }
 
 
-def _run_from_row(row: Any) -> KustoQueryRun:
+def _query_run_from_row(row: Any) -> KustoQueryRun:
     m = row._mapping
     return KustoQueryRun(
         query_run_id=m["query_run_id"],
@@ -177,6 +218,45 @@ def _run_from_row(row: Any) -> KustoQueryRun:
             else None
         ),
         main_error=m["main_error"],
+    )
+
+
+def _run_values(run: Run) -> dict[str, Any]:
+    return {
+        "run_id": run.run_id,
+        "owner": run.owner,
+        "status": run.status.value,
+        "action": run.action.model_dump(mode="json"),
+        "params": run.params,
+        "details": run.details,
+        "columns": None,
+        "row_count": run.row_count,
+        "error": run.error,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "expires_at": run.expires_at,
+    }
+
+
+def _run_from_row(row: Any) -> Run:
+    m = row._mapping
+    return Run(
+        run_id=m["run_id"],
+        status=RunStatus(m["status"]),
+        action=RunAction.model_validate(m["action"]),
+        params=m["params"],
+        owner=m["owner"],
+        started_at=m["started_at"],
+        finished_at=m["finished_at"],
+        expires_at=m["expires_at"],
+        details=m["details"],
+        columns=(
+            [RunColumn.model_validate(c) for c in m["columns"]]
+            if m["columns"] is not None
+            else None
+        ),
+        row_count=m["row_count"],
+        error=m["error"],
     )
 
 
@@ -286,7 +366,7 @@ class PostgresQueryRunStore(QueryRunStore):
     async def create(self, run: KustoQueryRun) -> KustoQueryRun:
         try:
             async with self._db.begin() as conn:
-                await conn.execute(insert(query_runs).values(**_run_values(run)))
+                await conn.execute(insert(query_runs).values(**_query_run_values(run)))
         except IntegrityError:
             raise AlreadyExistsError(str(run.query_run_id)) from None
         return run.model_copy(deep=True)
@@ -299,7 +379,7 @@ class PostgresQueryRunStore(QueryRunStore):
         )
         async with self._db.begin() as conn:
             row = (await conn.execute(stmt)).first()
-        return _run_from_row(row) if row else None
+        return _query_run_from_row(row) if row else None
 
     async def update_result(
         self,
@@ -329,7 +409,7 @@ class PostgresQueryRunStore(QueryRunStore):
             row = (await conn.execute(stmt)).first()
         if row is None:
             raise NotFoundError(str(run_id))
-        return _run_from_row(row)
+        return _query_run_from_row(row)
 
     async def delete_expired(self, now: datetime) -> int:
         async with self._db.begin() as conn:
@@ -352,12 +432,156 @@ class PostgresQueryRunStore(QueryRunStore):
         return int(result.rowcount)
 
 
+class PostgresRunStore(RunStore):
+    def __init__(self, db: _Db) -> None:
+        self._db = db
+
+    async def create(self, run: Run) -> Run:
+        try:
+            async with self._db.begin() as conn:
+                await conn.execute(insert(runs).values(**_run_values(run)))
+        except IntegrityError:
+            raise AlreadyExistsError(str(run.run_id)) from None
+        return run.model_copy(deep=True)
+
+    async def get(self, run_id: UUID, now: datetime) -> Run | None:
+        stmt = select(runs).where(runs.c.run_id == run_id, runs.c.expires_at > now)
+        async with self._db.begin() as conn:
+            row = (await conn.execute(stmt)).first()
+        return _run_from_row(row) if row else None
+
+    async def add_rows(self, run_id: UUID, rows: Sequence[RunRow]) -> None:
+        if not rows:
+            return
+        values = [{"run_id": run_id, "ordinal": r.row, "id": r.id, "data": r.data} for r in rows]
+        try:
+            async with self._db.begin() as conn:
+                await conn.execute(insert(run_rows), values)
+        except IntegrityError:
+            raise NotFoundError(str(run_id)) from None
+
+    async def rows(self, run_id: UUID, start: int, end: int) -> list[RunRow]:
+        stmt = (
+            select(run_rows.c.ordinal, run_rows.c.id, run_rows.c.data)
+            .where(
+                run_rows.c.run_id == run_id,
+                run_rows.c.ordinal >= start,
+                run_rows.c.ordinal < end,
+            )
+            .order_by(run_rows.c.ordinal)
+        )
+        async with self._db.begin() as conn:
+            found = (await conn.execute(stmt)).all()
+        return [RunRow(row=r.ordinal, id=r.id, data=r.data) for r in found]
+
+    async def has_rows(self, run_id: UUID) -> bool:
+        stmt = select(exists().where(run_rows.c.run_id == run_id))
+        async with self._db.begin() as conn:
+            return bool((await conn.execute(stmt)).scalar())
+
+    async def finish(
+        self,
+        run_id: UUID,
+        *,
+        status: RunStatus,
+        finished_at: datetime,
+        expires_at: datetime,
+        details: Mapping[str, Any],
+        columns: Sequence[RunColumn] | None = None,
+        row_count: int | None = None,
+        error: str | None = None,
+    ) -> Run:
+        stmt = (
+            update(runs)
+            .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING.value)
+            .values(
+                status=status.value,
+                finished_at=finished_at,
+                expires_at=expires_at,
+                details=dict(details),
+                columns=(
+                    [c.model_dump(mode="json") for c in columns] if columns is not None else None
+                ),
+                row_count=row_count,
+                error=error,
+                cancel_requested=False,
+            )
+            .returning(*runs.c)
+        )
+        async with self._db.begin() as conn:
+            row = (await conn.execute(stmt)).first()
+            if row is None:  # missing, or already ended: unchanged
+                row = (await conn.execute(select(runs).where(runs.c.run_id == run_id))).first()
+                if row is None:
+                    raise NotFoundError(str(run_id))
+            elif status is not RunStatus.SUCCEEDED:
+                await conn.execute(delete(run_rows).where(run_rows.c.run_id == run_id))
+        return _run_from_row(row)
+
+    async def request_cancel(self, run_id: UUID) -> None:
+        stmt = (
+            update(runs)
+            .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING.value)
+            .values(cancel_requested=True)
+        )
+        async with self._db.begin() as conn:
+            await conn.execute(stmt)
+
+    async def cancel_requested(self, run_ids: Collection[UUID]) -> set[UUID]:
+        if not run_ids:
+            return set()
+        stmt = select(runs.c.run_id).where(
+            runs.c.run_id.in_(list(run_ids)),
+            runs.c.status == RunStatus.RUNNING.value,
+            runs.c.cancel_requested.is_(True),
+        )
+        async with self._db.begin() as conn:
+            return set((await conn.execute(stmt)).scalars())
+
+    async def delete_expired(self, now: datetime, limit: int) -> int:
+        # SKIP LOCKED: replicas sweeping at once take different runs.
+        expired = (
+            select(runs.c.run_id)
+            .where(runs.c.expires_at <= now)
+            .order_by(runs.c.expires_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        async with self._db.begin() as conn:
+            result = await conn.execute(
+                delete(runs).where(runs.c.run_id.in_(expired.scalar_subquery()))
+            )
+        return int(result.rowcount)
+
+    async def mark_stale_running_as_error(
+        self, before: datetime, *, message: str, finished_at: datetime, expires_at: datetime
+    ) -> int:
+        stmt = (
+            update(runs)
+            .where(runs.c.status == RunStatus.RUNNING.value, runs.c.started_at < before)
+            .values(
+                status=RunStatus.ERROR.value,
+                error=message,
+                finished_at=finished_at,
+                expires_at=expires_at,
+                cancel_requested=False,
+            )
+            .returning(runs.c.run_id)
+        )
+        async with self._db.begin() as conn:
+            stale = list((await conn.execute(stmt)).scalars())
+            if stale:
+                await conn.execute(delete(run_rows).where(run_rows.c.run_id.in_(stale)))
+        return len(stale)
+
+
 class PostgresStorage(Storage):
     def __init__(self, url: str, *, pool_size: int = 10) -> None:
         self._engine = create_async_engine(url, pool_size=pool_size, pool_pre_ping=True)
         db = _Db(self._engine)
         self.templates = PostgresTemplateStore(db)
-        self.runs = PostgresQueryRunStore(db)
+        self.query_runs = PostgresQueryRunStore(db)
+        self.runs = PostgresRunStore(db)
 
     async def health(self) -> bool:
         try:

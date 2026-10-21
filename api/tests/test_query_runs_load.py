@@ -179,7 +179,7 @@ async def test_concurrent_runs_complete_without_cross_talk() -> None:
     tasks: set[asyncio.Task[Any]] = set()
     slots = asyncio.Semaphore(settings.max_concurrent_runs)
     manager = RunManager(
-        storage.runs,
+        storage.query_runs,
         kusto,  # type: ignore[arg-type]
         settings,
         tasks,
@@ -205,6 +205,8 @@ async def test_concurrent_runs_complete_without_cross_talk() -> None:
         assert run.status is QueryRunStatus.COMPLETED
         assert run.result_data == [{"query": f"T{i}", "token": f"tok{i}"}]
         assert run.kusto_query.requested_by == f"user{i}"
-        stored = await storage.runs.get_for_owner(run.query_run_id, f"user{i}", datetime.now(UTC))
+        stored = await storage.query_runs.get_for_owner(
+            run.query_run_id, f"user{i}", datetime.now(UTC)
+        )
         assert stored is not None
         assert stored.result_data == run.result_data

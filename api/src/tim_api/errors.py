@@ -23,6 +23,7 @@ from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError
 from tim_api.kusto.validation import InvalidClusterError
 from tim_api.models_common import ApiModel
 from tim_api.observability import get_trace_id, log_safe
+from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.storage import AlreadyExistsError, NotFoundError, StorageUnavailableError
 from tim_api.tagged_events.ingest import TagIngestError
 
@@ -36,7 +37,9 @@ _TYPES: dict[int, tuple[str, str]] = {
     403: ("forbidden", "Forbidden"),
     404: ("not-found", "Not found"),
     409: ("conflict", "Conflict"),
+    410: ("gone", "Gone"),
     413: ("too-large", "Payload too large"),
+    422: ("validation", "Validation failed"),
     500: ("internal", "Internal error"),
     502: ("upstream", "Upstream failure"),
     503: ("unavailable", "Service unavailable"),
@@ -83,6 +86,15 @@ def problem_response(
         media_type=PROBLEM_CONTENT_TYPE,
         headers=dict(headers) if headers else None,
     )
+
+
+class UnprocessableError(Exception):
+    """A well-formed request with invalid values: ``422 validation``, with ``errors`` keyed by
+    field, such as ``params.<name>``."""
+
+    def __init__(self, errors: dict[str, list[str]]) -> None:
+        super().__init__("; ".join(errors))
+        self.errors = errors
 
 
 def problem_exception(status_code: int, detail: str) -> StarletteHTTPException:
@@ -163,6 +175,10 @@ def register_exception_handlers(app: FastAPI) -> None:
             slug="cluster-not-allowed",
         )
 
+    async def unprocessable(request: Request, exc: Exception) -> JSONResponse:
+        assert isinstance(exc, UnprocessableError)  # noqa: S101
+        return problem_response(request, 422, "One or more fields are invalid", errors=exc.errors)
+
     async def unhandled(request: Request, exc: Exception) -> JSONResponse:
         return unhandled_response(request, exc)
 
@@ -186,4 +202,13 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(OboUnavailableError, fixed(503, "Token exchange is not available"))
     app.add_exception_handler(TagIngestError, fixed(502, "Tag ingestion failed"))
     app.add_exception_handler(InvalidClusterError, invalid_cluster)
+    app.add_exception_handler(UnprocessableError, unprocessable)
+    app.add_exception_handler(
+        RunNotSucceededError,
+        fixed(409, "The run has not succeeded", slug="run-not-succeeded"),
+    )
+    app.add_exception_handler(
+        ResultsGoneError,
+        fixed(410, "The run's results are no longer available", slug="results-gone"),
+    )
     app.add_exception_handler(Exception, unhandled)

@@ -82,11 +82,28 @@ An analyst's own settings for a query template, such as hiding it from the menus
 **Share link**:
 A link that opens a query template with given params, and optionally runs it.
 
-### Running queries
+### Running actions
+
+**Run**:
+One execution of an action by the server for the analyst who started it. It ends succeeded, in error, timed out or cancelled.
+_Avoid_: action run, job, execution
+
+**Run details**:
+The key-value facts a run reports, such as its duration, row count or a warning.
 
 **Query run**:
-One execution of a query by the server on behalf of the analyst who started it. It ends completed, failed with an error, or timed out.
+One execution of a Kusto tab's or template tab's KQL by the server on behalf of the analyst who started it. It ends completed, failed with an error, or timed out.
 _Avoid_: job
+
+### Results
+
+**`id`**:
+The action-defined key a row is annotated by. It is shared across actions, so rows with the same `id` carry the same annotations.
+_Avoid_: EventId, event id, row id
+
+**Row number**:
+A row's position in its run's results, unique within the run where `id` can repeat.
+_Avoid_: ordinal, row id
 
 ### Tagging
 

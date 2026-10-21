@@ -13,7 +13,7 @@ from tim_api.auth.dependencies import get_current_principal, get_obo_provider
 from tim_api.auth.obo import OboTokenProvider
 from tim_api.auth.principal import Principal
 from tim_api.config import Settings, get_settings
-from tim_api.deps import get_run_store
+from tim_api.deps import get_query_run_store
 from tim_api.errors import problem_exception
 from tim_api.kusto.query_client import KustoQueryClient, get_kusto_client
 from tim_api.kusto.validation import validate_cluster_url
@@ -50,7 +50,7 @@ async def start_query(
     settings: Annotated[Settings, Depends(get_settings)],
     obo: Annotated[OboTokenProvider, Depends(get_obo_provider)],
     kusto: Annotated[KustoQueryClient, Depends(get_kusto_client)],
-    store: Annotated[QueryRunStore, Depends(get_run_store)],
+    store: Annotated[QueryRunStore, Depends(get_query_run_store)],
     tasks: Annotated[set[asyncio.Task[KustoQueryRun]], Depends(get_run_tasks)],
     slots: Annotated[asyncio.Semaphore, Depends(get_run_slots)],
 ) -> KustoQueryRun:
@@ -75,7 +75,7 @@ async def get_query_run(
     query_run_id: Annotated[UUID, Path(alias="queryRunId")],
     response: Response,
     principal: Caller,
-    store: Annotated[QueryRunStore, Depends(get_run_store)],
+    store: Annotated[QueryRunStore, Depends(get_query_run_store)],
 ) -> KustoQueryRun:
     run = await store.get_for_owner(query_run_id, principal.name, datetime.now(UTC))
     if run is None:  # unknown, expired or someone else's: identical

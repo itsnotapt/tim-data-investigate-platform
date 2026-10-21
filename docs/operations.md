@@ -53,7 +53,7 @@ The api never creates or changes tables on its own; a new or upgraded database m
 - Compose: the one-shot `migrate` service runs `alembic upgrade head`; `api` starts after it succeeds. Rerun with `docker compose up migrate`.
 - Kubernetes (Helm): the chart runs the migrations as a Job, `<release>-tim-migrate` (`<fullname>-migrate`), using the api image and only `TIM_DATABASE_URL` from the release Secret. It is a Helm hook with weight 0 and delete policy `before-hook-creation`, and Helm waits for it to finish before the install or upgrade completes:
   - external database: `pre-install,pre-upgrade`, so the schema is current before the api Deployment is created or rolled out;
-  - in-cluster PostgreSQL (`postgresql.enabled`): `post-install,pre-upgrade`, because the database does not exist before an install. An init container waits until PostgreSQL accepts connections. On a first install the api pods start alongside PostgreSQL and pass readiness before the schema exists; until the database is up and migrated they log non-fatal `Stale query-run sweep failed` and `Retention sweep failed` tracebacks (database unavailable), and requests that use the database fail.
+  - in-cluster PostgreSQL (`postgresql.enabled`): `post-install,pre-upgrade`, because the database does not exist before an install. An init container waits until PostgreSQL accepts connections. On a first install the api pods start alongside PostgreSQL and pass readiness before the schema exists; until the database is up and migrated they log non-fatal `Stale query-run sweep failed`, `Stale run sweep failed` and `Retention sweep failed` tracebacks (database unavailable), and requests that use the database fail.
   - `migrations.enabled: false` omits the Job; migrate by other means then.
 - Elsewhere: run the api image with the command `alembic upgrade head` (`alembic.ini` and `migrations/` are in `/app`) and `TIM_DATABASE_URL` set. Alembic reads only `TIM_DATABASE_URL` from the process environment.
 - From a checkout: `cd api && uv run alembic upgrade head`. Check the current revision with `alembic current`.
@@ -95,19 +95,28 @@ docker run --rm <api image> tim-api schema actions > action-file.schema.json
 
 ### Query run retention and cleanup
 
-- Each run has an expiry (`TIM_RUN_RETENTION_SECONDS`, default 24 h) set when it finishes. An expired run is treated as not found immediately.
-- A background task deletes expired rows every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300 s) and logs the count. A failed sweep is logged with a stack trace and retried at the next interval.
-- At api startup, runs still in state `created` that started more than `TIM_QUERY_TIMEOUT_SECONDS` ago (left behind by a restart or crash) are set to `error` with the message `Run interrupted by server restart`, and a warning logs the count. Shutdown cancels runs in flight.
+These apply to runs (`/api/runs`) and query runs (`/api/kusto/query`) alike.
+
+- Each run has an expiry (`TIM_RUN_RETENTION_SECONDS`, default 24 h), refreshed when it finishes. An expired run is treated as not found immediately.
+- A background task deletes expired runs every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300 s) and logs the count. Runs, with their rows, go ten at a time, so no single delete holds locks for long; then the expired query runs go. A failed sweep is logged with a stack trace and retried at the next interval.
+- At api startup, runs still `running` (query runs still `created`) that started more than `TIM_RUN_TIMEOUT_SECONDS` ago, left behind by a restart or crash, are set to `error` with the message `Run interrupted by server restart`, and a warning logs the count.
+- At shutdown, runs in flight are stopped and set to `error` the same way. A run's action keeps running in its thread until the process exits, but its rows are no longer stored.
+- A run that doesn't succeed has its rows deleted when it ends, so only succeeded runs hold rows.
+
+### Rows lost after a crash
+
+A run's rows are in the `UNLOGGED` table `run_rows`, which isn't written to the WAL. After PostgreSQL crashes or fails over to a replica, `run_rows` is empty while `runs` is intact. Rows of succeeded runs then answer `410 results-gone`, and the analyst runs the action again. Nothing needs repairing: the runs expire as usual. A clean PostgreSQL shutdown and restart keeps the rows. Physical backups (`pg_basebackup`) and streaming replicas don't hold them either.
 
 ### Tune limits
 
-Change the `TIM_MAX_*`, `TIM_QUERY_TIMEOUT_SECONDS` and `TIM_RUN_RETENTION_*` variables on the api and restart it (see [configuration.md](configuration.md#http-and-query-run-limits)).
+Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM_RUN_RETENTION_*` variables on the api and restart it (see [configuration.md](configuration.md#http-and-run-limits)).
 
 | Symptom                                      | Variable                                  |
 | -------------------------------------------- | ----------------------------------------- |
-| Results truncated or rejected by size        | `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES` |
-| Queries stopped at the time limit            | `TIM_QUERY_TIMEOUT_SECONDS` (nginx waits 620 s; raising it above 600 also needs a change to `web/docker/nginx.conf.template`) |
-| Runs stay in `created` under heavy use       | `TIM_MAX_CONCURRENT_RUNS` (per api process)  |
+| Runs fail with `Result exceeds limit of …`   | `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`. Query runs (`/api/kusto/query`) stay capped at 100,000 rows and 64 MiB whatever these say. Bigger results need more database space and more memory in the browser |
+| Runs stopped at the time limit               | `TIM_RUN_TIMEOUT_SECONDS` (nginx waits 620 s; raising it above 600 also needs a change to `web/docker/nginx.conf.template`) |
+| Runs stay `running` (query runs `created`) under heavy use | `TIM_MAX_CONCURRENT_RUNS` (per api process, shared by runs and query runs) |
+| Row pages are slow or large                  | `TIM_ROWS_PAGE_SIZE`                      |
 | `413` on requests                            | `TIM_MAX_REQUEST_BYTES` (nginx caps bodies at 25 MB) |
 
 ### Rotate secrets and keys

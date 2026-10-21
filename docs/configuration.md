@@ -89,23 +89,24 @@ See [ADR-0004](adr/0004-postgresql-persistence.md).
 | Variable                          | Default | Required | Description                                                                                                            |
 | --------------------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `TIM_DATABASE_URL`                | none    | yes      | `postgresql+asyncpg://user:password@host:5432/db`. `memory://` (data lost on restart) is accepted only in development. |
-| `TIM_RUN_RETENTION_SWEEP_SECONDS` | `300`   | no       | Interval of the sweep that deletes expired query runs. Must be greater than 0.                                         |
+| `TIM_RUN_RETENTION_SWEEP_SECONDS` | `300`   | no       | Interval of the sweep that deletes expired runs and query runs. Must be greater than 0.                                |
 
-### HTTP and query-run limits
+### HTTP and run limits
 
-All numeric values must be greater than 0.
+All numeric values must be greater than 0. See [ADR-0012](adr/0012-query-run-limits-and-lifecycle.md).
 
-| Variable                    | Default             | Description                                                                                                  |
-| --------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `TIM_CORS_ALLOWED_ORIGINS`  | empty               | Allowed origins. With none, no CORS headers are sent (the web container proxies `/api`, so none are needed). |
-| `TIM_MAX_REQUEST_BYTES`     | `16777216` (16 MiB) | Largest accepted request body; larger requests get 413.                                                      |
-| `TIM_MAX_RESULT_ROWS`       | `100000`            | Row cap for a query result.                                                                                  |
-| `TIM_MAX_RESULT_BYTES`      | `67108864` (64 MiB) | Size cap for a query result.                                                                                 |
-| `TIM_QUERY_TIMEOUT_SECONDS` | `600`               | Execution time limit of a query run.                                                                         |
-| `TIM_RUN_RETENTION_SECONDS` | `86400` (24 h)      | How long a run stays readable.                                                                               |
-| `TIM_MAX_CONCURRENT_RUNS`   | `16`                | Runs executing at once per api process; further runs wait in state `created`.                                |
+| Variable                    | Default               | Description                                                                                                                                         |
+| --------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIM_CORS_ALLOWED_ORIGINS`  | empty                 | Allowed origins. With none, no CORS headers are sent (the web container proxies `/api`, so none are needed).                                        |
+| `TIM_MAX_REQUEST_BYTES`     | `16777216` (16 MiB)   | Largest accepted request body; larger requests get 413.                                                                                             |
+| `TIM_MAX_RESULT_ROWS`       | `1000000`             | Row cap for a run's result. A query run (`/api/kusto/query`) is capped at 100,000 rows, or this when lower.                                         |
+| `TIM_MAX_RESULT_BYTES`      | `536870912` (512 MiB) | Size cap for a run's result, as compact JSON per row, summed. A query run is capped at 64 MiB, or this when lower.                                  |
+| `TIM_RUN_TIMEOUT_SECONDS`   | `600`                 | Execution time limit of a run or query run, counted once it has a concurrency slot.                                                                 |
+| `TIM_RUN_RETENTION_SECONDS` | `86400` (24 h)        | How long a run or query run stays readable after it last changed.                                                                                   |
+| `TIM_MAX_CONCURRENT_RUNS`   | `16`                  | Runs and query runs executing at once per api process, together; further runs wait as `running` (query runs as `created`).                          |
+| `TIM_ROWS_PAGE_SIZE`        | `10000`               | Most rows per page of `GET /api/runs/{runId}/rows`.                                                                                                 |
 
-The web container's nginx allows request bodies up to 25 MB and waits up to 620 s for the api, so keep `TIM_QUERY_TIMEOUT_SECONDS` at or below 600 unless `web/docker/nginx.conf.template` is changed.
+The web container's nginx allows request bodies up to 25 MB and waits up to 620 s for the api, so keep `TIM_RUN_TIMEOUT_SECONDS` at or below 600 unless `web/docker/nginx.conf.template` is changed.
 
 ### Variables outside `TIM_*`
 
@@ -238,5 +239,5 @@ The chart in `deploy/helm/tim` sets the same variable names; the install procedu
 
 - Non-secret variables come from two ConfigMaps (api and web), rendered from values: `config.environment` (`TIM_ENVIRONMENT`), `config.auth.tenantId` / `clientId`, `config.tags.clusterUri` / `database`, `api.logLevel` (`TIM_LOG_LEVEL`), `api.allowedKustoHosts` (`TIM_ALLOWED_KUSTO_HOSTS`; an empty list gives the api default), `api.corsAllowedOrigins`, `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`), `web.helpWikiUri`, `web.helpIssueUri`, `web.defaultClusters` (rendered as JSON) and `web.apiBasePath` (`API_BASEPATH`). `REDIRECT_URI` is `config.publicUrl` (default `https://<ingress.host>`) plus `/blank.html`, and `BACKEND_URI` is the api Service address.
 - Sensitive variables come from one Secret whose keys are the variable names: `TIM_DATABASE_URL` (required), `TIM_AUTH_CLIENT_SECRET` (optional) and `AGGRID_LICENSE` (optional), plus `POSTGRES_PASSWORD` with the in-cluster PostgreSQL. Either the chart creates it from `secrets.databaseUrl`, `secrets.authClientSecret` and `secrets.agGridLicense`, or `secrets.existingSecret` names a Secret you manage (then the chart creates none). The api reads `TIM_AUTH_CLIENT_SECRET` and the web container reads `AGGRID_LICENSE` as optional keys; when a key is absent the variable is not set.
-- Any other api variable (`TIM_MAX_RESULT_ROWS`, `TIM_QUERY_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) is set through `api.extraEnv` / `api.extraEnvFrom`, and web variables through `web.extraEnv` / `web.extraEnvFrom`.
+- Any other api variable (`TIM_MAX_RESULT_ROWS`, `TIM_RUN_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) is set through `api.extraEnv` / `api.extraEnvFrom`, and web variables through `web.extraEnv` / `web.extraEnvFrom`.
 - OBO credential: the chart does not require `TIM_AUTH_CLIENT_SECRET` the way production compose does. In production mode rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret) or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`). With workload identity, the webhook injects `AZURE_FEDERATED_TOKEN_FILE` into the api pod and the api uses it when `TIM_AUTH_CLIENT_SECRET` is unset.

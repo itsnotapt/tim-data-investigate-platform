@@ -24,6 +24,16 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
     ("post", "/api/kusto/schema", "getSchema", {"200"}, {"400", "401", "403", "502"}),
     ("post", "/api/kusto/query", "runQuery", {"200", "202"}, {"400", "401"}),
     ("get", "/api/kusto/query/{queryRunId}", "getQueryRun", {"200"}, {"400", "401", "404"}),
+    ("post", "/api/runs", "startRun", {"200", "202"}, {"400", "401", "422"}),
+    ("get", "/api/runs/{runId}", "getRun", {"200"}, {"400", "401", "404"}),
+    ("post", "/api/runs/{runId}/cancel", "cancelRun", {"200"}, {"400", "401", "404"}),
+    (
+        "get",
+        "/api/runs/{runId}/rows",
+        "getRunRows",
+        {"200"},
+        {"400", "401", "404", "409", "410"},
+    ),
     ("get", "/api/templates/queries", "listTemplates", {"200"}, {"400", "401"}),
     ("get", "/api/templates/queries/{uuid}", "getTemplate", {"200"}, {"400", "401", "404"}),
     ("post", "/api/templates/queries", "createTemplate", {"201"}, {"400", "401", "409"}),
@@ -80,7 +90,8 @@ def test_contract_operation(
     statuses = set(operation["responses"])
     assert success <= statuses
     assert errors <= statuses
-    assert "422" not in statuses  # validation failures are 400 problem+json
+    if "422" not in errors:  # FastAPI's default 422 goes: unparseable bodies are 400
+        assert "422" not in statuses
     for status in errors:
         content = operation["responses"][status]["content"]
         ref = content["application/problem+json"]["schema"]["$ref"]
@@ -130,6 +141,10 @@ def test_request_and_response_schemas(spec: dict[str, Any]) -> None:
     )
     assert ok_schema("/api/kusto/schema", "post", "200")["$ref"].endswith("/SchemaResponse")
     assert ok_schema("/api/instance", "get", "200")["$ref"].endswith("/Instance")
+    assert body_ref("/api/runs", "post").endswith("/StartRun")
+    assert ok_schema("/api/runs", "post", "202")["$ref"].endswith("/Run")
+    assert ok_schema("/api/runs/{runId}", "get", "200")["$ref"].endswith("/Run")
+    assert ok_schema("/api/runs/{runId}/rows", "get", "200")["$ref"].endswith("/RowsPage")
 
 
 def test_action_defined_content_is_open_json(spec: dict[str, Any]) -> None:

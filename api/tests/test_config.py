@@ -45,9 +45,10 @@ def test_defaults_applied() -> None:
     assert s.auth_disabled is False
     assert s.cors_allowed_origins == []
     assert s.allowed_kusto_hosts == list(DEFAULT_ALLOWED_KUSTO_HOSTS) == ["**.kusto.windows.net"]
-    assert s.max_result_rows == 100_000
-    assert s.max_result_bytes == 64 * 1024 * 1024
-    assert s.query_timeout_seconds == 600
+    assert s.max_result_rows == 1_000_000
+    assert s.max_result_bytes == 512 * 1024 * 1024
+    assert s.run_timeout_seconds == 600
+    assert s.rows_page_size == 10_000
     assert s.run_retention_seconds == 86_400
     assert s.kusto_obo_scope == "{cluster}/.default"
 

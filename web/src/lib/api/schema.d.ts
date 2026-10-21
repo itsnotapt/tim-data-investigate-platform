@@ -109,6 +109,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Run
+         * @description Start a run; ``200`` when it ends within about a second, else ``202``.
+         */
+        post: operations["startRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{runId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Run
+         * @description Cancel the run. It is ``cancelled`` once ``Hook.cancel()`` returns or the worker exits,
+         *     which may be after this answers; a run that has ended comes back unchanged.
+         */
+        post: operations["cancelRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{runId}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Rows
+         * @description The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them.
+         */
+        get: operations["getRunRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/taggedevents/comments": {
         parameters: {
             query?: never;
@@ -432,6 +510,8 @@ export interface components {
             maxResultBytes: number;
             /** Maxresultrows */
             maxResultRows: number;
+            /** Rowspagesize */
+            rowsPageSize: number;
             /** Runtimeoutseconds */
             runTimeoutSeconds: number;
         };
@@ -664,6 +744,98 @@ export interface components {
          * @enum {string}
          */
         QueryType: "view" | "query";
+        /**
+         * RowsPage
+         * @description ``lastRow`` is the run's row count.
+         */
+        RowsPage: {
+            /** Lastrow */
+            lastRow: number;
+            /** Rows */
+            rows: components["schemas"]["RunRow"][];
+        };
+        /**
+         * Run
+         * @description A run without its rows. Server-produced only, never a request.
+         *
+         *     ``params`` are the resolved params. ``details`` holds TIM's ``duration`` (seconds) and
+         *     ``rowCount`` first, then the action's own, in the order they were reported. ``columns`` and
+         *     ``rowCount`` are set once the run succeeds; ``error`` is a message safe to show.
+         */
+        Run: {
+            action: components["schemas"]["RunAction"];
+            /** Columns */
+            columns?: components["schemas"]["RunColumn"][] | null;
+            /** Details */
+            details?: {
+                [key: string]: string | number | boolean;
+            };
+            /** Error */
+            error?: string | null;
+            /** Expiresat */
+            expiresAt: string;
+            /** Finishedat */
+            finishedAt?: string | null;
+            /** Owner */
+            owner: string;
+            /** Params */
+            params: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Rowcount */
+            rowCount?: number | null;
+            /**
+             * Runid
+             * Format: uuid
+             */
+            runId: string;
+            /** Startedat */
+            startedAt: string;
+            status: components["schemas"]["RunStatus"];
+        };
+        /** RunAction */
+        RunAction: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * RunColumn
+         * @description A result column: ``declared`` by the action or the run, else inferred from the rows.
+         */
+        RunColumn: {
+            /** Declared */
+            declared: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
+        };
+        /**
+         * RunRow
+         * @description One result row. ``row`` is its row number, unique within the run; ``id`` is what it is
+         *     annotated by, and may repeat.
+         */
+        RunRow: {
+            /** Data */
+            data: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Id */
+            id: string | null;
+            /** Row */
+            row: number;
+        };
+        /**
+         * RunStatus
+         * @description A run waiting for a concurrency slot is ``running`` too.
+         * @enum {string}
+         */
+        RunStatus: "running" | "succeeded" | "error" | "timedOut" | "cancelled";
         /** SavedEvent */
         SavedEvent: {
             /** Eventasjson */
@@ -686,6 +858,18 @@ export interface components {
             /** Schema */
             schema: {
                 [key: string]: unknown;
+            };
+        };
+        /**
+         * StartRun
+         * @description Body of ``POST /api/runs``. The params are validated against the action's.
+         */
+        StartRun: {
+            /** Action */
+            action: string;
+            /** Params */
+            params?: {
+                [key: string]: components["schemas"]["JsonValue"];
             };
         };
     };
@@ -1002,6 +1186,278 @@ export interface operations {
             };
         };
     };
+    startRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartRun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    cancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getRunRows: {
+        parameters: {
+            query?: {
+                startRow?: number;
+                endRow?: number | null;
+            };
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowsPage"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The run's results are no longer available (`results-gone`). */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     commentEvents: {
         parameters: {
             query?: never;
@@ -1278,7 +1734,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Already exists (`conflict`). */
+            /** @description Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`). */
             409: {
                 headers: {
                     [name: string]: unknown;
