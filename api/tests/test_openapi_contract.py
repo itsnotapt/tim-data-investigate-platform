@@ -20,6 +20,7 @@ REGEN = "uv run python -m tim_api.openapi_export"
 
 # (method, path, operationId, success statuses, documented error statuses).
 CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
+    ("get", "/api/instance", "getInstance", {"200"}, {"401"}),
     ("post", "/api/kusto/schema", "getSchema", {"200"}, {"400", "401", "403", "502"}),
     ("post", "/api/kusto/query", "runQuery", {"200", "202"}, {"400", "401"}),
     ("get", "/api/kusto/query/{queryRunId}", "getQueryRun", {"200"}, {"400", "401", "404"}),
@@ -128,6 +129,13 @@ def test_request_and_response_schemas(spec: dict[str, Any]) -> None:
         "/QueryTemplate"
     )
     assert ok_schema("/api/kusto/schema", "post", "200")["$ref"].endswith("/SchemaResponse")
+    assert ok_schema("/api/instance", "get", "200")["$ref"].endswith("/Instance")
+
+
+def test_action_defined_content_is_open_json(spec: dict[str, Any]) -> None:
+    param = spec["components"]["schemas"]["CatalogueParam"]["properties"]
+    assert param["default"] == {"$ref": "#/components/schemas/JsonValue"}
+    assert spec["components"]["schemas"]["JsonValue"] == {}
 
 
 def test_json_names_are_camel_case(spec: dict[str, Any]) -> None:

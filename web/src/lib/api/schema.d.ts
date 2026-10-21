@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/instance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Instance
+         * @description The instance's actions, connections, labels and limits.
+         */
+        get: operations["getInstance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kusto/query": {
         parameters: {
             query?: never;
@@ -182,6 +202,71 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CatalogueAction */
+        CatalogueAction: {
+            /** Connections */
+            connections: string[];
+            /** Description */
+            description?: string | null;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "query";
+            /** Menupath */
+            menuPath: string[];
+            /** Name */
+            name: string;
+            /** Params */
+            params: components["schemas"]["CatalogueParam"][];
+            pivot: components["schemas"]["CataloguePivot"] | null;
+        };
+        /**
+         * CatalogueParam
+         * @description A param of an action, as the tab builds its form from it.
+         */
+        CatalogueParam: {
+            /** Choices */
+            choices?: components["schemas"]["JsonValue"][] | null;
+            /** Connectiontype */
+            connectionType?: string | null;
+            default?: components["schemas"]["JsonValue"];
+            /** Fromcolumns */
+            fromColumns?: string[] | null;
+            /** Help */
+            help?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "string" | "number" | "boolean" | "datetime" | "timespan" | "json" | "kql" | "sql" | "connection";
+            /** Many */
+            many: boolean;
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+            /** Schemafrom */
+            schemaFrom?: string[] | null;
+            /** Title */
+            title: string;
+        };
+        /**
+         * CataloguePivot
+         * @description How an action is offered in the grid's context menu: on one row or several, when the row
+         *     has one column from each group of alternatives.
+         */
+        CataloguePivot: {
+            /** Columns */
+            columns: string[][];
+            /**
+             * Rows
+             * @enum {string}
+             */
+            rows: "row" | "rows";
+        };
         /** EventComment */
         EventComment: {
             /** Comment */
@@ -208,6 +293,49 @@ export interface components {
             /** Tag */
             tag: string;
         };
+        /**
+         * Instance
+         * @description ``version`` changes whenever anything else here, or an installed provider, does.
+         */
+        Instance: {
+            /** Actions */
+            actions: components["schemas"]["CatalogueAction"][];
+            /** Connections */
+            connections: components["schemas"]["InstanceConnection"][];
+            /** Labels */
+            labels: components["schemas"]["InstanceLabel"][];
+            limits: components["schemas"]["Limits"];
+            /** Version */
+            version: string;
+        };
+        /**
+         * InstanceConnection
+         * @description A connection as the browser sees it: never its endpoint or auth.
+         */
+        InstanceConnection: {
+            /** Databases */
+            databases?: string[] | null;
+            /** Editor */
+            editor?: string | null;
+            /** Name */
+            name: string;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+        };
+        /** InstanceLabel */
+        InstanceLabel: {
+            /** Colour */
+            colour: string;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Symbol */
+            symbol?: string | null;
+        };
+        JsonValue: unknown;
         /**
          * KustoClusterDatabase
          * @description Request body of `POST /api/kusto/schema`.
@@ -297,6 +425,15 @@ export interface components {
             } | null;
         } & {
             [key: string]: unknown;
+        };
+        /** Limits */
+        Limits: {
+            /** Maxresultbytes */
+            maxResultBytes: number;
+            /** Maxresultrows */
+            maxResultRows: number;
+            /** Runtimeoutseconds */
+            runTimeoutSeconds: number;
         };
         /**
          * PatchOperation
@@ -596,6 +733,46 @@ export interface operations {
             };
             /** @description Dependency unavailable (`unavailable`). */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Instance"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

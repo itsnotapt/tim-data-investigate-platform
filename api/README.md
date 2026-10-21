@@ -2,13 +2,16 @@
 
 FastAPI backend for TIM. Python 3.12, managed with [uv](https://docs.astral.sh/uv/).
 
+`api/` is a uv workspace: `tim-api` (here) and `tim-actions` ([`tim-actions/`](tim-actions/README.md)), the interface providers build against. One `uv.lock` and one `.venv` serve both; see [development.md](../docs/development.md#the-uv-workspace).
+
 ```bash
-uv sync                                         # install (creates .venv)
+uv sync                                         # install both members (creates .venv)
 uv run uvicorn tim_api.main:app --reload --port 8080   # run
 uv run pytest                                   # test (with coverage, fails under 80%)
 uv run ruff check                               # lint
 uv run ruff format --check                      # format check (drop --check to apply)
 uv run mypy                                     # type check (strict; src + tests)
+(cd tim-actions && uv run pytest && uv run mypy)  # the same for tim-actions; ruff above covers it
 ```
 
 Local stack (PostgreSQL, running api and web together): see [development.md](../docs/development.md).
@@ -88,6 +91,17 @@ once. `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production` (the default en
 settings load and app startup. Routes use it with
 `principal: Principal = Depends(get_current_principal)`; there is no debug endpoint.
 
+## Actions and providers
+
+At startup the lifespan discovers providers through the `tim.actions` entry-point group (`actions/registry.py`, `discover_providers`): each entry point names a callable returning a `tim_actions.Provider`. `build_registry` checks them against each other and indexes their actions, action types and hooks. Any problem raises `ActionsConfigError`, which lists every problem and stops startup:
+
+- an entry point that fails to load, raises, or returns something other than a `Provider`;
+- an action that fails validation again from its fields (so one built with `model_construct` is caught);
+- a key with the `tim.` prefix from any distribution other than `tim-actions`;
+- a duplicate action key, action type `type_name` or connection type.
+
+`create_app(providers=[...])` skips discovery and uses the given providers (none of them built-in); `tests/app_factory.create_test_app` passes none unless a test gives some. `actions/instance.py` builds the `GET /api/instance` body once, at startup (see [api.md](../docs/api.md#instance)). The interface itself, param validation included, is in `tim-actions`.
+
 ## Docker image
 
 ```bash
@@ -95,14 +109,14 @@ docker build -t tim-api api/
 docker run --rm -p 8080:8080 --env-file .env tim-api
 ```
 
-Multi-stage on `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`): the `ghcr.io/astral-sh/uv` image runs `uv sync --locked --no-dev` into `/app/.venv` (bytecode compiled, project installed non-editable); the runtime stage copies only the venv and runs as non-root uid 10001. It serves `uvicorn tim_api.main:app` on port 8080 with `--proxy-headers` and one worker. `HEALTHCHECK` calls `/api/healthChecks/liveness` with the Python standard library. The image takes the same `TIM_*` variables as above (nothing is baked in); `uvicorn` trusts `X-Forwarded-*` only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), so set it to the proxy address in deployment.
+Multi-stage on `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`): the `ghcr.io/astral-sh/uv` image runs `uv sync --locked --no-dev` into `/app/.venv` (bytecode compiled, both workspace members installed non-editable); the runtime stage copies only the venv and runs as non-root uid 10001. It serves `uvicorn tim_api.main:app` on port 8080 with `--proxy-headers` and one worker. `HEALTHCHECK` calls `/api/healthChecks/liveness` with the Python standard library. The image takes the same `TIM_*` variables as above (nothing is baked in); `uvicorn` trusts `X-Forwarded-*` only from `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), so set it to the proxy address in deployment.
 
 ## Models
 
 Pydantic v2 models mirror the schemas in [api.md](../docs/api.md) (camelCase aliases, unknown
-input fields ignored, serialised by alias): `templates/models.py`, `query_runs/models.py`,
-`tagged_events/models.py`, `kusto/models.py`; shared base and UTC datetime type in
-`models_common.py`.
+input fields ignored, serialised by alias): `actions/models.py`, `templates/models.py`,
+`query_runs/models.py`, `tagged_events/models.py`, `kusto/models.py`; shared base and UTC
+datetime type in `models_common.py`.
 
 - Request and response models are separate: `QueryTemplateCreate` (POST), `QueryTemplateReplace`
   (PUT), `QueryTemplate` (stored/returned; also validates PATCH results). Server-owned fields

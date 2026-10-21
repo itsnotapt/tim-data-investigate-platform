@@ -43,7 +43,7 @@ Commands are in [docs/development.md](docs/development.md).
 ## Backend (`api/`)
 
 - Request and response models extend `ApiModel` (`api/src/tim_api/models_common.py`). A request model is separate from the stored model and leaves out fields the server owns, such as identifiers it assigns and audit fields.
-- Kusto queries, on-behalf-of token exchange and tag ingestion sit behind the protocols `KustoQueryClient`, `OboTokenProvider` and `TagIngestClient`; callers depend on the protocol, not the Azure implementation.
+- Actions reach a connection through a `Hook` (`tim_actions.Hook`). Kusto queries, on-behalf-of token exchange and tag ingestion sit behind the protocols `KustoQueryClient`, `OboTokenProvider` and `TagIngestClient`. Callers depend on the `Hook` or the protocol, not the implementation behind it.
 - A change to stored data comes with an Alembic migration in `api/migrations/`.
 - Every storage implementation passes the shared suite in `api/tests/storage_contract.py`.
 

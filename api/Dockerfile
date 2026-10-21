@@ -11,15 +11,19 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-# Dependencies first (cached until pyproject.toml / uv.lock change).
+# Dependencies first (cached until the pyproject.toml files / uv.lock change).
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-dev --no-install-project
+    --mount=type=bind,source=tim-actions/pyproject.toml,target=tim-actions/pyproject.toml \
+    uv sync --locked --no-dev --no-install-workspace
 
-# Then the project itself, installed non-editable so src/ is not needed at runtime.
+# Then the workspace (tim-api and tim-actions), installed non-editable so the sources are not
+# needed at runtime.
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
+COPY tim-actions/pyproject.toml tim-actions/README.md ./tim-actions/
+COPY tim-actions/src ./tim-actions/src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 

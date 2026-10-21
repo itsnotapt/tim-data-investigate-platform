@@ -19,7 +19,8 @@
             "release-type": "python",
             "package-name": "backend",
             "exclude-paths": [
-                "api/tests"
+                "api/tests",
+                "api/tim-actions"
             ],
             "extra-files": [
                 {
@@ -31,6 +32,21 @@
                     "type": "yaml",
                     "path": "/deploy/helm/tim/image-tags.yaml",
                     "jsonpath": "$.backend"
+                }
+            ]
+        },
+        "api/tim-actions": {
+            "release-type": "python",
+            "package-name": "tim-actions",
+            "initial-version": "1.0.0",
+            "exclude-paths": [
+                "api/tim-actions/tests"
+            ],
+            "extra-files": [
+                {
+                    "type": "toml",
+                    "path": "/api/uv.lock",
+                    "jsonpath": "$.package[?(@.name.value=='tim-actions')].version"
                 }
             ]
         },

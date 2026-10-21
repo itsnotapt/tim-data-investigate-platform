@@ -24,6 +24,27 @@ A tab that runs a snapshot of a query template with the analyst's params. Later 
 **Column view**:
 A named, saved arrangement of the results grid's columns, usable in any tab.
 
+### Actions
+
+**Action**:
+A named operation an analyst runs, which takes params and returns rows.
+
+**Param**:
+A named, typed value an action takes, or one a query template's form asks the analyst for.
+_Avoid_: argument, variable
+
+**Action type** (for action authors):
+The reusable Python code behind a family of actions. Each action names one action type and gives its configuration.
+
+**Provider** (for action authors):
+An installable package that adds action types, actions and connection types to an instance.
+_Avoid_: action package, plugin, extension
+
+### Instance
+
+**Instance**:
+One deployment of TIM with its configured actions, connections, labels and limits.
+
 ### Query templates
 
 **Query template**:
@@ -35,10 +56,6 @@ A query template that is a starting point for an investigation, offered in the N
 
 **Query** (template type):
 A query template whose fields are filled from grid rows, offered as a pivot in the grid's context menu.
-
-**Param**:
-A template input the analyst fills in a form.
-_Avoid_: argument, variable
 
 **Field**:
 A template input filled from the clicked or selected grid rows when pivoting.

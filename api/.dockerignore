@@ -7,6 +7,7 @@ __pycache__/
 .coverage
 htmlcov/
 tests/
+tim-actions/tests/
 .env
 .env.*
 !.env.example
