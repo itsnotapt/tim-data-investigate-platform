@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from azure.kusto.data import ClientRequestProperties
 from azure.kusto.data import exceptions as kusto_exc
+from tim_actions.kusto import sanitise_message, serialise_value
 
 from tim_api.kusto.query_client import (
     AzureKustoQueryClient,
@@ -20,8 +21,6 @@ from tim_api.kusto.query_client import (
     get_kusto_client,
     map_sdk_error,
     parse_v2_frames,
-    sanitise_message,
-    serialise_value,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "kusto"

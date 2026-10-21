@@ -1,4 +1,5 @@
 import UndoIcon from '@mui/icons-material/Undo';
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
@@ -14,7 +15,17 @@ import { useState, type ReactNode } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import type { ParamErrors } from '../tabs/types';
 import { DatetimeEditor } from './DatetimeEditor';
-import { hasPill, isUnset, parseParamText, splitPasted, summarize, valueText } from './paramValues';
+import {
+  connectionChoices,
+  databaseSuggestions,
+  hasPill,
+  isUnset,
+  onlyConnection,
+  parseParamText,
+  splitPasted,
+  summarize,
+  valueText,
+} from './paramValues';
 import { TimespanEditor } from './TimespanEditor';
 
 export interface PillsBarProps {
@@ -37,6 +48,8 @@ interface EditorProps {
   param: CatalogueParam;
   value: unknown;
   connections: readonly InstanceConnection[];
+  /** Values suggested for a string param, such as the chosen connection's databases. */
+  suggestions: readonly string[] | null;
   onChange: (value: unknown) => void;
   /** Closes the popover. */
   onDone: () => void;
@@ -52,9 +65,7 @@ function choicesOf(
   connections: readonly InstanceConnection[],
 ): Choice[] | null {
   if (param.kind === 'connection') {
-    return connections
-      .filter((c) => c.type === param.connectionType)
-      .map((c) => ({ value: c.name, label: c.title }));
+    return connectionChoices(param, connections).map((c) => ({ value: c.name, label: c.title }));
   }
   if (param.choices && param.choices.length > 0) {
     return param.choices.map((c) => ({ value: c, label: valueText(c) }));
@@ -204,10 +215,42 @@ function TextEditor({ param, value, onChange }: EditorProps) {
   );
 }
 
+/** One string typed or picked from the suggestions; empty text unsets it. */
+function SuggestEditor({
+  param,
+  value,
+  suggestions,
+  onChange,
+  onDone,
+}: EditorProps & { suggestions: readonly string[] }) {
+  return (
+    <Autocomplete
+      freeSolo
+      openOnFocus
+      options={suggestions}
+      value={typeof value === 'string' ? value : ''}
+      onChange={(_, picked) => {
+        onChange(picked || undefined);
+        if (picked) onDone();
+      }}
+      onInputChange={(_, text, reason) => {
+        if (reason === 'input') onChange(text || undefined);
+      }}
+      sx={{ width: 320, mt: 1 }}
+      renderInput={(input) => (
+        <TextField {...input} autoFocus size="small" label={param.title} helperText={param.help} />
+      )}
+    />
+  );
+}
+
 function Editor(props: EditorProps) {
-  const { param, value, connections, onChange } = props;
+  const { param, value, connections, suggestions, onChange } = props;
   const choices = choicesOf(param, connections);
   if (choices) return <PickList {...props} choices={choices} />;
+  if (suggestions && param.kind === 'string' && !param.many) {
+    return <SuggestEditor {...props} suggestions={suggestions} />;
+  }
   if (param.kind === 'boolean') {
     return (
       <FormControlLabel
@@ -229,7 +272,10 @@ function Editor(props: EditorProps) {
   return <TextEditor {...props} />;
 }
 
-/** One pill per non-editor param, each edited in a popover by its kind. */
+/**
+ * One pill per non-editor param, each edited in a popover by its kind. A connection param set to
+ * the only connection of its type is greyed out.
+ */
 export function PillsBar({
   params,
   values,
@@ -246,11 +292,14 @@ export function PillsBar({
     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, px: 1, py: 0.5 }}>
       {pills.map((p) => {
         const error = errors?.[p.name];
+        const only = onlyConnection(p, connections);
+        const fixed = error === undefined && only !== null && values[p.name] === only.name;
         return (
           <Chip
             key={p.name}
             variant="outlined"
             color={error === undefined ? 'default' : 'error'}
+            disabled={fixed}
             label={`${p.title}: ${summarize(p, values[p.name], connections)}`}
             title={error ?? p.help ?? undefined}
             onClick={(e) => setOpen({ name: p.name, anchor: e.currentTarget })}
@@ -293,6 +342,7 @@ export function PillsBar({
             param={editing}
             value={values[editing.name]}
             connections={connections}
+            suggestions={databaseSuggestions(editing, params, values, connections)}
             onChange={(value) => onChange(editing.name, value)}
             onDone={() => setOpen(null)}
           />

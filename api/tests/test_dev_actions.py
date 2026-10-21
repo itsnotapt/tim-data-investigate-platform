@@ -13,7 +13,7 @@ import pytest
 from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
 
-from tim_api.actions import ActionsConfigError
+from tim_api.actions import InstanceConfigError
 from tim_api.config import SettingsError
 
 
@@ -95,7 +95,7 @@ def test_without_the_flag_there_are_no_dev_actions(
     monkeypatch.delenv("TIM_DEV_ACTIONS")
     assert catalogue(auth) == []
     (dev_env / "sign-ins.yaml").write_text(SIGN_INS)
-    with pytest.raises(ActionsConfigError, match="unknown action type 'dev_rows'"):
+    with pytest.raises(InstanceConfigError, match="unknown action type 'dev_rows'"):
         catalogue(auth)
 
 
@@ -230,7 +230,7 @@ generate: 2
 
 def test_dev_rows_takes_rows_or_generate_not_both(auth: AuthKit, dev_env: Path) -> None:
     (dev_env / "both.yaml").write_text(SIGN_INS + "generate: 2\n")
-    with pytest.raises(ActionsConfigError, match=r"both.yaml:1: give rows or generate, not both"):
+    with pytest.raises(InstanceConfigError, match=r"both.yaml:1: give rows or generate, not both"):
         catalogue(auth)
 
 
@@ -278,7 +278,7 @@ def test_dev_rows_filters_only_on_string_number_and_boolean_params(
 ) -> None:
     (dev_env / "filtered.yaml").write_text(FILTERED.replace("kind: boolean", "kind: datetime"))
     with pytest.raises(
-        ActionsConfigError,
+        InstanceConfigError,
         match=r"filtered.yaml:5: params: from_columns filter only string, number and boolean "
         r"params, not blocked \(datetime\)",
     ):

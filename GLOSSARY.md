@@ -54,6 +54,17 @@ _Avoid_: action package, plugin, extension
 **Instance**:
 One deployment of TIM with its configured actions, connections, labels and limits.
 
+**Connection type**:
+A kind of system TIM can connect to, such as Kusto or Snowflake.
+_Avoid_: backend, source, data source
+
+**Connection**:
+One fixed endpoint of a connection type, configured for the instance with its auth mechanism.
+_Avoid_: cluster
+
+**Connections file**:
+The YAML file named by `TIM_CONNECTIONS_FILE` that lists the instance's connections. Each entry names its connection type, and that type's `Connection` model validates it. It is loaded at startup and checked with `tim-api check --connections`.
+
 ### Query templates
 
 **Query template**:

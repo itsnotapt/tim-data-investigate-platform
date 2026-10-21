@@ -3,8 +3,8 @@
 * One ``msal.ConfidentialClientApplication`` per provider (i.e. per process) with MSAL's shared
   in-memory token cache, so repeat calls are served from cache.
 * Credential: ``TIM_AUTH_CLIENT_SECRET`` if set, else a client assertion read from the federated
-  / workload-identity token file (``AZURE_FEDERATED_TOKEN_FILE``). With neither, construction
-  fails with :class:`OboConfigError` (raised at startup when auth is enabled).
+  / workload-identity token file (``AZURE_FEDERATED_TOKEN_FILE``). With neither, startup fails
+  with :class:`OboConfigError` when a connection uses ``obo``; otherwise OBO is unavailable (503).
 * Scope: ``TIM_KUSTO_OBO_SCOPE`` with ``{cluster}`` replaced by the already validated, normalised
   cluster URL.
 * MSAL is blocking, so calls run in a worker thread.
@@ -56,6 +56,11 @@ class OboConfigError(RuntimeError):
 
 
 class OboTokenProvider(Protocol):
+    def token_for(self, principal: Principal, scope: str) -> str:
+        """An access token for ``scope`` on behalf of ``principal``. Blocking: call it from a
+        worker thread."""
+        ...
+
     async def get_token(self, principal: Principal, cluster_url: str) -> str:
         """Kusto access token for ``cluster_url`` (validated and normalised by the caller)."""
         ...
@@ -126,15 +131,13 @@ class MsalOboTokenProvider:
         return self._scope_template.replace("{cluster}", cluster_url.rstrip("/"))
 
     async def get_token(self, principal: Principal, cluster_url: str) -> str:
+        return await asyncio.to_thread(self.token_for, principal, self.scope_for(cluster_url))
+
+    def token_for(self, principal: Principal, scope: str) -> str:
         if principal.token is None:
             raise OboUnavailableError("No user token available for the OBO exchange")
-        scope = self.scope_for(cluster_url)
         try:
-            result = await asyncio.to_thread(
-                self._exchange,
-                principal.token.get_secret_value(),
-                [scope],
-            )
+            result = self._exchange(principal.token.get_secret_value(), [scope])
         except Exception as exc:
             # Only the exception type is logged: messages may echo request details.
             logger.warning("OBO exchange failed (%s)", type(exc).__name__)
@@ -152,15 +155,32 @@ class MsalOboTokenProvider:
 
 
 class DisabledOboTokenProvider:
-    """Used when auth is disabled (dev): there is no real user token to exchange."""
+    """Used when OBO can't work: auth is disabled (dev), so there is no real user token to
+    exchange, or no client credential is configured and no connection uses ``obo``."""
+
+    def __init__(
+        self,
+        reason: str = "Access on behalf of a user is unavailable while TIM_AUTH_DISABLED=true",
+    ) -> None:
+        self._reason = reason
+
+    def token_for(self, principal: Principal, scope: str) -> str:
+        raise OboUnavailableError(self._reason)
 
     async def get_token(self, principal: Principal, cluster_url: str) -> str:
-        raise OboUnavailableError(
-            "Kusto access on behalf of a user is unavailable while TIM_AUTH_DISABLED=true"
-        )
+        raise OboUnavailableError(self._reason)
 
 
-def build_obo_provider(settings: Settings) -> OboTokenProvider:
+def build_obo_provider(settings: Settings, *, credential_required: bool = True) -> OboTokenProvider:
+    """The OBO provider. Without a client credential, raises :class:`OboConfigError` when
+    ``credential_required`` (a connection uses ``obo``), else gives a provider that is
+    unavailable."""
     if settings.auth_disabled:
         return DisabledOboTokenProvider()
+    if (
+        not credential_required
+        and settings.auth_client_secret is None
+        and not os.environ.get(FEDERATED_TOKEN_FILE_ENV)
+    ):
+        return DisabledOboTokenProvider("No client credential is configured for the OBO exchange")
     return MsalOboTokenProvider(settings)

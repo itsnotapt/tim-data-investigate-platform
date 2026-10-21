@@ -9,13 +9,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from tim_actions import Action, Analyst, ParamsError, validate_params
 
-from tim_api.auth.dependencies import get_current_principal
+from tim_api.auth.dependencies import get_current_principal, get_obo_provider
+from tim_api.auth.obo import OboTokenProvider
 from tim_api.auth.principal import Principal
 from tim_api.config import Settings, get_settings
 from tim_api.deps import get_run_store
 from tim_api.errors import UnprocessableError, problem_exception
 from tim_api.observability import get_trace_id
-from tim_api.runs.connections import Connections, get_connections
+from tim_api.runs.connections import Connections, get_connections, run_connection_names
 from tim_api.runs.models import RowsPage, Run, RunStatus, StartRun
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.runs.runner import Runner
@@ -53,21 +54,24 @@ async def start_run(
     actions: Annotated[dict[str, Action], Depends(get_actions)],
     runner: Annotated[Runner, Depends(get_runner)],
     connections: Annotated[Connections, Depends(get_connections)],
+    obo: Annotated[OboTokenProvider, Depends(get_obo_provider)],
 ) -> Run:
-    """Start a run; ``200`` when it ends within about a second, else ``202``."""
+    """Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``
+    connection's token is got first, so OBO problems answer this request."""
     action = actions.get(body.action)
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
     try:
-        params = validate_params(action.params, body.params, connections={})
+        params = validate_params(action.params, body.params, connections=connections.types())
     except ParamsError as exc:
         raise UnprocessableError(exc.errors) from None
+    run_connections = await connections.open(run_connection_names(action, params), principal, obo)
     run = await runner.start(
         action,
         params,
         analyst=Analyst(name=principal.name, upn=principal.name),
         owner=principal.name,
-        connections=connections,
+        connections=run_connections,
         trace_id=get_trace_id(request),
     )
     response.status_code = 202 if run.status is RunStatus.RUNNING else 200

@@ -118,7 +118,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 
 An action tab runs differently:
 
-1. Run. `runActionTab` sends `POST /api/runs` with the tab's `{action, params}`. A `422` puts each `params.<name>` error in the tab's `paramErrors` when that param has a pill; one for a param without a pill (a `kql` or `sql` param, or one the action no longer declares) joins the tab's error "Couldn't start: …" as `name: reason`, reasons separated by `; `, as does any other start error. When the server refuses only params, the tab keeps its latest `run`; on any other start error `run` stays cleared. The run's envelope goes to the tab's `run` and the tab is saved at once, so a reload finds the run id.
+1. Run. `runActionTab` sends `POST /api/runs` with the tab's `{action, params}`. A `422` puts each `params.<name>` error in the tab's `paramErrors` for every param the action declares, including the Query editor's `kql` or `sql` param, whose border and caption show it; one for a param the action does not declare joins the tab's error "Couldn't start: …" as `name: reason`, reasons separated by `; `, as does any other start error. When the server refuses only params, the tab keeps its latest `run`; on any other start error `run` stays cleared. The run's envelope goes to the tab's `run` and the tab is saved at once, so a reload finds the run id.
 2. Poll. While the run is `running`, `GET /api/runs/{runId}` every second for the first 10 s, then every 3 s. A run that ends in `error`, `timedOut` or `cancelled` becomes the tab's error.
 3. Cancel. `cancelActionTab` sends `POST /api/runs/{runId}/cancel` and sets `cancelling`; polling then sees the run end. If the answer is already an ended run, the tab ends at once. A failed cancel shows "Couldn't cancel: …" and clears `cancelling`.
 4. Store. For a succeeded run the rows are loaded page by page from `GET /api/runs/{runId}/rows`. Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load; the tab shows "Results · 20000 of 85000" until they all have. Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, id, data}` rows, in one write, with the tab's `resultsRunId`, `resultColumns` and row count. A failed or abandoned load shows none of its rows. A tab whose rows are stored needs no API call, so it still shows them after the run has expired on the server.
@@ -145,11 +145,12 @@ The New menu offers an **Actions** group beside Views and Queries. Its folders a
 The action tab has:
 
 - A header: the action's menu path · the action, and the tab's title, with a **Clone** button. Clone adds a sibling tab titled "Copy of <title>" with the same params, not run, and takes focus.
-- A pills bar with one pill per param that is not edited in an editor (`kql` and `sql` params are left out). A pill shows the param's title and value, and opens a popover that edits it by kind: a switch for `boolean`; chips for a many-valued param, where pasted text is split on newlines, tabs, commas and semicolons; a pick list for a param with `choices` and for a `connection` param (the instance's connections of the param's `connectionType`); text for `string` and `number`; for `datetime`, a field, calendar and clock in UTC (Kusto's timezone), where pasting an ISO datetime from a result row sets it; for `timespan`, preset chips for common lookbacks (15 minutes to 30 days) and an amount with a unit, stored as an ISO 8601 duration; JSON text for `json`. A many-valued `datetime` or `timespan` param uses chips like any other. **Run** sits at the right of the bar. While the run is going it is replaced by a spinner with the elapsed time (from the run's `startedAt`) and **Cancel**; Cancel is disabled until the run has an id, and the tab says "Cancelling…" until the run ends. A failed cancel shows "Couldn't cancel: …". When the params differ from those the latest run started with (`runParams`), an **Edited** chip shows; clicking it resets them and clears the pill marks. A param the server refused is marked on its pill (error colour, the reason as its description) until the pill is edited. An action no longer in the catalogue shows a warning and cannot be run.
+- A pills bar with one pill per param that is not edited in an editor (`kql` and `sql` params are left out). A `connection` param whose type has exactly one connection is filled in when the tab opens from the New menu, and its pill is greyed out. A pill shows the param's title and value, and opens a popover that edits it by kind: a switch for `boolean`; chips for a many-valued param, where pasted text is split on newlines, tabs, commas and semicolons; a pick list for a param with `choices` and for a `connection` param (the instance's connections of the param's `connectionType`); text for `string` and `number`; for `datetime`, a field, calendar and clock in UTC (Kusto's timezone), where pasting an ISO datetime from a result row sets it; for `timespan`, preset chips for common lookbacks (15 minutes to 30 days) and an amount with a unit, stored as an ISO 8601 duration; JSON text for `json`. A many-valued `datetime` or `timespan` param uses chips like any other. **Run** sits at the right of the bar. While the run is going it is replaced by a spinner with the elapsed time (from the run's `startedAt`) and **Cancel**; Cancel is disabled until the run has an id, and the tab says "Cancelling…" until the run ends. A failed cancel shows "Couldn't cancel: …". When the params differ from those the latest run started with (`runParams`), an **Edited** chip shows; clicking it resets them and clears the pill marks. A param the server refused is marked on its pill (error colour, the reason as its description) until the pill is edited. An action that is not in the catalogue shows a warning and cannot be run.
+- The inner tab **Query**, for an action with a `kql` or `sql` param: a full-height editor, where Ctrl/Cmd+Enter runs. The `database` param's suggestions are the chosen connection's `databases`. Above the editor a status line shows the latest run: "Succeeded · N rows · duration" with **Show results**, or its error with **Details**, which opens the Run tab ("Couldn't start: …" for an error from the `POST`). A `422` on the query param marks the editor's border and caption.
 - The inner tab **Results · N**, with the row count; while rows are loading it shows how many have arrived out of the total ("Results · 20000 of 85000"), and the grid already shows them.
 - The inner tab **Run · duration**, the details of the latest run: its status (with an icon; "Succeeded, no rows" for an empty success), start, duration and run id; the tab's error; the run's details in the order the action reported them, where a `warning` key gets a warning icon; the columns (name, type, declared or inferred); and the params the run used.
 
-Results shows by default, and Run when the tab has an error: a run that ended in `error`, `timedOut` or `cancelled`, a start error, or results that are gone. The analyst's choice of inner tab holds until the run changes: a run starts, gets its id or ends. The error is shown only on the Run tab.
+Results shows by default, and Run when the tab has an error: a run that ended in `error`, `timedOut` or `cancelled`, a start error, or results that are gone. The analyst's choice of inner tab holds until the run changes: a run starts, gets its id or ends. The error is shown only on the Run tab. A tab with a Query tab never switches inner tab by itself: the status line above the editor reports the run, and its buttons switch tabs.
 
 While a run is going the previous results stay, dimmed and marked `aria-busy`, under "Showing the run from <start> UTC". After a failed run the last good results stay under a note: "The last run failed.", "timed out.", "was cancelled." or "could not start.", or "The last run’s results could not be loaded." for a run that succeeded or was running but whose rows or run could not be loaded, then "Showing the run from <start> UTC".
 
@@ -195,7 +196,7 @@ MSAL popup flow with a `localStorage` token cache. The SPA requests the scope `a
 
 ### Stack
 
-Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv workspace member in `api/tim-actions`), pydantic and pydantic-settings, PyJWT (token validation), `msal` (OBO), `azure-kusto-data` (queries), `azure-kusto-ingest` and `azure-identity` (tag ingestion), SQLAlchemy 2 with asyncpg and Alembic (PostgreSQL), `jsonpatch`.
+Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv workspace member in `api/tim-actions`), pydantic and pydantic-settings, PyJWT (token validation), `msal` (OBO), `azure-kusto-data` (queries, in the `tim-actions` `kusto` extra), `azure-kusto-ingest` and `azure-identity` (tag ingestion), SQLAlchemy 2 with asyncpg and Alembic (PostgreSQL), `jsonpatch`.
 
 ### Module layout (`api/src/tim_api`)
 
@@ -208,10 +209,10 @@ Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv wor
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
-| `cli.py` | The `tim-api` command: `schema actions` and `check` |
+| `cli.py` | The `tim-api` command: `schema actions`, `schema connections` and `check` |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
-| `kusto/` | Cluster validation, query client, `POST /api/kusto/schema` |
-| `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`) |
+| `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
+| `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
 | `templates/` | Template routes and models |
 | `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
@@ -227,11 +228,14 @@ Database migrations are in `api/migrations` (Alembic).
 | `action.py` | `Action`, the base of query action types, with its menu path and pivot columns |
 | `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
 | `columns.py` | `Column` |
-| `hooks.py` | `Hook`, the base of a connection type's access, and `EditorSchema` |
+| `connections.py` | `Connection`, the base of a connection type's entries in the connections file |
+| `connections_file.py` | The connections file: the loader (`load_connections_file`) and the JSON Schema (`connections_file_schema`) |
+| `hooks.py` | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema` |
 | `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
 | `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`) |
+| `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action; needs the `kusto` extra |
 | `builtin.py` | TIM's built-in provider |
 
 ### Request flow and middleware
@@ -242,15 +246,17 @@ The trace id is a valid W3C `traceparent`, else a sane `x-request-id`, else gene
 
 ### Actions and providers
 
-An **action type** is a Python subclass of `tim_actions.Action` that implements `run`; an **action** is a configured instance of one, with a `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id` ([ADR-0017](adr/0017-actions-from-providers.md)). Actions come from **providers**: a package exposes a callable that returns `Provider(actions, action_types, hooks)` in the `tim.actions` entry-point group. TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.
+An **action type** is a Python subclass of `tim_actions.Action` that implements `run`; an **action** is a configured instance of one, with a `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id` ([ADR-0017](adr/0017-actions-from-providers.md)). Actions come from **providers**: a package exposes a callable that returns `Provider(actions, action_types, hooks)` in the `tim.actions` entry-point group. TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way. With the `kusto` extra installed it adds the `kusto` connection type and the action **Run KQL** (`tim.run_kql`); without it the provider is empty.
 
-Loading happens once, in the lifespan, before storage is opened. `discover_providers` calls every entry point; `create_app(providers=...)` skips discovery and takes the given providers instead. `build_registry` then indexes actions by key, file-capable action types by `type_name` and hooks by connection type. Any of these stops startup, with every problem listed and each naming its entry point and distribution (`ActionsConfigError`):
+Loading happens once, in the lifespan, before storage is opened. `discover_providers` calls every entry point; `create_app(providers=...)` skips discovery and takes the given providers instead. `build_registry` then indexes actions by key, file-capable action types by `type_name` and hooks by connection type. Any of these stops startup, with every problem listed and each naming its entry point and distribution (`InstanceConfigError`, which prints `Invalid instance:` and the problems):
 
 - an entry point that fails to load, raises, or doesn't return a `Provider`;
 - an invalid action. `Action`, `Param` and `Column` are pydantic models that check themselves when they are built, and the registry validates each action again from its fields;
 - a key outside lowercase letters, digits, `_`, `-` and `.`, or a `tim.` key from any distribution but `tim-actions`;
 - a duplicate action key, `type_name` or connection type;
 - a file-capable action type without a `File` model.
+
+The **connections file** and the action files then add problems of their own, below.
 
 **Action files** ([actions.md](actions.md#action-files)) come next, once every provider's action types are indexed, so a file can name an action type from any provider. `build_registry` loads, in this order, each provider's package-data directory (`Provider(action_files=...)`) and then `TIM_ACTIONS_DIR`. Each directory is read non-recursively, `*.yaml` and `*.yml` in file name order, skipping dot-entries (so a ConfigMap's `..data` is skipped). `tim_actions.files.load_action_files` parses each file with PyYAML, keeping timestamps as strings, and takes each YAML document as one action:
 
@@ -265,9 +271,18 @@ Each document is validated on its own, so a file reports all of its problems at 
 - a missing sidecar, a sidecar given as a path rather than a file name in the action file's directory, or both `<field>` and `<field>_file`;
 - a key already taken by another file or a Python action, or a `tim.` key outside the built-in distribution's package data.
 
-`tim-api check` (`cli.py`) runs `build_registry` the same way without the rest of the lifespan, so it needs no settings, database or credentials ([operations.md](operations.md#tim-api-check)). `tim-api schema actions` prints `action_files_schema`: one `File` model per installed type, with `type` fixed to its `type_name` and each sidecar field accepting `<field>_file` instead.
+The **connections file** (`TIM_CONNECTIONS_FILE`, [actions.md](actions.md#connections-file)) is read after the providers, so each entry names a connection type from any provider. It is a YAML list; `load_connections_file` validates each entry with the `Connection` model of the hook for its `type`, and a problem is reported as `<file>:<line>: <field>: <message>`. These stop startup:
 
-The registry serves the catalogue in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version), the name (relative to its directory) and content of every action file and sidecar read, and the rest of the body, so it changes whenever the catalogue, an installed provider or a file does. Actions run through `/api/runs` ([Runs and rows](#runs-and-rows)).
+- a file that isn't YAML or UTF-8, isn't a single document, or isn't a list of mappings;
+- a missing or unknown `type`, an unknown field, or a value the type's model rejects (`name` is lowercase letters, digits and `-`; `obo` needs a `scope`, which a connection type may default);
+- a duplicate connection name;
+- an action's fixed connection (`Action.connections()`, which maps each name to the connection type it must have) that isn't in the file or is of another type.
+
+An action with a `connection` param is left out of the catalogue, with an info log line such as `Action tim.run_kql left out: no kusto connection for its connection param`, when the instance has no connection of the param's `connection_type`. Without a connections file there are no connections, so Run KQL is left out.
+
+`tim-api check` (`cli.py`) runs `build_registry` the same way without the rest of the lifespan, so it needs no settings, database or credentials ([operations.md](operations.md#tim-api-check)). `tim-api schema actions` prints `action_files_schema`: one `File` model per installed type, with `type` fixed to its `type_name` and each sidecar field accepting `<field>_file` instead. `tim-api schema connections` prints `connections_file_schema`: a list whose entries are one `Connection` model per installed connection type, told apart by `type`.
+
+The registry serves the catalogue and the connections in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version), the name (relative to its directory) and content of every action file, sidecar and connections file read, and the rest of the body, so it changes whenever the catalogue, an installed provider or a file does. Actions run through `/api/runs` ([Runs and rows](#runs-and-rows)).
 
 Params are declared as data: `Param(name, kind, title, required, default, many, choices, connection_type, schema_from, from_columns, help)`. `kind` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json`, `kql`, `sql` or `connection`. `tim_actions.validate_params` validates and converts the values in a request: a `datetime` is an ISO 8601 string (UTC when it has no offset), a `timespan` an ISO 8601 duration or `HH:MM:SS`, a `many` param a list, and a `connection` param the name of a connection of its `connection_type`. A missing or blank value takes the default; errors are keyed `params.<name>`. The catalogue's `pivot.columns` comes from `Action.pivot_columns()`: each required param's `from_columns` is one group, and a row needs one column from each. Every action sets `pivot`, which has no default: `row` or `rows` offers it on one or several selected rows, and `none` keeps it out of the context menu.
 
@@ -275,13 +290,28 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
 
 - Bearer tokens are validated against the tenant JWKS (RS256 only, cached for one hour, rate-limited refetch on an unknown `kid`). Checked: signature, `aud` (`api://<clientId>` or the bare client id), `iss` (v1 or v2 issuer of the configured tenant), `tid`, and required `exp`, `nbf`, `iat` with 60 s leeway.
 - The caller is a `Principal`: `oid`, `tid`, and a name taken from `unique_name`, then `upn`, then `preferred_username`. The name is the owner and audit identity (`requestedBy`, `createdBy`, `updatedBy`).
-- Query and schema calls exchange the caller's token for a Kusto token with `msal.ConfidentialClientApplication.acquire_token_on_behalf_of`, scope `TIM_KUSTO_OBO_SCOPE` (default `{cluster}/.default`). One MSAL app (and token cache) per process; credential is `TIM_AUTH_CLIENT_SECRET` or a federated token file (`AZURE_FEDERATED_TOKEN_FILE`); startup fails with neither (when auth is enabled).
+- Runs exchange the caller's token for each `obo` connection's scope with `msal.ConfidentialClientApplication.acquire_token_on_behalf_of`, through `OboTokenProvider.token_for(principal, scope)` (blocking, so callers use a worker thread). The Kusto tab's query and schema calls use `get_token(principal, cluster_url)`, with scope `TIM_KUSTO_OBO_SCOPE` (default `{cluster}/.default`). One MSAL app (and token cache) per process; credential is `TIM_AUTH_CLIENT_SECRET` or a federated token file (`AZURE_FEDERATED_TOKEN_FILE`). Startup fails with neither when auth is enabled and a connection uses `obo` (`OboConfigError`); otherwise OBO answers `503` when it is used.
+- A hook never sees the caller's token: it is given a `token_for(scope)` callable. Before `POST /api/runs` creates a run, TIM validates the params, works out the run's connections (the action's fixed ones and its `connection` params' values) and gets each `obo` connection's token, so consent, MFA and missing-token errors answer the `POST` ([ADR-0009](adr/0009-obo-token-exchange.md)). The hook's own calls are then served from the token cache.
 - OBO failures: `invalid_grant` or `interaction_required` gives `403 consent-required` (the SPA prompts again); an Entra or network failure gives `502`; OBO not available (auth disabled, or no token) gives `503`.
 - `TIM_AUTH_DISABLED=true` runs every request as the analyst its stub token (`dev:<upn>`) names, or a fixed development user without one, and disables OBO. Settings validation fails at startup when it is combined with `TIM_ENVIRONMENT=production` (the default environment).
 
-### Kusto client and cluster validation
+### Connections and hooks
 
-`validate_cluster_url` runs before any token exchange and returns the normalised `https://<host>`. The rules are listed in [api.md](api.md#cluster-validation). The allow-list is `TIM_ALLOWED_KUSTO_HOSTS`, a list of host patterns (exact, `*.domain`, `**.domain`; default `**.kusto.windows.net`). A rejected cluster gives `400 cluster-not-allowed`.
+A **connection** is one fixed endpoint of a connection type, listed in the connections file ([ADR-0018](adr/0018-fixed-connections.md)). A **hook** (`tim_actions.Hook`) is the access to one connection of a connection type, built per run as the analyst. A hook class sets `connection_type`, its `Connection` model (the type's entries in the file, extending `tim_actions.Connection` with `name`, `title`, `type`, `auth`, `scope` and its own fields) and `editor` (`kql` for Kusto). It is built with its connection and a `token_for(scope)` callable.
+
+`Connections` (`runs/connections.py`) holds the instance's connections and hooks. For a run it opens the connections the run uses, gets each `obo` connection's token on a worker thread, and gives the run a `RunConnections`, whose `hook(name)` builds a new hook. An action reaches a connection only through `ctx.hook(name)`, which refuses a connection the run didn't declare: one in the action's `connections()` or named by one of its `connection` params.
+
+The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fields `cluster`, `databases` (optional) and `scope` (optional), and the auth `obo`:
+
+- `cluster` gets the URL shape checks and normalisation to `https://<host>` ([api.md](api.md#cluster-validation)) when the file is read. There is no allow-list: the operator names each cluster.
+- `scope` defaults to `{cluster}/.default`.
+- `databases` are suggestions the browser offers for the `database` param; they don't restrict it.
+
+`KustoHook` runs the synchronous `azure-kusto-data` client on a worker thread with a token from `token_for`. It passes the time left until the run's deadline as the Kusto server timeout and sets the client request id `TIM.RunKql;<uuid>`; `cancel()` sends `.cancel query` for the queries in flight and refuses new ones. Result values are serialised (datetime, timespan, decimal, dynamic, guid), every `PrimaryResult` table is concatenated, and columns are declared from Kusto's types. The query's execution metrics are reported as run details: `executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`. Kusto errors become sanitised messages (stack-trace lines removed, capped at 2000 characters).
+
+**Run KQL** (`tim.run_kql`) is the built-in action on a Kusto connection. Its params are `connection` (a Kusto connection), `database`, `kql` (a `kql` param scoped by the `connection` and `database` params) and an optional `idColumn`, the column that gives each row its `id`; without it rows have no `id`. It sets `pivot: none`.
+
+The Kusto tab runs free-text KQL through `validate_cluster_url`, which runs before any token exchange and returns the normalised `https://<host>`, with the rules in [api.md](api.md#cluster-validation). The allow-list is `TIM_ALLOWED_KUSTO_HOSTS`, a list of host patterns (exact, `*.domain`, `**.domain`; default `**.kusto.windows.net`). A rejected cluster gives `400 cluster-not-allowed`.
 
 `AzureKustoQueryClient` runs the synchronous `azure-kusto-data` client in a worker thread with the user's token. Result values are serialised (datetime, timespan, decimal, dynamic, guid), and every `PrimaryResult` table is concatenated. `StartTime` and `EndTime` are passed as query parameters, so KQL must `declare query_parameters(StartTime:datetime, EndTime:datetime)` to use them. Kusto errors become sanitised messages (stack-trace lines removed, capped at 2000 characters).
 
@@ -359,8 +389,9 @@ Every non-2xx response is `application/problem+json` with `type` (`urn:tim:probl
 
 - Identity comes from the validated token only. `requestedBy`, `createdBy`, `updatedBy`, `updated` and `dateTimeUtc` sent by a client are ignored (the SPA also strips them).
 - Runs and query runs are owner-scoped: another user's run id is indistinguishable from an unknown one (`404`).
-- Cluster URLs are validated against an allow-list before any token is acquired or sent, so the API cannot be used to forward user tokens to arbitrary hosts.
-- Kusto access runs as the user (OBO); only tag ingestion and table creation use the app identity.
+- A run reaches only the connections in the connections file, whose endpoints the operator chose; analysts never name an endpoint, so the API cannot be used to forward user tokens to arbitrary hosts. Hooks get a `token_for(scope)` callable and never see the analyst's token. `GET /api/instance` shows a connection's name, title, type, editor and databases, never its cluster, auth or scope.
+- The Kusto tab's cluster URLs are validated against an allow-list before any token is acquired or sent, for the same reason.
+- Connections run as the user (OBO); only tag ingestion and table creation use the app identity.
 - The development auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store fail startup in production. The SPA's auth stub throws in a production build.
 - Request bodies are capped: `TIM_MAX_REQUEST_BYTES` on the API (default 16 MiB, `413`), `client_max_body_size 25m` on nginx. Tagged-event batches are limited to 1000 items and each `eventAsJson` to 1,000,000 bytes serialised; queries to 100,000 characters.
 - API responses carry `x-content-type-options: nosniff` and `cache-control: no-store`.

@@ -9,12 +9,16 @@ dependencies = [
     "pyyaml>=6.0.3",
 ]
 
+[project.optional-dependencies]
+kusto = ["azure-kusto-data>=6.0.4"]
+
 # TIM's built-in provider registers the same way as any other.
 [project.entry-points."tim.actions"]
 tim = "tim_actions.builtin:provider"
 
 [dependency-groups]
 dev = [
+    "tim-actions[kusto]",
     "mypy>=2.4.0",
     "pytest",
     "pytest-cov>=7.1.0",

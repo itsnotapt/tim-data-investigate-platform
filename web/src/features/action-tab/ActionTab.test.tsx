@@ -1,14 +1,25 @@
 import 'fake-indexeddb/auto';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueAction, Instance, Run } from '../../lib/api';
+import { apiUrl, problemResponse } from '../../test/msw/handlers';
+import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { useInstanceStore } from '../instance';
 import type { TabState } from '../tabs';
 import { useTabsStore } from '../tabs/tabStore';
 import { ActionTab } from './ActionTab';
 import { runRowsStore } from './runRows';
+
+// Monaco cannot run in jsdom.
+vi.mock('../../components/CodeEditor', async () =>
+  (await import('../../test/fakeCodeEditor')).fakeCodeEditorModule(),
+);
+
+const server = setupMswServer();
 
 const action: CatalogueAction = {
   key: 'dev-sign-ins',
@@ -19,10 +30,37 @@ const action: CatalogueAction = {
   params: [{ name: 'users', title: 'Users', kind: 'string', required: false, many: true }],
   pivot: null,
 };
+const runKql: CatalogueAction = {
+  key: 'tim.run_kql',
+  kind: 'query',
+  name: 'Run KQL',
+  menuPath: [],
+  connections: [],
+  params: [
+    {
+      name: 'connection',
+      title: 'Connection',
+      kind: 'connection',
+      connectionType: 'kusto',
+      required: true,
+      many: false,
+    },
+    { name: 'database', title: 'Database', kind: 'string', required: true, many: false },
+    {
+      name: 'kql',
+      title: 'Query',
+      kind: 'kql',
+      required: true,
+      many: false,
+      schemaFrom: ['connection', 'database'],
+    },
+  ],
+  pivot: null,
+};
 const instance: Instance = {
   version: 'v1',
-  actions: [action],
-  connections: [],
+  actions: [action, runKql],
+  connections: [{ name: 'security', type: 'kusto', title: 'Security', databases: ['Samples'] }],
   labels: [],
   limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 10, runTimeoutSeconds: 600 },
 };
@@ -41,16 +79,21 @@ function Location() {
   return <output aria-label="Location">{useLocation().pathname}</output>;
 }
 
-function setup(state: Partial<TabState> = {}, key = 'dev-sign-ins') {
+function setup(
+  state: Partial<TabState> = {},
+  key = 'dev-sign-ins',
+  { params = { users: ['alice'] }, run = true }: { params?: object; run?: boolean } = {},
+) {
   const uuid = useTabsStore.getState().createTab({
     componentName: 'ActionResult',
     parentUuid: null,
     title: 'Sign-ins for alice',
-    params: { action: key, params: { users: ['alice'] } },
+    params: { action: key, params: params as Record<string, unknown> },
     state,
   });
-  const onRun = vi.fn();
-  const onCancel = vi.fn();
+  // Without `run`, Run and Cancel go to the server (msw).
+  const onRun = run ? vi.fn() : undefined;
+  const onCancel = run ? vi.fn() : undefined;
   render(
     <MemoryRouter initialEntries={[`/view/${uuid}`]}>
       <Routes>
@@ -291,5 +334,118 @@ describe('ActionTab', () => {
     });
     expect(screen.getByRole('tab', { name: 'Results · 3' })).toBeInTheDocument();
     expect(await screen.findByText('carol')).toBeInTheDocument();
+  });
+});
+
+describe('ActionTab with a query param', () => {
+  const kql = { connection: 'security', database: 'Samples', kql: 'StormEvents | take 2' };
+  const setupKql = (state: Partial<TabState> = {}, run = true) =>
+    setup(state, 'tim.run_kql', { params: kql, run });
+  const kqlRun: Run = {
+    ...succeeded,
+    action: { key: 'tim.run_kql', name: 'Run KQL' },
+    params: kql,
+    rowCount: 2,
+    details: { duration: 0.75 },
+  };
+
+  beforeEach(() => configureTestApp());
+  afterEach(resetTestApp);
+
+  it('edits the query in the Query tab, without a pill, and runs it on Ctrl+Enter', async () => {
+    const { uuid, onRun } = setupKql();
+    expect(selectedTab()).toHaveAccessibleName('Query');
+    expect(screen.queryByRole('button', { name: /^Query:/ })).not.toBeInTheDocument();
+    const editor = screen.getByRole('textbox', { name: 'Query' });
+    await userEvent.clear(editor);
+    await userEvent.type(editor, 'StormEvents | count');
+    expect(useTabsStore.getState().tabs[uuid]?.params).toMatchObject({
+      params: { kql: 'StormEvents | count' },
+    });
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    expect(onRun).toHaveBeenCalledTimes(1);
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(onRun).toHaveBeenCalledTimes(2);
+  });
+
+  it('greys out the only connection', () => {
+    setupKql();
+    expect(screen.getByRole('button', { name: 'Connection: Security' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+  });
+
+  it('stays on the Query tab after a run, saying how it went, with Show results', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(kqlRun)),
+      http.get(apiUrl('/api/runs/r1/rows'), () =>
+        HttpResponse.json({
+          rows: [
+            { row: 0, id: null, data: { State: 'TEXAS' } },
+            { row: 1, id: null, data: { State: 'IOWA' } },
+          ],
+          lastRow: 2,
+        }),
+      ),
+    );
+    setupKql({}, false);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    expect(await screen.findByText('Succeeded · 2 rows · 0.8 s')).toBeInTheDocument();
+    expect(selectedTab()).toHaveAccessibleName('Query');
+    await userEvent.click(screen.getByRole('button', { name: 'Show results' }));
+    expect(selectedTab()).toHaveAccessibleName('Results · 2');
+  });
+
+  it('stays on the Query tab when the run could not start, with Details', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () =>
+        problemResponse(403, {
+          type: 'urn:tim:problem:consent-required',
+          title: 'Consent required',
+          detail: 'Consent or sign-in is required for the downstream service',
+        }),
+      ),
+    );
+    setupKql({}, false);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't start: Consent or sign-in is required for the downstream service",
+    );
+    expect(selectedTab()).toHaveAccessibleName('Query');
+    await userEvent.click(screen.getByRole('button', { name: 'Details' }));
+    expect(selectedTab()).toHaveAccessibleName('Run');
+  });
+
+  it('shows why a run failed above the editor', () => {
+    setupKql({
+      run: { ...kqlRun, status: 'error', rowCount: undefined, error: 'Semantic error' },
+      error: { message: 'Semantic error' },
+    });
+    expect(selectedTab()).toHaveAccessibleName('Query');
+    expect(within(screen.getByRole('alert')).getByText('Semantic error')).toBeInTheDocument();
+  });
+
+  it('marks the editor when the server refuses the query, until it is edited', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () =>
+        problemResponse(422, {
+          type: 'urn:tim:problem:validation',
+          errors: { 'params.kql': ['Must not be empty'] },
+        }),
+      ),
+    );
+    setupKql({}, false);
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    const editor = await screen.findByRole('group', { name: 'Query' });
+    await vi.waitFor(() => expect(editor).toHaveAttribute('aria-invalid', 'true'));
+    expect(editor).toHaveAccessibleDescription('Must not be empty');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Query' }), ' ');
+    expect(editor).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('has no Query tab for an action without a query param', () => {
+    setup();
+    expect(screen.queryByRole('tab', { name: 'Query' })).not.toBeInTheDocument();
   });
 });

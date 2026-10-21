@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # --- actions (ADR-0017) --------------------------------------------------------------
     # One flat directory of action files, read at startup.
     actions_dir: Path | None = None
+    # The connections file (ADR-0018): the instance's connections, read at startup.
+    connections_file: Path | None = None
     # Dev only: registers the development actions (ADR-0011). Rejected in production.
     dev_actions: bool = False
 
@@ -102,7 +104,9 @@ class Settings(BaseSettings):
     def _parse_lists(cls, value: object) -> object:
         return _split_list(value)
 
-    @field_validator("auth_client_secret", "tag_ingest_url", "actions_dir", mode="before")
+    @field_validator(
+        "auth_client_secret", "tag_ingest_url", "actions_dir", "connections_file", mode="before"
+    )
     @classmethod
     def _empty_is_unset(cls, value: object) -> object:
         """Compose/Helm pass unset optional variables as empty strings."""
@@ -120,6 +124,13 @@ class Settings(BaseSettings):
     def _existing_directory(cls, value: Path | None) -> Path | None:
         if value is not None and not value.is_dir():
             raise ValueError(f"no directory {value}")
+        return value
+
+    @field_validator("connections_file")
+    @classmethod
+    def _existing_file(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_file():
+            raise ValueError(f"no file {value}")
         return value
 
     @field_validator("tag_cluster_uri", "tag_ingest_url", "auth_authority_host")

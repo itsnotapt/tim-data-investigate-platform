@@ -18,6 +18,11 @@ from tim_api.tagged_events.ingest import (
     serialize_ndjson,
 )
 
+# Read before the autouse fixture in conftest.py clears TIM_* variables.
+LIVE_INGEST_URL = os.environ.get("TIM_TEST_KUSTO_INGEST_URL")
+LIVE_DATABASE = os.environ.get("TIM_TEST_KUSTO_DATABASE", "Research")
+LIVE_TABLE = os.environ.get("TIM_TEST_KUSTO_TABLE", "EventTag")
+
 ROWS: list[dict[str, Any]] = [
     {"eventId": "e1", "tag": "café ☃ \U0001f600"},
     {"eventId": "e2", "tag": 'quote " and \\ slash'},
@@ -143,17 +148,12 @@ def test_selects_fake_only_in_development_with_flag(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.kusto
-@pytest.mark.skipif(
-    not os.environ.get("TIM_TEST_KUSTO_INGEST_URL"),
-    reason="TIM_TEST_KUSTO_INGEST_URL not set",
-)
+@pytest.mark.skipif(not LIVE_INGEST_URL, reason="TIM_TEST_KUSTO_INGEST_URL not set")
 async def test_real_ingest_accepts_rows() -> None:
     """Queues one row (needs AZURE_* identity with ingestor rights and an existing table)."""
-    c = AzureTagIngestClient(
-        os.environ["TIM_TEST_KUSTO_INGEST_URL"],
-        os.environ.get("TIM_TEST_KUSTO_DATABASE", "Research"),
-    )
-    table = os.environ.get("TIM_TEST_KUSTO_TABLE", "EventTag")
+    assert LIVE_INGEST_URL
+    c = AzureTagIngestClient(LIVE_INGEST_URL, LIVE_DATABASE)
+    table = LIVE_TABLE
     await c.ingest(
         table,
         f"{table}Mapping",

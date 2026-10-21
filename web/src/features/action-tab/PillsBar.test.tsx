@@ -15,7 +15,7 @@ const param = (
 });
 
 const connections: InstanceConnection[] = [
-  { name: 'prod', type: 'kusto', title: 'Production' },
+  { name: 'prod', type: 'kusto', title: 'Production', databases: ['Samples', 'Logs'] },
   { name: 'test', type: 'kusto', title: 'Test' },
   { name: 'wh', type: 'snowflake', title: 'Warehouse' },
 ];
@@ -165,6 +165,48 @@ describe('PillsBar', () => {
     await userEvent.click(within(popover()).getByRole('option', { name: 'Test' }));
     expect(values()).toEqual({ connection: 'test' });
     expect(screen.getByRole('button', { name: 'Connection: Test' })).toBeInTheDocument();
+  });
+
+  it('greys out a connection pill with only one choice', async () => {
+    render(
+      <Harness
+        params={[
+          param({
+            name: 'warehouse',
+            kind: 'connection',
+            title: 'Warehouse',
+            connectionType: 'snowflake',
+          }),
+        ]}
+        initial={{ warehouse: 'wh' }}
+      />,
+    );
+    const pill = screen.getByRole('button', { name: 'Warehouse: Warehouse' });
+    expect(pill).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.setup({ pointerEventsCheck: 0 }).click(pill);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('suggests the chosen connection’s databases for the query’s database param', async () => {
+    render(
+      <Harness
+        params={[
+          param({ name: 'connection', kind: 'connection', connectionType: 'kusto' }),
+          param({ name: 'database', kind: 'string', title: 'Database' }),
+          param({ name: 'kql', kind: 'kql', schemaFrom: ['connection', 'database'] }),
+        ]}
+        initial={{ connection: 'prod' }}
+      />,
+    );
+    await openPill(/Database/);
+    await userEvent.click(screen.getByRole('option', { name: 'Logs' }));
+    expect(values()).toEqual({ connection: 'prod', database: 'Logs' });
+
+    await openPill(/Database/);
+    const typed = within(popover()).getByRole('combobox', { name: 'Database' });
+    await userEvent.clear(typed);
+    await userEvent.type(typed, 'Other');
+    expect(values()).toEqual({ connection: 'prod', database: 'Other' });
   });
 
   it.each([

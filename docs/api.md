@@ -29,7 +29,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/healthChecks/liveness` | 204 | none | Process is up. No checks; no auth. |
 | GET | `/api/healthChecks/readiness` | 204 | 503 | Storage is reachable. Kusto is not checked; no auth. |
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
-| POST | `/api/runs` | 200 or 202 | 400, 401, 422 | Start a run of an action. |
+| POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
 | GET | `/api/runs/{runId}` | 200 | 400, 401, 404 | Read a run. |
 | POST | `/api/runs/{runId}/cancel` | 200 | 400, 401, 404 | Cancel a run (idempotent). |
 | GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows. |
@@ -70,7 +70,7 @@ Every non-2xx response has this body:
 | 400 | `validation` | Invalid body, query or path; malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`. |
 | 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
-| 403 | `consent-required` | The token cannot be exchanged for the cluster (sign-in or consent needed). The SPA prompts again. |
+| 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
 | 403 | `forbidden` | Kusto denied the user access to the cluster or database. |
 | 404 | `not-found` | Unknown template, or a run or query run that is unknown, expired or owned by someone else. |
 | 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
@@ -79,8 +79,8 @@ Every non-2xx response has this body:
 | 413 | `too-large` | Request body over the size limit. |
 | 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
-| 502 | `upstream` | Entra unreachable, Kusto schema failure, or tag ingestion failure. |
-| 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled). |
+| 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
+| 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
 
 ## Instance
 
@@ -89,10 +89,10 @@ Every non-2xx response has this body:
 What the browser needs to know about this instance, built once at startup from the installed providers and the action files ([architecture.md](architecture.md#actions-and-providers)):
 
 ```
-{version, actions: [Action], connections: [], labels: [], limits}
+{version, actions: [Action], connections: [Connection], labels: [], limits}
 ```
 
-- `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, and the rest of this body. It changes when any of them does, for example after a rolling update.
+- `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, and the rest of this body. It changes when any of them does, for example after a rolling update.
 - `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?}`:
   - `kind` is `query`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
@@ -100,7 +100,8 @@ What the browser needs to know about this instance, built once at startup from t
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the result columns the action declares ([actions.md](actions.md#columns)); it is left out when the action declares none.
-- `connections` and `labels` are empty.
+- `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql`). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
+- `labels` is empty.
 - `limits`: `{maxResultRows, maxResultBytes, rowsPageSize, runTimeoutSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_ROWS_PAGE_SIZE` and `TIM_RUN_TIMEOUT_SECONDS`.
 
 Keys marked `?` are left out when they have no value.
@@ -111,7 +112,7 @@ A run is one execution of an action by the server ([architecture.md](architectur
 
 ### POST /api/runs
 
-Body: `{"action": "<key>", "params": {...}}`. `params` maps param names to values as the browser sends them, and may be left out when the action takes none. An unknown action or invalid params give `422` before a run exists, with every problem in `errors`:
+Body: `{"action": "<key>", "params": {...}}`. `params` maps param names to values as the browser sends them, and may be left out when the action takes none. An unknown action or invalid params give `422` before a run exists, with every problem in `errors` (a `connection` param must name a connection of its type):
 
 ```json
 {
@@ -128,7 +129,7 @@ Body: `{"action": "<key>", "params": {...}}`. `params` maps param names to value
 }
 ```
 
-Otherwise the response is the [Run](#run): `200` when it ended within about one second, else `202` with `status: "running"`; poll `GET /api/runs/{runId}`.
+Before the run exists, TIM works out its connections (the action's fixed ones and its `connection` params' values) and gets a token for each `obo` connection. A failure answers the `POST`: `403 consent-required` when sign-in or consent is needed, `502` when Entra fails, `503` when OBO is unavailable. Otherwise the response is the [Run](#run): `200` when it ended within about one second, else `202` with `status: "running"`; poll `GET /api/runs/{runId}`.
 
 ### GET /api/runs/{runId}
 

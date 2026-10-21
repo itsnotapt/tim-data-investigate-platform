@@ -45,7 +45,7 @@ The result grids use AG Grid Enterprise only ([ADR-0006](adr/0006-ag-grid-enterp
 
 ### Entra app registration
 
-Register `<public URL>/blank.html` as a SPA redirect URI. The api needs an OBO credential at startup: a client secret (`TIM_AUTH_CLIENT_SECRET`) or, on Kubernetes, Entra workload identity.
+Register `<public URL>/blank.html` as a SPA redirect URI. When a connection in the connections file uses `obo`, the api needs an OBO credential at startup: a client secret (`TIM_AUTH_CLIENT_SECRET`) or, on Kubernetes, Entra workload identity.
 
 ## Docker Compose
 

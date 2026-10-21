@@ -26,7 +26,7 @@ from uuid import UUID, uuid4
 from tim_actions import Action, Analyst, Column, DetailValue, Hook, RunError
 
 from tim_api.config import Settings
-from tim_api.runs.connections import Connections
+from tim_api.runs.connections import RunConnections
 from tim_api.runs.models import Run, RunAction, RunRow, RunStatus
 from tim_api.runs.results import ResultBuilder, ResultLimitError, sanitise_nul, to_json_value
 from tim_api.storage import RunStore
@@ -91,12 +91,10 @@ class _Context:
         self,
         active_run: _ActiveRun,
         analyst: Analyst,
-        declared_connections: frozenset[str],
-        connections: Connections,
+        connections: RunConnections,
     ) -> None:
         self._active_run = active_run
         self._analyst = analyst
-        self._declared_connections = declared_connections
         self._connections = connections
         self._hooks: dict[str, Hook] = {}
         self._lock = threading.Lock()
@@ -112,13 +110,13 @@ class _Context:
         return self.deadline_at
 
     def hook(self, connection: str) -> Hook:
-        if connection not in self._declared_connections:
+        if connection not in self._connections.names:
             raise ValueError(f"The action did not declare the connection {connection}")
         with self._lock:
             if self._active_run.stopping.is_set():
                 raise _Stopped
             if connection not in self._hooks:
-                self._hooks[connection] = self._connections.hook(connection, self._analyst)
+                self._hooks[connection] = self._connections.hook(connection)
             return self._hooks[connection]
 
     def hooks(self) -> list[Hook]:
@@ -144,7 +142,7 @@ class _ActiveRun:
         action: Action,
         params: Mapping[str, Any],
         analyst: Analyst,
-        connections: Connections,
+        connections: RunConnections,
         trace_id: str,
     ) -> None:
         settings = runner.settings
@@ -164,13 +162,7 @@ class _ActiveRun:
             max_rows=settings.max_result_rows,
             max_bytes=settings.max_result_bytes,
         )
-        declared = set(action.connections())
-        declared.update(
-            str(params[p.name])
-            for p in action.params
-            if p.kind == "connection" and params.get(p.name) is not None
-        )
-        self.ctx = _Context(self, analyst, frozenset(declared), connections)
+        self.ctx = _Context(self, analyst, connections)
 
     # --- worker thread ----------------------------------------------------------------
 
@@ -361,7 +353,7 @@ class Runner:
         *,
         analyst: Analyst,
         owner: str,
-        connections: Connections,
+        connections: RunConnections,
         trace_id: str,
     ) -> Run:
         """Store the run, execute it, and return the run as it is after the race."""

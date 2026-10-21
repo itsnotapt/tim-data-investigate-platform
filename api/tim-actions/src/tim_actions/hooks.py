@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, ClassVar
+
+from tim_actions import connections
+
+TokenFor = Callable[[str], str]
+"""Gives an access token for a scope, on behalf of the run's analyst. Raises when the token can't
+be had; TIM gets each ``obo`` connection's token before the run starts, so a hook's call is
+normally answered from the token cache."""
 
 
 @dataclass(frozen=True)
@@ -16,9 +24,19 @@ class EditorSchema:
 
 
 class Hook(ABC):
-    """Access to one connection of a connection type, built per run as the analyst."""
+    """Access to one connection of a connection type, built per run as the analyst.
+
+    ``Connection`` validates the connection type's entries in the connections file. ``editor``
+    is the kind of editor its queries are written in (``kql``, ``sql``), if any.
+    """
 
     connection_type: ClassVar[str]
+    Connection: ClassVar[type[connections.Connection]] = connections.Connection
+    editor: ClassVar[str | None] = None
+
+    def __init__(self, connection: connections.Connection, token_for: TokenFor) -> None:
+        self.connection = connection
+        self.token_for = token_for
 
     @abstractmethod
     def cancel(self) -> None:

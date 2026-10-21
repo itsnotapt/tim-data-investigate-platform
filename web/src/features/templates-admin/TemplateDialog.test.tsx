@@ -9,7 +9,7 @@ import { setupMswServer } from '../../test/msw/server';
 import { TemplateDialog } from './TemplateDialog';
 
 vi.mock('../../components/CodeEditor', async () =>
-  (await import('./testUtils')).fakeCodeEditorModule(),
+  (await import('../../test/fakeCodeEditor')).fakeCodeEditorModule(),
 );
 
 const server = setupMswServer();

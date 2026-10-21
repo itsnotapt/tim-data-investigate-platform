@@ -7,7 +7,16 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from tim_actions import Action, ActionDocument, Column, Hook, Param, Provider, RunContext
+from tim_actions import (
+    Action,
+    ActionDocument,
+    Column,
+    Connection,
+    Hook,
+    Param,
+    Provider,
+    RunContext,
+)
 
 
 def test_a_param_with_every_field() -> None:
@@ -117,7 +126,7 @@ def test_an_action_with_its_menu_path_and_pivot_columns() -> None:
     )
     assert action.menu_path == ["Identity", "Entra"]
     assert action.pivot_columns() == [["UserPrincipalName", "Upn"], ["TenantId"]]
-    assert action.connections() == ()
+    assert action.connections() == {}
 
 
 @pytest.mark.parametrize(
@@ -188,7 +197,9 @@ def test_an_invalid_provider_fails_on_construction(kwargs: dict[str, Any], messa
 
 
 def test_a_hook_has_no_editor_schema_unless_it_gives_one() -> None:
-    assert KustoHook().editor_schema({"database": "Security"}) is None
+    connection = Connection(name="k", title="K", type="kusto", auth="obo", scope="api://k/.d")
+    hook = KustoHook(connection, lambda scope: "token")
+    assert hook.editor_schema({"database": "Security"}) is None
 
 
 def test_a_json_default_must_be_json() -> None:

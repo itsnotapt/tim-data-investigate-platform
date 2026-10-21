@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import type { CatalogueAction } from '../../lib/api';
 import { getDefaultParams } from '../../lib/kql-templates/params';
+import { onlyConnection } from '../action-tab/paramValues';
+import { useInstanceStore } from '../instance';
 import { defaultNewQuery } from '../kusto-query/defaultQuery';
 import { useTabsStore, type TabsStore } from '../tabs';
 import type { QueryTemplate } from './types';
@@ -13,7 +15,10 @@ export interface NewQueryActions {
   createAdHoc: () => string;
   /** New root template tab in edit mode (not auto-run). */
   createFromTemplate: (template: QueryTemplate) => string;
-  /** New root action tab with the action's defaults as its params (not run). */
+  /**
+   * New root action tab with the action's defaults as its params, and the connection of each
+   * connection param that has only one (not run).
+   */
   createFromAction: (action: CatalogueAction) => string;
 }
 
@@ -56,6 +61,11 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
       const params = Object.fromEntries(
         action.params.filter((p) => p.default !== undefined).map((p) => [p.name, p.default]),
       );
+      const connections = useInstanceStore.getState().instance?.connections ?? [];
+      for (const p of action.params) {
+        const only = onlyConnection(p, connections);
+        if (only && params[p.name] === undefined) params[p.name] = only.name;
+      }
       const uuid = store.getState().createTab({
         componentName: 'ActionResult',
         parentUuid: null,

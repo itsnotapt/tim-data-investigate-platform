@@ -2,8 +2,9 @@
 
 from tim_actions.action import Action, ActionKey, Pivot
 from tim_actions.columns import Column, ColumnType
+from tim_actions.connections import Auth, Connection, ConnectionName
 from tim_actions.files import ActionDocument, Sidecar
-from tim_actions.hooks import EditorSchema, Hook
+from tim_actions.hooks import EditorSchema, Hook, TokenFor
 from tim_actions.params import Param, ParamKind, ParamsError, validate_params
 from tim_actions.provider import ENTRY_POINT_GROUP, Provider
 from tim_actions.rows import IdColumns, RowId
@@ -15,8 +16,11 @@ __all__ = [
     "ActionDocument",
     "ActionKey",
     "Analyst",
+    "Auth",
     "Column",
     "ColumnType",
+    "Connection",
+    "ConnectionName",
     "DetailValue",
     "EditorSchema",
     "Hook",
@@ -30,5 +34,6 @@ __all__ = [
     "RunContext",
     "RunError",
     "Sidecar",
+    "TokenFor",
     "validate_params",
 ]

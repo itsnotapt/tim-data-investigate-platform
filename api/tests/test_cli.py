@@ -31,7 +31,7 @@ def check(capsys: pytest.CaptureFixture[str], *args: str) -> tuple[int, str, str
 
 def test_check_accepts_good_action_files(capsys: pytest.CaptureFixture[str]) -> None:
     code, out, err = check(capsys, "--actions", str(FIXTURES / "instance"))
-    assert (code, out, err) == (0, "OK: 2 actions\n", "")
+    assert (code, out, err) == (0, "OK: 2 actions, 0 connections\n", "")
 
 
 def test_check_reports_the_same_problems_as_startup(
@@ -40,7 +40,7 @@ def test_check_reports_the_same_problems_as_startup(
     code, out, err = check(capsys, "--actions", str(FIXTURES / "several_errors"))
     assert (code, out) == (1, "")
     reported = [line.removeprefix("  - ") for line in err.splitlines()[1:]]
-    assert err.splitlines()[0] == "Invalid actions:"
+    assert err.splitlines()[0] == "Invalid instance:"
     with monkeypatch.context() as patch:
         for key, value in {
             "TIM_AUTH_TENANT_ID": "tenant-id",
@@ -55,7 +55,7 @@ def test_check_reports_the_same_problems_as_startup(
 
 
 def test_check_without_actions_checks_the_providers(capsys: pytest.CaptureFixture[str]) -> None:
-    assert check(capsys) == (0, "OK: 0 actions\n", "")
+    assert check(capsys) == (0, "OK: 0 actions, 0 connections\n", "")
 
 
 def test_check_refuses_a_directory_that_does_not_exist(
@@ -137,7 +137,7 @@ def test_check_with_dev_actions_accepts_dev_action_files(
     assert "unknown action type 'dev_rows'" in err
     assert check(capsys, "--dev-actions", "--actions", str(tmp_path)) == (
         0,
-        "OK: 2 actions\n",
+        "OK: 2 actions, 0 connections\n",
         "",
     )
 

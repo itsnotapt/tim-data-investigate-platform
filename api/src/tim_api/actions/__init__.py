@@ -2,7 +2,7 @@
 
 from tim_api.actions.instance import build_instance
 from tim_api.actions.registry import (
-    ActionsConfigError,
+    InstanceConfigError,
     LoadedProvider,
     Registry,
     build_registry,
@@ -11,7 +11,7 @@ from tim_api.actions.registry import (
 )
 
 __all__ = [
-    "ActionsConfigError",
+    "InstanceConfigError",
     "LoadedProvider",
     "Registry",
     "build_instance",
