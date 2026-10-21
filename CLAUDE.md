@@ -19,3 +19,7 @@ The triage labels and their transitions are in [docs/agents/triage-labels.md](do
 ### Domain docs
 
 Single context: domain terms are defined only in [GLOSSARY.md](GLOSSARY.md), decisions in [docs/adr/](docs/adr/README.md). See [docs/agents/domain.md](docs/agents/domain.md).
+
+### Subagents
+
+In `/implement`, exploration, doc updates, the full checks and mechanical review fixes go to the Sonnet `explorer` and `implementer` agents, without asking first. See [docs/agents/subagents.md](docs/agents/subagents.md).
