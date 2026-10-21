@@ -4,7 +4,7 @@ TIM is configured entirely through environment variables: the api reads `TIM_*` 
 
 ## API
 
-Settings are read by pydantic-settings from the process environment and from a `.env` file in the working directory (`api/.env` when run from `api/`; template `api/.env.example`). List values are comma-separated. Empty strings for `TIM_AUTH_CLIENT_SECRET` and `TIM_TAG_INGEST_URL` count as unset. Unknown `TIM_*` variables are ignored. Invalid or missing settings stop the api at startup with an error naming each variable (see [operations.md](operations.md#common-failures)).
+Settings are read by pydantic-settings from the process environment and from a `.env` file in the working directory (`api/.env` when run from `api/`; template `api/.env.example`). List values are comma-separated. Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL` and `TIM_ACTIONS_DIR` count as unset. Unknown `TIM_*` variables are ignored. Invalid or missing settings stop the api at startup with an error naming each variable (see [operations.md](operations.md#common-failures)).
 
 ### Mode and logging
 
@@ -73,6 +73,14 @@ TIM_ALLOWED_KUSTO_HOSTS=help.kusto.windows.net,contoso.westeurope.kusto.windows.
 ```
 
 A set value replaces the default rather than adding to it, so keep `**.kusto.windows.net` in the list when adding other domains. Fabric and sovereign clouds are not in the default; list them explicitly. A host that matches no pattern gives `400 cluster-not-allowed`.
+
+### Actions
+
+| Variable          | Default | Description                                                                                                                                                                                                  |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TIM_ACTIONS_DIR` | none    | One flat directory of action files ([actions.md](actions.md#action-files)), read once at startup: `*.yaml` and `*.yml`, not recursing, dot-entries skipped. Empty means none. A path that isn't a directory stops startup. |
+
+A problem in any action file stops startup too ([operations.md](operations.md#startup-failures-from-the-files)). Check a directory before deploying it with `tim-api check --actions <dir>` ([operations.md](operations.md#tim-api-check)).
 
 ### Storage
 

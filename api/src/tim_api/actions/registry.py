@@ -1,13 +1,16 @@
-"""The action registry: providers discovered through ``tim.actions``, validated at startup."""
+"""The action registry: providers discovered through ``tim.actions`` and their action files,
+validated at startup."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
+from importlib.resources.abc import Traversable
 
 from pydantic import ValidationError
 from tim_actions import ENTRY_POINT_GROUP, Action, Hook, Provider
+from tim_actions.files import LoadedFiles, ReadFile, load_action_files
 
 BUILTIN_DISTRIBUTION = "tim-actions"
 RESERVED_PREFIX = "tim."
@@ -34,12 +37,14 @@ class LoadedProvider:
 
 @dataclass(frozen=True)
 class Registry:
-    """Everything the providers add, keyed as it is looked up."""
+    """Everything the providers and action files add, keyed as it is looked up, and every action
+    file and sidecar read."""
 
     actions: dict[str, Action] = field(default_factory=dict)
     action_types: dict[str, type[Action]] = field(default_factory=dict)
     hooks: dict[str, type[Hook]] = field(default_factory=dict)
     packages: tuple[str, ...] = ()
+    files: tuple[ReadFile, ...] = ()
 
 
 def _describe(exc: Exception) -> str:
@@ -84,6 +89,13 @@ def discover_providers() -> list[LoadedProvider]:
     return loaded
 
 
+def load_providers(providers: Sequence[Provider] | None) -> list[LoadedProvider]:
+    """``providers``, named by position, or when ``None`` the discovered ones."""
+    if providers is None:
+        return discover_providers()
+    return [LoadedProvider(f"providers[{i}]", p) for i, p in enumerate(providers)]
+
+
 def _revalidated(action: Action) -> Action:
     """The action validated again from its fields, which catches one built without
     validation (``model_construct``) or changed after it."""
@@ -100,8 +112,35 @@ def _add[T](
     return None
 
 
-def build_registry(loaded: Sequence[LoadedProvider]) -> Registry:
-    """Check the providers against each other and index what they add."""
+def _add_file_actions(
+    actions: dict[str, tuple[Action, str]], loaded: LoadedFiles, builtin: bool
+) -> list[str]:
+    problems = list(loaded.problems)
+    for item in loaded.actions:
+        key = item.action.key
+        if key.startswith(RESERVED_PREFIX) and not builtin:
+            problems.append(
+                f"{item.location}: key: the {RESERVED_PREFIX} prefix is reserved for TIM's "
+                "built-ins"
+            )
+        elif key in actions:
+            problems.append(
+                f"{item.location}: key: duplicate action key {key}, also in {actions[key][1]}"
+            )
+        else:
+            actions[key] = (item.action, item.location)
+    return problems
+
+
+def build_registry(
+    loaded: Sequence[LoadedProvider],
+    actions_dir: Traversable | None = None,
+    *,
+    action_files: bool = True,
+) -> Registry:
+    """Check the providers against each other, load their action files and those in
+    ``actions_dir``, and index what they add. ``action_files=False`` loads no files, for what
+    needs only the action types."""
     problems: list[str | None] = []
     actions: dict[str, tuple[Action, str]] = {}
     action_types: dict[str, tuple[type[Action], str]] = {}
@@ -128,12 +167,27 @@ def build_registry(loaded: Sequence[LoadedProvider]) -> Registry:
         for hook in item.provider.hooks:
             problems.append(_add(hooks, "connection type", hook.connection_type, hook, item.source))
 
+    types = {name: t for name, (t, _) in action_types.items()}
+    directories = [
+        (item.provider.action_files, item.builtin)
+        for item in loaded
+        if item.provider.action_files is not None and action_files
+    ]
+    if actions_dir is not None and action_files:
+        directories.append((actions_dir, False))
+    files: list[ReadFile] = []
+    for directory, builtin in directories:
+        from_files = load_action_files(directory, types)
+        problems.extend(_add_file_actions(actions, from_files, builtin))
+        files.extend(from_files.files)
+
     found = [problem for problem in problems if problem]
     if found:
         raise ActionsConfigError(found)
     return Registry(
         actions={key: action for key, (action, _) in actions.items()},
-        action_types={name: t for name, (t, _) in action_types.items()},
+        action_types=types,
         hooks={name: h for name, (h, _) in hooks.items()},
         packages=tuple(sorted({item.package for item in loaded if item.package})),
+        files=tuple(files),
     )

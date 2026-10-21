@@ -65,6 +65,11 @@ def build_instance(registry: Registry, settings: Settings) -> Instance:
         ),
     )
     content = json.dumps(
-        [registry.packages, unversioned.model_dump(mode="json")], sort_keys=True
+        [
+            registry.packages,
+            [(file.name, file.sha256) for file in registry.files],
+            unversioned.model_dump(mode="json"),
+        ],
+        sort_keys=True,
     ).encode()
     return unversioned.model_copy(update={"version": hashlib.sha256(content).hexdigest()[:16]})

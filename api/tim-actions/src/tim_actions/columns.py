@@ -14,7 +14,9 @@ ColumnType = Literal["string", "number", "boolean", "datetime", "timespan", "jso
 
 @dataclass(frozen=True, config=STRICT)
 class Column:
-    """A declared result column, with the grid's initial settings for it."""
+    """A declared result column, with the grid's initial settings for it. ``calculated`` is an AG
+    Grid calculated-column expression, such as ``[Bytes] / 1024``: the grid computes the column
+    from the row's other columns."""
 
     name: NonBlankStr
     type: ColumnType
@@ -24,3 +26,4 @@ class Column:
     pinned: Literal["left", "right"] | None = None
     sort: Literal["asc", "desc"] | None = None
     group: StrictBool = False
+    calculated: NonBlankStr | None = None

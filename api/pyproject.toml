@@ -22,14 +22,20 @@ dependencies = [
     "tim-actions",
 ]
 
+[project.scripts]
+tim-api = "tim_api.cli:main"
+
 [dependency-groups]
 dev = [
+    "jsonschema>=4.26.0",
     "mypy>=2.4.0",
     "pgserver>=0.1.4",
     "pytest",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.10",
+    "types-jsonschema>=4.26.0.20261006",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.uv.workspace]

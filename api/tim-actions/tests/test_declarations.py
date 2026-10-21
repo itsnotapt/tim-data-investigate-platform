@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from tim_actions import Action, Column, Hook, Param, Provider, RunContext
+from tim_actions import Action, ActionDocument, Column, Hook, Param, Provider, RunContext
 
 
 def test_a_param_with_every_field() -> None:
@@ -86,6 +86,11 @@ class Users(Action):
 
 class FileUsers(Users):
     type_name = "users"
+    File = ActionDocument
+
+
+class FileUsersWithoutModel(Users):
+    type_name = "users"
 
 
 class KustoHook(Hook):
@@ -126,11 +131,11 @@ def test_an_action_with_its_menu_path_and_pivot_columns() -> None:
         ({"params": [Param("a", "string"), Param("a", "number")]}, "names must be unique"),
         (
             {"params": [Param("kql", "kql", schema_from=("connection",))]},
-            r"params.kql.schema_from: unknown params \['connection'\]",
+            r"params\n  Value error, kql.schema_from: unknown params \['connection'\]",
         ),
         (
             {"columns": [Column("A", "string"), Column("A", "number")]},
-            "columns: names must be unique",
+            r"columns\n  Value error, names must be unique",
         ),
         ({"id": []}, "give a column name"),
         ({"id": " "}, "id"),
@@ -173,6 +178,7 @@ def test_a_provider_lists_actions_action_types_and_hooks() -> None:
     [
         ({"actions": [{"key": "a"}]}, "actions"),
         ({"action_types": [Users]}, "Users has no type_name"),
+        ({"action_types": [FileUsersWithoutModel]}, "FileUsersWithoutModel has no File model"),
         ({"hooks": [Hook]}, "Hook has no connection_type"),
     ],
 )

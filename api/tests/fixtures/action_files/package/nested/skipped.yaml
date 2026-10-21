@@ -1,0 +1,5 @@
+type: lines
+key: acme.nested
+name: Not read, being in a subdirectory
+pivot: none
+text: x

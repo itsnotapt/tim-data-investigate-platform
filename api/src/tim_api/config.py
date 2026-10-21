@@ -10,6 +10,7 @@ deliberately not part of ``Settings``.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
@@ -69,6 +70,10 @@ class Settings(BaseSettings):
         default_factory=lambda: list(DEFAULT_ALLOWED_KUSTO_HOSTS)
     )
 
+    # --- actions (ADR-0017) --------------------------------------------------------------
+    # One flat directory of action files, read at startup.
+    actions_dir: Path | None = None
+
     # --- storage (ADR-0004) ------------------------------------------------------------
     database_url: SecretStr
     run_retention_sweep_seconds: int = Field(default=300, gt=0)  # expired-run cleanup interval
@@ -91,7 +96,7 @@ class Settings(BaseSettings):
     def _parse_lists(cls, value: object) -> object:
         return _split_list(value)
 
-    @field_validator("auth_client_secret", "tag_ingest_url", mode="before")
+    @field_validator("auth_client_secret", "tag_ingest_url", "actions_dir", mode="before")
     @classmethod
     def _empty_is_unset(cls, value: object) -> object:
         """Compose/Helm pass unset optional variables as empty strings."""
@@ -103,6 +108,13 @@ class Settings(BaseSettings):
         if not value:
             return list(DEFAULT_ALLOWED_KUSTO_HOSTS)
         return [normalise_host_pattern(item) for item in value]
+
+    @field_validator("actions_dir")
+    @classmethod
+    def _existing_directory(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_dir():
+            raise ValueError(f"no directory {value}")
+        return value
 
     @field_validator("tag_cluster_uri", "tag_ingest_url", "auth_authority_host")
     @classmethod

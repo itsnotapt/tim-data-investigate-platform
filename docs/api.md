@@ -79,14 +79,14 @@ Every non-2xx response has this body:
 
 ### GET /api/instance
 
-What the browser needs to know about this instance, built once at startup from the installed providers ([architecture.md](architecture.md#actions-and-providers)):
+What the browser needs to know about this instance, built once at startup from the installed providers and the action files ([architecture.md](architecture.md#actions-and-providers)):
 
 ```
 {version, actions: [Action], connections: [], labels: [], limits}
 ```
 
-- `version`: a hash of the installed provider distributions and the rest of this body. It changes when either does, for example after a rolling update.
-- `actions`: the catalogue, in provider order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot}`:
+- `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, and the rest of this body. It changes when any of them does, for example after a rolling update.
+- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot}`:
   - `kind` is `query`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.

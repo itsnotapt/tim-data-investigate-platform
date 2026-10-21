@@ -1,9 +1,9 @@
 """Scripted action types for API tests: actions whose behaviour the test spells out."""
 
 from collections.abc import Iterator, Mapping
-from typing import Any
+from typing import Annotated, Any
 
-from tim_actions import Action, Hook, RunContext
+from tim_actions import Action, ActionDocument, Hook, RunContext, Sidecar
 
 
 class Rows(Action):
@@ -15,14 +15,37 @@ class Rows(Action):
         yield from self.rows
 
 
+class RowsFile(ActionDocument):
+    rows: tuple[dict[str, Any], ...] = ()
+
+
 class FileRows(Rows):
-    """A file-capable action type."""
+    """A file-capable action type: yields the rows its action file gives."""
 
     type_name = "rows"
+    File = RowsFile
 
 
 class OtherFileRows(Rows):
     type_name = "rows"
+    File = RowsFile
+
+
+class LinesFile(ActionDocument):
+    text: Annotated[str, Sidecar()]
+
+
+class FileLines(Action):
+    """A file-capable action type whose text can come from a sidecar: one row per line."""
+
+    type_name = "lines"
+    File = LinesFile
+
+    text: str
+
+    def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
+        for line in self.text.splitlines():
+            yield {"line": line}
 
 
 class FakeKustoHook(Hook):

@@ -1,0 +1,5 @@
+type: lines
+key: acme.greetings
+name: Greetings
+pivot: none
+text_file: greetings.txt

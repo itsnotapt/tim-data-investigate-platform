@@ -36,6 +36,12 @@ _Avoid_: argument, variable
 **Action type** (for action authors):
 The reusable Python code behind a family of actions. Each action names one action type and gives its configuration.
 
+**Action file** (for action authors):
+A YAML file holding one or more actions, each naming an action type and giving its configuration.
+
+**Sidecar** (for action authors):
+A file next to an action file that holds the text of one of an action's fields, such as its query.
+
 **Provider** (for action authors):
 An installable package that adds action types, actions and connection types to an instance.
 _Avoid_: action package, plugin, extension

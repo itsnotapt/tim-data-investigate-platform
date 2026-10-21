@@ -1,0 +1,30 @@
+# Each document is validated on its own; every problem is reported.
+type: rows
+key: Acme Users
+name: Users
+pivot: sometimes
+---
+type: rows
+key: acme.sign_ins
+name: Sign-ins
+pivot: row
+params:
+  - name: user
+    kind: text
+  - name: since
+    kind: datetime
+    schema_from: [user]
+---
+type: lines
+key: acme.greetings
+name: Greetings
+pivot: none
+text: hello
+text_file: greetings.txt
+---
+type: rows
+key: acme.menu
+name: Menu
+menu: Identity //
+pivot: none
+pivot: row
