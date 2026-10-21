@@ -93,7 +93,7 @@ server {
         proxy_set_header Connection "";
 
         client_max_body_size 25m;
-        # Kusto runs can take up to TIM_QUERY_TIMEOUT_SECONDS (default 600).
+        # Runs can take up to TIM_RUN_TIMEOUT_SECONDS (default 600).
         proxy_read_timeout 620s;
         proxy_send_timeout 620s;
     }

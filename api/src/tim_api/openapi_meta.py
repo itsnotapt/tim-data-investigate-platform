@@ -5,7 +5,8 @@ Applied as a post-processing step so the published spec (``/api/openapi.json`` a
 
 * stable ``operationId`` values (they become the function names of the generated web client);
 * the documented problem-details responses (FastAPI's default ``422`` is replaced by ``400``,
-  because validation failures are rendered as ``400 validation``);
+  because request validation failures are rendered as ``400 validation``; ``422`` is documented
+  only where the endpoint checks values itself, such as a run's params);
 * the Bearer security scheme on every authenticated operation.
 
 Only the documentation changes here; runtime behaviour is untouched.
@@ -27,7 +28,9 @@ _DESCRIPTIONS = {
     401: "Missing, invalid or expired token (`unauthorized`).",
     403: "Consent required or Kusto denied the user (`consent-required` / `forbidden`).",
     404: "Not found (`not-found`).",
-    409: "Already exists (`conflict`).",
+    409: "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`).",
+    410: "The run's results are no longer available (`results-gone`).",
+    422: "Invalid values, keyed by field such as `params.<name>` (`validation`).",
     500: "Unhandled error (`internal`).",
     502: "Upstream failure (`upstream`).",
     503: "Dependency unavailable (`unavailable`).",
@@ -43,6 +46,10 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     # Token exchange failures happen before the run exists, hence 403/502/503 here.
     ("post", "/api/kusto/query"): ("runQuery", (400, 403, 502, 503)),
     ("get", "/api/kusto/query/{queryRunId}"): ("getQueryRun", (400, 404)),
+    ("post", "/api/runs"): ("startRun", (400, 422)),
+    ("get", "/api/runs/{runId}"): ("getRun", (400, 404)),
+    ("post", "/api/runs/{runId}/cancel"): ("cancelRun", (400, 404)),
+    ("get", "/api/runs/{runId}/rows"): ("getRunRows", (400, 404, 409, 410)),
     ("get", "/api/templates/queries"): ("listTemplates", (400,)),
     ("get", "/api/templates/queries/{uuid}"): ("getTemplate", (400, 404)),
     ("post", "/api/templates/queries"): ("createTemplate", (400, 409)),

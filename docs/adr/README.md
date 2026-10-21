@@ -50,7 +50,7 @@ Numbers are never reused, so the sequence has gaps.
 | ADR | Title | Status | Date |
 |---|---|---|---|
 | [0001](0001-react-python-web-api.md) | TIM is React + Python in `web/` and `api/` | accepted | 2026-09-29 |
-| [0004](0004-postgresql-persistence.md) | PostgreSQL for templates and query runs | accepted | 2026-09-29 |
+| [0004](0004-postgresql-persistence.md) | PostgreSQL for templates and runs | accepted | 2026-09-29 |
 | [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to Kusto | accepted | 2026-09-29 |
 | [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise only; licence key optional (trial mode without it) | accepted | 2026-09-29 |
 | [0007](0007-docs-describe-current-state.md) | Docs describe the current system; rationale lives in ADRs | accepted | 2026-10-06 |
@@ -58,7 +58,7 @@ Numbers are never reused, so the sequence has gaps.
 | [0009](0009-obo-token-exchange.md) | OBO token exchange: one shared MSAL app, configurable scope | accepted | 2026-10-06 |
 | [0010](0010-kusto-cluster-allow-list.md) | Kusto cluster allow-list | accepted | 2026-10-07 |
 | [0011](0011-development-only-modes.md) | Development-only modes refuse to run in production | accepted | 2026-10-06 |
-| [0012](0012-query-run-limits-and-lifecycle.md) | Query-run limits and lifecycle | accepted | 2026-10-06 |
+| [0012](0012-query-run-limits-and-lifecycle.md) | Run limits and lifecycle | accepted | 2026-10-06 |
 | [0013](0013-tag-ingestion.md) | Tag ingestion runs as the app identity | accepted | 2026-10-06 |
 | [0014](0014-web-auth-token-cache.md) | Web sign-in: token cache in localStorage | accepted | 2026-10-06 |
 | [0015](0015-kql-templating.md) | KQL templating in the browser | accepted | 2026-10-06 |

@@ -13,11 +13,13 @@ Postgres mapping: each method is one statement or one short transaction;
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
+from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.templates.models import QueryTemplate, QueryTemplateFields
 
 
@@ -106,11 +108,73 @@ class QueryRunStore(ABC):
         become ``error`` with ``main_error=message`` and the given ``expires_at``."""
 
 
+class RunStore(ABC):
+    """Runs and their rows. Rows are kept only for ``succeeded`` runs: every transition to
+    another outcome deletes them in the same transaction."""
+
+    @abstractmethod
+    async def create(self, run: Run) -> Run:
+        """Insert a ``running`` run. Raises ``AlreadyExistsError`` on a duplicate ``run_id``."""
+
+    @abstractmethod
+    async def get(self, run_id: UUID, now: datetime) -> Run | None:
+        """The run, or ``None`` when unknown or expired (``expires_at <= now``)."""
+
+    @abstractmethod
+    async def add_rows(self, run_id: UUID, rows: Sequence[RunRow]) -> None:
+        """Store a batch of rows of a run. Raises ``NotFoundError`` when the run is missing."""
+
+    @abstractmethod
+    async def rows(self, run_id: UUID, start: int, end: int) -> list[RunRow]:
+        """The stored rows with ``start <= row < end``, in row order."""
+
+    @abstractmethod
+    async def has_rows(self, run_id: UUID) -> bool:
+        """Whether any row of the run is stored."""
+
+    @abstractmethod
+    async def finish(
+        self,
+        run_id: UUID,
+        *,
+        status: RunStatus,
+        finished_at: datetime,
+        expires_at: datetime,
+        details: Mapping[str, Any],
+        columns: Sequence[RunColumn] | None = None,
+        row_count: int | None = None,
+        error: str | None = None,
+    ) -> Run:
+        """End a ``running`` run; any status but ``succeeded`` also deletes its rows. A run that
+        has already ended is returned unchanged. Raises ``NotFoundError`` when missing."""
+
+    @abstractmethod
+    async def request_cancel(self, run_id: UUID) -> None:
+        """Ask the process executing a ``running`` run to cancel it; a no-op otherwise."""
+
+    @abstractmethod
+    async def cancel_requested(self, run_ids: Collection[UUID]) -> set[UUID]:
+        """Those of ``run_ids`` still ``running`` whose cancel has been requested."""
+
+    @abstractmethod
+    async def delete_expired(self, now: datetime, limit: int) -> int:
+        """Delete at most ``limit`` runs with ``expires_at <= now``, with their rows; returns
+        how many."""
+
+    @abstractmethod
+    async def mark_stale_running_as_error(
+        self, before: datetime, *, message: str, finished_at: datetime, expires_at: datetime
+    ) -> int:
+        """Startup sweep: runs still ``running`` with ``started_at < before`` become ``error``
+        with ``message``, and their partial rows are deleted; returns how many."""
+
+
 class Storage(ABC):
-    """Bundle wired into the app: both stores plus lifecycle and health."""
+    """Bundle wired into the app: the stores plus lifecycle and health."""
 
     templates: TemplateStore
-    runs: QueryRunStore
+    query_runs: QueryRunStore
+    runs: RunStore
 
     @abstractmethod
     async def health(self) -> bool:

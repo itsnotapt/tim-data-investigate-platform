@@ -1,0 +1,119 @@
+"""``/api/runs``: start, poll and cancel runs, and read their rows."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
+from tim_actions import Action, Analyst, ParamsError, validate_params
+
+from tim_api.auth.dependencies import get_current_principal
+from tim_api.auth.principal import Principal
+from tim_api.config import Settings, get_settings
+from tim_api.deps import get_run_store
+from tim_api.errors import UnprocessableError, problem_exception
+from tim_api.observability import get_trace_id
+from tim_api.runs.connections import Connections, get_connections
+from tim_api.runs.models import RowsPage, Run, RunStatus, StartRun
+from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
+from tim_api.runs.runner import Runner
+from tim_api.storage import RunStore
+
+router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+Caller = Annotated[Principal, Depends(get_current_principal)]
+RunId = Annotated[UUID, Path(alias="runId")]
+
+
+def get_runner(request: Request) -> Runner:
+    runner: Runner = request.app.state.runner
+    return runner
+
+
+def get_actions(request: Request) -> dict[str, Action]:
+    actions: dict[str, Action] = request.app.state.actions
+    return actions
+
+
+async def _owned_run(store: RunStore, run_id: UUID, principal: Principal) -> Run:
+    run = await store.get(run_id, datetime.now(UTC))
+    if run is None or run.owner != principal.name:  # unknown, expired or someone else's
+        raise problem_exception(404, "Run not found")
+    return run
+
+
+@router.post("", response_model=Run, responses={202: {"model": Run}})
+async def start_run(
+    body: StartRun,
+    request: Request,
+    response: Response,
+    principal: Caller,
+    actions: Annotated[dict[str, Action], Depends(get_actions)],
+    runner: Annotated[Runner, Depends(get_runner)],
+    connections: Annotated[Connections, Depends(get_connections)],
+) -> Run:
+    """Start a run; ``200`` when it ends within about a second, else ``202``."""
+    action = actions.get(body.action)
+    if action is None:
+        raise UnprocessableError({"action": ["Unknown action"]})
+    try:
+        params = validate_params(action.params, body.params, connections={})
+    except ParamsError as exc:
+        raise UnprocessableError(exc.errors) from None
+    run = await runner.start(
+        action,
+        params,
+        analyst=Analyst(name=principal.name, upn=principal.name),
+        owner=principal.name,
+        connections=connections,
+        trace_id=get_trace_id(request),
+    )
+    response.status_code = 202 if run.status is RunStatus.RUNNING else 200
+    return run
+
+
+@router.get("/{runId}", response_model=Run)
+async def get_run(
+    run_id: RunId,
+    principal: Caller,
+    store: Annotated[RunStore, Depends(get_run_store)],
+) -> Run:
+    return await _owned_run(store, run_id, principal)
+
+
+@router.post("/{runId}/cancel", response_model=Run)
+async def cancel_run(
+    run_id: RunId,
+    principal: Caller,
+    store: Annotated[RunStore, Depends(get_run_store)],
+    runner: Annotated[Runner, Depends(get_runner)],
+) -> Run:
+    """Cancel the run. It is ``cancelled`` once ``Hook.cancel()`` returns or the worker exits,
+    which may be after this answers; a run that has ended comes back unchanged."""
+    return await runner.cancel(await _owned_run(store, run_id, principal))
+
+
+@router.get("/{runId}/rows", response_model=RowsPage)
+async def get_rows(
+    run_id: RunId,
+    principal: Caller,
+    store: Annotated[RunStore, Depends(get_run_store)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    start_row: Annotated[int, Query(alias="startRow", ge=0)] = 0,
+    end_row: Annotated[int | None, Query(alias="endRow", ge=0)] = None,
+) -> RowsPage:
+    """The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them."""
+    run = await _owned_run(store, run_id, principal)
+    if run.status is not RunStatus.SUCCEEDED:
+        raise RunNotSucceededError
+    last = start_row + settings.rows_page_size
+    end = last if end_row is None else min(end_row, last)
+    if end < start_row:
+        raise problem_exception(400, "endRow must not be less than startRow")
+    rows = await store.rows(run_id, start_row, end)
+    row_count = run.row_count or 0
+    if not rows and row_count > 0 and not await store.has_rows(run_id):
+        raise ResultsGoneError
+    return RowsPage(rows=rows, last_row=row_count)

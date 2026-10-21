@@ -30,10 +30,12 @@ variables read by `azure-identity`.
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports (`TemplateStore`, `QueryRunStore`, bundled as
-`Storage`) with two implementations: `PostgresStorage` (SQLAlchemy 2 async + asyncpg, ADR-0004) and
-an in-memory store (`TIM_DATABASE_URL=memory://`, development only, rejected in production).
-Endpoints get stores through `tim_api.deps.get_template_store` / `get_run_store`.
+`tim_api.storage` defines the persistence ports (`TemplateStore`, `RunStore` for runs and their
+rows, `QueryRunStore` for Kusto query runs, bundled as `Storage` with `templates`, `runs` and
+`query_runs`) with two implementations: `PostgresStorage` (SQLAlchemy 2 async + asyncpg, ADR-0004)
+and an in-memory store (`TIM_DATABASE_URL=memory://`, development only, rejected in production).
+Endpoints get stores through `tim_api.deps.get_template_store` / `get_run_store` /
+`get_query_run_store`.
 
 **Migrations (Alembic).** Schema lives in `migrations/`; `tim_api.storage.postgres.metadata` is the
 model definition. The app does **not** migrate at startup (schema changes stay an explicit deploy
@@ -49,8 +51,9 @@ The api image contains `alembic.ini` and `migrations/`, so a compose/Kubernetes 
 environment variables: [docs/configuration.md](../docs/configuration.md). Empty `TIM_AUTH_CLIENT_SECRET` / `TIM_TAG_INGEST_URL` count as unset.
 
 **Retention.** Every run has `expires_at`; reads treat an expired run as missing, and a
-background task started in the lifespan deletes expired rows every
-`TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300) for every run alike.
+background task started in the lifespan deletes expired runs every
+`TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300): runs ten at a time (`RUNS_PER_BATCH`, each with
+its rows, skipping runs another replica's sweep has locked), then query runs.
 
 **Tests.** `tests/storage_contract.py` runs against both stores (the `storage` fixture in
 `tests/conftest.py`). Postgres tests use a real server: `TIM_TEST_DATABASE_URL`
@@ -118,7 +121,7 @@ Multi-stage on `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`): the 
 
 Pydantic v2 models mirror the schemas in [api.md](../docs/api.md) (camelCase aliases, unknown
 input fields ignored, serialised by alias): `actions/models.py`, `templates/models.py`,
-`query_runs/models.py`, `tagged_events/models.py`, `kusto/models.py`; shared base and UTC
+`runs/models.py`, `query_runs/models.py`, `tagged_events/models.py`, `kusto/models.py`; shared base and UTC
 datetime type in `models_common.py`.
 
 - Request and response models are separate: `QueryTemplateCreate` (POST), `QueryTemplateReplace`
@@ -134,17 +137,31 @@ datetime type in `models_common.py`.
 
 ## Kusto query client
 
-`kusto/query_client.py`: `KustoQueryClient` protocol (`execute(cluster_url, database, query, token, start, end, limits) -> QueryResult`), `get_kusto_client` dependency and `AzureKustoQueryClient` (sync `azure-kusto-data` client in `asyncio.to_thread`; the aio client needs the extra `aiohttp` dependency). Parsing is a pure function, `parse_v2_frames`, over raw V2 frames (fixtures in `tests/fixtures/kusto/`). `StartTime`/`EndTime` are sent as ISO-8601 query parameters (the KQL must declare them) and `servertimeout` comes from `TIM_QUERY_TIMEOUT_SECONDS`. Exceeding `TIM_MAX_RESULT_ROWS`/`TIM_MAX_RESULT_BYTES` raises `KustoResultLimitError` (no truncation, see [docs/api.md](../docs/api.md)); Kusto failures raise `KustoQueryError` with a sanitised message; progressive frames raise `KustoUnexpectedFrameError`. Cancelling the awaiting task does not stop the worker thread; the server timeout bounds it.
+`kusto/query_client.py`: `KustoQueryClient` protocol (`execute(cluster_url, database, query, token, start, end, limits) -> QueryResult`), `get_kusto_client` dependency and `AzureKustoQueryClient` (sync `azure-kusto-data` client in `asyncio.to_thread`; the aio client needs the extra `aiohttp` dependency). Parsing is a pure function, `parse_v2_frames`, over raw V2 frames (fixtures in `tests/fixtures/kusto/`). `StartTime`/`EndTime` are sent as ISO-8601 query parameters (the KQL must declare them) and `servertimeout` comes from `TIM_RUN_TIMEOUT_SECONDS`. Exceeding the row or byte cap it is given raises `KustoResultLimitError` (no truncation, see [docs/api.md](../docs/api.md)); Kusto failures raise `KustoQueryError` with a sanitised message; progressive frames raise `KustoUnexpectedFrameError`. Cancelling the awaiting task does not stop the worker thread; the server timeout bounds it.
 
 ## Kusto schema
 
 `POST /api/kusto/schema` validates the cluster (400 `cluster-not-allowed`, before any token exchange), gets an OBO token for the normalised cluster, and calls `KustoQueryClient.show_schema` (management command `.show schema as json`, database as context). The JSON column (`ClusterSchema`, `DatabaseSchema` or the single column) is parsed and returned as `{schema: <object>}`. Kusto 403 -> 403 `forbidden`; other Kusto errors or an unrecognised result -> 502 `upstream` (fixed detail).
 
+## Runs
+
+`/api/runs` (`runs/router.py`) runs any catalogued action. `POST` looks the action up in `app.state.actions` (unknown -> 422 keyed `action`), validates the params with `tim_actions.validate_params` (422 keyed `params.<name>`, before a run exists) and calls `Runner.start` (`runs/runner.py`), which stores the run as `running` and starts a tracked asyncio task; the handler waits 1 s (`RACE_SECONDS`) -> 200 with the ended run, else 202. `GET /{runId}` and `POST /{runId}/cancel` always answer 200; unknown, expired or foreign runs are 404.
+
+The task waits for a slot of the semaphore shared with query runs (`app.state.run_slots`), then runs the action's synchronous `run(params, ctx)` in a daemon thread named `tim-run-<runId>`. `ctx` (`_Context`) implements `tim_actions.RunContext`: `hook(connection)` gets one hook per connection per run from `app.state.connections` (a `runs.connections.Connections`; `NoConnections`, which has none) and refuses connections the action doesn't declare. The thread feeds each row to `ResultBuilder` (`runs/results.py`: caps, `id`, NUL replacement, inferred columns) and writes batches of 1000 rows or 8 MiB through the event loop (`run_coroutine_threadsafe`). Outcomes:
+
+- `run` returns -> `succeeded`, with `columns`, `rowCount` and any `id` warnings in `details["warning"]`;
+- `tim_actions.RunError` or `ResultLimitError` -> `error` with its message; anything else -> `error` "The run failed unexpectedly" (traceback logged with the trace id);
+- `TIM_RUN_TIMEOUT_SECONDS` after the slot -> `timedOut`; a cancel request -> `cancelled`. Both stop row writes and call each hook's `cancel()` in another thread, then end the run once it returns or the thread exits, or after `CANCEL_GRACE_SECONDS` (10).
+
+`RunStore.finish` writes the final state and deletes the rows unless the run succeeded; it leaves a run that has already ended unchanged. Cancel sets `cancel_requested` on the run, so a replica that doesn't execute it can take the request: `Runner.start_watching` polls `RunStore.cancel_requested` for this process's runs every second (`CANCEL_POLL_SECONDS`). At startup `Runner.mark_stale` marks runs `running` for longer than the timeout as `error` "Run interrupted by server restart"; `Runner.aclose` (shutdown) does the same for runs in flight. Rows are in the `UNLOGGED` table `run_rows`; `GET /{runId}/rows` answers 410 when a succeeded run with rows has none stored, and 409 for a run that hasn't succeeded.
+
+Tests: `tests/test_runs_api.py` drives the endpoints through `create_app(providers=...)` with the scripted action types in `tests/scripted_actions.py`, against both stores.
+
 ## Query runs
 
 `POST /api/kusto/query` validates the cluster (400 before any token use) and the body (`startTime <= endTime`; NUL in `query`/`database` is 400), gets the OBO token synchronously (so 401/403/502/503 are real HTTP errors), stores the run as `created` (owner = token name, client `requestedBy` ignored; `expiresAt` = now + `TIM_RUN_RETENTION_SECONDS`) and starts a tracked asyncio task (`query_runs/runner.py`, `RunManager`). The handler waits 1 s (`RACE_SECONDS`): finished -> 200, else 202 with the `created` run (no `Location` header; clients poll `GET /api/kusto/query/{queryRunId}`, which returns 202 while `created` and 200 once terminal). Malformed guid -> 400; unknown, expired or foreign run -> 404 (`get_for_owner`).
 
-Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed: success -> `completed`; `KustoQueryError` -> `error` with the sanitised message; `KustoResultLimitError` -> `error` ("Result exceeds limit of ..."); `TIM_QUERY_TIMEOUT_SECONDS` exceeded (`asyncio.timeout`) -> `timedOut` with a `mainError`; anything else -> `error` "The query failed unexpectedly" (traceback logged with the trace id). Tasks are referenced from `app.state.run_tasks` and cancelled on shutdown (a cancelled run is marked `error` "Run interrupted by server restart"). At startup `mark_stale_runs` marks runs still `created` for longer than the query timeout as `error` with the same message; younger runs (other replicas) are left alone.
+Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed: success -> `completed`; `KustoQueryError` -> `error` with the sanitised message; `KustoResultLimitError` -> `error` ("Result exceeds limit of ..."); `TIM_RUN_TIMEOUT_SECONDS` exceeded (`asyncio.timeout`) -> `timedOut` with a `mainError`; anything else -> `error` "The query failed unexpectedly" (traceback logged with the trace id). Tasks are referenced from `app.state.run_tasks` and cancelled on shutdown (a cancelled run is marked `error` "Run interrupted by server restart"). At startup `mark_stale_runs` marks runs still `created` for longer than the query timeout as `error` with the same message; younger runs (other replicas) are left alone.
 
 PostgreSQL JSONB/TEXT cannot store U+0000, so NUL characters in result data (keys and values) and in `mainError` are replaced with U+FFFD before persisting (`sanitise_nul`); this applies to both stores for identical behaviour. Tests run the flow against memory and PostgreSQL (`storage` fixture).
 
@@ -152,11 +169,11 @@ PostgreSQL JSONB/TEXT cannot store U+0000, so NUL characters in result data (key
 
 | Setting | Default | Behaviour when exceeded |
 |---|---|---|
-| `TIM_MAX_RESULT_ROWS` | 100 000 | run ends `error`, `resultData: null`, `mainError` "Result exceeds limit of N rows". Never truncated. |
-| `TIM_MAX_RESULT_BYTES` | 64 MB | same, "... N bytes" (size of the compact JSON of all rows) |
-| `TIM_QUERY_TIMEOUT_SECONDS` | 600 | `timedOut` |
+| `TIM_MAX_RESULT_ROWS` | 1 000 000 | capped at 100 000 here (`MAX_ROWS`, the lower wins): run ends `error`, `resultData: null`, `mainError` "Result exceeds limit of N rows". Never truncated. |
+| `TIM_MAX_RESULT_BYTES` | 512 MiB | capped at 64 MiB here (`MAX_BYTES`): same, "... N bytes" (size of the compact JSON of all rows) |
+| `TIM_RUN_TIMEOUT_SECONDS` | 600 | `timedOut` |
 | `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
-| `TIM_MAX_CONCURRENT_RUNS` | 16 | per process; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
+| `TIM_MAX_CONCURRENT_RUNS` | 16 | per process, shared with `/api/runs`; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
 | `TIM_MAX_REQUEST_BYTES` | 16777216 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
 
 The row cap is checked per result table before any row is converted, the byte cap while rows are

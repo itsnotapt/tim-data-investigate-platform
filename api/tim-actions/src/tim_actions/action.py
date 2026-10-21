@@ -11,6 +11,7 @@ from pydantic import BaseModel, StringConstraints, field_validator
 from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
 from tim_actions.params import Param
+from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext
 
 if TYPE_CHECKING:
@@ -103,6 +104,16 @@ class Action(BaseModel, ABC):
         required param's ``from_columns`` is a group."""
         return [list(p.from_columns) for p in self.params if p.required and p.from_columns]
 
+    def row_id(self, params: Mapping[str, Any]) -> RowId | None:
+        """How each row of a run with these params gets its ``id``, or ``None`` for no ``id``.
+        The default reads the action's ``id`` columns; override it for any other scheme, such as
+        a composite key or an id column chosen by a param."""
+        if self.id is None:
+            return None
+        return IdColumns([self.id] if isinstance(self.id, str) else self.id)
+
     @abstractmethod
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterable[Mapping[str, Any]]:
-        """Yield the result rows. Runs synchronously, in a worker thread."""
+        """Yield the result rows. Runs synchronously, in a worker thread. Raise ``RunError``
+        to end the run in error with a message the analyst sees; any other exception ends it
+        with a generic message."""

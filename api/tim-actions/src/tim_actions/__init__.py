@@ -6,7 +6,8 @@ from tim_actions.files import ActionDocument, Sidecar
 from tim_actions.hooks import EditorSchema, Hook
 from tim_actions.params import Param, ParamKind, ParamsError, validate_params
 from tim_actions.provider import ENTRY_POINT_GROUP, Provider
-from tim_actions.run import Analyst, DetailValue, RunContext
+from tim_actions.rows import IdColumns, RowId
+from tim_actions.run import Analyst, DetailValue, RunContext, RunError
 
 __all__ = [
     "ENTRY_POINT_GROUP",
@@ -19,12 +20,15 @@ __all__ = [
     "DetailValue",
     "EditorSchema",
     "Hook",
+    "IdColumns",
     "Param",
     "ParamKind",
     "ParamsError",
     "Pivot",
     "Provider",
+    "RowId",
     "RunContext",
+    "RunError",
     "Sidecar",
     "validate_params",
 ]

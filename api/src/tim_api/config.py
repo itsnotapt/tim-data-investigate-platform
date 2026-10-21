@@ -83,13 +83,17 @@ class Settings(BaseSettings):
     # Hard cap on any request body; larger requests get 413 before parsing.
     max_request_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
 
-    # --- query-run limits ------------------------------------------------------
-    max_result_rows: int = Field(default=100_000, gt=0)
-    max_result_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
-    query_timeout_seconds: int = Field(default=600, gt=0)
+    # --- run limits (ADR-0012) ----------------------------------------------------------
+    # Caps on a run's result; /api/kusto/query also keeps its own lower caps.
+    max_result_rows: int = Field(default=1_000_000, gt=0)
+    max_result_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
+    run_timeout_seconds: int = Field(default=600, gt=0)
     run_retention_seconds: int = Field(default=86_400, gt=0)
-    # Runs executing at once in this process; further runs wait in `created`.
+    # Runs executing at once in this process; further runs wait, `running` (`created` for
+    # /api/kusto/query).
     max_concurrent_runs: int = Field(default=16, gt=0)
+    # Rows per page of GET /api/runs/{runId}/rows.
+    rows_page_size: int = Field(default=10_000, gt=0)
 
     @field_validator("allowed_kusto_hosts", "cors_allowed_origins", mode="before")
     @classmethod

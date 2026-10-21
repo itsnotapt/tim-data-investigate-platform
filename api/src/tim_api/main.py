@@ -23,6 +23,9 @@ from tim_api.observability import (
 from tim_api.openapi_meta import install_openapi
 from tim_api.query_runs.router import router as query_runs_router
 from tim_api.query_runs.runner import RACE_SECONDS, cancel_tasks, mark_stale_runs
+from tim_api.runs.connections import NoConnections
+from tim_api.runs.router import router as runs_router
+from tim_api.runs.runner import Runner
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
 from tim_api.tagged_events.router import router as tagged_events_router
 from tim_api.templates.router import router as templates_router
@@ -49,18 +52,28 @@ async def _lifespan(
     # Any problem with the installed providers or the action files stops startup (ADR-0017).
     registry = build_registry(load_providers(providers), settings.actions_dir)
     app.state.instance = build_instance(registry, settings)
+    app.state.actions = registry.actions
+    app.state.connections = NoConnections()
     # Fails fast when auth is enabled but no OBO client credential is configured.
     app.state.obo_provider = build_obo_provider(settings)
     storage = storage_factory(settings)
     app.state.storage = storage
     app.state.run_tasks = set()
+    # One limit for runs and query runs together.
     app.state.run_slots = asyncio.Semaphore(settings.max_concurrent_runs)
-    await mark_stale_runs(storage.runs, settings)
+    runner = Runner(
+        storage.runs, settings, slots=app.state.run_slots, race_seconds=app.state.race_seconds
+    )
+    app.state.runner = runner
+    await mark_stale_runs(storage.query_runs, settings)
+    await runner.mark_stale()
+    runner.start_watching()
     stop_retention = start_retention_loop(storage, settings.run_retention_sweep_seconds)
     try:
         yield
     finally:
         await stop_retention()
+        await runner.aclose()
         await cancel_tasks(app.state.run_tasks)
         await storage.aclose()
 
@@ -104,6 +117,7 @@ def create_app(
     app.include_router(tagged_events_router)
     app.include_router(kusto_router)
     app.include_router(query_runs_router)
+    app.include_router(runs_router)
     app.include_router(templates_router)
     register_exception_handlers(app)
     install_openapi(app)

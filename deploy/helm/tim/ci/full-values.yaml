@@ -22,7 +22,7 @@ api:
   podLabels:
     azure.workload.identity/use: "true"
   extraEnv:
-    - name: TIM_QUERY_TIMEOUT_SECONDS
+    - name: TIM_RUN_TIMEOUT_SECONDS
       value: "300"
   autoscaling:
     enabled: true

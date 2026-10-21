@@ -22,6 +22,11 @@ class Analyst:
 DetailValue = str | int | float | bool
 
 
+class RunError(Exception):
+    """Raised by ``Action.run`` to end the run in error. The message is shown to the analyst,
+    so it must not hold secrets or internals."""
+
+
 class RunContext(Protocol):
     """Given to ``Action.run`` by TIM."""
 
@@ -34,7 +39,8 @@ class RunContext(Protocol):
         ...
 
     def hook(self, connection: str) -> Hook:
-        """The hook for one of the connections the action declared, as the analyst."""
+        """The hook for one of the connections the action declared, as the analyst. Raises
+        ``ValueError`` for any other connection."""
         ...
 
     def detail(self, key: str, value: DetailValue) -> None:

@@ -12,7 +12,7 @@ from conftest import migrate
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
-from storage_contract import T0, make_run, make_template
+from storage_contract import T0, make_query_run, make_template
 
 from tim_api.storage import PostgresStorage, StorageUnavailableError, sweep_expired
 from tim_api.storage.postgres import metadata
@@ -55,16 +55,17 @@ def _tables(dsn: str) -> set[str]:
     return result
 
 
+ALL_TABLES = {"query_templates", "query_runs", "runs", "run_rows"}
+
+
 def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
     assert _tables(scratch_dsn) == set()
     migrate(scratch_dsn)
-    assert _tables(scratch_dsn) == {"query_templates", "query_runs"}
+    assert _tables(scratch_dsn) == ALL_TABLES
 
     def indexes(conn: Connection) -> set[str]:
         insp = inspect(conn)
-        return {
-            str(i["name"]) for t in ("query_templates", "query_runs") for i in insp.get_indexes(t)
-        }
+        return {str(i["name"]) for t in ALL_TABLES for i in insp.get_indexes(t)}
 
     found = asyncio.run(_with_conn(scratch_dsn, indexes))
     assert {
@@ -72,13 +73,32 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
         "ix_query_runs_requested_by",
         "ix_query_runs_expires_at",
         "ix_query_runs_created_executed",
+        "ix_runs_expires_at",
+        "ix_runs_running_started",
     } <= found
 
     migrate(scratch_dsn)  # idempotent
+    migrate(scratch_dsn, "0001", down=True)
+    assert _tables(scratch_dsn) == {"query_templates", "query_runs"}
     migrate(scratch_dsn, "base", down=True)
     assert _tables(scratch_dsn) == set()
     migrate(scratch_dsn)  # and repeatable
-    assert _tables(scratch_dsn) == {"query_templates", "query_runs"}
+    assert _tables(scratch_dsn) == ALL_TABLES
+
+
+def test_run_rows_are_unlogged_and_runs_are_logged(scratch_dsn: str) -> None:
+    migrate(scratch_dsn)
+
+    def persistence(conn: Connection) -> dict[str, str]:
+        found = conn.execute(
+            text(
+                "SELECT relname, relpersistence::text FROM pg_class "
+                "WHERE relname IN ('runs', 'run_rows')"
+            )
+        )
+        return {str(name): str(kind) for name, kind in found}
+
+    assert asyncio.run(_with_conn(scratch_dsn, persistence)) == {"runs": "p", "run_rows": "u"}
 
 
 def test_migration_matches_table_definitions(scratch_dsn: str) -> None:
@@ -95,8 +115,8 @@ async def test_python_none_is_sql_null(postgres_dsn: str) -> None:
     try:
         template = make_template()
         await storage.templates.create(template.model_copy(update={"params": None}))
-        run = make_run()
-        await storage.runs.create(run)
+        run = make_query_run()
+        await storage.query_runs.create(run)
 
         async def rows(conn: Any) -> Any:
             t = await conn.execute(
@@ -121,7 +141,7 @@ async def test_unreachable_database() -> None:
         with pytest.raises(StorageUnavailableError):
             await storage.templates.get(uuid.uuid4())
         with pytest.raises(StorageUnavailableError):
-            await storage.runs.get_for_owner(uuid.uuid4(), "alice", T0)
+            await storage.query_runs.get_for_owner(uuid.uuid4(), "alice", T0)
         assert await sweep_expired(storage) == 0  # logged, not raised
     finally:
         await storage.aclose()

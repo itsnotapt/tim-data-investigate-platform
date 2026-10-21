@@ -32,36 +32,21 @@ from tim_api.query_runs.models import (
     KustoQueryRun,
     QueryRunStatus,
 )
+from tim_api.runs.results import NUL_REPLACEMENT, sanitise_nul
 from tim_api.storage import QueryRunStore
+
+__all__ = ["NUL_REPLACEMENT", "RunManager", "cancel_tasks", "mark_stale_runs", "sanitise_nul"]
 
 logger = logging.getLogger("tim_api.query_runs")
 
-NUL_REPLACEMENT = "�"
 INTERRUPTED_MESSAGE = "Run interrupted by server restart"
 TIMEOUT_MESSAGE = "Query exceeded the execution time limit of {seconds} seconds"
 GENERIC_ERROR_MESSAGE = "The query failed unexpectedly"
 RACE_SECONDS = 1.0
-
-
-def sanitise_nul(value: Any) -> Any:
-    """Replace U+0000 with U+FFFD in every string (keys and values) of a JSON-like value.
-
-    Containers without a NUL are returned as is (no copy), so a large clean result is not
-    duplicated in memory.
-    """
-    if isinstance(value, str):
-        return value.replace("\x00", NUL_REPLACEMENT) if "\x00" in value else value
-    if isinstance(value, dict):
-        items = [(sanitise_nul(k), sanitise_nul(v)) for k, v in value.items()]
-        if all(nk is k and nv is v for (nk, nv), (k, v) in zip(items, value.items(), strict=True)):
-            return value
-        return dict(items)
-    if isinstance(value, list):
-        new = [sanitise_nul(v) for v in value]
-        if all(n is o for n, o in zip(new, value, strict=True)):
-            return value
-        return new
-    return value
+# A query run's rows are one jsonb value, which holds at most ~256 MiB, so this path keeps its
+# own caps below the instance's (ADR-0012).
+MAX_ROWS = 100_000
+MAX_BYTES = 64 * 1024 * 1024
 
 
 Clock = Callable[[], datetime]
@@ -132,11 +117,13 @@ class RunManager:
         """Run the query and persist the terminal state. Never raises."""
         settings = self._settings
         echo = run.kusto_query
-        limits = ResultLimits(settings.max_result_rows, settings.max_result_bytes)
+        limits = ResultLimits(
+            min(settings.max_result_rows, MAX_ROWS), min(settings.max_result_bytes, MAX_BYTES)
+        )
         fields: dict[str, Any]
         try:
             async with self._slots:  # queued runs stay `created`; the timeout starts after
-                async with asyncio.timeout(settings.query_timeout_seconds) as scope:
+                async with asyncio.timeout(settings.run_timeout_seconds) as scope:
                     result = await self._kusto.execute(
                         echo.cluster,
                         echo.database,
@@ -155,7 +142,7 @@ class RunManager:
             if not scope.expired():  # a timeout raised inside the client, not our deadline
                 fields = self._unexpected(run, trace_id)
             else:
-                message = TIMEOUT_MESSAGE.format(seconds=settings.query_timeout_seconds)
+                message = TIMEOUT_MESSAGE.format(seconds=settings.run_timeout_seconds)
                 fields = {"status": QueryRunStatus.TIMED_OUT, "main_error": message}
         except KustoResultLimitError as exc:
             fields = self._error(str(exc))
@@ -196,7 +183,7 @@ async def mark_stale_runs(store: QueryRunStore, settings: Settings) -> int:
     now = _utcnow()
     try:
         count = await store.mark_stale_created_as_error(
-            now - timedelta(seconds=settings.query_timeout_seconds),
+            now - timedelta(seconds=settings.run_timeout_seconds),
             message=INTERRUPTED_MESSAGE,
             expires_at=now + timedelta(seconds=settings.run_retention_seconds),
         )

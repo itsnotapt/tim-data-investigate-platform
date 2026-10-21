@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import Field, JsonValue
+from pydantic import JsonValue
 from tim_actions import ParamKind
 
-from tim_api.models_common import ApiModel
-
-
-def _omitted() -> Any:
-    """An optional key, left out of the JSON when it has no value."""
-    return Field(default=None, exclude_if=lambda value: value is None)
+from tim_api.models_common import ApiModel, omitted
 
 
 class CatalogueParam(ApiModel):
@@ -22,13 +17,13 @@ class CatalogueParam(ApiModel):
     title: str
     kind: ParamKind
     required: bool
-    default: JsonValue = _omitted()
+    default: JsonValue = omitted()
     many: bool
-    choices: list[JsonValue] | None = _omitted()
-    connection_type: str | None = _omitted()
-    from_columns: list[str] | None = _omitted()
-    schema_from: list[str] | None = _omitted()
-    help: str | None = _omitted()
+    choices: list[JsonValue] | None = omitted()
+    connection_type: str | None = omitted()
+    from_columns: list[str] | None = omitted()
+    schema_from: list[str] | None = omitted()
+    help: str | None = omitted()
 
 
 class CataloguePivot(ApiModel):
@@ -43,7 +38,7 @@ class CatalogueAction(ApiModel):
     key: str
     kind: Literal["query"]
     name: str
-    description: str | None = _omitted()
+    description: str | None = omitted()
     menu_path: list[str]
     connections: list[str]
     params: list[CatalogueParam]
@@ -57,19 +52,20 @@ class InstanceConnection(ApiModel):
     type: str
     title: str
     editor: str | None = None
-    databases: list[str] | None = _omitted()
+    databases: list[str] | None = omitted()
 
 
 class InstanceLabel(ApiModel):
     key: str
     name: str
     colour: str
-    symbol: str | None = _omitted()
+    symbol: str | None = omitted()
 
 
 class Limits(ApiModel):
     max_result_rows: int
     max_result_bytes: int
+    rows_page_size: int
     run_timeout_seconds: int
 
 

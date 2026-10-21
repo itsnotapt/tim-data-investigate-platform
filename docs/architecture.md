@@ -6,7 +6,7 @@ TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explo
 |---|---|---|
 | Web | `web/` | React SPA served by nginx |
 | API | `api/` | Python 3.12, FastAPI |
-| Persistence | PostgreSQL | templates and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
+| Persistence | PostgreSQL | templates, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Layout rationale: [ADR-0001](adr/0001-react-python-web-api.md). Domain vocabulary: [GLOSSARY.md](../GLOSSARY.md). Configuration variables: [configuration.md](configuration.md). HTTP reference: [api.md](api.md).
 
@@ -23,13 +23,15 @@ Layout rationale: [ADR-0001](adr/0001-react-python-web-api.md). Domain vocabular
                 v                                             |
  +------------------------------+     +-----------------------+------------+
  | web container (nginx)        |---->| api container (FastAPI)            |
- | static files, /config.js,    |     |  templates, query runs, tag ingest |
- | security headers, /api proxy |     +---+-------------+-----------+------+
- +------------------------------+         |             |           |
+ | static files, /config.js,    |     |  templates, runs, query runs,      |
+ | security headers, /api proxy |     |  tag ingest                        |
+ +------------------------------+     +---+-------------+-----------+------+
+                                          |             |           |
                                           v             |           |
                               +--------------------+    |           |
                               | PostgreSQL         |    |           |
                               | query_templates    |    |           |
+                              | runs, run_rows     |    |           |
                               | query_runs         |    |           |
                               +--------------------+    |           |
                       user token (OBO)  +---------------+           | app identity
@@ -170,14 +172,15 @@ Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv wor
 | `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its template and query-run stores |
+| `deps.py` | FastAPI dependencies returning the storage and its template, run and query-run stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions` and `check` |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `kusto/` | Cluster validation, query client, `POST /api/kusto/schema` |
-| `query_runs/` | Query-run routes, models and the run lifecycle (`runner.py`) |
+| `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`) |
+| `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
 | `templates/` | Template routes and models |
 | `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
 | `storage/` | Storage interfaces, PostgreSQL and in-memory implementations, retention loop |
@@ -193,7 +196,8 @@ Database migrations are in `api/migrations` (Alembic).
 | `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
 | `columns.py` | `Column` |
 | `hooks.py` | `Hook`, the base of a connection type's access, and `EditorSchema` |
-| `run.py` | `RunContext`, the protocol `run` is given, and `Analyst` |
+| `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
+| `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`) |
 | `builtin.py` | TIM's built-in provider |
@@ -231,7 +235,7 @@ Each document is validated on its own, so a file reports all of its problems at 
 
 `tim-api check` (`cli.py`) runs `build_registry` the same way without the rest of the lifespan, so it needs no settings, database or credentials ([operations.md](operations.md#tim-api-check)). `tim-api schema actions` prints `action_files_schema`: one `File` model per installed type, with `type` fixed to its `type_name` and each sidecar field accepting `<field>_file` instead.
 
-The registry serves the catalogue in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version), the name (relative to its directory) and content of every action file and sidecar read, and the rest of the body, so it changes whenever the catalogue, an installed provider or a file does. Nothing runs an action: queries run through the query-run lifecycle below.
+The registry serves the catalogue in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version), the name (relative to its directory) and content of every action file and sidecar read, and the rest of the body, so it changes whenever the catalogue, an installed provider or a file does. Actions run through `/api/runs` ([Runs and rows](#runs-and-rows)).
 
 Params are declared as data: `Param(name, kind, title, required, default, many, choices, connection_type, schema_from, from_columns, help)`. `kind` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json`, `kql`, `sql` or `connection`. `tim_actions.validate_params` validates and converts the values in a request: a `datetime` is an ISO 8601 string (UTC when it has no offset), a `timespan` an ISO 8601 duration or `HH:MM:SS`, a `many` param a list, and a `connection` param the name of a connection of its `connection_type`. A missing or blank value takes the default; errors are keyed `params.<name>`. The catalogue's `pivot.columns` comes from `Action.pivot_columns()`: each required param's `from_columns` is one group, and a row needs one column from each. Every action sets `pivot`, which has no default: `row` or `rows` offers it on one or several selected rows, and `none` keeps it out of the context menu.
 
@@ -249,21 +253,50 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
 
 `AzureKustoQueryClient` runs the synchronous `azure-kusto-data` client in a worker thread with the user's token. Result values are serialised (datetime, timespan, decimal, dynamic, guid), and every `PrimaryResult` table is concatenated. `StartTime` and `EndTime` are passed as query parameters, so KQL must `declare query_parameters(StartTime:datetime, EndTime:datetime)` to use them. Kusto errors become sanitised messages (stack-trace lines removed, capped at 2000 characters).
 
-### Query-run lifecycle
+### Runs and rows
+
+Two paths run work on the server: runs of an action through `/api/runs` (`runs/`), and Kusto query runs through `/api/kusto/query` (`query_runs/`). Both follow [ADR-0012](adr/0012-query-run-limits-and-lifecycle.md) and share one concurrency semaphore of `TIM_MAX_CONCURRENT_RUNS` per process.
+
+A run:
+
+1. `POST /api/runs` looks up the action and validates the params with `tim_actions.validate_params` (`422` before a run exists). `Runner.start` stores the run (table `runs`) as `running` with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`, and starts a tracked asyncio task.
+2. The task waits for a concurrency slot, still `running`, and then runs the action's synchronous `run(params, ctx)` in its own daemon thread. `ctx` gives `analyst`, `deadline` (when the timeout ends), `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`. `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value, and gives one hook per connection per run.
+3. The thread passes each yielded row to `ResultBuilder` (`results.py`), which counts rows and bytes (compact JSON per row, summed), takes the row's `id` with `Action.row_id(params)`, replaces NUL with U+FFFD and builds the columns. Rows are written to `run_rows` in batches of 1,000 rows or 8 MiB.
+4. The request waits up to about 1 second for the task: `200` with the ended run, else `202` with the `running` run.
+5. The task ends the run, refreshes `expiresAt` and writes its final state:
+   - `succeeded`, with `columns` and `rowCount`;
+   - `error`, with the message of the action's `RunError`, `Result exceeds limit of N rows` or `N bytes`, or `The run failed unexpectedly` for any other exception, which is logged with the trace id;
+   - `timedOut` after `TIM_RUN_TIMEOUT_SECONDS`, counted from taking the slot (`Run exceeded the time limit of N seconds`);
+   - `cancelled`.
+
+   Only a succeeded run keeps its rows; the store deletes those of any other outcome when it writes the final state.
+6. On a timeout or cancel, the thread stops writing rows and `Hook.cancel()` is called on each of the run's hooks from another thread. The run ends once every `Hook.cancel()` has returned or the thread has exited, or after 10 seconds. A thread that never returns is left behind as a daemon.
+
+Cancel (`POST /api/runs/{runId}/cancel`) sets `cancel_requested` on the run. The process executing it acts at once when it took the request; every process also polls, each second, for cancel requests to the runs it executes, so any replica can take the request. A run cancelled while it waits for a slot never takes one.
+
+`details` holds `duration` (seconds, from taking the slot) and, when succeeded, `rowCount` first, then the action's own `ctx.detail` values in the order they were reported. Problems with `id`, such as an id column missing from the results or an `id` over 512 characters, never fail the run: they are added to a `warning` detail.
+
+`columns` lists the declared columns first, the action's and then those the run declared, and then the rest in first-seen order. A column's type is inferred from its values: `boolean`, `number`, `datetime` for ISO 8601 strings, other strings as `string`, objects and arrays as `json`, and `string` when the values disagree or are all `null`.
+
+`id` comes from `Action.row_id(params)`, a `RowId`: by default `IdColumns` over the action's `id` column or list of alternatives, taking the first that isn't `null` or `""`. It is stored as text: a string as it is (not trimmed), anything else as its compact JSON, so the number `1` and the string `"1"` match. `GET /api/runs/{runId}/rows` reads a page of `run_rows` by row number; when a succeeded run with rows has none stored, it answers `410`.
+
+Kusto query runs:
 
 1. `POST /api/kusto/query` validates the cluster, exchanges the token (auth errors are returned synchronously, before a run exists), and `RunManager` stores a run (`KustoQueryRun`, table `query_runs`) as `created` with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`.
-2. A tracked asyncio task executes the query. At most `TIM_MAX_CONCURRENT_RUNS` run at once per process; the rest stay `created`.
+2. A tracked asyncio task executes the query, `created` while it waits for a slot.
 3. The request waits up to about 1 second for the task. If it finished, the response is `200` with the terminal run; otherwise `202` with the `created` run.
-4. The task always writes a final state and refreshes `expiresAt`: `completed` (rows and `executionMetrics`), `error` (`mainError`; Kusto error, limit exceeded, shutdown, or a generic message for unexpected failures) or `timedOut` (after `TIM_QUERY_TIMEOUT_SECONDS`).
-5. `GET /api/kusto/query/{id}` returns `202` while `created` and `200` otherwise. A run that is unknown, expired or owned by another user is `404`.
+4. The task always writes a final state and refreshes `expiresAt`: `completed` (rows and `executionMetrics`), `error` (`mainError`; Kusto error, limit exceeded, shutdown, or a generic message for unexpected failures) or `timedOut` (after `TIM_RUN_TIMEOUT_SECONDS`).
+5. `GET /api/kusto/query/{id}` returns `202` while `created` and `200` otherwise.
 
-Limits: `TIM_MAX_RESULT_ROWS` (100000), `TIM_MAX_RESULT_BYTES` (64 MiB), `TIM_QUERY_TIMEOUT_SECONDS` (600), `TIM_RUN_RETENTION_SECONDS` (86400), `TIM_MAX_CONCURRENT_RUNS` (16). A result over a limit fails the run; it is not truncated. NUL characters in results and errors are replaced with U+FFFD before storing.
+A Kusto query run's rows are one `jsonb` value, so its caps are 100,000 rows and 64 MiB, or `TIM_MAX_RESULT_ROWS` and `TIM_MAX_RESULT_BYTES` when lower. Runs use the settings as they are: `TIM_MAX_RESULT_ROWS` (1,000,000) and `TIM_MAX_RESULT_BYTES` (512 MiB). A result over a cap fails the run; it is not truncated. NUL characters in results and errors are replaced with U+FFFD before storing.
 
-Housekeeping:
+A run or query run that is unknown, expired or owned by another user is `404`.
 
-- At startup, runs still `created` for longer than the query timeout are set to `error` (`Run interrupted by server restart`).
-- At shutdown, running tasks are cancelled and their runs are marked `error`.
-- A background loop deletes runs past `expiresAt` every `TIM_RUN_RETENTION_SWEEP_SECONDS` (300). Expired runs already read as `404` before they are deleted.
+Housekeeping, for both:
+
+- At startup, runs still `running` (query runs still `created`) for longer than `TIM_RUN_TIMEOUT_SECONDS` are set to `error` (`Run interrupted by server restart`).
+- At shutdown, runs in flight are stopped and marked `error` the same way.
+- A background loop deletes runs past `expiresAt` every `TIM_RUN_RETENTION_SWEEP_SECONDS` (300), ten runs at a time so each delete of their rows stays short, then the expired query runs. Expired runs already read as `404` before they are deleted.
 
 ### Templates
 
@@ -275,12 +308,16 @@ The three `POST /api/taggedevents/*` routes validate a batch (1 to 1000 items), 
 
 ### Persistence
 
-`storage/` defines `TemplateStore`, `QueryRunStore` and a `Storage` bundle (health, close). `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`) or, in development only, an in-memory store (`memory://`; refused in production). Alembic migrations create the schema (`alembic upgrade head`).
+`storage/` defines `TemplateStore`, `RunStore`, `QueryRunStore` and a `Storage` bundle (health, close). `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`) or, in development only, an in-memory store (`memory://`; refused in production). Alembic migrations create the schema (`alembic upgrade head`).
 
 | Table | Key | Notes |
 |---|---|---|
 | `query_templates` | `uuid` | Editable fields, `path`/`params`/`fields`/`columns` as JSONB, `is_deleted`, `updated`, `created_by`, `updated_by`; index on `(updated, uuid)` |
+| `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
+| `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `query_runs` | `query_run_id` | `requested_by` (owner), `status`, `execute_date_time_utc`, `expires_at`, `kusto_query`, `result_data`, `execution_metrics` (JSONB), `main_error`; indexes on owner, expiry, and `created` runs |
+
+`run_rows` is `UNLOGGED`, so it is not written to the WAL: PostgreSQL empties it after a crash and a replica doesn't have it, while `runs` survives. Rows of a run that succeeded then read as `410` ([operations.md](operations.md#rows-lost-after-a-crash)).
 
 ### Errors and logging
 
@@ -289,7 +326,7 @@ Every non-2xx response is `application/problem+json` with `type` (`urn:tim:probl
 ## Security model
 
 - Identity comes from the validated token only. `requestedBy`, `createdBy`, `updatedBy`, `updated` and `dateTimeUtc` sent by a client are ignored (the SPA also strips them).
-- Query runs are owner-scoped: another user's run id is indistinguishable from an unknown one (`404`).
+- Runs and query runs are owner-scoped: another user's run id is indistinguishable from an unknown one (`404`).
 - Cluster URLs are validated against an allow-list before any token is acquired or sent, so the API cannot be used to forward user tokens to arbitrary hosts.
 - Kusto access runs as the user (OBO); only tag ingestion and table creation use the app identity.
 - The development auth bypass (`TIM_AUTH_DISABLED`) and the in-memory store fail startup in production. The SPA's auth stub throws in a production build.

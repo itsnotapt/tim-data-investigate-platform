@@ -109,7 +109,7 @@ async def storage(request: pytest.FixtureRequest) -> AsyncIterator[Storage]:
         dsn: str = request.getfixturevalue("postgres_dsn")
         engine = create_async_engine(dsn)
         async with engine.begin() as conn:
-            await conn.execute(text("TRUNCATE query_templates, query_runs"))
+            await conn.execute(text("TRUNCATE query_templates, query_runs, runs, run_rows"))
         await engine.dispose()
         store = PostgresStorage(dsn)
     yield store

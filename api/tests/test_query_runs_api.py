@@ -128,6 +128,22 @@ async def test_fast_query_returns_200_completed(env: Env) -> None:
     assert got.json() == body
 
 
+async def test_query_runs_keep_their_own_lower_result_caps(env: Env) -> None:
+    r = await env.client.post("/api/kusto/query", json=BODY)
+    assert r.status_code == 200
+    assert env.kusto.calls[0][6] == ResultLimits(100_000, 64 * 1024 * 1024)
+
+
+async def test_query_runs_take_lower_configured_caps(
+    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TIM_MAX_RESULT_ROWS", "500")
+    monkeypatch.setenv("TIM_MAX_RESULT_BYTES", "4096")
+    async with open_env(storage, auth, race_seconds=0.2) as env:
+        assert (await env.client.post("/api/kusto/query", json=BODY)).status_code == 200
+        assert env.kusto.calls[0][6] == ResultLimits(500, 4096)
+
+
 async def test_slow_query_202_then_200(env: Env) -> None:
     env.kusto.gate = asyncio.Event()
     r = await env.client.post("/api/kusto/query", json=BODY)
@@ -180,7 +196,7 @@ async def test_unexpected_error_is_generic(env: Env, caplog: pytest.LogCaptureFi
 async def test_timeout_sets_timed_out(
     storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("TIM_QUERY_TIMEOUT_SECONDS", "1")
+    monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "1")
     from tim_api.config import get_settings
 
     get_settings.cache_clear()
@@ -206,9 +222,9 @@ async def test_other_users_run_is_404(env: Env) -> None:
 
 async def test_expired_run_is_404(env: Env, storage: Storage) -> None:
     run_id = (await env.client.post("/api/kusto/query", json=BODY)).json()["queryRunId"]
-    run = await storage.runs.get_for_owner(UUID(run_id), ALICE.name, datetime.now(UTC))
+    run = await storage.query_runs.get_for_owner(UUID(run_id), ALICE.name, datetime.now(UTC))
     assert run is not None
-    await storage.runs.update_result(
+    await storage.query_runs.update_result(
         run.query_run_id,
         status=QueryRunStatus.COMPLETED,
         expires_at=datetime.now(UTC) - timedelta(seconds=1),
@@ -295,12 +311,12 @@ async def test_startup_sweep_marks_stale_runs(storage: Storage) -> None:
         )
 
     stale, fresh = make(timedelta(hours=1)), make(timedelta(seconds=5))
-    await storage.runs.create(stale)
-    await storage.runs.create(fresh)
+    await storage.query_runs.create(stale)
+    await storage.query_runs.create(fresh)
     app = create_test_app(storage_factory=lambda _s: storage)
     async with app.router.lifespan_context(app):
-        got_stale = await storage.runs.get_for_owner(stale.query_run_id, ALICE.name, now)
-        got_fresh = await storage.runs.get_for_owner(fresh.query_run_id, ALICE.name, now)
+        got_stale = await storage.query_runs.get_for_owner(stale.query_run_id, ALICE.name, now)
+        got_fresh = await storage.query_runs.get_for_owner(fresh.query_run_id, ALICE.name, now)
     assert got_stale is not None
     assert got_stale.status is QueryRunStatus.ERROR
     assert got_stale.main_error == "Run interrupted by server restart"
@@ -327,7 +343,7 @@ async def test_shutdown_cancels_running_tasks_and_marks_error(
         assert r.status_code == 202
         assert len(app.state.run_tasks) == 1
     assert not app.state.run_tasks
-    run = await storage.runs.get_for_owner(
+    run = await storage.query_runs.get_for_owner(
         UUID(r.json()["queryRunId"]), ALICE.name, datetime.now(UTC)
     )
     assert run is not None

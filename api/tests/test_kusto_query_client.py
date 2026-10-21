@@ -295,7 +295,7 @@ def test_map_sdk_error_variants() -> None:
 
 
 def test_get_kusto_client_uses_timeout_setting() -> None:
-    settings = SimpleNamespace(query_timeout_seconds=42)
+    settings = SimpleNamespace(run_timeout_seconds=42)
     client = get_kusto_client(settings)  # type: ignore[arg-type]
     assert isinstance(client, AzureKustoQueryClient)
     assert client._timeout_seconds == 42

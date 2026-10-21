@@ -1,12 +1,13 @@
 """Shared Pydantic building blocks: camelCase base model, UTC datetimes, non-blank strings."""
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    Field,
     PlainSerializer,
     StringConstraints,
 )
@@ -22,6 +23,11 @@ class ApiModel(BaseModel):
         serialize_by_alias=True,
         extra="ignore",
     )
+
+
+def omitted() -> Any:
+    """An optional key, left out of the JSON when it has no value."""
+    return Field(default=None, exclude_if=lambda value: value is None)
 
 
 def _to_utc(value: datetime) -> datetime:

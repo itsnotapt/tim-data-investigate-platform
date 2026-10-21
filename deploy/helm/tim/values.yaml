@@ -79,7 +79,7 @@ api:
   # ClusterIP-only and reached through web's nginx (or the ingress controller); narrow this to
   # the pod CIDR if other workloads can reach it.
   forwardedAllowIps: "*"
-  # Further variables, e.g. TIM_QUERY_TIMEOUT_SECONDS, TIM_MAX_RESULT_ROWS, AZURE_CLIENT_ID.
+  # Further variables, e.g. TIM_RUN_TIMEOUT_SECONDS, TIM_MAX_RESULT_ROWS, AZURE_CLIENT_ID.
   # Standard EnvVar entries (value or valueFrom).
   extraEnv: []
   # Extra envFrom sources (ConfigMap/Secret refs).

@@ -6,15 +6,19 @@ Records are deep-copied on the way in and out so callers can never mutate stored
 from __future__ import annotations
 
 import asyncio
+import copy
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
+from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
     AlreadyExistsError,
     NotFoundError,
     QueryRunStore,
+    RunStore,
     Storage,
     TemplateStore,
 )
@@ -162,10 +166,129 @@ class MemoryQueryRunStore(QueryRunStore):
             return count
 
 
+class MemoryRunStore(RunStore):
+    def __init__(self) -> None:
+        self._runs: dict[UUID, Run] = {}
+        self._rows: dict[UUID, dict[int, RunRow]] = {}
+        self._cancel: set[UUID] = set()
+        self._lock = asyncio.Lock()
+
+    async def create(self, run: Run) -> Run:
+        async with self._lock:
+            if run.run_id in self._runs:
+                raise AlreadyExistsError(str(run.run_id))
+            self._runs[run.run_id] = run.model_copy(deep=True)
+            self._rows[run.run_id] = {}
+            return run.model_copy(deep=True)
+
+    async def get(self, run_id: UUID, now: datetime) -> Run | None:
+        async with self._lock:
+            run = self._runs.get(run_id)
+            if run is None or run.expires_at <= now:
+                return None
+            return run.model_copy(deep=True)
+
+    async def add_rows(self, run_id: UUID, rows: Sequence[RunRow]) -> None:
+        async with self._lock:
+            stored = self._rows.get(run_id)
+            if stored is None:
+                raise NotFoundError(str(run_id))
+            for row in rows:
+                stored[row.row] = row.model_copy(deep=True)
+
+    async def rows(self, run_id: UUID, start: int, end: int) -> list[RunRow]:
+        async with self._lock:
+            stored = self._rows.get(run_id, {})
+            return [stored[n].model_copy(deep=True) for n in sorted(stored) if start <= n < end]
+
+    async def has_rows(self, run_id: UUID) -> bool:
+        async with self._lock:
+            return bool(self._rows.get(run_id))
+
+    async def finish(
+        self,
+        run_id: UUID,
+        *,
+        status: RunStatus,
+        finished_at: datetime,
+        expires_at: datetime,
+        details: Mapping[str, Any],
+        columns: Sequence[RunColumn] | None = None,
+        row_count: int | None = None,
+        error: str | None = None,
+    ) -> Run:
+        async with self._lock:
+            run = self._runs.get(run_id)
+            if run is None:
+                raise NotFoundError(str(run_id))
+            if run.status is RunStatus.RUNNING:
+                run = run.model_copy(
+                    update={
+                        "status": status,
+                        "finished_at": finished_at,
+                        "expires_at": expires_at,
+                        "details": copy.deepcopy(dict(details)),
+                        "columns": [c.model_copy() for c in columns]
+                        if columns is not None
+                        else None,
+                        "row_count": row_count,
+                        "error": error,
+                    }
+                )
+                self._runs[run_id] = run
+                self._cancel.discard(run_id)
+                if status is not RunStatus.SUCCEEDED:
+                    self._rows[run_id] = {}
+            return run.model_copy(deep=True)
+
+    async def request_cancel(self, run_id: UUID) -> None:
+        async with self._lock:
+            run = self._runs.get(run_id)
+            if run is not None and run.status is RunStatus.RUNNING:
+                self._cancel.add(run_id)
+
+    async def cancel_requested(self, run_ids: Collection[UUID]) -> set[UUID]:
+        async with self._lock:
+            return {run_id for run_id in run_ids if run_id in self._cancel}
+
+    async def delete_expired(self, now: datetime, limit: int) -> int:
+        async with self._lock:
+            expired = sorted(
+                (r for r in self._runs.values() if r.expires_at <= now), key=lambda r: r.expires_at
+            )[:limit]
+            for run in expired:
+                del self._runs[run.run_id], self._rows[run.run_id]
+                self._cancel.discard(run.run_id)
+            return len(expired)
+
+    async def mark_stale_running_as_error(
+        self, before: datetime, *, message: str, finished_at: datetime, expires_at: datetime
+    ) -> int:
+        async with self._lock:
+            stale = [
+                r
+                for r in self._runs.values()
+                if r.status is RunStatus.RUNNING and r.started_at < before
+            ]
+            for run in stale:
+                self._runs[run.run_id] = run.model_copy(
+                    update={
+                        "status": RunStatus.ERROR,
+                        "error": message,
+                        "finished_at": finished_at,
+                        "expires_at": expires_at,
+                    }
+                )
+                self._rows[run.run_id] = {}
+                self._cancel.discard(run.run_id)
+            return len(stale)
+
+
 class MemoryStorage(Storage):
     def __init__(self) -> None:
         self.templates = MemoryTemplateStore()
-        self.runs = MemoryQueryRunStore()
+        self.query_runs = MemoryQueryRunStore()
+        self.runs = MemoryRunStore()
 
     async def health(self) -> bool:
         return True
