@@ -131,11 +131,25 @@ export function valueText(value: unknown): string {
   return scalarText(value);
 }
 
+/** Params edited in the tab's editor rather than in a pill. */
+const EDITOR_KINDS = new Set<CatalogueParam['kind']>(['kql', 'sql']);
+
+/** Whether the param is edited in a pill of the pills bar. */
+export const hasPill = (param: CatalogueParam): boolean => !EDITOR_KINDS.has(param.kind);
+
 export const isUnset = (value: unknown): boolean =>
   value === undefined ||
   value === null ||
   value === '' ||
   (Array.isArray(value) && value.length === 0);
+
+/** A param's value in one line: a list of plain values joined by commas, else JSON. */
+export function paramText(value: unknown): string {
+  if (Array.isArray(value) && value.every((v) => v === null || typeof v !== 'object')) {
+    return value.map(valueText).join(', ');
+  }
+  return typeof value === 'object' && value !== null ? JSON.stringify(value) : valueText(value);
+}
 
 const MAX_SHOWN = 3;
 const MAX_TEXT = 40;
@@ -165,4 +179,14 @@ export function summarize(
     return clip(value.length > MAX_SHOWN ? `${shown} +${value.length - MAX_SHOWN}` : shown);
   }
   return clip(typeof value === 'object' ? JSON.stringify(value) : valueText(value));
+}
+
+/** Whether two sets of plain param values are the same, an unset value counting as absent. */
+export function sameParams(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const names = new Set([...Object.keys(a), ...Object.keys(b)]);
+  return [...names].every((name) =>
+    isUnset(a[name]) && isUnset(b[name])
+      ? true
+      : JSON.stringify(a[name]) === JSON.stringify(b[name]),
+  );
 }

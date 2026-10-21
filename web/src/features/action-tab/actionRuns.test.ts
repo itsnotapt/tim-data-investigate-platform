@@ -7,8 +7,9 @@ import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { newTestStore } from '../../test/tabsTestUtils';
+import { useInstanceStore } from '../instance';
 import { createTabsStore, type Tab, type TabState } from '../tabs';
-import { resumeActionRuns, runActionTab } from './actionRuns';
+import { cancelActionTab, resumeActionRuns, runActionTab } from './actionRuns';
 import { runRowsStore } from './runRows';
 
 const server = setupMswServer();
@@ -77,6 +78,28 @@ const tab = (uuid = 'a') => store.getState().tabs[uuid]!;
 
 beforeEach(async () => {
   configureTestApp();
+  useInstanceStore.setState({
+    instance: {
+      version: 'v1',
+      actions: [
+        {
+          key: 'dev-sign-ins',
+          kind: 'query',
+          name: 'Sign-ins',
+          menuPath: [],
+          connections: [],
+          params: [
+            { name: 'users', title: 'Users', kind: 'string', required: false, many: true },
+            { name: 'query', title: 'Query', kind: 'kql', required: false, many: false },
+          ],
+          pivot: null,
+        },
+      ],
+      connections: [],
+      labels: [],
+      limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 10, runTimeoutSeconds: 600 },
+    },
+  });
   store.reset();
   runRowsStore.getState().clear();
   delays = [];
@@ -222,7 +245,7 @@ describe('runActionTab', () => {
     expect(saved.get('a')?.state).toMatchObject({ resultsRunId: RUN_ID, rowCount: 3 });
   });
 
-  it('shows why a run could not start, naming the param', async () => {
+  it('marks each invalid param with its reasons instead of showing an error', async () => {
     server.use(
       http.post(apiUrl('/api/runs'), () =>
         problemResponse(422, {
@@ -236,7 +259,96 @@ describe('runActionTab', () => {
     await runActionTab('a', { store, sleep });
     expect(tab().state).toMatchObject({
       isExecuting: false,
-      error: { message: "Couldn't start: users: Value 1: Must be a string" },
+      error: null,
+      paramErrors: { users: 'Value 1: Must be a string' },
+    });
+  });
+
+  it('keeps the latest run on the tab when the server refuses a param', async () => {
+    createActionTab('b', { run: succeeded(3) });
+    server.use(
+      http.post(apiUrl('/api/runs'), () =>
+        problemResponse(422, {
+          type: 'urn:tim:problem:validation',
+          errors: { 'params.users': ['Required'] },
+        }),
+      ),
+    );
+    await runActionTab('b', { store, sleep });
+    expect(tab('b').state.run).toEqual(succeeded(3));
+  });
+
+  it('shows a refused param that has no pill as why the run could not start', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () =>
+        problemResponse(422, {
+          type: 'urn:tim:problem:validation',
+          errors: {
+            'params.query': ['Not valid KQL'],
+            'params.extra': ['Unknown param'],
+            'params.users': ['Required'],
+          },
+        }),
+      ),
+    );
+    await runActionTab('a', { store, sleep });
+    expect(tab().state).toMatchObject({
+      error: { message: "Couldn't start: query: Not valid KQL; extra: Unknown param" },
+      paramErrors: { users: 'Required' },
+    });
+  });
+
+  it.each([
+    [
+      problemResponse(422, {
+        type: 'urn:tim:problem:validation',
+        detail: 'The request is not valid.',
+        errors: { action: ['Unknown action'], 'params.users': ['Required'] },
+      }),
+      "Couldn't start: Unknown action",
+    ],
+    [
+      problemResponse(502, { detail: 'No token for the connection' }),
+      "Couldn't start: No token for the connection",
+    ],
+  ])('shows any other reason a run could not start %#', async (response, message) => {
+    server.use(http.post(apiUrl('/api/runs'), () => response));
+    await runActionTab('a', { store, sleep });
+    expect(tab().state).toMatchObject({ isExecuting: false, error: { message } });
+  });
+
+  it('clears the marks and the latest run when the next run starts', async () => {
+    createActionTab('b', {
+      run: makeRun({ status: 'error' }),
+      error: { message: 'Failed' },
+      paramErrors: { users: 'Required' },
+    });
+    let release = () => {};
+    const started = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.post(apiUrl('/api/runs'), async () => {
+        await started;
+        return HttpResponse.json(succeeded(0));
+      }),
+    );
+    const running = runActionTab('b', { store, sleep });
+    expect(tab('b').state).toMatchObject({
+      isExecuting: true,
+      error: null,
+      paramErrors: null,
+      run: null,
+    });
+    release();
+    await running;
+  });
+
+  it('keeps the params of the latest run and when the stored results’ run started', async () => {
+    server.use(http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(0))));
+    await runActionTab('a', { store, sleep });
+    store.getState().updateParams('a', { params: { users: ['bob'] } });
+    expect(tab().state).toMatchObject({
+      runParams: { users: ['alice'] },
+      resultsStartedAt: '2026-10-20T10:00:00Z',
     });
   });
 
@@ -266,6 +378,89 @@ describe('runActionTab', () => {
       isExecuting: false,
       error: { message: 'Results are no longer available; run again' },
     });
+  });
+});
+
+/** A sleep that waits until `wake()`, or rejects when its signal aborts. */
+function wakeableSleep() {
+  const wakers: (() => void)[] = [];
+  const sleep = (_ms: number, signal: AbortSignal) =>
+    new Promise<void>((resolve, reject) => {
+      wakers.push(resolve);
+      signal.addEventListener('abort', () => reject(signal.reason as Error), { once: true });
+    });
+  return { sleep, wake: () => wakers.splice(0).forEach((w) => w()) };
+}
+
+describe('cancelActionTab', () => {
+  it('shows the run cancelling until a poll finds it cancelled', async () => {
+    let cancelled = false;
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(makeRun(), { status: 202 })),
+      http.post(apiUrl(`/api/runs/${RUN_ID}/cancel`), () => {
+        cancelled = true;
+        return HttpResponse.json(makeRun());
+      }),
+      http.get(apiUrl(`/api/runs/${RUN_ID}`), () =>
+        HttpResponse.json(makeRun({ status: cancelled ? 'cancelled' : 'running' })),
+      ),
+    );
+    const { sleep, wake } = wakeableSleep();
+    const running = runActionTab('a', { store, sleep });
+    await vi.waitFor(() => expect(tab().state.run?.runId).toBe(RUN_ID));
+    await cancelActionTab('a', { store, sleep });
+    expect(cancelled).toBe(true);
+    expect(tab().state).toMatchObject({ isExecuting: true, cancelling: true });
+    wake();
+    await running;
+    expect(tab().state).toMatchObject({
+      isExecuting: false,
+      cancelling: false,
+      error: { message: 'The run was cancelled' },
+      run: { status: 'cancelled' },
+    });
+  });
+
+  it('ends the run at once when the server answers that it is cancelled', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(makeRun(), { status: 202 })),
+      http.post(apiUrl(`/api/runs/${RUN_ID}/cancel`), () =>
+        HttpResponse.json(makeRun({ status: 'cancelled' })),
+      ),
+    );
+    const { sleep } = wakeableSleep();
+    const running = runActionTab('a', { store, sleep });
+    await vi.waitFor(() => expect(tab().state.run?.runId).toBe(RUN_ID));
+    await cancelActionTab('a', { store, sleep });
+    await running;
+    expect(tab().state).toMatchObject({
+      isExecuting: false,
+      cancelling: false,
+      error: { message: 'The run was cancelled' },
+      run: { status: 'cancelled' },
+    });
+  });
+
+  it('shows why the cancel failed, and keeps following the run', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(makeRun(), { status: 202 })),
+      http.post(apiUrl(`/api/runs/${RUN_ID}/cancel`), () =>
+        problemResponse(503, { title: 'Unavailable', detail: 'Try again' }),
+      ),
+      pollHandler(succeeded(0)),
+    );
+    const { sleep, wake } = wakeableSleep();
+    const running = runActionTab('a', { store, sleep });
+    await vi.waitFor(() => expect(tab().state.run?.runId).toBe(RUN_ID));
+    await cancelActionTab('a', { store, sleep });
+    expect(tab().state).toMatchObject({
+      isExecuting: true,
+      cancelling: false,
+      error: { message: "Couldn't cancel: Try again" },
+    });
+    wake();
+    await running;
+    expect(tab().state).toMatchObject({ isExecuting: false, error: null, rowCount: 0 });
   });
 });
 

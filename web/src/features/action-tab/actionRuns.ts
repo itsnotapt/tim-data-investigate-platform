@@ -1,4 +1,5 @@
 import {
+  cancelRun,
   getRun,
   getRunRows,
   isApiError,
@@ -8,7 +9,9 @@ import {
   type RunRow,
 } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
-import { useTabsStore, type TabsStore } from '../tabs';
+import { useInstanceStore } from '../instance';
+import { useTabsStore, type ParamErrors, type TabsStore } from '../tabs';
+import { hasPill } from './paramValues';
 import { runRowsStore } from './runRows';
 
 const FAST_POLL_MS = 1000;
@@ -46,7 +49,7 @@ function abortSleep(ms: number, signal: AbortSignal): Promise<void> {
 
 /** Stops the tab executing and shows `message` as its error. */
 function showError(store: TabsStore, uuid: string, message: string): void {
-  store.getState().updateState(uuid, { isExecuting: false, error: { message } });
+  store.getState().updateState(uuid, { isExecuting: false, cancelling: false, error: { message } });
 }
 
 /** The tab each run is followed for; a new run of the tab stops following the old one. */
@@ -72,15 +75,40 @@ function endMessage(run: Run): string | null {
   }
 }
 
-/** A start error's message, with each invalid param's reasons (`params.<name>`). */
-function startMessage(e: unknown): string {
-  if (isApiError(e) && e.errors && Object.keys(e.errors).length > 0) {
-    const reasons = Object.entries(e.errors).map(
-      ([key, messages]) => `${key.replace(/^params\./, '')}: ${messages.join(' ')}`,
-    );
-    return `Couldn't start: ${reasons.join('; ')}`;
+/** What was thrown, as a message. */
+function reasonOf(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+const PARAM_KEY = /^params\.(.+)$/;
+
+/**
+ * Why a run of `action` could not start: the reasons of each invalid param that has a pill
+ * (`params.<name>`), and a message for any other reason, or `null` when there is none.
+ */
+function startErrors(
+  e: unknown,
+  action: string,
+): { paramErrors: ParamErrors | null; message: string | null } {
+  if (!isApiError(e) || !e.errors || Object.keys(e.errors).length === 0) {
+    return { paramErrors: null, message: `Couldn't start: ${reasonOf(e)}` };
   }
-  return `Couldn't start: ${e instanceof Error ? e.message : String(e)}`;
+  const params = useInstanceStore
+    .getState()
+    .instance?.actions.find((a) => a.key === action)?.params;
+  const pills = new Set(params?.filter(hasPill).map((p) => p.name));
+  const paramErrors: ParamErrors = {};
+  const others: string[] = [];
+  for (const [key, reasons] of Object.entries(e.errors)) {
+    const name = PARAM_KEY.exec(key)?.[1];
+    if (name === undefined) others.push(reasons.join(' '));
+    else if (pills.has(name)) paramErrors[name] = reasons.join(' ');
+    else others.push(`${name}: ${reasons.join(' ')}`);
+  }
+  return {
+    paramErrors: Object.keys(paramErrors).length > 0 ? paramErrors : null,
+    message: others.length > 0 ? `Couldn't start: ${others.join('; ')}` : null,
+  };
 }
 
 /**
@@ -133,10 +161,12 @@ async function followRun(
     runRowsStore.getState().finish(uuid, run.runId);
     store.getState().updateState(uuid, {
       isExecuting: false,
+      cancelling: false,
       error: null,
       rowCount: rows.length,
       resultsRunId: run.runId,
       resultColumns: run.columns ?? null,
+      resultsStartedAt: run.startedAt,
     });
     store.getState().markUnvisited(uuid);
     store.getState().triggerRowData(uuid);
@@ -145,7 +175,7 @@ async function followRun(
     if (signal.aborted) return;
     if (isResultsGone(e)) return fail(RESULTS_GONE);
     if (isApiError(e) && e.status === 404) return fail(RUN_GONE);
-    fail(e instanceof Error ? e.message : String(e));
+    fail(reasonOf(e));
   } finally {
     const shown = runRowsStore.getState().byTab[uuid];
     if (shown && shown.runId === loading && !shown.done) runRowsStore.getState().drop(uuid);
@@ -162,21 +192,62 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
   const tab = store.getState().tabs[uuid];
   if (tab?.componentName !== 'ActionResult') return;
   const signal = follow(uuid);
-  store.getState().updateState(uuid, { isExecuting: true, error: null });
+  store.getState().updateState(uuid, {
+    isExecuting: true,
+    cancelling: false,
+    error: null,
+    paramErrors: null,
+    run: null,
+  });
   let run: Run;
   try {
     run = await startRun(tab.params.action, tab.params.params, { signal });
   } catch (e) {
     if (signal.aborted) return;
     following.delete(uuid);
-    showError(store, uuid, startMessage(e));
+    const { paramErrors, message } = startErrors(e, tab.params.action);
+    store.getState().updateState(uuid, {
+      isExecuting: false,
+      error: message === null ? null : { message },
+      paramErrors,
+      // Refused params alone leave the latest run as it was.
+      run: message === null ? tab.state.run : null,
+    });
     return;
   }
   if (signal.aborted) return;
-  store.getState().updateState(uuid, { run });
+  store.getState().updateState(uuid, { run, runParams: tab.params.params });
   // Saved at once, so a reload picks the run up by its id.
   await store.getState().flush();
   await followRun(uuid, run, signal, options);
+}
+
+/**
+ * Asks the server to cancel the tab's run. The tab shows it cancelling until it ends; when the
+ * answer is that it has already ended, the tab shows so at once. Never rejects.
+ */
+export async function cancelActionTab(uuid: string, options: ActionRunOptions = {}): Promise<void> {
+  const store = options.store ?? useTabsStore;
+  const tab = store.getState().tabs[uuid];
+  const runId = tab?.state.run?.status === 'running' ? tab.state.run.runId : null;
+  if (tab?.componentName !== 'ActionResult' || !tab.state.isExecuting || runId === null) return;
+  store.getState().updateState(uuid, { cancelling: true });
+  let run: Run;
+  try {
+    run = await cancelRun(runId);
+  } catch (e) {
+    store.getState().updateState(uuid, {
+      cancelling: false,
+      error: { message: `Couldn't cancel: ${reasonOf(e)}` },
+    });
+    return;
+  }
+  const current = store.getState().tabs[uuid]?.state;
+  // A succeeded run's rows are left to the poll that is following it.
+  if (run.status === 'running' || run.status === 'succeeded') return;
+  if (!current?.isExecuting || current.run?.runId !== runId) return;
+  store.getState().updateState(uuid, { run });
+  await followRun(uuid, run, follow(uuid), options);
 }
 
 /**

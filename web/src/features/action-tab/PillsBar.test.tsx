@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import { PillsBar } from './PillsBar';
 
@@ -263,5 +263,46 @@ describe('PillsBar', () => {
     fireEvent.change(input, { target: { value: '[{"User": ' } });
     expect(within(popover()).getByText('Must be JSON')).toBeInTheDocument();
     expect(values()).toEqual({ rows: [{ User: 'alice' }] });
+  });
+
+  it('marks a param the server refused, with its reason', () => {
+    render(
+      <PillsBar
+        params={[
+          param({ name: 'users', kind: 'string', title: 'Users', many: true }),
+          param({ name: 'since', kind: 'datetime', title: 'Since' }),
+        ]}
+        values={{}}
+        connections={connections}
+        onChange={() => {}}
+        errors={{ users: 'Required' }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Users: not set' })).toHaveAccessibleDescription(
+      'Required',
+    );
+    expect(screen.getByRole('button', { name: 'Users: not set' })).toHaveClass(
+      'MuiChip-colorError',
+    );
+    expect(screen.getByRole('button', { name: 'Since: not set' })).not.toHaveClass(
+      'MuiChip-colorError',
+    );
+  });
+
+  it('shows Edited when the params differ from the last run, and resets them', async () => {
+    const onReset = vi.fn();
+    const props = {
+      params: [param({ name: 'users', kind: 'string', title: 'Users', many: true })],
+      values: {},
+      connections,
+      onChange: () => {},
+    };
+    const { rerender } = render(<PillsBar {...props} />);
+    expect(screen.queryByRole('button', { name: 'Edited' })).not.toBeInTheDocument();
+    rerender(<PillsBar {...props} onReset={onReset} />);
+    const edited = screen.getByRole('button', { name: 'Edited' });
+    expect(edited).toHaveAccessibleDescription('Reset to the params of the last run');
+    await userEvent.click(edited);
+    expect(onReset).toHaveBeenCalled();
   });
 });

@@ -359,9 +359,11 @@ Form pieces:
 
 The tab that runs an action. How it behaves is in [architecture.md](../docs/architecture.md#the-tab-and-new-menu); this is where the code is.
 
-- `ActionTab.tsx`: the tab, registered for `ActionResult`. Header, pills bar with Run, and the inner tab "Results · N". It finds its action in `useInstanceStore` by `params.action`; the param values are plain values in `params.params`.
-- `PillsBar.tsx`: one pill per param except `kql`/`sql`, each edited in a popover. `DatetimeEditor.tsx` (MUI X date pickers with dayjs, in UTC) and `TimespanEditor.tsx` (preset chips, or an amount and a unit) edit those kinds; `paramValues.ts` parses and shows values.
-- `actionRuns.ts`: `runActionTab` starts a run, polls it (every second for 10 s, then every 3 s) and loads its rows; `resumeActionRuns` picks runs up again after a reload.
+- `ActionTab.tsx`: the tab, registered for `ActionResult`. Header with Clone, pills bar with Run (or the running spinner with Cancel), and the inner tabs "Results · N" and "Run · duration". It picks the inner tab and shows the previous results during a run. It finds its action in `useInstanceStore` by `params.action`; the param values are plain values in `params.params`.
+- `PillsBar.tsx`: one pill per param except `kql`/`sql`, each edited in a popover. `DatetimeEditor.tsx` (MUI X date pickers with dayjs, in UTC) and `TimespanEditor.tsx` (preset chips, or an amount and a unit) edit those kinds; `paramValues.ts` parses and shows values. A pill shows the server's reason for a refused param, and an Edited chip that resets the params to the latest run's and clears the marks.
+- `RunPanel.tsx`: the Run tab: status, start, duration, run id, the tab's error, details, columns and params. `runText.ts` words the status and durations.
+- `cloneActionTab.ts`: `cloneActionTab` adds the sibling "Copy of <title>" with the same params.
+- `actionRuns.ts`: `runActionTab` starts a run (a 422's `params.<name>` error goes to the tab's `paramErrors` when that param has a pill, else into the "Couldn't start: …" message as `name: reason`), polls it (every second for 10 s, then every 3 s) and loads its rows; `cancelActionTab` cancels it with `cancelRun` from `lib/api/runs.ts`; `resumeActionRuns` picks runs up again after a reload.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
 - `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. `StoredActionResultsGrid` reads `row_results` instead, after a reload.
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
