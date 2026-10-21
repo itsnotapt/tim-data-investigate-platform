@@ -2,12 +2,13 @@
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI
 from jwt.algorithms import RSAAlgorithm
+from tim_actions import Provider
 
 from tim_api.auth import TokenValidator, get_token_validator
 from tim_api.config import Settings, get_settings
@@ -20,8 +21,11 @@ def create_test_app(
     *,
     storage_factory: Callable[[Settings], Storage] | None = None,
     race_seconds: float = RACE_SECONDS,
+    providers: Sequence[Provider] | None = (),
 ) -> FastAPI:
     """``create_app`` backed by the in-memory store unless a ``storage_factory`` is given.
+
+    ``providers`` defaults to none; ``None`` discovers the installed ones.
 
     The default test environment names a Postgres DSN (production settings), so an app built
     without this would try to reach a database on startup.
@@ -29,6 +33,7 @@ def create_test_app(
     return create_app(
         storage_factory=storage_factory or (lambda _settings: MemoryStorage()),
         race_seconds=race_seconds,
+        providers=providers,
     )
 
 

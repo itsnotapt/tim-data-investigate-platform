@@ -17,7 +17,7 @@ Typical subjects: architectural shape, technology choices with lock-in, boundary
 3. Add `## Considered Options` only when the rejected alternatives are worth remembering, and `## Consequences` only when non-obvious downstream effects need calling out. No other headings.
 4. Set `status` in the frontmatter: `proposed` while it awaits agreement, `accepted` once agreed. Only accepted ADRs are binding. Set `date` to the day of the decision.
 5. Add a row to the table below.
-6. To replace a decision, write a new ADR and set the old one's status to `superseded by ADR-NNNN`. A decision that no longer applies and has no replacement is `deprecated`. Don't delete or rewrite old ADRs beyond fixing links.
+6. When a decision changes, edit its ADR in place. When it's replaced, delete the ADR and write the replacement under a new number; an old approach worth remembering becomes a row in the new ADR's Considered Options. Numbers are never reused.
 
 ## Format
 
@@ -38,7 +38,7 @@ One to three sentences: the context, what was decided, and why.
 ## Consequences
 ```
 
-- The frontmatter has exactly the keys `status` and `date`, in that order. `status` is one of `proposed`, `accepted`, `deprecated` or `superseded by ADR-NNNN`; `date` is `YYYY-MM-DD`.
+- The frontmatter has exactly the keys `status` and `date`, in that order. `status` is one of `proposed`, `accepted` or `deprecated`; `date` is `YYYY-MM-DD`.
 - The first line after the frontmatter is the only H1, the title, without a number.
 - The paragraph under the title is prose of one to three sentences.
 - The only H2 headings are `## Considered Options` and `## Consequences`, both optional, in that order. There are no deeper headings.
@@ -62,4 +62,6 @@ Numbers are never reused, so the sequence has gaps.
 | [0013](0013-tag-ingestion.md) | Tag ingestion runs as the app identity | accepted | 2026-10-06 |
 | [0014](0014-web-auth-token-cache.md) | Web sign-in: token cache in localStorage | accepted | 2026-10-06 |
 | [0015](0015-kql-templating.md) | KQL templating in the browser | accepted | 2026-10-06 |
-| [0016](0016-release-versions.md) | Release versions for frontend, backend and the Helm chart | accepted | 2026-10-07 |
+| [0016](0016-release-versions.md) | Release versions for frontend, backend, the Helm chart and tim-actions | accepted | 2026-10-07 |
+| [0017](0017-actions-from-providers.md) | Actions are Python classes from installed providers, configured by YAML files | accepted | 2026-10-20 |
+| [0021](0021-tim-actions-and-derived-images.md) | The `tim-actions` distribution and derived images | accepted | 2026-10-20 |

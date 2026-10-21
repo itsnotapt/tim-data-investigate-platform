@@ -90,9 +90,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
 
+      # Both workspace members: tim-api and tim-actions (api/tim-actions).
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --all-packages
 
+      # ruff covers both members, each with its own settings.
       - name: Lint
         run: uv run ruff check
 
@@ -106,6 +108,14 @@ jobs:
         run: uv run pytest
         env:
           TIM_TEST_DATABASE_URL: postgresql+asyncpg://tim:tim@localhost:5432/tim_test
+
+      - name: Type check tim-actions
+        working-directory: api/tim-actions
+        run: uv run mypy
+
+      - name: Test tim-actions
+        working-directory: api/tim-actions
+        run: uv run pytest
 
   docker-build-api:
     needs: changes

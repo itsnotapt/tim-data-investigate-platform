@@ -38,6 +38,7 @@ _DESCRIPTIONS = {
 _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("get", "/api/healthChecks/liveness"): ("liveness", ()),
     ("get", "/api/healthChecks/readiness"): ("readiness", (503,)),
+    ("get", "/api/instance"): ("getInstance", ()),
     ("post", "/api/kusto/schema"): ("getSchema", (400, 403, 502)),
     # Token exchange failures happen before the run exists, hence 403/502/503 here.
     ("post", "/api/kusto/query"): ("runQuery", (400, 403, 502, 503)),

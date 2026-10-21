@@ -2,6 +2,12 @@ version = 1
 revision = 3
 requires-python = "==3.12.*"
 
+[manifest]
+members = [
+    "tim-actions",
+    "tim-api",
+]
+
 [[package]]
 name = "alembic"
 version = "1.20.0"
@@ -1005,6 +1011,33 @@ wheels = [
 ]
 
 [[package]]
+name = "tim-actions"
+version = "1.0.0"
+source = { editable = "tim-actions" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.13" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=2.4.0" },
+    { name = "pytest" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.16.10" },
+]
+
+[[package]]
 name = "tim-api"
 version = "4.0.0"
 source = { editable = "." }
@@ -1022,6 +1055,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "tim-actions" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1050,6 +1084,7 @@ requires-dist = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2" },
+    { name = "tim-actions", editable = "tim-actions" },
     { name = "uvicorn", extras = ["standard"] },
 ]
 

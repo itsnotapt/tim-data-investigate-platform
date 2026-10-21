@@ -13,10 +13,10 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | Base path | All routes start with `/api`. nginx forwards `/api/` unchanged. |
 | Authentication | `Authorization: Bearer <Entra access token>` for the audience `api://<clientId>` on every route except the health checks. A missing or invalid token gives `401` with `WWW-Authenticate: Bearer`. |
 | Identity | The caller's name comes from the token. Identity fields in request bodies (`requestedBy`, `createdBy`, `updatedBy`, `updated`, `dateTimeUtc`) are ignored. |
-| JSON | UTF-8. Property names are camelCase; unknown request properties are ignored. Exception: keys inside `executionMetrics` are Kusto's snake_case. |
+| JSON | UTF-8. TIM's own property names are camelCase; unknown request properties are ignored. Names an action defines, such as its param names and their values, pass through verbatim, and in OpenAPI that content is an open JSON value. Exception: keys inside `executionMetrics` are Kusto's snake_case. |
 | Timestamps | ISO 8601 UTC with `Z`, with milliseconds only when non-zero. Input with an offset is converted to UTC; input without an offset is read as UTC. |
 | Status codes | `200`/`201` with a body, `202` while a query run is pending, `204` without a body. |
-| Errors | `application/problem+json`, see [Errors](#errors). |
+| Errors | RFC 9457 problem details (`application/problem+json`), see [Errors](#errors). |
 | Trace id | Every response has `x-trace-id`. The server accepts a W3C `traceparent` or an `x-request-id` (`[A-Za-z0-9._-]`, up to 128 characters) and otherwise generates one. |
 | Headers | Responses carry `x-content-type-options: nosniff` and `cache-control: no-store`. |
 | CORS | Only for origins in `TIM_CORS_ALLOWED_ORIGINS`; the SPA is normally same-origin. |
@@ -28,6 +28,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 |---|---|---|---|---|
 | GET | `/api/healthChecks/liveness` | 204 | none | Process is up. No checks; no auth. |
 | GET | `/api/healthChecks/readiness` | 204 | 503 | Storage is reachable. Kusto is not checked; no auth. |
+| GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
 | POST | `/api/kusto/schema` | 200 | 400, 401, 403, 502, 503 | `.show schema as json` for a cluster database. |
 | POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 502, 503 | Start a query run. |
 | GET | `/api/kusto/query/{queryRunId}` | 200 or 202 | 400, 401, 404 | Read a query run. |
@@ -73,6 +74,28 @@ Every non-2xx response has this body:
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled). |
+
+## Instance
+
+### GET /api/instance
+
+What the browser needs to know about this instance, built once at startup from the installed providers ([architecture.md](architecture.md#actions-and-providers)):
+
+```
+{version, actions: [Action], connections: [], labels: [], limits}
+```
+
+- `version`: a hash of the installed provider distributions and the rest of this body. It changes when either does, for example after a rolling update.
+- `actions`: the catalogue, in provider order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot}`:
+  - `kind` is `query`.
+  - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
+  - `connections` names the fixed connections the action uses.
+  - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?, advanced?}]`. `default` and `choices` are values as the browser sends them. `advanced` is present only when `true`.
+  - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
+- `connections` and `labels` are empty.
+- `limits`: `{maxResultRows, maxResultBytes, runTimeoutSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES` and `TIM_QUERY_TIMEOUT_SECONDS`.
+
+Keys marked `?` are left out when they have no value.
 
 ## Kusto
 

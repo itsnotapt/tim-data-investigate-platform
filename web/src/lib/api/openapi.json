@@ -1,6 +1,229 @@
 {
   "components": {
     "schemas": {
+      "CatalogueAction": {
+        "properties": {
+          "connections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "const": "query",
+            "title": "Kind",
+            "type": "string"
+          },
+          "menuPath": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Menupath",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogueParam"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "pivot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CataloguePivot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "name",
+          "menuPath",
+          "connections",
+          "params",
+          "pivot"
+        ],
+        "title": "CatalogueAction",
+        "type": "object"
+      },
+      "CatalogueParam": {
+        "description": "A param of an action, as the tab builds its form from it.",
+        "properties": {
+          "advanced": {
+            "anyOf": [
+              {
+                "const": true,
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advanced"
+          },
+          "choices": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choices"
+          },
+          "connectionType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connectiontype"
+          },
+          "default": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "fromColumns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fromcolumns"
+          },
+          "help": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Help"
+          },
+          "kind": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "datetime",
+              "timespan",
+              "json",
+              "kql",
+              "sql",
+              "connection"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "many": {
+            "title": "Many",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "schemaFrom": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schemafrom"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "kind",
+          "required",
+          "many"
+        ],
+        "title": "CatalogueParam",
+        "type": "object"
+      },
+      "CataloguePivot": {
+        "description": "How an action is offered in the grid's context menu: on one row or several, when the row\nhas one column from each group of alternatives.",
+        "properties": {
+          "columns": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "rows": {
+            "enum": [
+              "row",
+              "rows"
+            ],
+            "title": "Rows",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rows",
+          "columns"
+        ],
+        "title": "CataloguePivot",
+        "type": "object"
+      },
       "EventComment": {
         "properties": {
           "comment": {
@@ -58,6 +281,132 @@
         "title": "EventTag",
         "type": "object"
       },
+      "Instance": {
+        "description": "``version`` changes whenever anything else here, or an installed provider, does.",
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogueAction"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceConnection"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceLabel"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "actions",
+          "connections",
+          "labels",
+          "limits"
+        ],
+        "title": "Instance",
+        "type": "object"
+      },
+      "InstanceConnection": {
+        "description": "A connection as the browser sees it: never its endpoint or auth.",
+        "properties": {
+          "databases": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Databases"
+          },
+          "editor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editor"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "title"
+        ],
+        "title": "InstanceConnection",
+        "type": "object"
+      },
+      "InstanceLabel": {
+        "properties": {
+          "colour": {
+            "title": "Colour",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "colour"
+        ],
+        "title": "InstanceLabel",
+        "type": "object"
+      },
+      "JsonValue": {},
       "KustoClusterDatabase": {
         "description": "Request body of `POST /api/kusto/schema`.",
         "properties": {
@@ -302,6 +651,29 @@
           "execution_time"
         ],
         "title": "KustoQueryStats",
+        "type": "object"
+      },
+      "Limits": {
+        "properties": {
+          "maxResultBytes": {
+            "title": "Maxresultbytes",
+            "type": "integer"
+          },
+          "maxResultRows": {
+            "title": "Maxresultrows",
+            "type": "integer"
+          },
+          "runTimeoutSeconds": {
+            "title": "Runtimeoutseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "maxResultRows",
+          "maxResultBytes",
+          "runTimeoutSeconds"
+        ],
+        "title": "Limits",
         "type": "object"
       },
       "PatchOperation": {
@@ -956,6 +1328,61 @@
           }
         },
         "summary": "Readiness"
+      }
+    },
+    "/api/instance": {
+      "get": {
+        "description": "The instance's actions, connections, labels and limits.",
+        "operationId": "getInstance",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instance"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get Instance",
+        "tags": [
+          "instance"
+        ]
       }
     },
     "/api/kusto/query": {

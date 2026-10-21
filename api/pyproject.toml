@@ -19,6 +19,7 @@ dependencies = [
     "jsonpatch>=1.33",
     "azure-kusto-ingest>=6.0.4",
     "azure-identity>=1.26.0",
+    "tim-actions",
 ]
 
 [dependency-groups]
@@ -30,6 +31,12 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.16.10",
 ]
+
+[tool.uv.workspace]
+members = ["tim-actions"]
+
+[tool.uv.sources]
+tim-actions = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

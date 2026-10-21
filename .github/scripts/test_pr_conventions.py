@@ -52,6 +52,13 @@ class PureFunctions(unittest.TestCase):
         self.assertEqual(packages["web"], ("frontend", ["web/e2e"]))
         self.assertEqual(packages["api"][0], "backend")
         self.assertEqual(packages["deploy/helm/tim"][0], "chart")
+        self.assertEqual(packages["api/tim-actions"][0], "tim-actions")
+        self.assertEqual(
+            pc.packages_for_files(["api/tim-actions/src/tim_actions/action.py"], packages),
+            ["tim-actions"],
+        )
+        self.assertEqual(pc.packages_for_files(["api/tim-actions/tests/t.py"], packages), [])
+        self.assertEqual(pc.packages_for_files(["api/uv.lock"], packages), ["backend"])
         files = [
             "web/src/a.ts",
             "web/e2e/t.ts",

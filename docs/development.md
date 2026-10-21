@@ -42,19 +42,32 @@ Web variables for `npm run dev` go in `web/.env.local` (template: `web/.env.exam
 
 ## Checks
 
-Run the checks CI runs before you push: in `api/`, `uv run pytest`, `uv run ruff check`, `uv run ruff format --check` and `uv run mypy`; in `web/`, the `lint`, `format:check`, `typecheck`, `test`, `build` and `e2e` scripts. The workflows are in `.github/workflows/`.
+Run the checks CI runs before you push: in `api/`, `uv run pytest`, `uv run ruff check`, `uv run ruff format --check` and `uv run mypy`; in `api/tim-actions/`, `uv run pytest` and `uv run mypy`; in `web/`, the `lint`, `format:check`, `typecheck`, `test`, `build` and `e2e` scripts. The workflows are in `.github/workflows/`.
 
 Where CI differs from a local run:
 
 | CI does                                                                                          | Locally                                                                                       |
 | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `uv sync --locked` and `npm ci`                                                                  | A stale `uv.lock` or `package-lock.json` passes `uv sync` / `npm install` but fails CI         |
+| `uv sync --locked --all-packages` and `npm ci`                                                   | A stale `uv.lock` or `package-lock.json` passes `uv sync` / `npm install` but fails CI         |
 | `npm audit --omit=dev --audit-level=high`                                                        | Not part of any script; run it yourself after changing dependencies                           |
 | PostgreSQL tests against a `postgres:17` service (`TIM_TEST_DATABASE_URL`)                       | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                             |
 | Playwright with `CI` set: `forbidOnly`, 1 retry, 2 workers, HTML report, never reuses a server    | `list` reporter only, no retries, reuses a running server                                     |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
 | `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions           | Needs those tools installed; read the workflow for the exact commands                         |
 | `lint-workflows.yml`: actionlint and shellcheck on workflows, plus the `.github/scripts` tests     | `python3 -B -m unittest discover -s .github/scripts` (`-B` keeps `__pycache__` out of the tree) |
+
+## The uv workspace
+
+`api/` is a uv workspace with two members, each its own distribution with its own version and release ([ADR-0021](adr/0021-tim-actions-and-derived-images.md)):
+
+| Member | Directory | What it is |
+|---|---|---|
+| `tim-api` | `api/` | The API |
+| `tim-actions` | `api/tim-actions/` | The interface providers build against: `Action`, `Param`, `Column`, `Provider`, `Hook`, param validation, and TIM's built-in provider |
+
+They share one `api/uv.lock` and one `api/.venv`. `tim-api` depends on `tim-actions` through `[tool.uv.sources]`, so `uv sync` in `api/` installs both, with `tim-actions` editable. `uv sync --all-packages`, which CI runs, also installs `tim-actions`' own dev group. Run `uv add` in the member whose dependency it is.
+
+Each member has its own tool settings in its `pyproject.toml`. `uv run ruff check` in `api/` lints both, each with its own settings; `mypy` and `pytest` run once per member, from its directory.
 
 ## Dependency pins
 
@@ -94,7 +107,7 @@ Branches, titles, the merge method and how titles decide releases are in [RULES.
 
 Things the workflows don't tell you:
 
-- An api release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath in `release-please-config.json`. If you rename the package in `api/pyproject.toml`, update that jsonpath too, or `uv sync --locked` fails on the release PR.
+- An api release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath in `release-please-config.json`, and a `tim-actions` release bumps the `tim-actions` entry the same way. If you rename either package in its `pyproject.toml`, update its jsonpath too, or `uv sync --locked` fails on the release PR.
 - Images do not come from Docker Hub, whose anonymous pull limit stalls CI: Docker Hub images (Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action`, the `postgres` service) are pulled through `mirror.gcr.io`, and `nginx-unprivileged` from its publisher's `ghcr.io/nginx`. Keep the same image and tag when you change one, and check the tag exists on the mirror (`docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`).
 - Use each action's major tag (`@vN`). `astral-sh/setup-uv` publishes only full version tags, so it is pinned to `v10.2.0`.
 

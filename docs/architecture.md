@@ -161,18 +161,19 @@ MSAL popup flow with a `localStorage` token cache. The SPA requests the scope `a
 
 ### Stack
 
-Python 3.12, FastAPI on uvicorn, pydantic and pydantic-settings, PyJWT (token validation), `msal` (OBO), `azure-kusto-data` (queries), `azure-kusto-ingest` and `azure-identity` (tag ingestion), SQLAlchemy 2 with asyncpg and Alembic (PostgreSQL), `jsonpatch`.
+Python 3.12, FastAPI on uvicorn, `tim-actions` (the provider interface, a uv workspace member in `api/tim-actions`), pydantic and pydantic-settings, PyJWT (token validation), `msal` (OBO), `azure-kusto-data` (queries), `azure-kusto-ingest` and `azure-identity` (tag ingestion), SQLAlchemy 2 with asyncpg and Alembic (PostgreSQL), `jsonpatch`.
 
 ### Module layout (`api/src/tim_api`)
 
 | Module | Responsibility |
 |---|---|
-| `main.py` | App factory, lifespan, health routes, middleware order |
+| `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
 | `deps.py` | FastAPI dependencies returning the storage and its template and query-run stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
+| `actions/` | Provider discovery and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `kusto/` | Cluster validation, query client, `POST /api/kusto/schema` |
 | `query_runs/` | Query-run routes, models and the run lifecycle (`runner.py`) |
@@ -183,11 +184,38 @@ Python 3.12, FastAPI on uvicorn, pydantic and pydantic-settings, PyJWT (token va
 
 Database migrations are in `api/migrations` (Alembic).
 
+`tim-actions` (`api/tim-actions/src/tim_actions`) is a separate distribution that providers depend on instead of `tim-api` ([ADR-0021](adr/0021-tim-actions-and-derived-images.md)):
+
+| Module | Responsibility |
+|---|---|
+| `action.py` | `Action`, the base of query action types, with its menu path and pivot columns |
+| `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
+| `columns.py` | `Column` |
+| `hooks.py` | `Hook`, the base of a connection type's access, and `EditorSchema` |
+| `run.py` | `RunContext`, the protocol `run` is given, and `Analyst` |
+| `provider.py` | `Provider` and the `tim.actions` entry-point group |
+| `builtin.py` | TIM's built-in provider |
+
 ### Request flow and middleware
 
 Outermost first: `LazyCORSMiddleware` (origins from `TIM_CORS_ALLOWED_ORIGINS`; no CORS headers when empty), `RequestLoggingMiddleware` (assigns the trace id, adds `x-trace-id`, `x-content-type-options: nosniff` and `cache-control: no-store` to every response, logs one line per request), `BodySizeLimitMiddleware` (413 above `TIM_MAX_REQUEST_BYTES`, checked on `Content-Length` and on streamed bytes). Then the route, whose dependencies resolve the caller (`get_current_principal`), settings, storage and clients.
 
 The trace id is a valid W3C `traceparent`, else a sane `x-request-id`, else generated. Logs contain method, path (no query string), status, duration and trace id; headers and bodies are never logged.
+
+### Actions and providers
+
+An **action type** is a Python subclass of `tim_actions.Action` that implements `run`; an **action** is a configured instance of one, with a `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id` ([ADR-0017](adr/0017-actions-from-providers.md)). Actions come from **providers**: a package exposes a callable that returns `Provider(actions, action_types, hooks)` in the `tim.actions` entry-point group. TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.
+
+Loading happens once, in the lifespan, before storage is opened. `discover_providers` calls every entry point; `create_app(providers=...)` skips discovery and takes the given providers instead. `build_registry` then indexes actions by key, file-capable action types by `type_name` and hooks by connection type. Any of these stops startup, with every problem listed and each naming its entry point and distribution (`ActionsConfigError`):
+
+- an entry point that fails to load, raises, or doesn't return a `Provider`;
+- an invalid action. `Action`, `Param` and `Column` are pydantic models that check themselves when they are built, and the registry validates each action again from its fields;
+- a key outside lowercase letters, digits, `_`, `-` and `.`, or a `tim.` key from any distribution but `tim-actions`;
+- a duplicate action key, `type_name` or connection type.
+
+The registry serves the catalogue in `GET /api/instance` ([api.md](api.md#instance)), built once at startup. Its `version` is a hash of the provider distributions (name and version) and the rest of the body, so it changes whenever the catalogue or an installed provider does. Nothing runs an action: queries run through the query-run lifecycle below.
+
+Params are declared as data: `Param(name, kind, title, required, default, many, choices, connection_type, schema_from, from_columns, help, advanced)`. `kind` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json`, `kql`, `sql` or `connection`. `tim_actions.validate_params` validates and converts the values in a request: a `datetime` is an ISO 8601 string (UTC when it has no offset), a `timespan` an ISO 8601 duration or `HH:MM:SS`, a `many` param a list, and a `connection` param the name of a connection of its `connection_type`. A missing or blank value takes the default; errors are keyed `params.<name>`. The catalogue's `pivot.columns` comes from `Action.pivot_columns()`: each required param's `from_columns` is one group, and a row needs one column from each.
 
 ### Authentication and OBO
 

@@ -22,7 +22,7 @@ Process rules for everyone working on TIM, human or agent.
 
 ## 7. Releases
 
-- Keep a breaking change in its own PR, out of any package that should not go major. Its title's scope names every package whose files the PR changes: `frontend` (`web/`), `backend` (`api/`), `chart` (`deploy/helm/tim`), e.g. `feat(backend,chart)!: …`.
+- Keep a breaking change in its own PR, out of any package that should not go major. Its title's scope names every package whose files the PR changes: `frontend` (`web/`), `backend` (`api/`), `tim-actions` (`api/tim-actions`), `chart` (`deploy/helm/tim`), e.g. `feat(backend,chart)!: …`.
 - Versions come from the commit types. Never edit versions by hand; release-please owns them.
 
 [ADR-0016](adr/0016-release-versions.md) describes the packages and which commits bump them.
