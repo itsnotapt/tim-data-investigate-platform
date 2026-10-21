@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -65,7 +66,7 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
     ]
 
 
-def get_instance(auth: AuthKit, providers: list[Provider]) -> dict[str, Any]:
+def get_instance(auth: AuthKit, providers: list[Provider] | None) -> dict[str, Any]:
     app = create_test_app(providers=providers)
     auth.install(app)
     with TestClient(app, headers=auth.headers()) as client:
@@ -143,3 +144,45 @@ def test_the_version_changes_with_the_catalogue(auth: AuthKit) -> None:
 def test_the_instance_needs_a_signed_in_analyst() -> None:
     with TestClient(create_test_app()) as client:
         assert client.get("/api/instance").status_code == 401
+
+
+def test_the_instance_lists_its_connections_without_their_endpoints(
+    auth: AuthKit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "connections.yaml"
+    path.write_text(
+        """\
+- name: security
+  title: Security
+  type: kusto
+  auth: obo
+  cluster: https://help.kusto.windows.net
+  databases: [Samples, Security]
+- name: ops
+  title: Ops
+  type: kusto
+  auth: obo
+  cluster: https://ops.kusto.windows.net
+  scope: api://ops/.default
+"""
+    )
+    monkeypatch.setenv("TIM_CONNECTIONS_FILE", str(path))
+    instance = get_instance(auth, None)
+    assert instance["connections"] == [
+        {
+            "name": "security",
+            "type": "kusto",
+            "title": "Security",
+            "editor": "kql",
+            "databases": ["Samples", "Security"],
+        },
+        {"name": "ops", "type": "kusto", "title": "Ops", "editor": "kql"},
+    ]
+    [run_kql] = [a for a in instance["actions"] if a["key"] == "tim.run_kql"]
+    assert run_kql["connections"] == []
+    assert [(p["name"], p["kind"]) for p in run_kql["params"]] == [
+        ("connection", "connection"),
+        ("database", "string"),
+        ("kql", "kql"),
+        ("idColumn", "string"),
+    ]

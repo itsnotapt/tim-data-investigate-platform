@@ -11,7 +11,7 @@ import QueryManagerPage from './QueryManagerPage';
 import { selectionCounts } from './queryManagerState';
 
 vi.mock('../../components/CodeEditor', async () =>
-  (await import('./testUtils')).fakeCodeEditorModule(),
+  (await import('../../test/fakeCodeEditor')).fakeCodeEditorModule(),
 );
 
 const server = setupMswServer();

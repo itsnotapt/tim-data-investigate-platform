@@ -11,7 +11,6 @@ import {
 import { rowResultsDao } from '../../lib/storage';
 import { useInstanceStore } from '../instance';
 import { useTabsStore, type ParamErrors, type TabsStore } from '../tabs';
-import { hasPill } from './paramValues';
 import { runRowsStore } from './runRows';
 
 const FAST_POLL_MS = 1000;
@@ -83,8 +82,9 @@ function reasonOf(e: unknown): string {
 const PARAM_KEY = /^params\.(.+)$/;
 
 /**
- * Why a run of `action` could not start: the reasons of each invalid param that has a pill
- * (`params.<name>`), and a message for any other reason, or `null` when there is none.
+ * Why a run of `action` could not start: the reasons of each invalid param the tab shows, in a
+ * pill or the editor (`params.<name>`), and a message for any other reason, or `null` when there
+ * is none.
  */
 function startErrors(
   e: unknown,
@@ -96,13 +96,13 @@ function startErrors(
   const params = useInstanceStore
     .getState()
     .instance?.actions.find((a) => a.key === action)?.params;
-  const pills = new Set(params?.filter(hasPill).map((p) => p.name));
+  const shown = new Set(params?.map((p) => p.name));
   const paramErrors: ParamErrors = {};
   const others: string[] = [];
   for (const [key, reasons] of Object.entries(e.errors)) {
     const name = PARAM_KEY.exec(key)?.[1];
     if (name === undefined) others.push(reasons.join(' '));
-    else if (pills.has(name)) paramErrors[name] = reasons.join(' ');
+    else if (shown.has(name)) paramErrors[name] = reasons.join(' ');
     else others.push(`${name}: ${reasons.join(' ')}`);
   }
   return {

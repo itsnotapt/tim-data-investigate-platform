@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx2 as httpx
@@ -19,9 +21,10 @@ from scripted_actions import (
     Unexpected,
     WaitUntilCancelled,
 )
-from tim_actions import Analyst, Column, Hook, Param, Provider
+from tim_actions import Column, Param, Provider
 
-from tim_api.runs.connections import get_connections
+from tim_api.auth.dependencies import get_obo_provider
+from tim_api.auth.principal import Principal
 from tim_api.runs.models import RunStatus
 from tim_api.storage import Storage
 
@@ -29,16 +32,18 @@ ALICE = "alice@example.com"
 BOB = "bob@example.com"
 
 
-class FakeConnections:
-    """The instance's connections, each with a hook the test hands out."""
+FAKE_CONNECTIONS = Path(__file__).parent / "fixtures" / "connections" / "fake.yaml"
+
+
+class FakeObo:
+    """The OBO exchange, faked at ``token_for``."""
 
     def __init__(self) -> None:
-        self.hooks: dict[str, Hook] = {}
-        self.calls: list[tuple[str, Analyst]] = []
+        self.calls: list[tuple[str, str]] = []
 
-    def hook(self, name: str, analyst: Analyst) -> Hook:
-        self.calls.append((name, analyst))
-        return self.hooks[name]
+    def token_for(self, principal: Principal, scope: str) -> str:
+        self.calls.append((principal.name, scope))
+        return f"obo:{principal.name}:{scope}"
 
 
 class Env:
@@ -47,11 +52,11 @@ class Env:
         client: httpx.AsyncClient,
         auth: AuthKit,
         storage: Storage,
-        connections: FakeConnections,
+        obo: FakeObo,
     ) -> None:
         self.client = client
         self.storage = storage
-        self.connections = connections
+        self.obo = obo
         self._auth = auth
 
     def as_user(self, name: str, oid: str) -> None:
@@ -74,25 +79,35 @@ class Env:
     async def rows(self, run_id: str, **query: int) -> httpx.Response:
         return await self.client.get(f"/api/runs/{run_id}/rows", params=query)
 
+    @staticmethod
+    async def hook() -> CancellableHook:
+        """The latest hook built for the ``fake`` connection, once a run has built one."""
+        async with asyncio.timeout(10):
+            while not CancellableHook.built:  # noqa: ASYNC110 - no change signal
+                await asyncio.sleep(0.01)
+        return CancellableHook.built[-1]
+
 
 @asynccontextmanager
 async def open_env(
     storage: Storage, auth: AuthKit, actions: Sequence[Any], race_seconds: float = 0.5
 ) -> AsyncIterator[Env]:
-    connections = FakeConnections()
+    os.environ["TIM_CONNECTIONS_FILE"] = str(FAKE_CONNECTIONS)
+    CancellableHook.built.clear()
+    obo = FakeObo()
     app = create_test_app(
         storage_factory=lambda _s: storage,
         race_seconds=race_seconds,
-        providers=[Provider(actions=actions)],
+        providers=[Provider(actions=actions, hooks=[CancellableHook])],
     )
     auth.install(app)
-    app.dependency_overrides[get_connections] = lambda: connections
+    app.dependency_overrides[get_obo_provider] = lambda: obo
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(
             transport=transport, base_url="http://t", headers=auth.headers(ALICE, "oid-a")
         ) as client:
-            yield Env(client, auth, storage, connections)
+            yield Env(client, auth, storage, obo)
 
 
 SIGN_INS = Rows(
@@ -177,10 +192,9 @@ async def test_cancel_calls_the_hook_from_another_thread_and_drops_partial_rows(
     storage: Storage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [WAITS], race_seconds=0.1) as env:
-        hook = CancellableHook()
-        env.connections.hooks["fake"] = hook
         started = await env.start("acme.waits")
         assert started.status_code == 202
+        hook = await env.hook()
         run = started.json()
         assert run["status"] == "running"
         assert "finishedAt" not in run
@@ -198,8 +212,8 @@ async def test_cancel_calls_the_hook_from_another_thread_and_drops_partial_rows(
         assert hook.cancelled.is_set()
         assert hook.cancel_threads and hook.cancel_threads[0] != "MainThread"
         assert await stored_rows_exist(env, run["runId"]) is False
-        assert [name for name, _ in env.connections.calls] == ["fake"]
-        assert env.connections.calls[0][1].upn == ALICE
+        assert [h.connection.name for h in CancellableHook.built] == ["fake"]
+        assert env.obo.calls == [(ALICE, "api://fake/.default")]
 
         again = await env.client.post(f"/api/runs/{run['runId']}/cancel")
         assert again.status_code == 200
@@ -237,9 +251,8 @@ async def test_a_run_over_the_timeout_ends_timed_out_without_rows(
 ) -> None:
     monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "1")
     async with open_env(storage, auth, [WAITS], race_seconds=0.1) as env:
-        hook = CancellableHook()
-        env.connections.hooks["fake"] = hook
         run = (await env.start("acme.waits")).json()
+        hook = await env.hook()
         ended = await env.wait(run["runId"])
         assert ended["status"] == "timedOut"
         assert ended["error"] == "Run exceeded the time limit of 1 seconds"
@@ -590,7 +603,7 @@ async def test_a_run_cannot_reach_a_connection_its_action_did_not_declare(
         run = (await env.start("acme.sneaky")).json()
         assert run["status"] == "error"
         assert run["error"] == "The run failed unexpectedly"
-        assert env.connections.calls == []
+        assert CancellableHook.built == []
 
 
 async def test_startup_marks_runs_left_running_past_the_timeout_as_interrupted(
@@ -621,10 +634,9 @@ async def test_shutdown_ends_runs_in_flight_as_interrupted(storage: Storage, aut
     from datetime import UTC, datetime
     from uuid import UUID
 
-    hook = CancellableHook()
     async with open_env(storage, auth, [WAITS], race_seconds=0.1) as env:
-        env.connections.hooks["fake"] = hook
         run_id = (await env.start("acme.waits")).json()["runId"]
+        hook = await env.hook()
         await wait_for_rows(env, run_id)
     got = await storage.runs.get(UUID(run_id), datetime.now(UTC))
     assert got is not None
@@ -637,13 +649,12 @@ async def test_shutdown_ends_runs_in_flight_as_interrupted(storage: Storage, aut
 async def test_a_cancel_reaches_a_run_executing_in_another_process(
     storage: Storage, auth: AuthKit
 ) -> None:
-    hook = CancellableHook()
     async with (
         open_env(storage, auth, [WAITS], race_seconds=0.1) as executing,
         open_env(storage, auth, [WAITS], race_seconds=0.1) as other,
     ):
-        executing.connections.hooks["fake"] = hook
         run_id = (await executing.start("acme.waits")).json()["runId"]
+        hook = await executing.hook()
         answered = await other.client.post(f"/api/runs/{run_id}/cancel")
         assert answered.status_code == 200
         assert answered.json()["status"] == "running"
@@ -657,9 +668,8 @@ async def test_a_run_waiting_for_a_slot_is_running_and_can_be_cancelled(
 ) -> None:
     monkeypatch.setenv("TIM_MAX_CONCURRENT_RUNS", "1")
     async with open_env(storage, auth, [WAITS, SIGN_INS], race_seconds=0.1) as env:
-        hook = CancellableHook()
-        env.connections.hooks["fake"] = hook
         busy = (await env.start("acme.waits")).json()
+        hook = await env.hook()
         waiting = await env.start("acme.sign_ins")
         assert waiting.status_code == 202
         assert waiting.json()["status"] == "running"

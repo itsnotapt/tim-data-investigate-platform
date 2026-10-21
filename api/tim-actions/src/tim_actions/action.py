@@ -95,9 +95,10 @@ class Action(BaseModel, ABC):
     def menu_path(self) -> list[str]:
         return [part.strip() for part in self.menu.split("/")] if self.menu else []
 
-    def connections(self) -> tuple[str, ...]:
-        """The names of the fixed connections this action uses."""
-        return ()
+    def connections(self) -> Mapping[str, str]:
+        """The fixed connections this action uses: each name and the connection type it must
+        be."""
+        return {}
 
     def pivot_columns(self) -> list[list[str]]:
         """The context menu's filter: a row needs one column from each group. Each

@@ -4,7 +4,7 @@ TIM is configured entirely through environment variables: the api reads `TIM_*` 
 
 ## API
 
-Settings are read by pydantic-settings from the process environment and from a `.env` file in the working directory (`api/.env` when run from `api/`; template `api/.env.example`). List values are comma-separated. Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL` and `TIM_ACTIONS_DIR` count as unset. Unknown `TIM_*` variables are ignored. Invalid or missing settings stop the api at startup with an error naming each variable (see [operations.md](operations.md#common-failures)).
+Settings are read by pydantic-settings from the process environment and from a `.env` file in the working directory (`api/.env` when run from `api/`; template `api/.env.example`). List values are comma-separated. Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL`, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE` count as unset. Unknown `TIM_*` variables are ignored. Invalid or missing settings stop the api at startup with an error naming each variable (see [operations.md](operations.md#common-failures)).
 
 ### Mode and logging
 
@@ -23,24 +23,59 @@ See [ADR-0005](adr/0005-auth-entra-popup-obo.md) for the design.
 | `TIM_AUTH_CLIENT_ID`      | none                                | yes      | Client id of the API app registration. The API audience is `api://<client id>`.                                                                                                                      |
 | `TIM_AUTH_CLIENT_SECRET`  | unset                               | see note | Client secret for the on-behalf-of (OBO) exchange. When unset, a workload-identity token file is used (`AZURE_FEDERATED_TOKEN_FILE`, below).                                                         |
 | `TIM_AUTH_AUTHORITY_HOST` | `https://login.microsoftonline.com` | no       | Authority host, override for sovereign clouds. Must be https.                                                                                                                                        |
-| `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as the analyst its stub token (`Authorization: Bearer dev:<upn>`) names, or as a fixed dev user (`dev.user@example.com`) without one. A stub token with a blank upn gets 401. Kusto calls then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
+| `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as the analyst its stub token (`Authorization: Bearer dev:<upn>`) names, or as a fixed dev user (`dev.user@example.com`) without one. A stub token with a blank upn gets 401. Connections that use `obo` and Kusto tab calls then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
 
-Note: unless `TIM_AUTH_DISABLED=true`, the api needs an OBO credential at startup: either `TIM_AUTH_CLIENT_SECRET` or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file. Without one it fails to start.
+Note: unless `TIM_AUTH_DISABLED=true`, an api whose connections file has a connection that uses `obo` needs an OBO credential at startup: either `TIM_AUTH_CLIENT_SECRET` or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file. Without one it fails to start. An instance with no `obo` connection starts without one, and OBO answers 503 when something uses it (the Kusto tab, for example).
 
 ### Kusto
 
 | Variable                     | Default                                          | Required | Description                                                                                                                           |
 | ---------------------------- | ------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `TIM_KUSTO_OBO_SCOPE`        | `{cluster}/.default`                             | no       | OBO scope template. `{cluster}` is replaced by the cluster base URI.                                                                  |
+| `TIM_KUSTO_OBO_SCOPE`        | `{cluster}/.default`                             | no       | OBO scope template of the Kusto tab. `{cluster}` is replaced by the cluster base URI. A connection has its own `scope` ([Connections](#connections)). |
 | `TIM_TAG_CLUSTER_URI`        | none                                             | yes      | https URI of the Kusto cluster that stores tagged events.                                                                             |
 | `TIM_TAG_DATABASE`           | `Research`                                       | no       | Database on the tag cluster.                                                                                                          |
 | `TIM_TAG_INGEST_URL`         | derived from `TIM_TAG_CLUSTER_URI`               | no       | https ingestion endpoint for tag writes.                                                                                              |
 | `TIM_TAG_INGEST_FAKE`        | `false`                                          | no       | Development only. Uses an in-memory fake instead of Kusto ingestion. Ignored unless `TIM_ENVIRONMENT=development`.                    |
 | `TIM_ALLOWED_KUSTO_HOSTS` | `**.kusto.windows.net` | no | Comma separated patterns for the Kusto clusters users may query; see [Cluster allow-list](#cluster-allow-list). Unset or blank uses the default. Clusters must be https. Invalid patterns stop the api at startup. |
 
+### Connections
+
+| Variable               | Default | Description |
+| ---------------------- | ------- | ----------- |
+| `TIM_CONNECTIONS_FILE` | none    | The connections file ([actions.md](actions.md#connections-file)), read once at startup. Empty means none. A path that doesn't exist stops startup with `no file <path>`. |
+
+The file is a YAML list of the instance's connections. Each entry has:
+
+| Field   | Required | Description |
+| ------- | -------- | ----------- |
+| `name`  | yes | Lowercase letters, digits and `-`, unique in the file. Actions and the browser refer to the connection by it. |
+| `title` | yes | What analysts see. |
+| `type`  | yes | A connection type installed in the image; `tim-api schema connections` lists them. |
+| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity` is in the model, but the `kusto` type supports only `obo`. |
+| `scope` | no | The scope an `obo` token is requested for; the type may default it. |
+
+The `kusto` connection type adds `cluster` (required), `databases` (optional) and `scope`:
+
+| Field       | Description |
+| ----------- | ----------- |
+| `cluster`   | An absolute https URL of a plain DNS host with no credentials, port other than 443, path, query or fragment, and not an IP address. It is normalised to `https://<host>` at startup ([api.md](api.md#cluster-validation)). |
+| `databases` | Database names the browser suggests for Run KQL's `database` param. Not a restriction. |
+| `scope`     | The OBO scope. Defaults to `{cluster}/.default`. |
+
+```yaml
+- name: samples
+  title: Samples (help cluster)
+  type: kusto
+  auth: obo
+  cluster: https://help.kusto.windows.net
+  databases: [Samples]
+```
+
+A problem in the file stops startup, reported as `<file>:<line>: <field>: <message>` ([operations.md](operations.md#startup-failures-from-the-files)). Check a file before deploying it with `tim-api check --connections <file>` ([operations.md](operations.md#tim-api-check)). The api's OBO credential is needed when a connection uses `obo` ([Authentication](#authentication)). `GET /api/instance` lists each connection's name, type, title, editor and databases, never its cluster, auth or scope.
+
 ### Cluster allow-list
 
-`TIM_ALLOWED_KUSTO_HOSTS` is one list of patterns. A cluster host is allowed when it matches any pattern. Patterns are trimmed, lowercased and converted to punycode; one trailing dot is ignored. Matching is on whole labels.
+`TIM_ALLOWED_KUSTO_HOSTS` is the allow-list of the Kusto tab; connections don't use it. It is one list of patterns. A cluster host is allowed when it matches any pattern. Patterns are trimmed, lowercased and converted to punycode; one trailing dot is ignored. Matching is on whole labels.
 
 | Pattern kind | Matches | Does not match |
 |---|---|---|
@@ -114,7 +149,7 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 | Variable                                                    | Read by                                     | Description                                                                                                                                                                                                                         |
 | ----------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET` | `azure-identity` (`DefaultAzureCredential`) | App identity for tag ingestion and the `create-tables` command. Other credentials `DefaultAzureCredential` supports (managed or workload identity, Azure CLI login) also work.                                                      |
-| `AZURE_FEDERATED_TOKEN_FILE`                                | OBO exchange                                | Path to a workload-identity token file, used as the client assertion when `TIM_AUTH_CLIENT_SECRET` is unset. Re-read on each exchange.                                                                                              |
+| `AZURE_FEDERATED_TOKEN_FILE`                                | OBO exchange                                | Path to a workload-identity token file, used as the client assertion when `TIM_AUTH_CLIENT_SECRET` is unset. Re-read on each exchange. Needed at startup when a connection uses `obo` and there is no client secret.                                                                                              |
 | `FORWARDED_ALLOW_IPS`                                       | uvicorn                                     | Addresses from which `X-Forwarded-*` headers are trusted (default `127.0.0.1`). Set to the proxy address. `compose.yaml` uses `*`, `deploy/compose.prod.yaml` the compose subnet (`TIM_SUBNET`), the chart `api.forwardedAllowIps`. |
 
 ### Test-only variables
@@ -123,6 +158,7 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 | ------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | `TIM_TEST_DATABASE_URL`                                                        | `pytest`, Playwright | Postgres server for storage tests, and the e2e api's database, which Playwright empties at the start of each run; falls back to `pgserver`. |
 | `TIM_TEST_KUSTO_INGEST_URL`, `TIM_TEST_KUSTO_DATABASE`, `TIM_TEST_KUSTO_TABLE` | `pytest -m kusto` | Real ingest endpoint for the integration test (database default `Research`, table default `EventTag`). |
+| `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the Run KQL test `test_run_kql_on_a_real_cluster` (database default `Samples`). It runs as the `AZURE_*` identity through `DefaultAzureCredential`. |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
 | `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |
 | `TIM_API_PROXY_TARGET`                                                         | Vite dev server   | Where `/api` is proxied (default `http://localhost:8080`); Playwright points it at its own api.        |

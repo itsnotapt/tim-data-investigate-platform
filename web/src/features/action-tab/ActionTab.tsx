@@ -11,7 +11,8 @@ import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import type { InstanceConnection } from '../../lib/api';
+import { CodeEditor } from '../../components/CodeEditor';
+import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
 import type { TabComponentProps } from '../tabs/tabRegistry';
@@ -20,7 +21,7 @@ import { useTemplatesStore } from '../templates';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
-import { datetimeText, sameParams } from './paramValues';
+import { datetimeText, hasPill, sameParams } from './paramValues';
 import { PillsBar } from './PillsBar';
 import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
@@ -34,16 +35,79 @@ export interface ActionTabProps extends TabComponentProps {
   onCancel?: (uuid: string) => void;
 }
 
-type InnerTab = 'results' | 'run';
+type InnerTab = 'query' | 'results' | 'run';
 
 const NO_CONNECTIONS: readonly InstanceConnection[] = [];
 const defaultRun = (uuid: string) => void runActionTab(uuid);
 const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
 
+/** The editor of a `kql` or `sql` param, marked with the reason when the server refused it. */
+function QueryEditor({
+  uuid,
+  param,
+  value,
+  error,
+  onChange,
+  onRun,
+}: {
+  uuid: string;
+  param: CatalogueParam;
+  value: unknown;
+  error: string | undefined;
+  onChange: (value: string | undefined) => void;
+  /** Ctrl/Cmd+Enter. */
+  onRun: () => void;
+}) {
+  const captionId = `${uuid}-${param.name}-caption`;
+  const caption = error ?? param.help;
+  return (
+    <Box
+      role="group"
+      aria-label={param.title}
+      aria-invalid={error !== undefined || undefined}
+      aria-describedby={error !== undefined ? captionId : undefined}
+      // Capturing, so the editor never sees the shortcut (Monaco inserts a line on Ctrl+Enter).
+      onKeyDownCapture={(e) => {
+        if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onRun();
+      }}
+    >
+      <Box
+        sx={{
+          height: 'calc(100vh - 240px)',
+          minHeight: 160,
+          border: '1px solid',
+          borderColor: error !== undefined ? 'error.main' : 'editor.border',
+        }}
+      >
+        <CodeEditor
+          language={param.kind === 'kql' ? 'kusto' : 'plaintext'}
+          path={`${uuid}.${param.name}.${param.kind}`}
+          ariaLabel={param.title}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(text) => onChange(text === '' ? undefined : text)}
+        />
+      </Box>
+      {caption && (
+        <Typography
+          id={captionId}
+          variant="caption"
+          color={error !== undefined ? 'error' : 'text.secondary'}
+        >
+          {caption}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 /**
  * An action tab: the header (menu path, action and title) with Clone, the pills bar with Run or
- * the run going, and the inner tabs: the results of the last run that succeeded, and the latest
- * run's details.
+ * the run going, and the inner tabs: the query of an action with a `kql` or `sql` param, the
+ * results of the last run that succeeded, and the latest run's details. An action with a query
+ * never switches inner tabs: a status line above the editor says how the latest run went.
  */
 export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
@@ -66,6 +130,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   if (tab?.componentName !== 'ActionResult') return null;
   const { state, params } = tab;
   const action = actions?.find((a) => a.key === params.action);
+  const queryParam = action?.params.find((p) => !hasPill(p));
   const actionName = action?.name ?? state.run?.action.name ?? params.action;
   const hasResults = state.resultsRunId != null && state.rowCount !== null;
   // Rows loaded in this session, as each page arrives; else the stored rows of the last run.
@@ -81,7 +146,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     state.run?.status !== 'running' && typeof duration === 'number'
       ? `Run · ${durationText(duration)}`
       : 'Run';
-  const inner: InnerTab = picked?.runKey === runKey ? picked.tab : state.error ? 'run' : 'results';
+  const inner: InnerTab =
+    picked?.runKey === runKey ? picked.tab : queryParam ? 'query' : state.error ? 'run' : 'results';
+  const pick = (value: InnerTab) => setPicked({ tab: value, runKey });
   // Rows of the run going load into `shown`; any other rows on show are from an earlier run.
   const showingPrevious = state.isExecuting && !(shown && !shown.done);
   const resultsFrom = state.resultsStartedAt
@@ -111,6 +178,43 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     if (copy) void navigate(`/view/${copy}`);
   };
 
+  const runNow = () => {
+    if (action && !state.isExecuting) onRun(uuid);
+  };
+  const succeededWithResults =
+    !state.isExecuting &&
+    !state.error &&
+    state.run?.status === 'succeeded' &&
+    state.run.runId === state.resultsRunId &&
+    state.rowCount !== null;
+  const queryStatus = state.isExecuting ? null : state.error ? (
+    <Alert
+      severity="error"
+      variant="outlined"
+      sx={{ mb: 0.5, py: 0 }}
+      action={
+        <Button color="inherit" size="small" onClick={() => pick('run')}>
+          Details
+        </Button>
+      }
+    >
+      <span>{state.error.message}</span>
+    </Alert>
+  ) : succeededWithResults ? (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+      <Typography variant="body2">
+        {[
+          'Succeeded',
+          `${state.rowCount} ${state.rowCount === 1 ? 'row' : 'rows'}`,
+          ...(typeof duration === 'number' ? [durationText(duration)] : []),
+        ].join(' · ')}
+      </Typography>
+      <Button size="small" onClick={() => pick('results')}>
+        Show results
+      </Button>
+    </Box>
+  ) : null;
+
   const run = state.isExecuting ? (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
       <CircularProgress size={16} aria-label="Running" />
@@ -132,7 +236,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       size="small"
       startIcon={<PlayArrowIcon />}
       disabled={!action}
-      onClick={() => onRun(uuid)}
+      onClick={runNow}
     >
       Run
     </Button>
@@ -188,12 +292,26 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
 
       <Tabs
         value={inner}
-        onChange={(_, value: InnerTab) => setPicked({ tab: value, runKey })}
+        onChange={(_, value: InnerTab) => pick(value)}
         sx={{ px: 1, minHeight: 36 }}
       >
+        {queryParam && <Tab value="query" label="Query" sx={{ minHeight: 36, py: 0 }} />}
         <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
         <Tab value="run" label={runLabel} sx={{ minHeight: 36, py: 0 }} />
       </Tabs>
+      {queryParam && (
+        <Box role="tabpanel" aria-label="Query" hidden={inner !== 'query'} sx={{ px: 1 }}>
+          {queryStatus}
+          <QueryEditor
+            uuid={uuid}
+            param={queryParam}
+            value={params.params[queryParam.name]}
+            error={state.paramErrors?.[queryParam.name]}
+            onChange={(value) => setParam(queryParam.name, value)}
+            onRun={runNow}
+          />
+        </Box>
+      )}
       <Box role="tabpanel" aria-label={runLabel} hidden={inner !== 'run'} sx={{ px: 1 }}>
         <RunPanel run={state.run ?? null} error={state.error?.message ?? null} />
       </Box>

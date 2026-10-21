@@ -23,7 +23,7 @@ from tim_api.observability import (
 from tim_api.openapi_meta import install_openapi
 from tim_api.query_runs.router import router as query_runs_router
 from tim_api.query_runs.runner import RACE_SECONDS, cancel_tasks, mark_stale_runs
-from tim_api.runs.connections import NoConnections
+from tim_api.runs.connections import Connections
 from tim_api.runs.router import router as runs_router
 from tim_api.runs.runner import Runner
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
@@ -49,19 +49,28 @@ async def _lifespan(
             "*** AUTHENTICATION IS DISABLED (TIM_AUTH_DISABLED=true): every request runs as the "
             "analyst its stub token (dev:<upn>) names, or a fixed dev user. Development only. ***"
         )
-    # Any problem with the installed providers or the action files stops startup (ADR-0017).
+    # Any problem with the installed providers, the action files or the connections file stops
+    # startup (ADR-0017, ADR-0018).
     if settings.dev_actions:
         logger.warning(
             "Development actions are registered (TIM_DEV_ACTIONS=true). Development only."
         )
     registry = build_registry(
-        load_providers(providers, dev_actions=settings.dev_actions), settings.actions_dir
+        load_providers(providers, dev_actions=settings.dev_actions),
+        settings.actions_dir,
+        connections_file=settings.connections_file,
     )
+    for reason in registry.left_out:
+        logger.info(reason)
     app.state.instance = build_instance(registry, settings)
     app.state.actions = registry.actions
-    app.state.connections = NoConnections()
-    # Fails fast when auth is enabled but no OBO client credential is configured.
-    app.state.obo_provider = build_obo_provider(settings)
+    app.state.connections = Connections(registry.connections, registry.hooks)
+    # Fails fast when auth is enabled, a connection uses obo and no OBO client credential is
+    # configured.
+    app.state.obo_provider = build_obo_provider(
+        settings,
+        credential_required=any(c.obo_scope for c in registry.connections.values()),
+    )
     storage = storage_factory(settings)
     app.state.storage = storage
     app.state.run_tasks = set()

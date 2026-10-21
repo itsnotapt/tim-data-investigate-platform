@@ -1,0 +1,6 @@
+# One connection of the scripted actions' `fake` connection type.
+- name: fake
+  title: Fake
+  type: fake
+  auth: obo
+  scope: api://fake/.default

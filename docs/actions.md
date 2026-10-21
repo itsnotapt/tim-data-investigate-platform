@@ -1,13 +1,14 @@
 # Actions
 
-The guide for operators and action authors: what configures an instance's actions, how to write action files, and how to check them. How TIM loads them is in [architecture.md](architecture.md#actions-and-providers); the decision is [ADR-0017](adr/0017-actions-from-providers.md).
+The guide for operators and action authors: what configures an instance's actions, how to write action files, and how to check them. How TIM loads them is in [architecture.md](architecture.md#actions-and-providers); the decisions are [ADR-0017](adr/0017-actions-from-providers.md) and, for connections, [ADR-0018](adr/0018-fixed-connections.md).
 
 ## What an instance holds
 
 - **Providers**, installed packages that add action types, Python actions and action files of their own, found through the `tim.actions` entry-point group.
 - **Action files**, YAML in one flat directory, `TIM_ACTIONS_DIR` ([configuration.md](configuration.md#actions)).
+- **The connections file**, YAML, `TIM_CONNECTIONS_FILE` ([configuration.md](configuration.md#connections)).
 
-Both are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
+All are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
 
 ## Action files
 
@@ -90,17 +91,61 @@ The tab's grid uses the declared settings as AG Grid's initial column settings: 
 
 A query can be written inline (`query: |`) or in a sidecar file next to the action file, where an editor highlights it: `query_file: sign_ins.kql`. Give one or the other, not both. The action type marks which of its fields take a sidecar. The sidecar is a file name in the same directory as the action file, not a path.
 
+## Connections file
+
+The connections file lists the instance's **connections**: the fixed endpoints actions run against. It is a YAML list, one entry per connection. Analysts never type an endpoint; they pick a connection by its title.
+
+```yaml
+# yaml-language-server: $schema=./connections.schema.json
+- name: samples                  # lowercase letters, digits and -, unique
+  title: Samples (help cluster)
+  type: kusto                    # an installed connection type
+  auth: obo
+  cluster: https://help.kusto.windows.net
+  databases: [Samples]           # suggestions only
+```
+
+Every entry has `name`, `title`, `type` and `auth`, and an optional `scope`, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it; an unknown `type` or field stops startup, with the file and line.
+
+`auth` says whose identity the system behind the connection sees. `obo` runs as the analyst: TIM exchanges the analyst's token for the connection's `scope` ([ADR-0009](adr/0009-obo-token-exchange.md)), and an instance that has an `obo` connection needs the OBO credential ([configuration.md](configuration.md#authentication)). `workload_identity`, which would run as TIM and so give every analyst TIM's access, is in the connection model, but the `kusto` connection type supports only `obo`. Every analyst sees every connection, and the system behind it enforces access.
+
+The `kusto` connection type, from the `kusto` extra of `tim-actions`:
+
+| Field | Required | Description |
+|---|---|---|
+| `cluster` | yes | The cluster's https URL, checked and normalised to `https://<host>` at startup. |
+| `databases` | no | Database names suggested for the `database` param of actions on this connection. The analyst can type another. |
+| `scope` | no | The OBO scope, `{cluster}/.default` when left out. |
+
+An action names its connections in two ways: a fixed one, which the action type's `connections()` returns as each name with the connection type it must be, and a `connection` param, where the analyst picks among the connections of the param's `connection_type`. Startup fails when a fixed connection is missing or of the wrong type. A connection param whose type has no connection leaves its action out of the catalogue.
+
+Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in problem answers the start request. A hook gets a `token_for(scope)` callable and never sees the analyst's own token.
+
+## Built-in actions
+
+**Run KQL** (`tim.run_kql`) runs ad-hoc KQL on a Kusto connection, as the analyst. It is in the catalogue when the `kusto` extra is installed and the connections file has a `kusto` connection.
+
+| Param | Description |
+|---|---|
+| `connection` | A `kusto` connection. When there is exactly one, a new tab fills it in. |
+| `database` | The database to query. The tab suggests the chosen connection's `databases`. |
+| `kql` | The query, written in the tab's Query editor, scoped by the `connection` and `database` params. |
+| `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
+
+The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
+
 ## Checking files
 
-The api image prints the JSON Schema of the action types installed in it, and validates action files the way startup does, without a database or credentials ([operations.md](operations.md#tim-api-check)):
+The api image prints the JSON Schema of the action types and connection types installed in it, and validates action files and the connections file the way startup does, without a database or credentials ([operations.md](operations.md#tim-api-check)):
 
 ```bash
 docker run --rm <api image> tim-api schema actions > action-file.schema.json
-docker run --rm -v "$PWD/actions:/actions:ro" <api image> tim-api check --actions /actions
+docker run --rm <api image> tim-api schema connections > connections.schema.json
+docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connections.yaml:ro" <api image> tim-api check --actions /actions --connections /connections.yaml
 ```
 
-- **In the editor:** commit `action-file.schema.json` next to the files and point `yaml-language-server` at it, with a `# yaml-language-server: $schema=./action-file.schema.json` line at the top of each file or a `yaml.schemas` setting. It completes and checks the fields of each document by its `type`. Regenerate it when the image's providers change.
-- **In CI:** run `tim-api check --actions <dir>` with the image you deploy. It prints `OK: <n> actions`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
+- **In the editor:** commit `action-file.schema.json` next to the files and point `yaml-language-server` at it, with a `# yaml-language-server: $schema=./action-file.schema.json` line at the top of each file or a `yaml.schemas` setting. It completes and checks the fields of each document by its `type`. Do the same with `connections.schema.json` for the connections file. Regenerate both when the image's providers change.
+- **In CI:** run `tim-api check --actions <dir> --connections <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
 
 ## Writing file-capable action types
 

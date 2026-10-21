@@ -120,7 +120,8 @@ export interface paths {
         put?: never;
         /**
          * Start Run
-         * @description Start a run; ``200`` when it ends within about a second, else ``202``.
+         * @description Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``
+         *     connection's token is got first, so OBO problems answer this request.
          */
         post: operations["startRun"];
         delete?: never;
@@ -1266,6 +1267,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
             422: {
                 headers: {
@@ -1277,6 +1287,24 @@ export interface operations {
             };
             /** @description Unhandled error (`internal`). */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Upstream failure (`upstream`). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Dependency unavailable (`unavailable`). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

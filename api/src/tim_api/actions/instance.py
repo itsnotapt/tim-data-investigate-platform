@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from tim_actions import Action, Column, Param
+from tim_actions import Action, Column, Connection, Hook, Param
 
 from tim_api.actions.models import (
     CatalogueAction,
@@ -13,6 +13,7 @@ from tim_api.actions.models import (
     CatalogueParam,
     CataloguePivot,
     Instance,
+    InstanceConnection,
     Limits,
 )
 from tim_api.actions.registry import Registry
@@ -68,11 +69,22 @@ def _action(action: Action) -> CatalogueAction:
     )
 
 
+def _connection(connection: Connection, hook: type[Hook]) -> InstanceConnection:
+    databases = connection.database_suggestions()
+    return InstanceConnection(
+        name=connection.name,
+        type=connection.type,
+        title=connection.title,
+        editor=hook.editor,
+        databases=None if databases is None else list(databases),
+    )
+
+
 def build_instance(registry: Registry, settings: Settings) -> Instance:
     unversioned = Instance(
         version="",
         actions=[_action(action) for action in registry.actions.values()],
-        connections=[],
+        connections=[_connection(c, registry.hooks[c.type]) for c in registry.connections.values()],
         labels=[],
         limits=Limits(
             max_result_rows=settings.max_result_rows,

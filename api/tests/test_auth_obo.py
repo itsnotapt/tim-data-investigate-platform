@@ -132,6 +132,14 @@ def test_missing_credential_fails_clearly(monkeypatch: pytest.MonkeyPatch) -> No
         build_obo_provider(settings)
 
 
+async def test_without_a_credential_obo_is_unavailable_when_not_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = build_obo_provider(_settings(monkeypatch, secret=None), credential_required=False)
+    with pytest.raises(OboUnavailableError, match="No client credential"):
+        await provider.get_token(PRINCIPAL, CLUSTER)
+
+
 async def test_federated_assertion_used_without_secret(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

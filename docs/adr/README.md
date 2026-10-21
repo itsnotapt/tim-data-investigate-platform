@@ -51,11 +51,11 @@ Numbers are never reused, so the sequence has gaps.
 |---|---|---|---|
 | [0001](0001-react-python-web-api.md) | TIM is React + Python in `web/` and `api/` | accepted | 2026-09-29 |
 | [0004](0004-postgresql-persistence.md) | PostgreSQL for templates and runs | accepted | 2026-09-29 |
-| [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to Kusto | accepted | 2026-09-29 |
+| [0005](0005-auth-entra-popup-obo.md) | Auth: single Entra app, popup login, OBO to connections | accepted | 2026-09-29 |
 | [0006](0006-ag-grid-enterprise.md) | AG Grid Enterprise only; licence key optional (trial mode without it) | accepted | 2026-09-29 |
 | [0007](0007-docs-describe-current-state.md) | Docs describe the current system; rationale lives in ADRs | accepted | 2026-10-06 |
 | [0008](0008-helm-chart.md) | Helm chart for Kubernetes deployment | accepted | 2026-10-06 |
-| [0009](0009-obo-token-exchange.md) | OBO token exchange: one shared MSAL app, configurable scope | accepted | 2026-10-06 |
+| [0009](0009-obo-token-exchange.md) | OBO token exchange: one shared MSAL app, scope per connection | accepted | 2026-10-06 |
 | [0010](0010-kusto-cluster-allow-list.md) | Kusto cluster allow-list | accepted | 2026-10-07 |
 | [0011](0011-development-only-modes.md) | Development-only modes refuse to run in production | accepted | 2026-10-06 |
 | [0012](0012-query-run-limits-and-lifecycle.md) | Run limits and lifecycle | accepted | 2026-10-06 |
@@ -64,4 +64,5 @@ Numbers are never reused, so the sequence has gaps.
 | [0015](0015-kql-templating.md) | KQL templating in the browser | accepted | 2026-10-06 |
 | [0016](0016-release-versions.md) | Release versions for frontend, backend, the Helm chart and tim-actions | accepted | 2026-10-07 |
 | [0017](0017-actions-from-providers.md) | Actions are Python classes from installed providers, configured by YAML files | accepted | 2026-10-20 |
+| [0018](0018-fixed-connections.md) | Fixed connections | accepted | 2026-10-20 |
 | [0021](0021-tim-actions-and-derived-images.md) | The `tim-actions` distribution and derived images | accepted | 2026-10-20 |

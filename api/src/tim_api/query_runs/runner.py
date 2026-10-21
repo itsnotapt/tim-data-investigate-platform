@@ -18,6 +18,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from tim_actions.kusto import sanitise_message as _sanitise_message
+
 from tim_api.config import Settings
 from tim_api.kusto.query_client import (
     KustoQueryClient,
@@ -25,7 +27,6 @@ from tim_api.kusto.query_client import (
     KustoResultLimitError,
     ResultLimits,
 )
-from tim_api.kusto.query_client import sanitise_message as _sanitise_message
 from tim_api.query_runs.models import (
     KustoQueryEcho,
     KustoQueryRequest,
