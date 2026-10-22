@@ -50,18 +50,6 @@ describe('SnackbarHost', () => {
     expect(screen.queryByText('second')).not.toBeInTheDocument();
   });
 
-  it('an action button runs its action and hides the message', () => {
-    setup();
-    const undo = vi.fn();
-    send({ message: 'Labelled 2 ids', action: { label: 'Undo', onClick: undo } });
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(undo).toHaveBeenCalledTimes(1);
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(screen.queryByText('Labelled 2 ids')).not.toBeInTheDocument();
-  });
-
   it('Dismiss hides now and shows the next after the pause', () => {
     setup();
     send('one');
@@ -88,6 +76,19 @@ describe('SnackbarHost', () => {
     });
     send('plain');
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('an action button runs its handler and hides the message', () => {
+    setup();
+    const onClick = vi.fn();
+    send({ message: 'Running Sessions', action: { label: 'Go to', onClick } });
+    send('next');
+    fireEvent.click(screen.getByRole('button', { name: 'Go to' }));
+    expect(onClick).toHaveBeenCalledOnce();
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByText('next')).toBeInTheDocument();
   });
 
   it('useNotify throws outside the provider', () => {

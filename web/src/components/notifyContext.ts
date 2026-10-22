@@ -8,7 +8,7 @@ export interface NotifyOptions {
   /** Optional link button, opens in a new tab. */
   link?: string;
   linkText?: string;
-  /** Optional action button, such as Undo; clicking it also hides the message. */
+  /** Optional button that runs `onClick` and hides the message. */
   action?: { label: string; onClick: () => void };
 }
 

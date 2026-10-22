@@ -338,11 +338,10 @@ An action tab's grid labels rows by `id` ([ADR-0006](adr/0006-ag-grid-enterprise
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
   - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";
   - no target row has an `id`, and the action has no such param: "No id: this action gives its rows no id".
-- **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it with **Undo**.
+- **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it.
   - "Labelled 3 ids Malicious", or "Cleared the label of 3 ids". Ids that already had the label are left out of the count.
   - "Already Malicious" or "No labels to clear" when nothing changed.
-  - **Undo** puts the previous labels back with one `PATCH` per group of ids that shared the same previous label.
-  - A failure shows "Couldn't label: …" or "Couldn't undo: …".
+  - A failure shows "Couldn't label: …".
 - **Flash.** A change that arrives from the feed, such as a teammate's, flashes the rows it changes.
 - **Row updates.** The grid keeps a map from each `id` to its rows. A changed `id` updates all of them with one AG Grid transaction.
 

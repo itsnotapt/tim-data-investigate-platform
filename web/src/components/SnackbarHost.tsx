@@ -88,18 +88,6 @@ export function SnackbarHost({ children }: { children?: ReactNode }) {
         action={
           current && (
             <>
-              {current.action && (
-                <Button
-                  color="inherit"
-                  size="small"
-                  onClick={() => {
-                    current.action?.onClick();
-                    dismiss();
-                  }}
-                >
-                  {current.action.label}
-                </Button>
-              )}
               {current.link && (
                 <Button
                   color="inherit"
@@ -110,6 +98,18 @@ export function SnackbarHost({ children }: { children?: ReactNode }) {
                   endIcon={<OpenInNewIcon />}
                 >
                   {current.linkText ?? 'Open'}
+                </Button>
+              )}
+              {current.action && (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    current.action?.onClick();
+                    dismiss();
+                  }}
+                >
+                  {current.action.label}
                 </Button>
               )}
               <Button color="inherit" size="small" onClick={dismiss} endIcon={<CloseIcon />}>

@@ -46,7 +46,7 @@ async function watchFlashes(page: Page) {
 const flashed = (page: Page) =>
   page.evaluate(() => (window as unknown as { flashed: boolean }).flashed);
 
-test('a label set with key 1 reaches every row with that id, in another tab and another analyst’s browser, and Undo puts it back', async ({
+test('a label set with key 1 reaches every row with that id, in another tab and another analyst’s browser', async ({
   page,
   analyst,
   signIn,
@@ -73,13 +73,6 @@ test('a label set with key 1 reaches every row with that id, in another tab and 
   await expect(rowsWith(teammate.page, a)).toHaveClass(/tim-label-red/);
   await expect(rowsWith(teammate.page, b)).not.toHaveClass(/tim-label/);
   expect(await flashed(teammate.page)).toBe(true);
-
-  await page.getByRole('button', { name: 'Undo' }).click();
-  for (const row of await rowsWith(page, a).all()) {
-    await expect(row).not.toHaveClass(/tim-label/);
-  }
-  await expect(rowsWith(otherTab, a)).not.toHaveClass(/tim-label/);
-  await expect(rowsWith(teammate.page, a)).not.toHaveClass(/tim-label/);
 });
 
 test('Label ▸ lists the labels file’s labels; clearing a label reaches the other browser and keeps the id', async ({
@@ -119,7 +112,7 @@ test('Label ▸ lists the labels file’s labels; clearing a label reaches the o
   expect(changes.find((c) => c.id === a)).toMatchObject({ id: a, label: null });
 });
 
-test('right-clicking a row that isn’t selected labels just that row; Undo restores each previous label', async ({
+test('right-clicking a row that isn’t selected labels just that row; with rows selected, the selection is labelled', async ({
   page,
   idPrefix,
 }) => {
@@ -146,10 +139,6 @@ test('right-clicking a row that isn’t selected labels just that row; Undo rest
   await expect(page.getByText('Labelled 2 ids Malicious')).toBeVisible();
   await expect(rowsWith(page, a)).toHaveClass(/tim-label-red/);
   await expect(rowsWith(page, b)).toHaveClass(/tim-label-red/);
-
-  await page.getByRole('button', { name: 'Undo' }).click();
-  await expect(rowsWith(page, a)).toHaveClass(/tim-label-blue/);
-  await expect(rowsWith(page, b)).not.toHaveClass(/tim-label/);
   await expect(rowsWith(page, c)).toHaveClass(/tim-label-green/);
 });
 
