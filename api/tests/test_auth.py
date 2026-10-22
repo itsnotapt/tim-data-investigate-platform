@@ -63,10 +63,10 @@ def test_enabled_without_token_returns_401() -> None:
 
 def test_enabled_with_garbage_token_returns_401_without_echoing_it() -> None:
     with TestClient(_app()) as client:
-        response = client.get("/test/whoami", headers={"Authorization": "Bearer abc"})
+        response = client.get("/test/whoami", headers={"Authorization": "Bearer not-a-token-xyz"})
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
-    assert "abc" not in response.text
+    assert "not-a-token-xyz" not in response.text
 
 
 ECHO = Echo(key="acme.echo", name="Echo", pivot="none")
