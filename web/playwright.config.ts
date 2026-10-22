@@ -62,6 +62,7 @@ export default defineConfig({
         TIM_AUTH_DISABLED: 'true',
         TIM_DEV_ACTIONS: 'true',
         TIM_ACTIONS_DIR: resolve(import.meta.dirname, 'e2e/actions'),
+        TIM_CONNECTIONS_FILE: resolve(import.meta.dirname, 'e2e/connections.yaml'),
         TIM_LABELS_FILE: resolve(import.meta.dirname, 'e2e/labels.yaml'),
         // A teammate's label shows within seconds; a few ids are enough to pass the limit.
         TIM_ANNOTATION_POLL_SECONDS: '2',

@@ -1,0 +1,21 @@
+# An editor whose schema comes from a dev_kql connection (TIM_DEV_ACTIONS), for completion flows.
+type: dev_rows
+key: dev-kql-editor
+name: KQL editor
+menu: Development / Editor
+description: A Query editor that completes from the chosen connection and database
+pivot: none
+params:
+  - name: connection
+    kind: connection
+    connection_type: dev_kql
+    title: Connection
+  - name: database
+    kind: string
+    title: Database
+  - name: query
+    kind: kql
+    title: Query
+    schema_from: [connection, database]
+rows:
+  - { Step: done }

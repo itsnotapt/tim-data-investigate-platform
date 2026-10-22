@@ -323,3 +323,56 @@ def test_dev_rows_error_ends_the_run_in_error(auth: AuthKit, dev_env: Path) -> N
     assert body["error"] == "The sign-in log is unavailable"
     assert body["details"]["cluster"] == "dev"
     assert "rowCount" not in body
+
+
+@pytest.fixture
+def dev_kql_connection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """A connections file with one ``dev_kql`` connection, ``dev``."""
+    connections = tmp_path_factory.mktemp("connections") / "connections.yaml"
+    connections.write_text(
+        "- {name: dev, title: Development, type: dev_kql, auth: workload_identity}\n"
+    )
+    monkeypatch.setenv("TIM_CONNECTIONS_FILE", str(connections))
+
+
+@pytest.mark.usefixtures("dev_kql_connection")
+def test_without_the_flag_there_is_no_dev_kql_connection_type(
+    auth: AuthKit, monkeypatch: pytest.MonkeyPatch, dev_env: Path
+) -> None:
+    monkeypatch.delenv("TIM_DEV_ACTIONS")
+    with pytest.raises(InstanceConfigError, match="unknown connection type 'dev_kql'"):
+        catalogue(auth)
+
+
+@pytest.mark.usefixtures("dev_kql_connection")
+def test_dev_kql_connections_answer_a_fixed_schema_for_any_database(
+    auth: AuthKit, dev_env: Path
+) -> None:
+    with started(auth) as client:
+        answered = client.post("/api/connections/dev/schema", json={"scope": {"database": "Logs"}})
+        without_database = client.post("/api/connections/dev/schema", json={"scope": {}})
+    assert answered.status_code == 200, answered.text
+    assert answered.json() == {
+        "kind": "kql",
+        "schema": {
+            "Databases": {
+                "Logs": {
+                    "Name": "Logs",
+                    "Tables": {
+                        "SignIns": {
+                            "Name": "SignIns",
+                            "OrderedColumns": [
+                                {"Name": "TimeGenerated", "CslType": "datetime"},
+                                {"Name": "UserPrincipalName", "CslType": "string"},
+                                {"Name": "ResultType", "CslType": "string"},
+                            ],
+                        }
+                    },
+                    "Functions": {},
+                }
+            }
+        },
+    }
+    assert without_database.status_code == 204

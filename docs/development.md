@@ -117,7 +117,7 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 `npm run e2e` in `web/` runs every Playwright flow in `web/e2e/`. `playwright.config.ts` starts two servers:
 
 - **The api**, on the port after Vite's (`E2E_PORT + 1`, default 5181), through `web/e2e/api_server.py` (`uv run --project ../api`).
-  - It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true` and `TIM_ACTIONS_DIR=web/e2e/actions`.
+  - It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true`, `TIM_ACTIONS_DIR=web/e2e/actions` and `TIM_CONNECTIONS_FILE=web/e2e/connections.yaml`.
   - Its Postgres is `TIM_TEST_DATABASE_URL`. Without it, it is a temporary `pgserver`, deleted when the run ends.
   - The script empties that database and applies the migrations once per run. So never point `TIM_TEST_DATABASE_URL` at a database you want to keep.
 - **Vite**, on `E2E_PORT` (default 5180), with `VITE_AUTH_STUB=true`. It proxies `/api` to that api (`TIM_API_PROXY_TARGET`).
@@ -143,14 +143,14 @@ In a real-api flow:
 
 ## Development actions
 
-With `TIM_DEV_ACTIONS=true`, the api registers actions that need no connection. It is development only ([ADR-0011](adr/0011-development-only-modes.md)).
+With `TIM_DEV_ACTIONS=true`, the api registers actions that need no connection, and a connection type that runs no queries. It is development only ([ADR-0011](adr/0011-development-only-modes.md)).
 
 - They are for e2e tests and UI work.
 - They are in `tim_actions.dev`.
 - Validate a directory that uses them with `uv run tim-api check --dev-actions --actions <dir>`.
 - Print their schema with `uv run tim-api schema actions --dev-actions`.
 
-There are two:
+There are two actions:
 
 - **`tim.dev_json` "JSON (development)"**: the run yields the rows the analyst pastes into its `rows` param, a JSON array of objects.
   - The optional `idColumn` param names the column that gives each row its `id`.
@@ -179,6 +179,13 @@ There are two:
     - { User: alice@example.com, CorrelationId: c-1 }
     - { User: bob@example.com, CorrelationId: c-2 }
   ```
+
+`TIM_DEV_ACTIONS` also registers a connection type:
+
+- **`dev_kql`**. It runs no queries, and its `auth` is `workload_identity` only.
+  - Its `kql` editor schema has one table, `SignIns` (`TimeGenerated`, `UserPrincipalName`, `ResultType`), for any non-empty `database`.
+  - Without a `database`, it gives no schema.
+  - `web/e2e/connections.yaml` has two `dev_kql` connections. The action `dev-kql-editor` in `web/e2e/actions/editor-schema.yaml` uses them.
 
 To use them with the main loop, uncomment `TIM_DEV_ACTIONS` and `TIM_ACTIONS_DIR` in `api/.env`.
 
