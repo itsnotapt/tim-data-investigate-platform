@@ -78,6 +78,19 @@ describe('SnackbarHost', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
+  it('an action button runs its handler and hides the message', () => {
+    setup();
+    const onClick = vi.fn();
+    send({ message: 'Running Sessions', action: { label: 'Go to', onClick } });
+    send('next');
+    fireEvent.click(screen.getByRole('button', { name: 'Go to' }));
+    expect(onClick).toHaveBeenCalledOnce();
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByText('next')).toBeInTheDocument();
+  });
+
   it('useNotify throws outside the provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => render(<Grab />)).toThrow(/SnackbarHost/);

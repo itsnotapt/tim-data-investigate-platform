@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     max_concurrent_runs: int = Field(default=16, gt=0)
     # Rows per page of GET /api/runs/{runId}/rows.
     rows_page_size: int = Field(default=10_000, gt=0)
+    # Rows a pivot may be resolved from (POST /api/actions/{key}/resolve).
+    max_pivot_rows: int = Field(default=100, gt=0)
 
     @field_validator("allowed_kusto_hosts", "cors_allowed_origins", mode="before")
     @classmethod

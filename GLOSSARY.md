@@ -1,6 +1,6 @@
 # TIM
 
-TIM is a Kusto investigation platform: analysts run KQL, pivot from result rows into other queries through shared query templates, and tag and comment on events.
+TIM is a Kusto investigation platform: analysts run KQL, pivot from result rows into actions and query templates, and tag and comment on events.
 
 ## Language
 
@@ -81,7 +81,7 @@ A query template whose fields are filled from grid rows, offered as a pivot in t
 A template input filled from the clicked or selected grid rows when pivoting.
 
 **Pivot**:
-Choosing a query template from a grid row's context menu. It creates a child template tab, which runs at once when every param is filled.
+Running an action or a query template from a grid row's context menu, with its params filled from the clicked or selected rows. It opens a child tab under the tab it came from.
 _Avoid_: drill-down
 
 **Managed template**:

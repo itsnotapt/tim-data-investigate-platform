@@ -6,6 +6,7 @@ from tim_actions.connections import Auth, Connection, ConnectionName
 from tim_actions.files import ActionDocument, Sidecar
 from tim_actions.hooks import EditorSchema, Hook, TokenFor
 from tim_actions.params import Param, ParamKind, ParamsError, validate_params
+from tim_actions.pivots import PivotCell, PivotContext, Resolved, resolve_pivot
 from tim_actions.provider import ENTRY_POINT_GROUP, Provider
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import Analyst, DetailValue, RunContext, RunError
@@ -29,11 +30,15 @@ __all__ = [
     "ParamKind",
     "ParamsError",
     "Pivot",
+    "PivotCell",
+    "PivotContext",
     "Provider",
+    "Resolved",
     "RowId",
     "RunContext",
     "RunError",
     "Sidecar",
     "TokenFor",
+    "resolve_pivot",
     "validate_params",
 ]

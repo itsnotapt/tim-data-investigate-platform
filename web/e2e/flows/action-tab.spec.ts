@@ -1,15 +1,6 @@
 import type { Page } from '@playwright/test';
+import { grid, openAction } from '../actionTab';
 import { test, expect } from '../realApi';
-
-/** Opens an action from the welcome page's New menu, through its menu path. */
-async function openAction(page: Page, path: string[]) {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Get Started' }).click();
-  await page.getByRole('button', { name: 'Actions' }).click();
-  for (const step of path) await page.getByRole('button', { name: step, exact: true }).click();
-}
-
-const grid = (page: Page) => page.getByTestId('results-grid');
 
 test('an action opened from the New menu runs with a pill’s value, and its rows survive a reload and the run’s expiry', async ({
   page,

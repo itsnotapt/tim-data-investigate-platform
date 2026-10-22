@@ -72,6 +72,27 @@ describe('SideTree', () => {
     expect(status('some')).toHaveAttribute('data-status', 'results');
   });
 
+  it('shows Needs input for an action tab whose pivot still waits for a param', async () => {
+    const store = newTestStore();
+    const pivot = (componentUuid: string, params: Record<string, unknown>) =>
+      store.getState().createTab({
+        componentName: 'ActionResult',
+        componentUuid,
+        parentUuid: null,
+        title: componentUuid,
+        params: { action: 'dev-slow', params },
+        state: { pivotMissing: { result: 'The 2 selected rows have different Result values' } },
+      });
+    pivot('waiting', {});
+    pivot('filled', { result: 'Failure' });
+    renderTree(store);
+    await expand();
+    const status = (id: string) => within(node(id)).getByTestId('tree-icon');
+    expect(status('waiting')).toHaveAttribute('data-status', 'needsInput');
+    expect(status('waiting')).toHaveAccessibleName('Needs input');
+    expect(status('filled')).toHaveAttribute('data-status', 'draft');
+  });
+
   it('click marks visited and navigates', async () => {
     const store = newTestStore();
     store.getState().createTab(kusto('a', null, { state: { rowCount: 2 } }));

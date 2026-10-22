@@ -59,7 +59,7 @@ The fields every action file takes:
 | `name` | yes | What analysts see. |
 | `menu` | no | A `/`-separated folder path; none puts the action at the top level. |
 | `description` | no | A longer description. |
-| `pivot` | yes | `row` or `rows` offers the action in the grid's context menu on one or several selected rows; `none` keeps it out. |
+| `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
 | `id` | no | The column that gives each row its `id`, or a list of alternative columns. Leave it out and the rows have no `id`. |
 | `columns` | no | Declared result columns, below. |
@@ -75,11 +75,11 @@ The action type adds fields of its own, such as a connection and a query.
 | `title` | the name | What the tab shows. |
 | `required` | `true` | |
 | `default` | none | A value as the browser sends it: a `datetime` is an ISO 8601 string, a `timespan` an ISO 8601 duration or `HH:MM:SS`. |
-| `many` | `false` | A list of values. Not for `kql`, `sql` or `connection`. |
+| `many` | `false` | A list of values. Not for `kql`, `sql` or `connection`. In a pivot it takes the distinct values of the selected rows, in first-seen order. |
 | `choices` | none | The values allowed. |
 | `connection_type` | none | For `kind: connection` only, which it requires. |
 | `schema_from` | none | For `kql` and `sql`: the params that scope the editor's schema, a `connection` param and the others whose values the connection type's hook gets as its scope. |
-| `from_columns` | none | The result columns a pivot takes the value from; the first non-empty one wins. A row is offered the action when it has one of each required param's columns. |
+| `from_columns` | none | The result columns a pivot takes the value from; the first non-empty one wins. A row is offered the action when it has one of each required param's columns. A single-valued param takes the value the selected rows agree on; when they disagree it stays empty for the analyst to fill in. |
 | `help` | none | Help text. |
 
 Dates and times in a file stay strings, as the browser sends them.
@@ -217,6 +217,18 @@ TIM validates each document against the `File` model, then builds the action wit
 - The default passes the file's fields, all but `type`, to the action by name.
 - Override `from_file` when the action's fields differ from the file's.
 - The action type's docstring becomes the type's description in the schema.
+
+### Pivots
+
+An action type can change how a pivot fills the params by overriding two methods of `Action`.
+
+- **`pivot_columns()`** returns the groups of alternative columns a row needs one of each to be offered the action. The default makes each required param's `from_columns` a group.
+- **`resolve(context)`** returns a `tim_actions.Resolved` from a `tim_actions.PivotContext`.
+  - `context.rows` holds the selected rows, and `context.cell` the right-clicked `PivotCell(column, value)`, or `None`.
+  - `Resolved.params` maps param names to wire values.
+  - `Resolved.missing` maps the name of each param it couldn't fill to the reason shown to the analyst, or `None`.
+  - The default takes each param's value from its `from_columns`.
+- **Columns seen.** `resolve()` sees only the columns of `pivot_columns()` and every param's `from_columns`.
 
 ## Providers
 
