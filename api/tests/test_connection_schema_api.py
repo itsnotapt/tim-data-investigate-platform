@@ -12,7 +12,7 @@ import pytest
 from app_factory import AuthKit
 from azure.kusto.data import ClientRequestProperties
 from azure.kusto.data import exceptions as kusto_exc
-from test_run_kql import ALICE, CLUSTER, FakeObo, open_client
+from kusto_fakes import ALICE, CLUSTER, FakeObo, open_client
 from tim_actions.kusto import KustoHook
 
 from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError

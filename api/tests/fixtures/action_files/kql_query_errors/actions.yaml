@@ -1,0 +1,34 @@
+type: kql_query
+key: acme.no_sidecar
+name: No sidecar
+pivot: none
+connection: security
+database: Samples
+kql_file: missing.kql
+---
+type: kql_query
+key: acme.nowhere
+name: Nowhere
+pivot: none
+connection: nowhere
+database: Samples
+kql: print 1
+---
+type: kql_query
+key: acme.not_kusto
+name: Not Kusto
+pivot: none
+connection: fake
+database: Samples
+kql: print 1
+---
+type: kql_query
+key: acme.editor_param
+name: Editor param
+pivot: none
+connection: security
+database: Samples
+kql: print 1
+params:
+  - name: query
+    kind: kql

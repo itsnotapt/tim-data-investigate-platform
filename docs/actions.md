@@ -111,7 +111,7 @@ A query can be written in one of two places. Give one or the other, not both.
 
 - **Inline:** `query: |`.
 - **In a sidecar file** next to the action file, where an editor highlights it: `query_file: sign_ins.kql`.
-  - The action type marks which of its fields take a sidecar.
+  - The action type marks which of its fields take a sidecar. For a `kql_query` it is `kql_file`.
   - The sidecar is a file name in the same directory as the action file, not a path.
 
 ## Connections file
@@ -156,6 +156,10 @@ Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in 
 
 ## Built-in actions
 
+The built-in provider adds the `kql_query` action type and the **Run KQL** action. Both need the `kusto` extra.
+
+### Run KQL
+
 **Run KQL** (`tim.run_kql`) runs ad-hoc KQL on a Kusto connection, as the analyst. It is in the catalogue when the `kusto` extra is installed and the connections file has a `kusto` connection.
 
 | Param | Description |
@@ -166,6 +170,78 @@ Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in 
 | `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
 
 The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
+
+### `kql_query`
+
+A `kql_query` action runs fixed KQL in a database of a fixed `kusto` connection, as the analyst. Besides the common fields it takes:
+
+| Field | Required | Description |
+|---|---|---|
+| `connection` | yes | The name of a `kusto` connection. Startup fails when it is missing or of another type. |
+| `database` | yes | The database to query. |
+| `kql` or `kql_file` | one of them | The query, inline or in a sidecar next to the action file. |
+
+```yaml
+type: kql_query
+key: acme.storms
+name: Storms
+menu: Weather
+pivot: rows
+connection: security
+database: Samples
+kql_file: storms.kql
+id: EventId
+params:
+  - name: states
+    kind: string
+    many: true
+    from_columns: [State]
+  - name: since
+    kind: datetime
+    required: false
+---
+type: kql_query
+key: acme.storm_count
+name: Storm count
+pivot: none
+connection: security
+database: Samples
+kql: |
+  StormEvents | count
+```
+
+`storms.kql`:
+
+```kusto
+declare query_parameters(states: dynamic, since: datetime = datetime(2007-01-01));
+StormEvents
+| where State in (states) and StartTime >= since
+```
+
+The run's time limit, cancelling and the execution metrics work as for Run KQL.
+
+#### How Kusto binds params
+
+Values are never spliced into the KQL text ([ADR-0019](adr/0019-params-are-bound.md)).
+
+- The KQL text is sent unchanged.
+- Each param is sent to Kusto by name as a query parameter.
+- The KQL declares the params it uses with `declare query_parameters(...)`, with the names and types of the action's params.
+- A param's `kind` is `string`, `number`, `boolean`, `datetime`, `timespan` or `json`. A `kql`, `sql` or `connection` param stops startup.
+
+| Kind | Sent as |
+|---|---|
+| `string` | Its own text. Kusto reads a string parameter as it is, so there is no quoting. |
+| `number` | Its decimal text; NaN and infinity are `real(nan)`, `real(+inf)` and `real(-inf)`. |
+| `boolean` | `true` or `false`. |
+| `datetime` | `datetime(yyyy-mm-ddThh:mm:ss.fffffffZ)`, in UTC. |
+| `timespan` | `timespan([-][d.]hh:mm:ss[.fffffff])`. |
+| `json` | `dynamic(<compact JSON>)`. |
+| `many` of any kind | `dynamic([...])`. Elements are JSON; `datetime`, `timespan` and non-finite `number` elements are the Kusto literals above. |
+
+Declare `many` and `json` params as `dynamic`, and the others as their Kusto type.
+
+An optional param without a value is not sent, so the default in `declare query_parameters` applies.
 
 ## Checking files
 

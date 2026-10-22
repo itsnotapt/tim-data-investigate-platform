@@ -1,0 +1,7 @@
+declare query_parameters(states: dynamic, source: string, minDamage: real, fatal: bool,
+    since: datetime, within: timespan, tags: dynamic, limit: long = 100);
+StormEvents
+| where State in (states) and Source == source and DamageProperty >= minDamage
+| where StartTime between (since .. since + within) and (fatal or DeathsDirect == 0)
+| where Tags has_any (tags)
+| take limit

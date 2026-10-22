@@ -1,0 +1,39 @@
+# kql_query actions on the `security` Kusto connection: one with its KQL in a sidecar, one inline.
+type: kql_query
+key: acme.storms
+name: Storms
+menu: Weather
+pivot: rows
+connection: security
+database: Samples
+kql_file: storms.kql
+id: EventId
+params:
+  - name: states
+    kind: string
+    many: true
+    from_columns: [State]
+  - name: source
+    kind: string
+  - name: minDamage
+    kind: number
+  - name: fatal
+    kind: boolean
+  - name: since
+    kind: datetime
+  - name: within
+    kind: timespan
+  - name: tags
+    kind: json
+  - name: limit
+    kind: number
+    required: false
+---
+type: kql_query
+key: acme.storm_count
+name: Storm count
+pivot: none
+connection: security
+database: Samples
+kql: |
+  StormEvents | count
