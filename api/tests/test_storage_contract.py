@@ -3,7 +3,13 @@
 The parametrised ``storage`` fixture lives in ``conftest.py``.
 """
 
-from storage_contract import HealthContract, QueryRunContract, RunContract, TemplateContract
+from storage_contract import (
+    HealthContract,
+    PresetContract,
+    QueryRunContract,
+    RunContract,
+    TemplateContract,
+)
 
 
 class TestTemplateStore(TemplateContract):
@@ -15,6 +21,10 @@ class TestQueryRunStore(QueryRunContract):
 
 
 class TestRunStore(RunContract):
+    pass
+
+
+class TestPresetStore(PresetContract):
     pass
 
 

@@ -3,6 +3,7 @@
 from tim_api.storage.base import (
     AlreadyExistsError,
     NotFoundError,
+    PresetStore,
     QueryRunStore,
     RunStore,
     Storage,
@@ -20,6 +21,7 @@ __all__ = [
     "MemoryStorage",
     "NotFoundError",
     "PostgresStorage",
+    "PresetStore",
     "QueryRunStore",
     "RunStore",
     "Storage",

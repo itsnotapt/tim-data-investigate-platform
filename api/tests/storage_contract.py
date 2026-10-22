@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from tim_api.presets.models import PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
 from tim_api.storage import AlreadyExistsError, NotFoundError, Storage
@@ -66,6 +67,33 @@ def make_query_run(
     )
     raw["kustoQuery"]["requestedBy"] = owner
     return KustoQueryRun.model_validate(raw)
+
+
+def make_preset(
+    *,
+    preset_id: UUID | None = None,
+    owner: str = "alice",
+    visibility: str = "private",
+    created: datetime = T0,
+    name: str = "Alice's sign-ins",
+) -> StoredPreset:
+    return StoredPreset.model_validate(
+        {
+            "presetId": str(preset_id or uuid4()),
+            "name": name,
+            "menuPath": ["Identity", "Daily"],
+            "visibility": visibility,
+            "action": "sign-ins",
+            "params": {"limit": 5, "where": {"nested": [1, "two"]}},
+            "inputs": [
+                {"name": "users", "source": "param", "fixed": True, "value": ["alice"]},
+                {"name": "hosts", "source": "param", "fixed": False, "fromColumns": ["Host"]},
+            ],
+            "owner": owner,
+            "createdAt": created,
+            "updatedAt": created,
+        }
+    )
 
 
 class TemplateContract:
@@ -586,6 +614,107 @@ class RunContract:
         again = await storage.runs.get(run.run_id, T0)
         assert again is not None
         assert again.params["user"] == "alice@example.com"
+
+
+class PresetContract:
+    async def test_create_get_roundtrip(self, storage: Storage) -> None:
+        preset = make_preset()
+        await storage.presets.create(preset)
+        got = await storage.presets.get(preset.preset_id, "alice")
+        assert got is not None
+        assert got.model_dump() == {**preset.model_dump(), "hidden": False}
+
+    async def test_get_missing_is_none(self, storage: Storage) -> None:
+        assert await storage.presets.get(uuid4(), "alice") is None
+
+    async def test_get_returns_someone_elses_private_preset(self, storage: Storage) -> None:
+        preset = make_preset(owner="alice")
+        await storage.presets.create(preset)
+        got = await storage.presets.get(preset.preset_id, "bob")
+        assert got is not None
+        assert got.owner == "alice"
+
+    async def test_create_duplicate_raises(self, storage: Storage) -> None:
+        preset = make_preset()
+        await storage.presets.create(preset)
+        with pytest.raises(AlreadyExistsError):
+            await storage.presets.create(make_preset(preset_id=preset.preset_id, name="other"))
+
+    async def test_list_has_own_and_shared_in_creation_order(self, storage: Storage) -> None:
+        a, b, c, d = (UUID(int=i) for i in (1, 2, 3, 4))
+        await storage.presets.create(make_preset(preset_id=d, owner="bob", created=_minutes(1)))
+        await storage.presets.create(
+            make_preset(preset_id=c, owner="bob", visibility="shared", created=_minutes(2))
+        )
+        await storage.presets.create(make_preset(preset_id=b, owner="alice", created=_minutes(2)))
+        await storage.presets.create(make_preset(preset_id=a, owner="alice", created=_minutes(3)))
+        listed = await storage.presets.list("alice")
+        assert [p.preset_id for p in listed] == [b, c, a]
+
+    async def test_list_empty(self, storage: Storage) -> None:
+        assert await storage.presets.list("alice") == []
+
+    async def test_replace_keeps_owner_and_created_at(self, storage: Storage) -> None:
+        preset = make_preset(owner="alice")
+        await storage.presets.create(preset)
+        fields = PresetFields.model_validate(
+            {
+                "name": "Renamed",
+                "menuPath": [],
+                "visibility": "shared",
+                "action": "other",
+                "params": {},
+                "inputs": [],
+            }
+        )
+        await storage.presets.replace(preset.preset_id, fields, updated_at=_minutes(5))
+        got = await storage.presets.get(preset.preset_id, "alice")
+        assert got is not None
+        assert got.model_dump(by_alias=False) == {
+            **fields.model_dump(by_alias=False),
+            "preset_id": preset.preset_id,
+            "owner": "alice",
+            "created_at": T0,
+            "updated_at": _minutes(5),
+            "hidden": False,
+        }
+
+    async def test_replace_missing_raises(self, storage: Storage) -> None:
+        with pytest.raises(NotFoundError):
+            await storage.presets.replace(uuid4(), make_preset(), updated_at=T0)
+
+    async def test_hidden_is_per_analyst(self, storage: Storage) -> None:
+        preset = make_preset(visibility="shared")
+        await storage.presets.create(preset)
+        await storage.presets.set_hidden(preset.preset_id, "bob", True)
+        await storage.presets.set_hidden(preset.preset_id, "bob", True)
+        assert [p.hidden for p in await storage.presets.list("bob")] == [True]
+        assert [p.hidden for p in await storage.presets.list("alice")] == [False]
+        bobs = await storage.presets.get(preset.preset_id, "bob")
+        assert bobs is not None
+        assert bobs.hidden is True
+        await storage.presets.set_hidden(preset.preset_id, "bob", False)
+        await storage.presets.set_hidden(preset.preset_id, "bob", False)
+        assert [p.hidden for p in await storage.presets.list("bob")] == [False]
+
+    async def test_set_hidden_on_missing_raises(self, storage: Storage) -> None:
+        with pytest.raises(NotFoundError):
+            await storage.presets.set_hidden(uuid4(), "bob", True)
+
+    async def test_delete_removes_the_preset_and_its_hidden_marks(self, storage: Storage) -> None:
+        preset = make_preset(visibility="shared")
+        await storage.presets.create(preset)
+        await storage.presets.set_hidden(preset.preset_id, "bob", True)
+        await storage.presets.delete(preset.preset_id)
+        assert await storage.presets.get(preset.preset_id, "bob") is None
+        assert await storage.presets.list("bob") == []
+        # The same id again starts with no hidden marks.
+        await storage.presets.create(preset)
+        assert [p.hidden for p in await storage.presets.list("bob")] == [False]
+
+    async def test_delete_missing_raises(self, storage: Storage) -> None:
+        with pytest.raises(NotFoundError):
+            await storage.presets.delete(uuid4())
 
 
 class HealthContract:

@@ -1,6 +1,7 @@
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -12,9 +13,11 @@ import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
-import type { CatalogueParam, InstanceConnection } from '../../lib/api';
+import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
+import { useAccountName } from '../../lib/auth';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
+import { SavePresetDialog, usePresetsStore } from '../presets';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
@@ -140,6 +143,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // The inner tab the analyst picked, held until the run changes: a run starts, gets its id or ends.
   const runKey = `${actionState?.run?.runId ?? ''}:${String(actionState?.isExecuting ?? false)}`;
   const [picked, setPicked] = useState<{ tab: InnerTab; runKey: string } | null>(null);
+  const analyst = useAccountName();
+  // Save…: the preset the tab came from or was saved as, once the presets are fresh.
+  const [saving, setSaving] = useState<{ source: Preset | undefined } | null>(null);
 
   if (tab?.componentName !== 'ActionResult') return null;
   const { state, params } = tab;
@@ -192,6 +198,15 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   const clone = () => {
     const copy = cloneActionTab(uuid);
     if (copy) void navigate(`/view/${copy}`);
+  };
+  const openSave = async () => {
+    await usePresetsStore.getState().refresh();
+    const source = usePresetsStore.getState().presets.find((p) => p.presetId === params.presetId);
+    setSaving({ source });
+  };
+  const saved = (preset: Preset) => {
+    useTabsStore.getState().updateParams(uuid, { presetId: preset.presetId });
+    useTabsStore.getState().updateTitle(uuid, preset.name);
   };
 
   const runNow = () => {
@@ -282,13 +297,27 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         </Box>
         <Button
           size="small"
-          startIcon={<ContentCopyIcon />}
-          onClick={clone}
+          startIcon={<BookmarkAddIcon />}
+          disabled={!action}
+          onClick={() => void openSave()}
           sx={{ ml: 'auto', flexShrink: 0 }}
         >
+          Save…
+        </Button>
+        <Button size="small" startIcon={<ContentCopyIcon />} onClick={clone} sx={{ flexShrink: 0 }}>
           Clone
         </Button>
       </Box>
+      {saving && action && (
+        <SavePresetDialog
+          action={action}
+          params={params.params}
+          source={saving.source}
+          analyst={analyst}
+          onClose={() => setSaving(null)}
+          onSaved={saved}
+        />
+      )}
 
       {!action && (
         <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>

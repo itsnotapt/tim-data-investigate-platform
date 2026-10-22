@@ -55,7 +55,7 @@ def _tables(dsn: str) -> set[str]:
     return result
 
 
-ALL_TABLES = {"query_templates", "query_runs", "runs", "run_rows"}
+ALL_TABLES = {"query_templates", "query_runs", "runs", "run_rows", "presets", "preset_hidden"}
 
 
 def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
@@ -75,9 +75,12 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
         "ix_query_runs_created_executed",
         "ix_runs_expires_at",
         "ix_runs_running_started",
+        "ix_presets_created_id",
     } <= found
 
     migrate(scratch_dsn)  # idempotent
+    migrate(scratch_dsn, "0002", down=True)
+    assert _tables(scratch_dsn) == {"query_templates", "query_runs", "runs", "run_rows"}
     migrate(scratch_dsn, "0001", down=True)
     assert _tables(scratch_dsn) == {"query_templates", "query_runs"}
     migrate(scratch_dsn, "base", down=True)
