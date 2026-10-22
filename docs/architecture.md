@@ -400,7 +400,7 @@ Database migrations are in `api/migrations` (Alembic).
 | `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`) |
-| `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action; needs the `kusto` extra |
+| `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
 | `builtin.py` | TIM's built-in provider |
 
 ### Request flow and middleware
@@ -427,7 +427,7 @@ Actions come from providers ([ADR-0017](adr/0017-actions-from-providers.md)):
 
 TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.
 
-- With the `kusto` extra installed, it adds the `kusto` connection type and the action **Run KQL** (`tim.run_kql`).
+- With the `kusto` extra installed, it adds the `kusto` connection type, the `kql_query` action type and the action **Run KQL** (`tim.run_kql`).
 - Without it, the provider is empty.
 
 Loading happens once, in the lifespan, before storage is opened:
@@ -574,6 +574,7 @@ The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fiel
 - Columns are declared from Kusto's types.
 - The query's execution metrics are reported as run details: `executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`.
 - Kusto errors become sanitised messages: stack-trace lines removed, capped at 2000 characters.
+- `KustoHook.query(database, kql, *, deadline, parameters=None)` sends `parameters` as query parameters in `ClientRequestProperties`. `parameters` maps each name to its Kusto literal text.
 
 A hook can also give the editor schema of its connection: `Hook.editor_schema(scope)`.
 
@@ -601,6 +602,13 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
 - `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`.
+
+**`kql_query`** (`KqlQuery`, with `KqlQueryFile` as its file model) is a file-capable action type with the fields `connection`, `database` and `kql`. In files, `kql` can be a `kql_file` sidecar.
+
+- `connections()` returns its `connection` as a `kusto` connection, so the fixed-connection check applies.
+- Its params must be of kind `string`, `number`, `boolean`, `datetime`, `timespan` or `json`. The action rejects the others when it is built.
+- `run` sends the KQL text unchanged. The params go through `tim_actions.kusto.query_parameters`, which formats each value with `kusto_literal` ([actions.md](actions.md#how-kusto-binds-params), [ADR-0019](adr/0019-params-are-bound.md)).
+- A param with no value is left out, so the KQL's `declare query_parameters` default applies.
 
 The Kusto tab runs free-text KQL, so its cluster goes through `validate_cluster_url`.
 

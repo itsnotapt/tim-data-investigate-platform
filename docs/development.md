@@ -53,7 +53,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
   - **`slow` tests** are deselected. `uv run pytest -m slow` runs them. CI doesn't.
   - **`kusto` tests** skip unless one of these is set:
     - `TIM_TEST_KUSTO_INGEST_URL`, for tag ingestion;
-    - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL on a real cluster as an `AZURE_*` identity.
+    - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL and `kql_query` on a real cluster as an `AZURE_*` identity.
 
     CI runs them only in the [`kusto-live` job](#ci-and-releases).
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.

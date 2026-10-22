@@ -7,11 +7,11 @@ import json
 import math
 import re
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, ClassVar, Literal, Protocol
+from typing import Annotated, Any, ClassVar, Literal, Protocol
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -23,9 +23,10 @@ from tim_actions import connections
 from tim_actions._common import NonBlankStr
 from tim_actions.action import Action
 from tim_actions.columns import Column, ColumnType
-from tim_actions.connections import Connection
+from tim_actions.connections import Connection, ConnectionName
+from tim_actions.files import ActionDocument, Sidecar
 from tim_actions.hooks import EditorSchema, Hook, TokenFor
-from tim_actions.params import Param
+from tim_actions.params import Param, ParamKind
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
 
@@ -211,6 +212,85 @@ def column_type(kusto_type: str) -> ColumnType:
     return _COLUMN_TYPES.get(kusto_type.lower(), "string")
 
 
+# --- query parameters ---------------------------------------------------------------------
+
+QUERY_PARAMETER_KINDS: tuple[ParamKind, ...] = (
+    "string",
+    "number",
+    "boolean",
+    "datetime",
+    "timespan",
+    "json",
+)
+"""The param kinds a Kusto query parameter can take."""
+
+
+def _datetime_literal(value: datetime) -> str:
+    utc = value.astimezone(UTC)
+    return f"datetime({utc:%Y-%m-%dT%H:%M:%S}.{utc.microsecond:06d}0Z)"
+
+
+def _timespan_literal(value: timedelta) -> str:
+    """``timespan([-][d.]hh:mm:ss[.fffffff])``."""
+    micros = abs(value // timedelta(microseconds=1))
+    seconds, micros = divmod(micros, 1_000_000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    out = "-" if value < timedelta(0) else ""
+    out += f"{days}." if days else ""
+    out += f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    out += f".{micros:06d}0" if micros else ""
+    return f"timespan({out})"
+
+
+def _number_literal(value: float) -> str:
+    if math.isnan(value):
+        return "real(nan)"
+    if math.isinf(value):
+        return "real(+inf)" if value > 0 else "real(-inf)"
+    return repr(value)
+
+
+def _literal(kind: ParamKind, value: Any) -> str:
+    """``value`` as a Kusto literal, which is also its form inside a ``dynamic`` literal: Kusto's
+    number, datetime and timespan literals, and JSON for the rest."""
+    match kind:
+        case "number":
+            return _number_literal(value)
+        case "datetime":
+            return _datetime_literal(value)
+        case "timespan":
+            return _timespan_literal(value)
+        case _:
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def kusto_literal(kind: ParamKind, value: Any, *, many: bool = False) -> str:
+    """The query parameter value Kusto parses ``value`` of param kind ``kind`` from: a literal
+    of the declared type, except that a string is its own text. A list (``many``) and JSON are
+    ``dynamic``."""
+    if kind not in QUERY_PARAMETER_KINDS:
+        raise ValueError(f"a {kind} param can't be a Kusto query parameter")
+    if many:
+        return f"dynamic([{','.join(_literal(kind, each) for each in value)}])"
+    if kind == "string":
+        return str(value)
+    if kind == "json":
+        return f"dynamic({_literal(kind, value)})"
+    return _literal(kind, value)
+
+
+def query_parameters(params: Sequence[Param], values: Mapping[str, Any]) -> dict[str, str]:
+    """The Kusto query parameters for validated param ``values``, by param name. A param
+    without a value is left out, so the KQL's ``declare query_parameters`` default applies."""
+    return {
+        param.name: kusto_literal(param.kind, values[param.name], many=param.many)
+        for param in params
+        if values.get(param.name) is not None
+    }
+
+
 def sanitise_message(text: str) -> str:
     """Keep the Kusto message, drop stack-trace lines, cap the length."""
     lines = [ln for ln in text.splitlines() if not re.match(r"^\s+at\s", ln)]
@@ -392,12 +472,22 @@ class KustoHook(Hook):
         scope = self.connection.scope or self.connection.default_scope()
         return self.client_factory(self.connection.cluster, self.token_for(scope))
 
-    def query(self, database: str, kql: str, *, deadline: datetime) -> KustoResult:
-        """Run ``kql`` in ``database``, with the time left until ``deadline`` as Kusto's server
-        timeout. Raises ``RunError`` with Kusto's message when it fails."""
+    def query(
+        self,
+        database: str,
+        kql: str,
+        *,
+        deadline: datetime,
+        parameters: Mapping[str, str] | None = None,
+    ) -> KustoResult:
+        """Run ``kql`` in ``database`` with ``parameters`` (see ``query_parameters``) as its query
+        parameters, and the time left until ``deadline`` as Kusto's server timeout. Raises
+        ``RunError`` with Kusto's message when it fails."""
         request_id = f"TIM.RunKql;{uuid4()}"
         properties = ClientRequestProperties()  # type: ignore[no-untyped-call]
         properties.client_request_id = request_id
+        for name, value in (parameters or {}).items():
+            properties.set_parameter(name, value)
         properties.set_option(
             ClientRequestProperties.request_timeout_option_name,
             max(deadline - datetime.now(UTC), timedelta(seconds=1)),
@@ -477,14 +567,29 @@ class RunKql(Action):
         return IdColumns([column]) if column else None
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
-        hook = ctx.hook(params["connection"])
-        if not isinstance(hook, KustoHook):
-            raise RunError(f"{params['connection']} is not a Kusto connection")
-        result = hook.query(params["database"], params["kql"], deadline=ctx.deadline)
-        ctx.declare_columns(result.columns)
-        for key, value in result.details.items():
-            ctx.detail(key, value)
-        yield from result.rows
+        yield from _run_query(
+            ctx, params["connection"], params["database"], params["kql"], parameters={}
+        )
+
+
+def _run_query(
+    ctx: RunContext,
+    connection: str,
+    database: str,
+    kql: str,
+    *,
+    parameters: Mapping[str, str],
+) -> Iterator[Mapping[str, Any]]:
+    """Run ``kql`` on ``connection`` as a run of ``ctx``: Kusto's columns are declared and its
+    execution metrics reported as run details."""
+    hook = ctx.hook(connection)
+    if not isinstance(hook, KustoHook):
+        raise RunError(f"{connection} is not a Kusto connection")
+    result = hook.query(database, kql, deadline=ctx.deadline, parameters=parameters)
+    ctx.declare_columns(result.columns)
+    for key, value in result.details.items():
+        ctx.detail(key, value)
+    yield from result.rows
 
 
 RUN_KQL = RunKql(
@@ -505,3 +610,48 @@ RUN_KQL = RunKql(
     ),
     pivot="none",
 )
+
+
+# --- kql_query ----------------------------------------------------------------------------
+
+
+class KqlQueryFile(ActionDocument):
+    connection: ConnectionName
+    database: NonBlankStr
+    kql: Annotated[NonBlankStr, Sidecar()]
+
+
+class KqlQuery(Action):
+    """``kql_query``: fixed KQL in a database of a fixed Kusto connection. Its params are sent as
+    Kusto query parameters by name, which the KQL declares with ``declare query_parameters``;
+    the KQL text is sent unchanged (ADR-0019)."""
+
+    type_name = "kql_query"
+    File = KqlQueryFile
+
+    connection: ConnectionName
+    database: NonBlankStr
+    kql: NonBlankStr
+
+    @field_validator("params")
+    @classmethod
+    def _query_parameters(cls, value: Sequence[Param]) -> Sequence[Param]:
+        for param in value:
+            if param.kind not in QUERY_PARAMETER_KINDS:
+                raise ValueError(
+                    f"{param.name}: a kql_query param is a Kusto query parameter, so its kind "
+                    f"is one of {', '.join(QUERY_PARAMETER_KINDS)}, not {param.kind}"
+                )
+        return value
+
+    def connections(self) -> Mapping[str, str]:
+        return {self.connection: "kusto"}
+
+    def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
+        yield from _run_query(
+            ctx,
+            self.connection,
+            self.database,
+            self.kql,
+            parameters=query_parameters(self.params, params),
+        )
