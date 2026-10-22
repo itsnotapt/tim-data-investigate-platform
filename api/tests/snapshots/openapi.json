@@ -341,18 +341,11 @@
         "type": "object"
       },
       "EditorSchemaResponse": {
-        "description": "What the editor completes from: ``kind`` picks the browser's adapter. Both are ``null``\nwhen the connection type has no schema for the scope.",
+        "description": "What the editor completes from: ``kind`` picks the browser's adapter.",
         "properties": {
           "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
+            "title": "Kind",
+            "type": "string"
           },
           "schema": {
             "$ref": "#/components/schemas/JsonValue"
@@ -1698,7 +1691,7 @@
   "paths": {
     "/api/connections/{name}/schema": {
       "post": {
-        "description": "The editor schema for ``scope`` on the connection ``name``, got as the analyst. The\nconnection's ``obo`` token is got first, so OBO problems answer as they do on runs.",
+        "description": "The editor schema for ``scope`` on the connection ``name``, got as the analyst; ``204``\nwhen there is none. The connection's ``obo`` token is got first, so OBO problems answer as\nthey do on runs.",
         "operationId": "getEditorSchema",
         "parameters": [
           {
@@ -1731,6 +1724,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "204": {
+            "description": "The connection type has no schema for the scope"
           },
           "400": {
             "content": {

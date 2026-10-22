@@ -96,8 +96,9 @@ describe('loadEditorSchema', () => {
 
   it('leaves the editor alone when the connection has no schema for the scope', async () => {
     server.use(
-      http.post(apiUrl('/api/connections/:name/schema'), () =>
-        HttpResponse.json({ kind: null, schema: null }),
+      http.post(
+        apiUrl('/api/connections/:name/schema'),
+        () => new HttpResponse(null, { status: 204 }),
       ),
     );
     await loadEditorSchema(editor, 'security', {});

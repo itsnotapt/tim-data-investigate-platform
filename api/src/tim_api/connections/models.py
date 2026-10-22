@@ -15,9 +15,8 @@ class EditorSchemaRequest(ApiModel):
 
 
 class EditorSchemaResponse(ApiModel):
-    """What the editor completes from: ``kind`` picks the browser's adapter. Both are ``null``
-    when the connection type has no schema for the scope."""
+    """What the editor completes from: ``kind`` picks the browser's adapter."""
 
-    kind: str | None
+    kind: str
     # Python attribute is `schema_` because `schema` shadows a BaseModel attribute.
     schema_: JsonValue = Field(alias="schema")

@@ -94,9 +94,9 @@ async def test_kusto_gives_the_scopes_database_schema_as_the_analyst(env: Env) -
     assert env.kusto.commands == [("Samples", ".show schema as json")]
 
 
-async def test_without_a_database_the_answer_is_empty(env: Env) -> None:
+async def test_without_a_database_there_is_no_content(env: Env) -> None:
     response = await env.schema()
-    assert (response.status_code, response.json()) == (200, {"kind": None, "schema": None})
+    assert (response.status_code, response.content) == (204, b"")
     assert env.kusto.commands == []
 
 

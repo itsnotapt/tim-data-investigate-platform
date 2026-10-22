@@ -26,7 +26,7 @@ const adapters: Record<string, Adapter> = {
   },
 };
 
-const cache = new Map<string, Promise<EditorSchema>>();
+const cache = new Map<string, Promise<EditorSchema | undefined>>();
 
 const cacheKey = (connection: string, scope: Scope): string =>
   JSON.stringify([connection, Object.entries(scope).sort(([a], [b]) => (a < b ? -1 : 1))]);
@@ -35,7 +35,7 @@ const cacheKey = (connection: string, scope: Scope): string =>
  * The editor schema of `connection` for `scope`, cached per pair. A failed fetch is not cached.
  * Only one request is made for concurrent callers.
  */
-function fetchEditorSchema(connection: string, scope: Scope): Promise<EditorSchema> {
+function fetchEditorSchema(connection: string, scope: Scope): Promise<EditorSchema | undefined> {
   const key = cacheKey(connection, scope);
   let hit = cache.get(key);
   if (!hit) {
@@ -58,10 +58,9 @@ export async function loadEditorSchema(
   scope: Scope,
   { signal }: { signal?: AbortSignal } = {},
 ): Promise<void> {
-  const { kind, schema } = await fetchEditorSchema(connection, scope);
-  const adapter = kind === null ? undefined : adapters[kind];
-  if (signal?.aborted) return;
-  await adapter?.(editor, schema, connection, scope, signal);
+  const found = await fetchEditorSchema(connection, scope);
+  if (!found || signal?.aborted) return;
+  await adapters[found.kind]?.(editor, found.schema, connection, scope, signal);
 }
 
 /**

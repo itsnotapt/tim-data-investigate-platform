@@ -15,8 +15,9 @@ export interface paths {
         put?: never;
         /**
          * Get Editor Schema
-         * @description The editor schema for ``scope`` on the connection ``name``, got as the analyst. The
-         *     connection's ``obo`` token is got first, so OBO problems answer as they do on runs.
+         * @description The editor schema for ``scope`` on the connection ``name``, got as the analyst; ``204``
+         *     when there is none. The connection's ``obo`` token is got first, so OBO problems answer as
+         *     they do on runs.
          */
         post: operations["getEditorSchema"];
         delete?: never;
@@ -409,12 +410,11 @@ export interface components {
         };
         /**
          * EditorSchemaResponse
-         * @description What the editor completes from: ``kind`` picks the browser's adapter. Both are ``null``
-         *     when the connection type has no schema for the scope.
+         * @description What the editor completes from: ``kind`` picks the browser's adapter.
          */
         EditorSchemaResponse: {
             /** Kind */
-            kind: string | null;
+            kind: string;
             schema: components["schemas"]["JsonValue"];
         };
         /** EventComment */
@@ -976,6 +976,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EditorSchemaResponse"];
                 };
+            };
+            /** @description The connection type has no schema for the scope */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
             400: {
