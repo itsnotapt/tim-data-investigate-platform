@@ -1,4 +1,4 @@
-import type { CatalogueParam, InstanceConnection } from '../../lib/api';
+import type { CatalogueAction, CatalogueParam, InstanceConnection } from '../../lib/api';
 import { scalarText } from '../grid/columns';
 
 type Kind = CatalogueParam['kind'];
@@ -154,6 +154,22 @@ export function onlyConnection(
   return choices.length === 1 ? choices[0]! : null;
 }
 
+/** A new action tab's params: the action's defaults, and the connection of each connection param
+ * that has only one. */
+export function initialParams(
+  action: CatalogueAction,
+  connections: readonly InstanceConnection[],
+): Record<string, unknown> {
+  const params = Object.fromEntries(
+    action.params.filter((p) => p.default !== undefined).map((p) => [p.name, p.default]),
+  );
+  for (const p of action.params) {
+    const only = onlyConnection(p, connections);
+    if (only && params[p.name] === undefined) params[p.name] = only.name;
+  }
+  return params;
+}
+
 /**
  * The databases suggested for `param`: those of the connection chosen for an editor param whose
  * schema comes from that connection and `param` (`schemaFrom: [connection, database]`).
@@ -175,6 +191,21 @@ export const isUnset = (value: unknown): boolean =>
   value === null ||
   value === '' ||
   (Array.isArray(value) && value.length === 0);
+
+const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
+
+/** The titles of the params `names`, falling back to the name, as an English list: "Result and Host". */
+export const paramTitles = (
+  action: CatalogueAction | undefined,
+  names: readonly string[],
+): string =>
+  LIST.format(names.map((name) => action?.params.find((p) => p.name === name)?.title ?? name));
+
+/** The params a pivot left missing that are still unset, in the order the pivot gave them. */
+export const stillMissing = (
+  missing: Record<string, string | null> | null | undefined,
+  values: Record<string, unknown>,
+): string[] => Object.keys(missing ?? {}).filter((name) => isUnset(values[name]));
 
 /** A param's value in one line: a list of plain values joined by commas, else JSON. */
 export function paramText(value: unknown): string {

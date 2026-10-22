@@ -97,7 +97,13 @@ beforeEach(async () => {
       ],
       connections: [],
       labels: [],
-      limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 10, runTimeoutSeconds: 600 },
+      limits: {
+        maxResultRows: 1,
+        maxResultBytes: 1,
+        maxPivotRows: 100,
+        rowsPageSize: 10,
+        runTimeoutSeconds: 600,
+      },
     },
   });
   store.reset();

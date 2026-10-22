@@ -14,3 +14,21 @@ export async function getInstance({
 }: CallOptions = {}): Promise<Instance> {
   return (await client.request<Instance>({ path: '/api/instance', ...rest })).data;
 }
+
+export type PivotRows = components['schemas']['PivotRows'];
+export type PivotResolution = components['schemas']['PivotResolution'];
+
+/** Resolves a pivot into the action `key` from the selected rows, sent by value. */
+export async function resolvePivot(
+  key: string,
+  pivot: PivotRows,
+  { client = getApiClient(), ...rest }: CallOptions = {},
+): Promise<PivotResolution> {
+  const res = await client.request<PivotResolution>({
+    method: 'POST',
+    path: `/api/actions/${encodeURIComponent(key)}/resolve`,
+    body: { pivot },
+    ...rest,
+  });
+  return res.data;
+}

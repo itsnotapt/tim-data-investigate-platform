@@ -42,6 +42,7 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("get", "/api/healthChecks/liveness"): ("liveness", ()),
     ("get", "/api/healthChecks/readiness"): ("readiness", (503,)),
     ("get", "/api/instance"): ("getInstance", ()),
+    ("post", "/api/actions/{key}/resolve"): ("resolvePivot", (400, 404, 422)),
     # The connection's obo token is got first, hence 403/502/503; 502 also when the hook fails.
     ("post", "/api/connections/{name}/schema"): ("getEditorSchema", (400, 403, 404, 502, 503)),
     ("post", "/api/kusto/schema"): ("getSchema", (400, 403, 502)),

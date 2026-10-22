@@ -11,7 +11,7 @@ import Popover from '@mui/material/Popover';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import type { ParamErrors } from '../tabs/types';
 import { DatetimeEditor } from './DatetimeEditor';
@@ -40,6 +40,11 @@ export interface PillsBarProps {
   errors?: ParamErrors | null;
   /** Given when the values differ from the last run's: shows Edited, which resets them. */
   onReset?: () => void;
+  /**
+   * The params a waiting pivot still needs, by name: their pills are dashed and marked "needed",
+   * and the first one's popover opens when the bar mounts.
+   */
+  needed?: readonly string[];
   /** Rendered at the right (Run). */
   end?: ReactNode;
 }
@@ -283,30 +288,49 @@ export function PillsBar({
   onChange,
   errors,
   onReset,
+  needed = [],
   end,
 }: PillsBarProps) {
   const [open, setOpen] = useState<{ name: string; anchor: HTMLElement } | null>(null);
   const pills = params.filter(hasPill);
   const editing = pills.find((p) => p.name === open?.name);
+  const chips = useRef(new Map<string, HTMLElement>());
+  // The first needed pill's popover opens once, when the pill is first shown.
+  const firstNeeded = pills.find((p) => needed.includes(p.name) && isUnset(values[p.name]))?.name;
+  const openedNeeded = useRef(false);
+  useEffect(() => {
+    const anchor = firstNeeded && chips.current.get(firstNeeded);
+    if (openedNeeded.current || !firstNeeded || !anchor) return;
+    openedNeeded.current = true;
+    setOpen({ name: firstNeeded, anchor });
+  }, [firstNeeded]);
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, px: 1, py: 0.5 }}>
       {pills.map((p) => {
         const error = errors?.[p.name];
         const only = onlyConnection(p, connections);
         const fixed = error === undefined && only !== null && values[p.name] === only.name;
+        const unset = isUnset(values[p.name]);
+        const isNeeded = error === undefined && unset && needed.includes(p.name);
         return (
           <Chip
             key={p.name}
+            ref={(el: HTMLDivElement | null) => {
+              if (el) chips.current.set(p.name, el);
+              else chips.current.delete(p.name);
+            }}
             variant="outlined"
-            color={error === undefined ? 'default' : 'error'}
+            color={error !== undefined ? 'error' : isNeeded ? 'warning' : 'default'}
             disabled={fixed}
-            label={`${p.title}: ${summarize(p, values[p.name], connections)}`}
+            label={`${p.title}: ${isNeeded ? 'needed' : summarize(p, values[p.name], connections)}`}
             title={error ?? p.help ?? undefined}
             onClick={(e) => setOpen({ name: p.name, anchor: e.currentTarget })}
             sx={
-              isUnset(values[p.name]) && error === undefined
-                ? { color: 'text.secondary' }
-                : undefined
+              isNeeded
+                ? { borderStyle: 'dashed' }
+                : unset && error === undefined
+                  ? { color: 'text.secondary' }
+                  : undefined
             }
           />
         );

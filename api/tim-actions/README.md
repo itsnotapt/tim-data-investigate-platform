@@ -6,6 +6,10 @@ The interface TIM providers build against, released on its own semver (`tim-acti
 - `RunContext`: what `run` is given: `analyst`, `deadline`, `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
   - `run` is synchronous, and yields rows as mappings.
   - Raise `RunError` with a message safe to show the analyst. Any other exception ends the run with a generic message.
+- `PivotContext`, `PivotCell`, `Resolved` and `resolve_pivot`: a pivot from result rows.
+  - `Action.resolve(context)` returns the `Resolved` params of a pivot, and the params it couldn't fill with the reason or `None`. The default reads each param's `from_columns`.
+  - `Action.pivot_columns()` returns the column groups a row needs one of each from to be offered the action. The default makes each required param's `from_columns` a group.
+  - `resolve_pivot(action, rows, cell)` trims the rows to those columns and the params' `from_columns`, then calls `resolve()`.
 - `RowId` and `IdColumns`: how a row's `id` is taken from it. `Action.row_id(params)` returns `IdColumns` over the action's `id` column or list of alternatives by default, which takes the first that isn't `None` or `""`; override it for anything else.
 - `Param` and `Column`: params and result columns, declared as data. An invalid declaration fails when it is constructed.
 - `validate_params(params, values, connections=...)`: validates and converts param values, raising `ParamsError` with errors keyed `params.<name>`.

@@ -186,7 +186,13 @@ describe('NewQueryMenu', () => {
         actions,
         connections: [{ name: 'security', type: 'kusto', title: 'Security' }],
         labels: [],
-        limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 1, runTimeoutSeconds: 1 },
+        limits: {
+          maxResultRows: 1,
+          maxResultBytes: 1,
+          maxPivotRows: 100,
+          rowsPageSize: 1,
+          runTimeoutSeconds: 1,
+        },
       },
     });
     const store = setup();

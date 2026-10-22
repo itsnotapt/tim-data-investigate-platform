@@ -24,9 +24,11 @@ const connections: InstanceConnection[] = [
 function Harness({
   params,
   initial = {},
+  needed,
 }: {
   params: CatalogueParam[];
   initial?: Record<string, unknown>;
+  needed?: string[];
 }) {
   const [values, setValues] = useState(initial);
   return (
@@ -35,6 +37,7 @@ function Harness({
         params={params}
         values={values}
         connections={connections}
+        needed={needed}
         onChange={(name, value) =>
           setValues((v) => {
             const next = { ...v };
@@ -346,5 +349,25 @@ describe('PillsBar', () => {
     expect(edited).toHaveAccessibleDescription('Reset to the params of the last run');
     await userEvent.click(edited);
     expect(onReset).toHaveBeenCalled();
+  });
+
+  it('marks the params a waiting pivot needs, and opens the first one at once', async () => {
+    render(
+      <Harness
+        params={[
+          param({ name: 'host', kind: 'string', title: 'Host' }),
+          param({ name: 'result', kind: 'string', title: 'Result' }),
+          param({ name: 'at', kind: 'string', title: 'At' }),
+        ]}
+        needed={['result', 'at']}
+      />,
+    );
+    const result = within(popover()).getByRole('textbox', { name: 'Result' });
+    await userEvent.type(result, 'Failure');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Result: Failure' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'At: needed' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Host: not set' })).toBeInTheDocument();
   });
 });

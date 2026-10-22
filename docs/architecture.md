@@ -3,7 +3,7 @@
 TIM is a Kusto investigation platform. Analysts:
 
 - run KQL against Azure Data Explorer (Kusto) clusters;
-- pivot from result rows into other queries, through shared query templates;
+- pivot from result rows into actions and query templates;
 - tag or comment on events.
 
 An investigation is a tree of tabs. Each pivot creates a child tab.
@@ -81,7 +81,7 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `pivots`, `grid`, `column-views`, `tagging`, `share`, `export-import` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `pivots`, `action-pivots`, `grid`, `column-views`, `tagging`, `share`, `export-import` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
 | `web/src/lib/config/` | Runtime config loader |
@@ -169,7 +169,9 @@ Besides the common fields, an action tab's state holds:
    - Rows go to IndexedDB `row_results`, keyed by tab uuid.
    - The tab state records the row count and execution stats.
    - The grid reloads rows from IndexedDB.
-4. **Pivot.** A context-menu pivot builds params from the clicked or selected rows (`fields`). It creates a child template tab with a template snapshot, and runs it when the data is complete.
+4. **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
+   - **Template pivot.** The params come from the template's `fields`. It creates a child template tab with a template snapshot, and runs it when the data is complete.
+   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
 5. **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query using `{{> getTagEvents}}` returns the updated `TagEvent` column.
 
 An action tab runs differently:
@@ -291,7 +293,34 @@ The tree shows an action tab's status like any tab's:
 - a spinner while running;
 - a red alert on error;
 - a row-count badge;
-- a ringed 0 for a succeeded run with no rows ("Succeeded, no rows").
+- a ringed 0 for a succeeded run with no rows ("Succeeded, no rows");
+- a "Needs input" icon for a tab waiting on the params a pivot left missing (`pivotMissing`).
+
+#### Action pivots
+
+The results grid's right-click menu has **Pivot ▸**. Its targets are the selected rows. Right-clicking a row outside the selection selects just that row.
+
+- **Menu.**
+  - A disabled "Recent" heading and the analyst's last three pivots come first, named by their full menu path. They are kept in localStorage under `tim-recent-pivots`. A separator follows, then the actions by menu path.
+  - It lists the actions whose `pivot` is not `null` and whose every pivot column group has a column in every target row.
+  - The item is omitted when no action applies.
+  - An action with `rows: "row"` is disabled, with the tooltip "Takes one row", when several rows are targeted.
+  - The whole item is disabled over `limits.maxPivotRows` rows, with the tooltip "At most 100 rows; 2,500 selected".
+- **Resolve.** Choosing an action sends `POST /api/actions/{key}/resolve` ([api.md](api.md#post-apiactionskeyresolve)). The rows hold the target rows' values, trimmed to the action's pivot columns and its params' `fromColumns`. The right-clicked cell is sent when its column is one of them.
+- **Child tab.** It is an action tab under the current tab, created in the background, so focus stays on the parent. Its params are:
+  - the action's defaults;
+  - the only connection, for each `connection` param;
+  - the resolved params.
+- **Run.**
+  - When nothing is missing, the tab runs at once and a toast says "Running <action>".
+  - Otherwise the tab waits, with `pivotMissing` set (cleared when a run starts), and the toast says "Opened <action>: needs <params>".
+  - Both toasts have a **Go to** button that focuses the child tab.
+  - A refused resolve shows the toast "Couldn't pivot into <action>: <reason>" and creates no tab.
+- **Waiting tab.**
+  - Each needed pill is dashed, warning-coloured and labelled "<Title>: needed".
+  - A warning note says "Fill in <params> to run this pivot", with the reasons.
+  - The first needed pill's popover opens when the tab is first shown.
+  - The analyst presses Run once the params are filled.
 
 ### Template engine
 
@@ -372,7 +401,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `deps.py` | FastAPI dependencies returning the storage and its template, run and query-run stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
-| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
+| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions`, `schema connections` and `check` |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
@@ -390,7 +419,8 @@ Database migrations are in `api/migrations` (Alembic).
 
 | Module | Responsibility |
 |---|---|
-| `action.py` | `Action`, the base of query action types, with its menu path and pivot columns |
+| `action.py` | `Action`, the base of query action types, with its menu path, pivot columns and `resolve()` |
+| `pivots.py` | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()` |
 | `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
 | `columns.py` | `Column` |
 | `connections.py` | `Connection`, the base of a connection type's entries in the connections file |
@@ -499,6 +529,7 @@ The registry serves the catalogue and the connections in `GET /api/instance` ([a
   - the rest of the body.
 - So `version` changes whenever the catalogue, an installed provider or a file does.
 - Actions run through `/api/runs` ([Runs and rows](#runs-and-rows)).
+- A pivot into an action is resolved through `POST /api/actions/{key}/resolve`. At most `TIM_MAX_PIVOT_ROWS` rows (default 100) are accepted.
 
 Params are declared as data: `Param(name, kind, title, required, default, many, choices, connection_type, schema_from, from_columns, help)`.
 
@@ -511,6 +542,12 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
   - a missing or blank value takes the default;
   - errors are keyed `params.<name>`.
 - **`pivot.columns`** in the catalogue comes from `Action.pivot_columns()`. Each required param's `from_columns` is one group, and a row needs one column from each.
+- **`Action.resolve(context)`** gives the params of a pivot from a `PivotContext` (`rows`, `cell`) as a `Resolved` (`params`, `missing`). `missing` maps each unfilled param's name to its reason, or `None`.
+  - The default takes, for each param with `from_columns`, the first non-empty of those columns in each row.
+  - A `many` param takes the distinct values in first-seen order.
+  - A single-valued param takes the value the rows agree on. When they disagree it is missing, with the reason "The N selected rows have different <Title> values".
+  - A required param with no value and no default is missing, with no reason.
+- **`resolve_pivot(action, rows, cell)`** trims the rows, and the cell, to the union of `pivot_columns()` and every param's `from_columns`, then calls `action.resolve()`. An overridden `resolve()` sees only those columns.
 - **`pivot`** is set by every action and has no default. `row` or `rows` offers the action on one or several selected rows. `none` keeps it out of the context menu.
 
 ### Authentication and OBO

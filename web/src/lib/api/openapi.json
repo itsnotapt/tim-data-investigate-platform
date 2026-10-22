@@ -789,6 +789,10 @@
       },
       "Limits": {
         "properties": {
+          "maxPivotRows": {
+            "title": "Maxpivotrows",
+            "type": "integer"
+          },
           "maxResultBytes": {
             "title": "Maxresultbytes",
             "type": "integer"
@@ -809,6 +813,7 @@
         "required": [
           "maxResultRows",
           "maxResultBytes",
+          "maxPivotRows",
           "rowsPageSize",
           "runTimeoutSeconds"
         ],
@@ -841,6 +846,88 @@
           "path"
         ],
         "title": "PatchOperation",
+        "type": "object"
+      },
+      "PivotCell": {
+        "description": "The cell the analyst right-clicked.",
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "required": [
+          "column",
+          "value"
+        ],
+        "title": "PivotCell",
+        "type": "object"
+      },
+      "PivotResolution": {
+        "description": "A pivot's params, as wire values, and the params it couldn't fill.\n``reasons`` says why for those that have a reason, such as rows that disagree.",
+        "properties": {
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "object"
+          }
+        },
+        "required": [
+          "params",
+          "missing",
+          "reasons"
+        ],
+        "title": "PivotResolution",
+        "type": "object"
+      },
+      "PivotRows": {
+        "description": "The selected rows, by value, each trimmed to the action's pivot columns.",
+        "properties": {
+          "cell": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PivotCell"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "PivotRows",
         "type": "object"
       },
       "ProblemDetails": {
@@ -1383,6 +1470,19 @@
         "title": "QueryType",
         "type": "string"
       },
+      "ResolvePivot": {
+        "description": "Body of ``POST /api/actions/{key}/resolve``.",
+        "properties": {
+          "pivot": {
+            "$ref": "#/components/schemas/PivotRows"
+          }
+        },
+        "required": [
+          "pivot"
+        ],
+        "title": "ResolvePivot",
+        "type": "object"
+      },
       "RowsPage": {
         "description": "``lastRow`` is the run's row count.",
         "properties": {
@@ -1689,6 +1789,112 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/actions/{key}/resolve": {
+      "post": {
+        "description": "A pivot into the action: its params resolved from the selected rows, and the required\nparams left without a value. ``422`` when the action isn't offered on these rows.",
+        "operationId": "resolvePivot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolvePivot"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PivotResolution"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Resolve Pivot",
+        "tags": [
+          "instance"
+        ]
+      }
+    },
     "/api/connections/{name}/schema": {
       "post": {
         "description": "The editor schema for ``scope`` on the connection ``name``, got as the analyst; ``204``\nwhen there is none. The connection's ``obo`` token is got first, so OBO problems answer as\nthey do on runs.",

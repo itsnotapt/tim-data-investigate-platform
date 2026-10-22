@@ -15,6 +15,7 @@ from tim_actions.action import Action
 from tim_actions.columns import Column
 from tim_actions.files import ActionDocument
 from tim_actions.params import Param
+from tim_actions.pivots import first_value
 from tim_actions.provider import Provider
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
@@ -60,11 +61,6 @@ _FILTER_KINDS = ("string", "number", "boolean")
 def _same(value: Any, wanted: Any) -> bool:
     """Equal, where a boolean never equals a number (Python's ``True == 1``)."""
     return isinstance(value, bool) == isinstance(wanted, bool) and value == wanted
-
-
-def _first_value(row: Mapping[str, Any], columns: Sequence[str]) -> Any:
-    """The first non-empty value of ``columns`` in ``row``, as a pivot reads ``from_columns``."""
-    return next((row[c] for c in columns if row.get(c) is not None and row.get(c) != ""), None)
 
 
 _GENERATED_FROM = datetime(2026, 1, 1, tzinfo=UTC)
@@ -137,7 +133,7 @@ class DevRows(Action):
             wanted = params.get(param.name)
             if wanted is None or not param.from_columns:
                 continue
-            value = _first_value(row, param.from_columns)
+            value = first_value(row, param.from_columns)
             if not any(_same(value, each) for each in (wanted if param.many else [wanted])):
                 return False
         return True

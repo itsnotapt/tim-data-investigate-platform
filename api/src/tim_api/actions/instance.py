@@ -89,6 +89,7 @@ def build_instance(registry: Registry, settings: Settings) -> Instance:
         limits=Limits(
             max_result_rows=settings.max_result_rows,
             max_result_bytes=settings.max_result_bytes,
+            max_pivot_rows=settings.max_pivot_rows,
             rows_page_size=settings.rows_page_size,
             run_timeout_seconds=settings.run_timeout_seconds,
         ),

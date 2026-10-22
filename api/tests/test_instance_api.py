@@ -81,10 +81,12 @@ def test_the_instance_carries_its_limits(auth: AuthKit, monkeypatch: pytest.Monk
     monkeypatch.setenv("TIM_MAX_RESULT_BYTES", "1048576")
     monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "90")
     monkeypatch.setenv("TIM_ROWS_PAGE_SIZE", "250")
+    monkeypatch.setenv("TIM_MAX_PIVOT_ROWS", "20")
     body = get_instance(auth, [])
     assert body["limits"] == {
         "maxResultRows": 5000,
         "maxResultBytes": 1048576,
+        "maxPivotRows": 20,
         "rowsPageSize": 250,
         "runTimeoutSeconds": 90,
     }

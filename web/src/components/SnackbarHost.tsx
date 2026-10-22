@@ -100,6 +100,18 @@ export function SnackbarHost({ children }: { children?: ReactNode }) {
                   {current.linkText ?? 'Open'}
                 </Button>
               )}
+              {current.action && (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    current.action?.onClick();
+                    dismiss();
+                  }}
+                >
+                  {current.action.label}
+                </Button>
+              )}
               <Button color="inherit" size="small" onClick={dismiss} endIcon={<CloseIcon />}>
                 Dismiss
               </Button>

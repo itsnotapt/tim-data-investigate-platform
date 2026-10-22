@@ -220,6 +220,7 @@ Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM
 | Runs stopped at the time limit               | `TIM_RUN_TIMEOUT_SECONDS` (nginx waits 620 s; raising it above 600 also needs a change to `web/docker/nginx.conf.template`) |
 | Runs stay `running` (query runs `created`) under heavy use | `TIM_MAX_CONCURRENT_RUNS` (per api process, shared by runs and query runs) |
 | Row pages are slow or large                  | `TIM_ROWS_PAGE_SIZE`                      |
+| A pivot is refused with "At most N rows"      | `TIM_MAX_PIVOT_ROWS`                      |
 | `413` on requests                            | `TIM_MAX_REQUEST_BYTES` (nginx caps bodies at 25 MB) |
 
 ### Rotate secrets and keys
