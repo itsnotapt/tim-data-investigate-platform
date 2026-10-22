@@ -61,6 +61,7 @@ export default defineConfig({
         TIM_AUTH_DISABLED: 'true',
         TIM_DEV_ACTIONS: 'true',
         TIM_ACTIONS_DIR: resolve(import.meta.dirname, 'e2e/actions'),
+        TIM_CONNECTIONS_FILE: resolve(import.meta.dirname, 'e2e/connections.yaml'),
         TIM_AUTH_TENANT_ID: '00000000-0000-0000-0000-000000000000',
         TIM_AUTH_CLIENT_ID: '00000000-0000-0000-0000-000000000000',
         TIM_TAG_CLUSTER_URI: 'https://example.westeurope.kusto.windows.net',

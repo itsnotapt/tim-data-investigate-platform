@@ -1,30 +1,25 @@
 import { useEffect } from 'react';
-import type { CodeEditorInstance } from '../../components/CodeEditor';
 import { useNotify } from '../../components/useNotify';
 import { getEditorSchema, type CatalogueParam, type EditorSchema } from '../../lib/api';
-import { getKustoWorkerFor } from '../../lib/monaco';
-import { normalizeSchema } from '../kusto-query/kustoSchema';
 
 type Scope = Record<string, unknown>;
 
-/** Gives an editor the schema of one `kind`, for the connection and scope it came from. */
-type Adapter = (
-  editor: CodeEditorInstance,
-  schema: unknown,
-  connection: string,
-  scope: Scope,
-  signal: AbortSignal | undefined,
-) => Promise<void>;
+/** An editor schema, with the connection and scope it came from. */
+export interface LoadedEditorSchema {
+  kind: string;
+  schema: unknown;
+  connection: string;
+  scope: Scope;
+}
 
-const adapters: Record<string, Adapter> = {
-  // `.show schema as json` for the scope's database. Monaco wants a cluster: the connection name.
-  kql: async (editor, schema, connection, scope, signal) => {
-    const worker = await getKustoWorkerFor(editor);
-    if (!worker || signal?.aborted) return;
-    const database = typeof scope.database === 'string' ? scope.database : '';
-    await worker.setSchemaFromShowSchema(normalizeSchema(schema), connection, database);
-  },
-};
+/**
+ * Gives a loaded schema to an editor. `signal` aborts once the schema is stale; a rejection is
+ * shown in the snackbar.
+ */
+export type SchemaHandler = (
+  loaded: LoadedEditorSchema,
+  signal: AbortSignal,
+) => Promise<void> | void;
 
 const cache = new Map<string, Promise<EditorSchema | undefined>>();
 
@@ -46,21 +41,6 @@ function fetchEditorSchema(connection: string, scope: Scope): Promise<EditorSche
     });
   }
   return hit;
-}
-
-/**
- * Loads the editor schema of `connection` for `scope` into `editor`, with the adapter of its kind.
- * Does nothing more once `signal` is aborted.
- */
-export async function loadEditorSchema(
-  editor: CodeEditorInstance,
-  connection: string,
-  scope: Scope,
-  { signal }: { signal?: AbortSignal } = {},
-): Promise<void> {
-  const found = await fetchEditorSchema(connection, scope);
-  if (!found || signal?.aborted) return;
-  await adapters[found.kind]?.(editor, found.schema, connection, scope, signal);
 }
 
 /**
@@ -87,38 +67,46 @@ function schemaTarget(
 const SETTLE_MS = 400;
 
 /**
- * Loads the schema of an editor param into `editor` once its connection and scope have stayed
- * unchanged for `SETTLE_MS` (a pill's value changes on each keystroke), the editor has mounted and
- * each of its `schemaFrom` params has a value. A schema that arrives after they changed is
- * ignored, and a failure is shown in the snackbar.
+ * Loads the schema of an editor param and hands it to `onSchema` once its connection and scope
+ * have stayed unchanged for `SETTLE_MS` (a pill's value changes on each keystroke), `onSchema` is
+ * set (the editor has mounted) and each of its `schemaFrom` params has a value. A schema that
+ * arrives after they changed is dropped, and a failure is shown in the snackbar. `onSchema` must
+ * keep its identity between renders.
  */
 export function useEditorSchema(
-  editor: CodeEditorInstance | null,
   param: CatalogueParam | undefined,
   params: readonly CatalogueParam[],
   values: Record<string, unknown>,
+  onSchema: SchemaHandler | null,
 ): void {
   const notify = useNotify();
   const target = param ? schemaTarget(param, params, values) : null;
   const key = target ? cacheKey(target.connection, target.scope) : null;
   useEffect(() => {
-    if (!editor || key === null) return;
+    if (!onSchema || key === null) return;
     const [connection, entries] = JSON.parse(key) as [string, [string, unknown][]];
+    const scope = Object.fromEntries(entries);
     const controller = new AbortController();
+    const { signal } = controller;
     const timer = setTimeout(() => {
-      loadEditorSchema(editor, connection, Object.fromEntries(entries), {
-        signal: controller.signal,
-      }).catch((e: unknown) => {
-        if (!controller.signal.aborted) {
-          notify(`Failed to load the editor schema: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      });
+      fetchEditorSchema(connection, scope)
+        .then(async (found) => {
+          if (!found || signal.aborted) return;
+          await onSchema({ kind: found.kind, schema: found.schema, connection, scope }, signal);
+        })
+        .catch((e: unknown) => {
+          if (!signal.aborted) {
+            notify(
+              `Failed to load the editor schema: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        });
     }, SETTLE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [editor, key, notify]);
+  }, [onSchema, key, notify]);
 }
 
 export function clearEditorSchemaCache(): void {
