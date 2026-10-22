@@ -58,7 +58,8 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
     CI runs them only in the [`kusto-live` job](#ci-and-releases).
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
-- **Playwright reuses a running Vite server on port 5180 locally.** A stray dev server started without `VITE_AUTH_STUB` breaks the e2e tests.
+- **Playwright fails if its ports are busy.** It never reuses a running server, so a stray server on its ports (default 5180 and 5181) stops the run.
+  - Set `E2E_PORT` to move the ports. See [e2e tests](#e2e-tests).
   - The tests run against the Vite dev server, not a build, because production builds refuse the auth stub.
   - Install the browser once with `npx playwright install chromium`.
   - Playwright also starts its own api, so uv must be installed. See [e2e tests](#e2e-tests).
@@ -105,7 +106,7 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 | `uv sync --locked --all-packages` and `npm ci`                                                   | A stale `uv.lock` or `package-lock.json` passes `uv sync` / `npm install` but fails CI         |
 | `npm audit --omit=dev --audit-level=high`                                                        | Not part of any script; run it yourself after changing dependencies                           |
 | PostgreSQL tests against a `postgres:17` service (`TIM_TEST_DATABASE_URL`)                       | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                             |
-| Playwright with `CI` set: `forbidOnly`, 1 retry, 3 workers, HTML report, never reuses a server    | `list` reporter only, no retries, reuses a running Vite server                                |
+| Playwright with `CI` set: `forbidOnly`, 1 retry, 3 workers, HTML report                             | `list` reporter only, no retries                                                              |
 | The e2e job's api on a `postgres:17` service (`TIM_TEST_DATABASE_URL`). The job also runs when `api/` changes | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                  |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
 | `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions           | Needs those tools installed; read the workflow for the exact commands                         |
@@ -115,12 +116,16 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 
 `npm run e2e` in `web/` runs every Playwright flow in `web/e2e/`. `playwright.config.ts` starts two servers:
 
-- **The api**, on port 5181, through `web/e2e/api_server.py` (`uv run --project ../api`).
+- **The api**, on the port after Vite's (`E2E_PORT + 1`, default 5181), through `web/e2e/api_server.py` (`uv run --project ../api`).
   - It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true` and `TIM_ACTIONS_DIR=web/e2e/actions`.
   - Its Postgres is `TIM_TEST_DATABASE_URL`. Without it, it is a temporary `pgserver`, deleted when the run ends.
   - The script empties that database and applies the migrations once per run. So never point `TIM_TEST_DATABASE_URL` at a database you want to keep.
-  - This server is never reused.
-- **Vite**, on port 5180, with `VITE_AUTH_STUB=true`. It proxies `/api` to that api (`TIM_API_PROXY_TARGET`).
+- **Vite**, on `E2E_PORT` (default 5180), with `VITE_AUTH_STUB=true`. It proxies `/api` to that api (`TIM_API_PROXY_TARGET`).
+
+Neither server is reused, locally or in CI. If a port is in use, Playwright fails before any test runs.
+
+- `E2E_PORT` must be a whole number from 1 to 65534. Anything else makes the config throw.
+- Each run takes two ports. For parallel worktrees, give each its own `E2E_PORT`, two apart: 5180, 5182, 5184.
 
 There are two kinds of flow. What the spec imports picks the kind:
 

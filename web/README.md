@@ -36,8 +36,10 @@ Playwright specs run in headless Chromium: `e2e/smoke.spec.ts` and `e2e/flows/*.
 
 `npm run e2e` starts two servers:
 
-- A real api on port 5181, from `e2e/api_server.py`. It needs uv; see [development.md](../docs/development.md#e2e-tests).
-- `vite` on port 5180 with `VITE_AUTH_STUB=true`, proxying `/api` to that api. Production builds refuse the stub, so the harness uses the dev server, not `vite preview`.
+- A real api on port `E2E_PORT + 1` (default 5181), from `e2e/api_server.py`. It needs uv; see [development.md](../docs/development.md#e2e-tests).
+- `vite` on port `E2E_PORT` (default 5180) with `VITE_AUTH_STUB=true`, proxying `/api` to that api. Production builds refuse the stub, so the harness uses the dev server, not `vite preview`.
+
+Neither server is reused; to run several checkouts at once, see [development.md](../docs/development.md#e2e-tests).
 
 `/config.js` comes from `public/config.js`. There are two kinds of flow.
 
