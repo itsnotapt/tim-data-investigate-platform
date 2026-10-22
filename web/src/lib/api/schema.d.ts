@@ -4,6 +4,48 @@
  */
 
 export interface paths {
+    "/api/annotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change Annotations
+         * @description Change every id's annotations in one transaction under one version. ``label`` sets the
+         *     label, ``null`` clears it, and leaving it out keeps it.
+         */
+        patch: operations["changeAnnotations"];
+        trace?: never;
+    };
+    "/api/annotations/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Annotation Changes
+         * @description The ids changed after version ``since``, as they now are, in version order. Ask again
+         *     from ``next`` while ``hasMore``.
+         */
+        get: operations["getAnnotationChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connections/{name}/schema": {
         parameters: {
             query?: never;
@@ -199,7 +241,8 @@ export interface paths {
         };
         /**
          * Get Rows
-         * @description The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them.
+         * @description The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them, and their
+         *     ids' annotations.
          */
         get: operations["getRunRows"];
         put?: never;
@@ -303,6 +346,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AnnotationChangesPage
+         * @description A page of the change feed. ``next`` is the ``since`` of the next page.
+         */
+        AnnotationChangesPage: {
+            /** Changes */
+            changes: components["schemas"]["Annotations"][];
+            /** Hasmore */
+            hasMore: boolean;
+            /** Next */
+            next: number;
+        };
+        /**
+         * Annotations
+         * @description An id's annotations, as of ``version``: the version of the change that last touched it.
+         */
+        Annotations: {
+            /** Comments */
+            comments?: components["schemas"]["Comment"][];
+            /** Id */
+            id: string;
+            label: components["schemas"]["LabelState"] | null;
+            /** Tags */
+            tags?: string[];
+            /** Version */
+            version: number;
+        };
+        /**
+         * AnnotationsChange
+         * @description ``PATCH /api/annotations``: a change to every one of ``ids``. Leaving ``label`` out keeps
+         *     it; ``null`` clears it.
+         */
+        AnnotationsChange: {
+            /** Ids */
+            ids: string[];
+            /** Label */
+            label?: string | null;
+        };
         /** CatalogueAction */
         CatalogueAction: {
             /** Columns */
@@ -398,6 +479,26 @@ export interface components {
             rows: "row" | "rows";
         };
         /**
+         * ChangedAnnotations
+         * @description The ids the change changed, as they now are, and its version: the current one when it
+         *     changed nothing.
+         */
+        ChangedAnnotations: {
+            /** Changes */
+            changes: components["schemas"]["Annotations"][];
+            /** Version */
+            version: number;
+        };
+        /** Comment */
+        Comment: {
+            /** At */
+            at: string;
+            /** Author */
+            author: string;
+            /** Text */
+            text: string;
+        };
+        /**
          * EditorSchemaRequest
          * @description Body of ``POST /api/connections/{name}/schema``: the values of the editor param's
          *     ``schemaFrom`` params, by name, without its connection param.
@@ -474,16 +575,22 @@ export interface components {
             /** Type */
             type: string;
         };
-        /** InstanceLabel */
+        /**
+         * InstanceLabel
+         * @description A label from the labels file: ``colour`` and ``symbol`` name ones the browser draws.
+         */
         InstanceLabel: {
-            /** Colour */
-            colour: string;
+            /**
+             * Colour
+             * @enum {string}
+             */
+            colour: "red" | "amber" | "green" | "teal" | "blue" | "purple" | "pink" | "grey";
             /** Key */
             key: string;
             /** Name */
             name: string;
             /** Symbol */
-            symbol?: string | null;
+            symbol?: ("skull" | "warning" | "check" | "flag" | "star" | "question" | "block" | "bug" | "eye") | null;
         };
         JsonValue: unknown;
         /**
@@ -576,8 +683,24 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * LabelState
+         * @description An id's label: its key, who set it and when.
+         */
+        LabelState: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Key */
+            key: string;
+        };
         /** Limits */
         Limits: {
+            /** Annotationpollseconds */
+            annotationPollSeconds: number;
+            /** Maxannotationids */
+            maxAnnotationIds: number;
             /** Maxresultbytes */
             maxResultBytes: number;
             /** Maxresultrows */
@@ -818,9 +941,16 @@ export interface components {
         QueryType: "view" | "query";
         /**
          * RowsPage
-         * @description ``lastRow`` is the run's row count.
+         * @description ``lastRow`` is the run's row count. ``annotations`` are those of the rows' ids that have
+         *     any, current as of ``annotationVersion``.
          */
         RowsPage: {
+            /** Annotationversion */
+            annotationVersion: number;
+            /** Annotations */
+            annotations: {
+                [key: string]: components["schemas"]["Annotations"];
+            };
             /** Lastrow */
             lastRow: number;
             /** Rows */
@@ -953,6 +1083,119 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    changeAnnotations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationsChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangedAnnotations"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getAnnotationChanges: {
+        parameters: {
+            query: {
+                since: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationChangesPage"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     getEditorSchema: {
         parameters: {
             query?: never;

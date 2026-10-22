@@ -1,0 +1,4 @@
+# The e2e instance's labels (TIM_LABELS_FILE): two of the default labels and one of its own.
+- { key: malicious, name: Malicious, colour: red, symbol: skull }
+- { key: escalated, name: Escalated, colour: blue, symbol: flag }
+- { key: benign, name: Benign, colour: green, symbol: check }

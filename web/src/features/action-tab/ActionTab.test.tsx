@@ -63,7 +63,14 @@ const instance: Instance = {
   actions: [action, runKql],
   connections: [{ name: 'security', type: 'kusto', title: 'Security', databases: ['Samples'] }],
   labels: [],
-  limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 10, runTimeoutSeconds: 600 },
+  limits: {
+    maxResultRows: 1,
+    maxResultBytes: 1,
+    rowsPageSize: 10,
+    runTimeoutSeconds: 600,
+    maxAnnotationIds: 10_000,
+    annotationPollSeconds: 30,
+  },
 };
 const succeeded: Run = {
   runId: 'r1',
@@ -389,6 +396,8 @@ describe('ActionTab with a query param', () => {
             { row: 1, id: null, data: { State: 'IOWA' } },
           ],
           lastRow: 2,
+          annotations: {},
+          annotationVersion: 0,
         }),
       ),
     );

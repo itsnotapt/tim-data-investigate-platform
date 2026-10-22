@@ -40,11 +40,12 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `runs` and `query_runs`:
+`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `runs`, `query_runs` and `annotations`:
 
 - `TemplateStore`;
 - `RunStore`, for runs and their rows;
-- `QueryRunStore`, for Kusto query runs.
+- `QueryRunStore`, for Kusto query runs;
+- `AnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
 
 There are two implementations:
 
@@ -148,14 +149,15 @@ At startup, the lifespan discovers providers through the `tim.actions` entry-poi
 - a duplicate action key, action type `type_name` or connection type;
 - a problem in an action file, from a provider's package data (`Provider(action_files=...)`) or from `TIM_ACTIONS_DIR`. The loader is `tim_actions.files.load_action_files`. Each problem names the file, line and field;
 - a problem in the connections file (`TIM_CONNECTIONS_FILE`). The loader is `tim_actions.connections_file.load_connections_file`. Each problem names the file, line and field;
+- a problem in the labels file (`TIM_LABELS_FILE`). The loader is `tim_actions.labels_file.load_labels_file`. Each problem names the file, line and field;
 - an action's fixed connection that is missing, or of another type. `Action.connections()` maps each name to its connection type.
 
 An action with a `connection` param is left out, with an info log line, when no connection has the param's type.
 
 The `tim-api` command (`cli.py`), described in [actions.md](../docs/actions.md#checking-files):
 
-- `tim-api check [--actions <dir>] [--connections <file>]` runs the same validation, without a database or settings.
-- `tim-api schema actions|connections` prints the JSON Schema of the action files or the connections file.
+- `tim-api check [--actions <dir>] [--connections <file>] [--labels <file>]` runs the same validation, without a database or settings.
+- `tim-api schema actions|connections|labels` prints the JSON Schema of the action files, the connections file or the labels file.
 
 Other pieces:
 

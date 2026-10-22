@@ -65,6 +65,9 @@ _Avoid_: cluster
 **Connections file**:
 The YAML file named by `TIM_CONNECTIONS_FILE` that lists the instance's connections. Each entry names its connection type, and that type's `Connection` model validates it. It is loaded at startup and checked with `tim-api check --connections`.
 
+**Labels file**:
+The YAML file that lists the instance's labels. Each entry gives a label's key, name, colour and optionally a symbol.
+
 ### Query templates
 
 **Query template**:
@@ -112,12 +115,21 @@ _Avoid_: job
 ### Results
 
 **`id`**:
-The action-defined key a row is annotated by. It is shared across actions, so rows with the same `id` carry the same annotations.
+The action-defined key a row is annotated by. It is shared across actions, so rows with the same `id` carry the same annotations. A row without one cannot be annotated.
 _Avoid_: EventId, event id, row id
 
 **Row number**:
 A row's position in its run's results, unique within the run where `id` can repeat.
 _Avoid_: ordinal, row id
+
+### Annotations
+
+**Annotations**:
+What is recorded against an `id`: its label, tags and comments together._Avoid_: tags, tag state, id state
+
+**Label**:
+One of the instance's configured labels, each with a name, a colour and optionally a symbol. An `id` carries at most one, and it colours that `id`'s rows.
+_Avoid_: verdict, classification
 
 ### Tagging
 
@@ -125,7 +137,7 @@ _Avoid_: ordinal, row id
 A snapshot of a result row kept so it can be tagged and commented on. A row is saved before it is tagged or commented.
 
 **Tag**:
-A label an analyst attaches to a saved event.
+A free-text string an analyst attaches to a saved event.
 
 **Comment**:
 An analyst's note on a saved event, optionally carrying a determination.

@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { render, waitFor } from '@testing-library/react';
 import type { ColumnState, GridApi } from 'ag-grid-community';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -63,6 +64,7 @@ function renderGrid(uuid: string, shown: readonly RunRow[] = rows) {
   const grid = (r: readonly RunRow[]) => (
     <ActionResultsGrid
       uuid={uuid}
+      action="dev.sign_ins"
       rows={r}
       declaredColumns={declared}
       runColumns={columns}
@@ -126,7 +128,7 @@ describe('ActionResultsGrid', () => {
       .getColumnState()
       .map((c) => c.colId)
       .filter((id) => !id.startsWith('ag-Grid-'));
-    expect(order).toEqual(['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes']);
+    expect(order).toEqual(['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes', 'tim:label']);
   });
 
   it('adds the rows of each page that arrives, and replaces rows that are not a continuation', async () => {

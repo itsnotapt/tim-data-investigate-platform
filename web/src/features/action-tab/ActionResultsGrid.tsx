@@ -1,19 +1,54 @@
-import type { GridApi, GridReadyEvent } from 'ag-grid-community';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
+import type {
+  CellKeyDownEvent,
+  FullWidthCellKeyDownEvent,
+  GridApi,
+  GridReadyEvent,
+} from 'ag-grid-community';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { NotifyContext } from '../../components/notifyContext';
+import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
+import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
 import { useRowResults } from '../grid/useRowResults';
+import { useInstanceStore } from '../instance';
+import {
+  buildLabelMenu,
+  indexRows,
+  labelClassRules,
+  labelColumnDef,
+  LabelSymbol,
+  makeLabelKeys,
+  updateRowAnnotations,
+  type LabelMenuOptions,
+  type RowsById,
+} from '../labels';
 import { buildActionColumnDefs } from './actionColumns';
 
 /** The grid row id: the run's row ordinal. */
 const ROW_ID = 'row';
 
+/** The param that names the column giving each row its id (Run KQL's Id column). */
+const ID_PARAM = 'idColumn';
+const NO_LABELS: readonly InstanceLabel[] = [];
+/** `maxAnnotationIds` until the instance says otherwise. */
+const DEFAULT_MAX_IDS = 10_000;
+
 export type ActionResultsGridProps = Omit<
   ResultsGridProps,
-  'rows' | 'templateColumns' | 'columnId' | 'columnDefs' | 'stateKey'
+  | 'rows'
+  | 'templateColumns'
+  | 'columnId'
+  | 'columnDefs'
+  | 'stateKey'
+  | 'getContextMenuItems'
+  | 'rowClassRules'
+  | 'selectionSymbol'
+  | 'onCellKeyDown'
 > & {
   uuid: string;
+  /** The action the rows came from. */
+  action: string;
   /** The rows to show. Rows that continue the ones shown are added to them, as each page loads. */
   rows: readonly RunRow[];
   /** The action's declared columns. */
@@ -26,41 +61,108 @@ export type ActionResultsGridProps = Omit<
 const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
   shown.length > 0 && next.length > shown.length && next[shown.length - 1] === shown.at(-1);
 
-/** An action tab's rows, keyed by `row`, with the action's columns. */
+/**
+ * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
+ * `id`: the label's fill, stripe and symbol, the hidden Label column, Label ▸ and the number keys.
+ * The annotations come from the annotation store, never from `row_results`; a teammate's change
+ * from the feed flashes the rows it changes.
+ */
 export function ActionResultsGrid({
   uuid,
+  action,
   rows,
   declaredColumns,
   runColumns,
   onGridReady,
   ...rest
 }: ActionResultsGridProps) {
+  const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
+  const max = useInstanceStore((s) => s.instance?.limits.maxAnnotationIds) ?? DEFAULT_MAX_IDS;
+  const idParam = useInstanceStore(
+    (s) =>
+      s.instance?.actions.find((a) => a.key === action)?.params.some((p) => p.name === ID_PARAM) ??
+      false,
+  );
+  const notifyContext = useContext(NotifyContext);
   const columnDefs = useMemo(
-    () => buildActionColumnDefs(declaredColumns, runColumns),
-    [declaredColumns, runColumns],
+    () => [...buildActionColumnDefs(declaredColumns, runColumns), labelColumnDef(labels)],
+    [declaredColumns, runColumns, labels],
   );
   // The grid is given `given` as its row data; rows that continue them go in by transaction, so a
   // page doesn't make the grid take every row again.
   const [given, setGiven] = useState(rows);
   const shown = useRef(rows);
   const api = useRef<GridApi<GridRowWithId> | null>(null);
+  const [index] = useState<RowsById>(() => {
+    const byId: RowsById = new Map();
+    indexRows(byId, rows);
+    return byId;
+  });
+  /** Gives the rows of `ids` (else every `id`) the annotations the store has. */
+  const showStoredAnnotations = useCallback(
+    async (ids: readonly string[] = [...index.keys()]) => {
+      const found = await getAnnotationStore().get(ids);
+      const grid = api.current;
+      if (grid && !grid.isDestroyed()) updateRowAnnotations(grid, index, [...found.values()]);
+    },
+    [index],
+  );
   useEffect(() => {
     if (rows === shown.current) return;
     if (api.current && continues(shown.current, rows)) {
       const added = rows.slice(shown.current.length);
       api.current.applyTransaction({ add: prepareRows(added, ROW_ID) });
+      indexRows(index, added);
+      void showStoredAnnotations(added.flatMap((r) => (r.id ? [r.id] : [])));
     } else {
+      index.clear();
+      indexRows(index, rows);
       setGiven(rows);
     }
     shown.current = rows;
-  }, [rows]);
+  }, [rows, index, showStoredAnnotations]);
+  // After the grid takes new row data.
+  useEffect(() => {
+    void showStoredAnnotations();
+  }, [given, showStoredAnnotations]);
+  useEffect(
+    () =>
+      getAnnotationStore().subscribe(({ changes, source }) => {
+        const grid = api.current;
+        if (!grid || grid.isDestroyed()) return;
+        const changed = updateRowAnnotations(grid, index, changes);
+        if (source === 'feed' && changed.length > 0) grid.flashCells({ rowNodes: changed });
+      }),
+    [index],
+  );
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
       api.current = e.api;
+      void showStoredAnnotations();
       onGridReady?.(e);
     },
-    [onGridReady],
+    [onGridReady, showStoredAnnotations],
   );
+  const labelling = useMemo<LabelMenuOptions>(
+    () => ({
+      store: getAnnotationStore(),
+      labels,
+      max,
+      idParam,
+      notify: (options) => notifyContext?.(options),
+      pollSoon: pollAnnotationsSoon,
+    }),
+    [labels, max, idParam, notifyContext],
+  );
+  const menu = useMemo(() => buildLabelMenu(labelling), [labelling]);
+  const keys = useMemo(() => makeLabelKeys(labelling), [labelling]);
+  const onCellKeyDown = useCallback(
+    (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
+      if ('column' in e) keys(e);
+    },
+    [keys],
+  );
+  const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
     <ResultsGrid
       {...rest}
@@ -68,6 +170,10 @@ export function ActionResultsGrid({
       rows={given}
       columnId={ROW_ID}
       columnDefs={columnDefs}
+      getContextMenuItems={menu}
+      rowClassRules={rowClassRules}
+      selectionSymbol={LabelSymbol}
+      onCellKeyDown={onCellKeyDown}
       onGridReady={ready}
     />
   );

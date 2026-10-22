@@ -50,6 +50,18 @@ describe('SnackbarHost', () => {
     expect(screen.queryByText('second')).not.toBeInTheDocument();
   });
 
+  it('an action button runs its action and hides the message', () => {
+    setup();
+    const undo = vi.fn();
+    send({ message: 'Labelled 2 ids', action: { label: 'Undo', onClick: undo } });
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(undo).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByText('Labelled 2 ids')).not.toBeInTheDocument();
+  });
+
   it('Dismiss hides now and shows the next after the pause', () => {
     setup();
     send('one');

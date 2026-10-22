@@ -1,0 +1,51 @@
+/*
+ * Labelled rows: each colour class names its fill and stripe from the theme palette; `tim-label`
+ * draws them like a determination row (row background variables, an inset shadow on the first
+ * cell). The menu swatch is the stripe colour.
+ */
+.tim-label-red {
+  --tim-label-fill: var(--mui-palette-label-red);
+  --tim-label-stripe: var(--mui-palette-labelStripe-red);
+}
+.tim-label-amber {
+  --tim-label-fill: var(--mui-palette-label-amber);
+  --tim-label-stripe: var(--mui-palette-labelStripe-amber);
+}
+.tim-label-green {
+  --tim-label-fill: var(--mui-palette-label-green);
+  --tim-label-stripe: var(--mui-palette-labelStripe-green);
+}
+.tim-label-teal {
+  --tim-label-fill: var(--mui-palette-label-teal);
+  --tim-label-stripe: var(--mui-palette-labelStripe-teal);
+}
+.tim-label-blue {
+  --tim-label-fill: var(--mui-palette-label-blue);
+  --tim-label-stripe: var(--mui-palette-labelStripe-blue);
+}
+.tim-label-purple {
+  --tim-label-fill: var(--mui-palette-label-purple);
+  --tim-label-stripe: var(--mui-palette-labelStripe-purple);
+}
+.tim-label-pink {
+  --tim-label-fill: var(--mui-palette-label-pink);
+  --tim-label-stripe: var(--mui-palette-labelStripe-pink);
+}
+.tim-label-grey {
+  --tim-label-fill: var(--mui-palette-label-grey);
+  --tim-label-stripe: var(--mui-palette-labelStripe-grey);
+}
+.tim-label {
+  --ag-data-background-color: var(--tim-label-fill);
+  --ag-odd-row-background-color: var(--tim-label-fill);
+}
+.tim-label .ag-cell.ag-column-first {
+  box-shadow: inset 5px 0 0 var(--tim-label-stripe);
+}
+.tim-label-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--tim-label-stripe);
+}

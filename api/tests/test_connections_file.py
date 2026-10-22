@@ -43,7 +43,7 @@ def test_check_accepts_a_kusto_connection(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     code, out, err = check(capsys, "--connections", str(connections_file(tmp_path, SECURITY)))
-    assert (code, out, err) == (0, "OK: 1 actions, 1 connections\n", "")
+    assert (code, out, err) == (0, "OK: 1 actions, 1 connections, 3 labels\n", "")
 
 
 def test_check_reports_each_problem_at_its_line(
@@ -105,7 +105,7 @@ def test_check_without_a_kusto_connection_leaves_run_kql_out(
     assert check(capsys) == (
         0,
         "Action tim.run_kql left out: no kusto connection for its connection param\n"
-        "OK: 0 actions, 0 connections\n",
+        "OK: 0 actions, 0 connections, 3 labels\n",
         "",
     )
 

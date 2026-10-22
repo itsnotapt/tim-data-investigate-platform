@@ -354,6 +354,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           <ActionResultsGrid
             key={shown.runId}
             uuid={uuid}
+            action={params.action}
             rows={shown.rows}
             declaredColumns={action?.columns}
             runColumns={shown.columns}
@@ -362,6 +363,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         {!shown && hasResults && rowCount !== 0 && (
           <StoredActionResultsGrid
             uuid={uuid}
+            action={params.action}
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}
             runColumns={state.resultColumns}

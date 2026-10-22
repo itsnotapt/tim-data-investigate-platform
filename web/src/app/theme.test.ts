@@ -1,4 +1,4 @@
-import { theme } from './theme';
+import { LABEL_COLOURS, UNCONFIGURED_LABEL_COLOUR, theme } from './theme';
 
 /** WCAG 2.x relative luminance of a `#rrggbb` colour. */
 function luminance(hex: string): number {
@@ -51,6 +51,16 @@ describe.each(['light', 'dark'] as const)('%s colour scheme', (scheme) => {
     expect(contrast(colour(fg), colour(bg))).toBeGreaterThanOrEqual(min);
   });
 
+  it.each(LABEL_COLOURS)('text.primary on the %s label fill meets 4.5:1', (name) => {
+    expect(contrast(colour('text.primary'), colour(`label.${name}`))).toBeGreaterThanOrEqual(TEXT);
+  });
+
+  it.each(LABEL_COLOURS)('the %s label stripe on background.paper meets 3:1', (name) => {
+    expect(
+      contrast(colour(`labelStripe.${name}`), colour('background.paper')),
+    ).toBeGreaterThanOrEqual(NON_TEXT);
+  });
+
   it('sets contrastThreshold to 4.5 so contained-button labels meet AA', () => {
     expect(palette.contrastThreshold).toBe(4.5);
   });
@@ -66,6 +76,27 @@ describe('palette values', () => {
     expect(palette.background.paper).toBe(paper);
     expect(palette.text.primary).toBe(text);
     expect(palette.editor.border).toBe(border);
+  });
+
+  it.each(['light', 'dark'] as const)(
+    '%s scheme keeps the determination colours for the red, amber and green labels',
+    (scheme) => {
+      const palette = theme.colorSchemes[scheme]!.palette;
+      expect(palette.label).toMatchObject({
+        red: palette.determination.malicious,
+        amber: palette.determination.suspicious,
+        green: palette.determination.benign,
+      });
+      expect(palette.labelStripe).toMatchObject({
+        red: palette.stripe.malicious,
+        amber: palette.stripe.suspicious,
+        green: palette.stripe.benign,
+      });
+    },
+  );
+
+  it('shows an unconfigured label in grey', () => {
+    expect(UNCONFIGURED_LABEL_COLOUR).toBe('grey');
   });
 
   it('writes the colour scheme on the data-ag-theme-mode attribute AG Grid reads', () => {

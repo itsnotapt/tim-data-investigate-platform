@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import JsonValue
 from tim_actions import ColumnType, ParamKind
+from tim_actions.labels_file import LabelColour, LabelSymbol
 
 from tim_api.models_common import ApiModel, omitted
 
@@ -71,10 +72,12 @@ class InstanceConnection(ApiModel):
 
 
 class InstanceLabel(ApiModel):
+    """A label from the labels file: ``colour`` and ``symbol`` name ones the browser draws."""
+
     key: str
     name: str
-    colour: str
-    symbol: str | None = omitted()
+    colour: LabelColour
+    symbol: LabelSymbol | None = omitted()
 
 
 class Limits(ApiModel):
@@ -82,6 +85,8 @@ class Limits(ApiModel):
     max_result_bytes: int
     rows_page_size: int
     run_timeout_seconds: int
+    max_annotation_ids: int
+    annotation_poll_seconds: int
 
 
 class Instance(ApiModel):

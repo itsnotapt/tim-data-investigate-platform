@@ -88,6 +88,18 @@ export function SnackbarHost({ children }: { children?: ReactNode }) {
         action={
           current && (
             <>
+              {current.action && (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    current.action?.onClick();
+                    dismiss();
+                  }}
+                >
+                  {current.action.label}
+                </Button>
+              )}
               {current.link && (
                 <Button
                   color="inherit"

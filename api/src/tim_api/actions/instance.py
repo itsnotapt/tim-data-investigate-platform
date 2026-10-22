@@ -6,6 +6,7 @@ import hashlib
 import json
 
 from tim_actions import Action, Column, Connection, Hook, Param
+from tim_actions.labels_file import Label
 
 from tim_api.actions.models import (
     CatalogueAction,
@@ -14,6 +15,7 @@ from tim_api.actions.models import (
     CataloguePivot,
     Instance,
     InstanceConnection,
+    InstanceLabel,
     Limits,
 )
 from tim_api.actions.registry import Registry
@@ -80,17 +82,23 @@ def _connection(connection: Connection, hook: type[Hook]) -> InstanceConnection:
     )
 
 
+def _label(label: Label) -> InstanceLabel:
+    return InstanceLabel(key=label.key, name=label.name, colour=label.colour, symbol=label.symbol)
+
+
 def build_instance(registry: Registry, settings: Settings) -> Instance:
     unversioned = Instance(
         version="",
         actions=[_action(action) for action in registry.actions.values()],
         connections=[_connection(c, registry.hooks[c.type]) for c in registry.connections.values()],
-        labels=[],
+        labels=[_label(label) for label in registry.labels],
         limits=Limits(
             max_result_rows=settings.max_result_rows,
             max_result_bytes=settings.max_result_bytes,
             rows_page_size=settings.rows_page_size,
             run_timeout_seconds=settings.run_timeout_seconds,
+            max_annotation_ids=settings.max_annotation_ids,
+            annotation_poll_seconds=settings.annotation_poll_seconds,
         ),
     )
     content = json.dumps(

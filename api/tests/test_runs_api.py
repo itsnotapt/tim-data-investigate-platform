@@ -163,6 +163,8 @@ async def test_a_run_goes_end_to_end_over_http(storage: Storage, auth: AuthKit) 
                 },
             ],
             "lastRow": 3,
+            "annotations": {},
+            "annotationVersion": 0,
         }
         rest = await env.rows(run["runId"], startRow=2, endRow=10)
         assert rest.json()["rows"] == [
@@ -328,7 +330,12 @@ async def test_rows_come_in_pages_of_at_most_the_page_size(
         assert [r["row"] for r in tail["rows"]] == list(range(1400, 1500))
         past = await env.rows(run["runId"], startRow=1500, endRow=1600)
         assert past.status_code == 200
-        assert past.json() == {"rows": [], "lastRow": 1500}
+        assert past.json() == {
+            "rows": [],
+            "lastRow": 1500,
+            "annotations": {},
+            "annotationVersion": 0,
+        }
         backwards = await env.rows(run["runId"], startRow=10, endRow=5)
         assert backwards.status_code == 400
 
@@ -341,7 +348,12 @@ async def test_a_run_with_no_rows_has_an_empty_first_page(storage: Storage, auth
         assert "warning" not in run["details"]
         page = await env.rows(run["runId"])
         assert page.status_code == 200
-        assert page.json() == {"rows": [], "lastRow": 0}
+        assert page.json() == {
+            "rows": [],
+            "lastRow": 0,
+            "annotations": {},
+            "annotationVersion": 0,
+        }
 
 
 async def test_unknown_and_expired_runs_are_not_found(

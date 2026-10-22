@@ -11,7 +11,14 @@ export function stubBootstrap(): void {
       actions: [],
       connections: [],
       labels: [],
-      limits: { maxResultRows: 1, maxResultBytes: 1, rowsPageSize: 1, runTimeoutSeconds: 1 },
+      limits: {
+        maxResultRows: 1,
+        maxResultBytes: 1,
+        rowsPageSize: 1,
+        runTimeoutSeconds: 1,
+        maxAnnotationIds: 10_000,
+        annotationPollSeconds: 30,
+      },
     },
   });
   useTemplatesStore.setState({ loaded: true });

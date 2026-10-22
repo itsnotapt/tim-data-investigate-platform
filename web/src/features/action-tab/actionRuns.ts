@@ -1,3 +1,4 @@
+import { getAnnotationStore } from '../../lib/annotations';
 import {
   cancelRun,
   getRun,
@@ -113,7 +114,7 @@ function startErrors(
 
 /**
  * Every row of a succeeded run, page by page (the server returns at most its page size). Each page
- * is shown in the tab's grid as it arrives.
+ * is shown in the tab's grid as it arrives, once its ids' annotations are in the annotation store.
  */
 async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<RunRow[]> {
   const rowCount = run.rowCount ?? 0;
@@ -123,6 +124,7 @@ async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<Ru
   while (rows.length < rowCount) {
     const page = await getRunRows(run.runId, rows.length, rowCount, { signal });
     if (page.rows.length === 0) break;
+    await getAnnotationStore().apply(Object.values(page.annotations), 'rows');
     rows.push(...page.rows);
     shown.append(uuid, run.runId, page.rows);
   }

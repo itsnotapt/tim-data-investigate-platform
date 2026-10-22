@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
+import { openDB } from 'idb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   columnViewsDao,
@@ -36,16 +37,36 @@ afterEach(async () => {
 });
 
 describe('openTimDb', () => {
-  it('creates database "tim" v1 with the four stores', async () => {
+  it('creates database "tim" v2 with the six stores', async () => {
     const db = await openTimDb();
     expect(db.name).toBe('tim');
-    expect(db.version).toBe(1);
+    expect(db.version).toBe(2);
     expect([...db.objectStoreNames].sort()).toEqual([
+      'annotation_sync',
+      'annotations',
       'column_views',
       'display_components',
       'query_options',
       'row_results',
     ]);
+  });
+
+  it('upgrades a v1 database, keeping its data', async () => {
+    const v1 = await openDB('tim', 1, {
+      upgrade(db) {
+        db.createObjectStore('display_components', { keyPath: 'componentUuid' });
+        db.createObjectStore('row_results');
+        db.createObjectStore('column_views', { keyPath: 'uuid' });
+        db.createObjectStore('query_options');
+      },
+    });
+    await v1.put('row_results', [{ row: 0 }], 'tab-1');
+    v1.close();
+
+    const db = await openTimDb();
+    expect(db.version).toBe(2);
+    expect(db.objectStoreNames).toContain('annotations');
+    expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
   it('is a singleton until reset', async () => {

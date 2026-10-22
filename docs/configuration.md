@@ -20,7 +20,7 @@ Settings are read by pydantic-settings from two places:
 How values are read:
 
 - List values are comma-separated.
-- Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL`, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE` count as unset.
+- Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL`, `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` count as unset.
 - Unknown `TIM_*` variables are ignored.
 - Invalid or missing settings stop the api at startup, with an error naming each variable (see [operations.md](operations.md#common-failures)).
 
@@ -142,6 +142,36 @@ A set value replaces the default rather than adding to it, so keep `**.kusto.win
 | `TIM_ACTIONS_DIR` | none    | One flat directory of action files ([actions.md](actions.md#action-files)), read once at startup: `*.yaml` and `*.yml`, not recursing, dot-entries skipped. Empty means none. A path that isn't a directory stops startup. |
 
 A problem in any action file stops startup too ([operations.md](operations.md#startup-failures-from-the-files)). Check a directory before deploying it with `tim-api check --actions <dir>` ([operations.md](operations.md#tim-api-check)).
+
+### Labels and annotations
+
+See [ADR-0020](adr/0020-annotations-in-postgres.md).
+
+| Variable                      | Default | Description |
+| ----------------------------- | ------- | ----------- |
+| `TIM_LABELS_FILE`             | none    | The labels file ([actions.md](actions.md#labels-file)), read once at startup. Empty means none, and the instance has the default labels. A path that doesn't exist stops startup with `no file <path>`. |
+| `TIM_MAX_ANNOTATION_IDS`      | `10000` | Most distinct `id`s one `PATCH /api/annotations` may change; more get 422. The browser disables labelling a selection over it. Must be greater than 0. |
+| `TIM_ANNOTATION_POLL_SECONDS` | `30`    | How often each browser reads the change feed ([operations.md](operations.md#the-change-feed)). Sent to browsers in `GET /api/instance`. Must be greater than 0. |
+
+The labels file is a YAML list of the instance's labels. Each entry has:
+
+| Field    | Required | Description |
+| -------- | -------- | ----------- |
+| `key`    | yes | What annotations store: 1 to 64 characters, no whitespace, unique in the file. |
+| `name`   | yes | What analysts see, 1 to 100 characters. |
+| `colour` | yes | One of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. |
+| `symbol` | no  | One of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`. |
+
+```yaml
+- {key: malicious, name: Malicious, colour: red, symbol: skull}
+- {key: escalated, name: Escalated, colour: blue, symbol: flag}
+- {key: benign, name: Benign, colour: green, symbol: check}
+```
+
+- Labels are listed in file order, and the first nine take the keys 1 to 9.
+- A problem in the file stops startup. It is reported as `<file>:<line>: <field>: <message>` ([operations.md](operations.md#startup-failures-from-the-files)).
+- Check a file before deploying it with `tim-api check --labels <file>` ([operations.md](operations.md#tim-api-check)).
+- `GET /api/instance` lists the labels and the two limits.
 
 ### Storage
 

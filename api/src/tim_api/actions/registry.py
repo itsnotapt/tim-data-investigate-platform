@@ -1,5 +1,5 @@
-"""The action registry: providers discovered through ``tim.actions``, their action files and the
-connections file, validated at startup."""
+"""The action registry: providers discovered through ``tim.actions``, their action files, the
+connections file and the labels file, validated at startup."""
 
 from __future__ import annotations
 
@@ -13,14 +13,15 @@ from pydantic import ValidationError
 from tim_actions import ENTRY_POINT_GROUP, Action, Connection, Hook, Provider, dev
 from tim_actions.connections_file import load_connections_file
 from tim_actions.files import LoadedFiles, ReadFile, load_action_files
+from tim_actions.labels_file import DEFAULT_LABELS, Label, load_labels_file
 
 BUILTIN_DISTRIBUTION = "tim-actions"
 RESERVED_PREFIX = "tim."
 
 
 class InstanceConfigError(RuntimeError):
-    """The installed providers, action files and connections file can't make a valid instance;
-    startup stops with every problem."""
+    """The installed providers, action files, connections file and labels file can't make a valid
+    instance; startup stops with every problem."""
 
     def __init__(self, problems: Sequence[str]) -> None:
         super().__init__("Invalid instance:\n" + "\n".join(f"  - {p}" for p in problems))
@@ -40,8 +41,8 @@ class LoadedProvider:
 
 @dataclass(frozen=True)
 class Registry:
-    """Everything the providers, action files and connections file add, keyed as it is looked
-    up, and every file read.
+    """Everything the providers, action files, connections file and labels file add, keyed as it
+    is looked up, and every file read.
 
     ``left_out`` says why each action left out of ``actions`` is: a connection param with no
     connection of its type.
@@ -51,6 +52,7 @@ class Registry:
     action_types: dict[str, type[Action]] = field(default_factory=dict)
     hooks: dict[str, type[Hook]] = field(default_factory=dict)
     connections: dict[str, Connection] = field(default_factory=dict)
+    labels: tuple[Label, ...] = DEFAULT_LABELS
     packages: tuple[str, ...] = ()
     files: tuple[ReadFile, ...] = ()
     left_out: tuple[str, ...] = ()
@@ -185,10 +187,11 @@ def build_registry(
     *,
     action_files: bool = True,
     connections_file: Path | None = None,
+    labels_file: Path | None = None,
 ) -> Registry:
     """Check the providers against each other, load their action files and those in
-    ``actions_dir`` and the connections file, and index what they add. ``action_files=False``
-    loads no files, for what needs only the action types."""
+    ``actions_dir``, the connections file and the labels file, and index what they add.
+    ``action_files=False`` loads no files, for what needs only the action types."""
     problems: list[str | None] = []
     actions: dict[str, tuple[Action, str]] = {}
     action_types: dict[str, tuple[type[Action], str]] = {}
@@ -238,6 +241,12 @@ def build_registry(
         files.extend(from_file.files)
     if action_files:
         problems.extend(_fixed_connection_problems(actions, connections))
+    labels = DEFAULT_LABELS
+    if labels_file is not None and action_files:
+        from_labels = load_labels_file(labels_file)
+        problems.extend(from_labels.problems)
+        labels = tuple(from_labels.labels)
+        files.extend(from_labels.files)
 
     found = [problem for problem in problems if problem]
     if found:
@@ -255,6 +264,7 @@ def build_registry(
         action_types=types,
         hooks=installed,
         connections=connections,
+        labels=labels,
         packages=tuple(sorted({item.package for item in loaded if item.package})),
         files=tuple(files),
         left_out=tuple(left_out),

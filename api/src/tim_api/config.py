@@ -78,6 +78,14 @@ class Settings(BaseSettings):
     # Dev only: registers the development actions (ADR-0011). Rejected in production.
     dev_actions: bool = False
 
+    # --- annotations (ADR-0020) ---------------------------------------------------------
+    # The labels file: the instance's labels, read at startup. Unset means the default labels.
+    labels_file: Path | None = None
+    # Distinct ids one PATCH /api/annotations may change.
+    max_annotation_ids: int = Field(default=10_000, gt=0)
+    # How often browsers poll the change feed.
+    annotation_poll_seconds: int = Field(default=30, gt=0)
+
     # --- storage (ADR-0004) ------------------------------------------------------------
     database_url: SecretStr
     run_retention_sweep_seconds: int = Field(default=300, gt=0)  # expired-run cleanup interval
@@ -105,7 +113,12 @@ class Settings(BaseSettings):
         return _split_list(value)
 
     @field_validator(
-        "auth_client_secret", "tag_ingest_url", "actions_dir", "connections_file", mode="before"
+        "auth_client_secret",
+        "tag_ingest_url",
+        "actions_dir",
+        "connections_file",
+        "labels_file",
+        mode="before",
     )
     @classmethod
     def _empty_is_unset(cls, value: object) -> object:
@@ -126,7 +139,7 @@ class Settings(BaseSettings):
             raise ValueError(f"no directory {value}")
         return value
 
-    @field_validator("connections_file")
+    @field_validator("connections_file", "labels_file")
     @classmethod
     def _existing_file(cls, value: Path | None) -> Path | None:
         if value is not None and not value.is_file():

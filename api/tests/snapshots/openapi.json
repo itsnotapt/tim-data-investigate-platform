@@ -1,6 +1,108 @@
 {
   "components": {
     "schemas": {
+      "AnnotationChangesPage": {
+        "description": "A page of the change feed. ``next`` is the ``since`` of the next page.",
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Annotations"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "hasMore": {
+            "title": "Hasmore",
+            "type": "boolean"
+          },
+          "next": {
+            "title": "Next",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changes",
+          "next",
+          "hasMore"
+        ],
+        "title": "AnnotationChangesPage",
+        "type": "object"
+      },
+      "Annotations": {
+        "description": "An id's annotations, as of ``version``: the version of the change that last touched it.",
+        "properties": {
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            },
+            "title": "Comments",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "version"
+        ],
+        "title": "Annotations",
+        "type": "object"
+      },
+      "AnnotationsChange": {
+        "description": "``PATCH /api/annotations``: a change to every one of ``ids``. Leaving ``label`` out keeps\nit; ``null`` clears it.",
+        "properties": {
+          "ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "AnnotationsChange",
+        "type": "object"
+      },
       "CatalogueAction": {
         "properties": {
           "columns": {
@@ -326,6 +428,51 @@
         "title": "CataloguePivot",
         "type": "object"
       },
+      "ChangedAnnotations": {
+        "description": "The ids the change changed, as they now are, and its version: the current one when it\nchanged nothing.",
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Annotations"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changes",
+          "version"
+        ],
+        "title": "ChangedAnnotations",
+        "type": "object"
+      },
+      "Comment": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "author",
+          "at",
+          "text"
+        ],
+        "title": "Comment",
+        "type": "object"
+      },
       "EditorSchemaRequest": {
         "description": "Body of ``POST /api/connections/{name}/schema``: the values of the editor param's\n``schemaFrom`` params, by name, without its connection param.",
         "properties": {
@@ -507,8 +654,19 @@
         "type": "object"
       },
       "InstanceLabel": {
+        "description": "A label from the labels file: ``colour`` and ``symbol`` name ones the browser draws.",
         "properties": {
           "colour": {
+            "enum": [
+              "red",
+              "amber",
+              "green",
+              "teal",
+              "blue",
+              "purple",
+              "pink",
+              "grey"
+            ],
             "title": "Colour",
             "type": "string"
           },
@@ -523,6 +681,17 @@
           "symbol": {
             "anyOf": [
               {
+                "enum": [
+                  "skull",
+                  "warning",
+                  "check",
+                  "flag",
+                  "star",
+                  "question",
+                  "block",
+                  "bug",
+                  "eye"
+                ],
                 "type": "string"
               },
               {
@@ -787,8 +956,40 @@
         "title": "KustoQueryStats",
         "type": "object"
       },
+      "LabelState": {
+        "description": "An id's label: its key, who set it and when.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "by",
+          "at"
+        ],
+        "title": "LabelState",
+        "type": "object"
+      },
       "Limits": {
         "properties": {
+          "annotationPollSeconds": {
+            "title": "Annotationpollseconds",
+            "type": "integer"
+          },
+          "maxAnnotationIds": {
+            "title": "Maxannotationids",
+            "type": "integer"
+          },
           "maxResultBytes": {
             "title": "Maxresultbytes",
             "type": "integer"
@@ -810,7 +1011,9 @@
           "maxResultRows",
           "maxResultBytes",
           "rowsPageSize",
-          "runTimeoutSeconds"
+          "runTimeoutSeconds",
+          "maxAnnotationIds",
+          "annotationPollSeconds"
         ],
         "title": "Limits",
         "type": "object"
@@ -1384,8 +1587,19 @@
         "type": "string"
       },
       "RowsPage": {
-        "description": "``lastRow`` is the run's row count.",
+        "description": "``lastRow`` is the run's row count. ``annotations`` are those of the rows' ids that have\nany, current as of ``annotationVersion``.",
         "properties": {
+          "annotationVersion": {
+            "title": "Annotationversion",
+            "type": "integer"
+          },
+          "annotations": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Annotations"
+            },
+            "title": "Annotations",
+            "type": "object"
+          },
           "lastRow": {
             "title": "Lastrow",
             "type": "integer"
@@ -1400,7 +1614,9 @@
         },
         "required": [
           "rows",
-          "lastRow"
+          "lastRow",
+          "annotations",
+          "annotationVersion"
         ],
         "title": "RowsPage",
         "type": "object"
@@ -1689,6 +1905,168 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/annotations": {
+      "patch": {
+        "description": "Change every id's annotations in one transaction under one version. ``label`` sets the\nlabel, ``null`` clears it, and leaving it out keeps it.",
+        "operationId": "changeAnnotations",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationsChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangedAnnotations"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change Annotations",
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
+    "/api/annotations/changes": {
+      "get": {
+        "description": "The ids changed after version ``since``, as they now are, in version order. Ask again\nfrom ``next`` while ``hasMore``.",
+        "operationId": "getAnnotationChanges",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Since",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationChangesPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Annotation Changes",
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
     "/api/connections/{name}/schema": {
       "post": {
         "description": "The editor schema for ``scope`` on the connection ``name``, got as the analyst; ``204``\nwhen there is none. The connection's ``obo`` token is got first, so OBO problems answer as\nthey do on runs.",
@@ -2499,7 +2877,7 @@
     },
     "/api/runs/{runId}/rows": {
       "get": {
-        "description": "The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them.",
+        "description": "The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them, and their\nids' annotations.",
         "operationId": "getRunRows",
         "parameters": [
           {
