@@ -26,6 +26,7 @@ Commands are in [docs/development.md](docs/development.md).
 - A code comment may link an ADR where the code would otherwise look surprising.
 - Domain terms come from [GLOSSARY.md](GLOSSARY.md); code and docs use its terms and avoid the synonyms it lists. A new or renamed concept updates the glossary in the same PR ([docs/agents/domain.md](docs/agents/domain.md#updating-glossarymd)).
 - Dates are `YYYY-MM-DD`.
+- Docs are written as short sentences, one fact each. A paragraph that lists several things becomes a lead sentence and bullets, with a **bold lead-in** when each bullet names a thing. Facts that share columns go in a table.
 
 ## Security
 
@@ -43,7 +44,10 @@ Commands are in [docs/development.md](docs/development.md).
 ## Backend (`api/`)
 
 - Request and response models extend `ApiModel` (`api/src/tim_api/models_common.py`). A request model is separate from the stored model and leaves out fields the server owns, such as identifiers it assigns and audit fields.
-- Actions reach a connection through a `Hook` (`tim_actions.Hook`). Kusto queries of the Kusto tab, on-behalf-of token exchange and tag ingestion sit behind the protocols `KustoQueryClient`, `OboTokenProvider` and `TagIngestClient`. A hook gets tokens from the `token_for(scope)` callable it is given (`OboTokenProvider.token_for` behind it), never the user's token. Callers depend on the `Hook` or the protocol, not the implementation behind it.
+- Actions reach a connection through a `Hook` (`tim_actions.Hook`).
+  - Kusto queries of the Kusto tab, on-behalf-of token exchange and tag ingestion sit behind the protocols `KustoQueryClient`, `OboTokenProvider` and `TagIngestClient`.
+  - A hook gets tokens from the `token_for(scope)` callable it is given (`OboTokenProvider.token_for` behind it), never the user's token.
+  - Callers depend on the `Hook` or the protocol, not the implementation behind it.
 - A change to stored data comes with an Alembic migration in `api/migrations/`.
 - Every storage implementation passes the shared suite in `api/tests/storage_contract.py`.
 

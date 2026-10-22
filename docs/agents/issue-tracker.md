@@ -10,7 +10,12 @@ Make an issue a sub-issue of a parent with `gh issue create --parent <parent> ..
 
 ## Dependencies
 
-When one issue genuinely waits on another, consider GitHub's native issue dependencies over a "depends on" line in the body: the edge shows as **Blocked by** / **Blocking** in the issue sidebar and in project views, and the issue stops counting as blocked once its blockers close. Add one with `gh issue edit <issue> --add-blocked-by <blocker>` (or `gh issue create --blocked-by <blocker> ...`), and list an issue's blockers with `gh issue view <issue> --json blockedBy`.
+When one issue genuinely waits on another, consider GitHub's native issue dependencies over a "depends on" line in the body.
+
+- The edge shows as **Blocked by** / **Blocking** in the issue sidebar and in project views.
+- The issue stops counting as blocked once its blockers close.
+- Add one with `gh issue edit <issue> --add-blocked-by <blocker>`, or `gh issue create --blocked-by <blocker> ...`.
+- List an issue's blockers with `gh issue view <issue> --json blockedBy`.
 
 Dependencies link issues only. When an issue waits on a pull request, name the PR in the body rather than adding a blocker for whichever issue that PR closes, and update or remove the line once the PR merges.
 
@@ -28,7 +33,14 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 
 Work too large for one session is planned as a **map**: one parent issue whose **child** issues are tickets. Each ticket is a question whose answer is a decision; the map is done when nothing is left to decide. The `wayfinder:` label strings below are fixed, because tooling queries them.
 
-- **Map**: a single issue labelled `wayfinder:map`. Its body has five sections: **Destination** (what the end of the plan looks like), **Notes** (domain, standing preferences), **Decisions so far** (one line per closed ticket, linking it), **Not yet specified** (questions expected but not yet sharp enough to become tickets) and **Out of scope** (work ruled out, with the reason). Open tickets are not listed in the body; they are the map's open child issues.
+- **Map**: a single issue labelled `wayfinder:map`. Its body has five sections:
+  - **Destination**: what the end of the plan looks like.
+  - **Notes**: domain, standing preferences.
+  - **Decisions so far**: one line per closed ticket, linking it.
+  - **Not yet specified**: questions expected, but not yet sharp enough to become tickets.
+  - **Out of scope**: work ruled out, with the reason.
+
+  Open tickets are not listed in the body. They are the map's open child issues.
 - **Child ticket**: a sub-issue of the map (see [Sub-issues](#sub-issues)). The ticket body is the question. Each ticket has exactly one type label and no triage label:
   - `wayfinder:research`: find a fact the decision depends on (documentation, third-party APIs, knowledge bases).
   - `wayfinder:prototype`: build a rough, throwaway artifact to react to; the ticket links it.

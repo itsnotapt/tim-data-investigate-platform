@@ -1,10 +1,28 @@
 # Configuration
 
-TIM is configured entirely through environment variables: the api reads `TIM_*` variables, the web container reads unprefixed variables and renders them into `/config.js`. This page lists every variable. Production values and secrets handling are in [deployment.md](deployment.md); the local setup is in [development.md](development.md).
+TIM is configured entirely through environment variables.
+
+- The api reads `TIM_*` variables.
+- The web container reads unprefixed variables, and renders them into `/config.js`.
+
+This page lists every variable.
+
+- Production values and secrets handling are in [deployment.md](deployment.md).
+- The local setup is in [development.md](development.md).
 
 ## API
 
-Settings are read by pydantic-settings from the process environment and from a `.env` file in the working directory (`api/.env` when run from `api/`; template `api/.env.example`). List values are comma-separated. Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL`, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE` count as unset. Unknown `TIM_*` variables are ignored. Invalid or missing settings stop the api at startup with an error naming each variable (see [operations.md](operations.md#common-failures)).
+Settings are read by pydantic-settings from two places:
+
+- the process environment;
+- a `.env` file in the working directory: `api/.env` when run from `api/`, with the template `api/.env.example`.
+
+How values are read:
+
+- List values are comma-separated.
+- Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL`, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE` count as unset.
+- Unknown `TIM_*` variables are ignored.
+- Invalid or missing settings stop the api at startup, with an error naming each variable (see [operations.md](operations.md#common-failures)).
 
 ### Mode and logging
 
@@ -25,7 +43,11 @@ See [ADR-0005](adr/0005-auth-entra-popup-obo.md) for the design.
 | `TIM_AUTH_AUTHORITY_HOST` | `https://login.microsoftonline.com` | no       | Authority host, override for sovereign clouds. Must be https.                                                                                                                                        |
 | `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as the analyst its stub token (`Authorization: Bearer dev:<upn>`) names, or as a fixed dev user (`dev.user@example.com`) without one. A stub token with a blank upn gets 401. Connections that use `obo` and Kusto tab calls then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
 
-Note: unless `TIM_AUTH_DISABLED=true`, an api whose connections file has a connection that uses `obo` needs an OBO credential at startup: either `TIM_AUTH_CLIENT_SECRET` or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file. Without one it fails to start. An instance with no `obo` connection starts without one, and OBO answers 503 when something uses it (the Kusto tab, for example).
+Note: an api whose connections file has a connection that uses `obo` needs an OBO credential at startup, unless `TIM_AUTH_DISABLED=true`.
+
+- The credential is either `TIM_AUTH_CLIENT_SECRET`, or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file.
+- Without one, the api fails to start.
+- An instance with no `obo` connection starts without one. OBO then answers 503 when something uses it (the Kusto tab, for example).
 
 ### Kusto
 
@@ -71,7 +93,10 @@ The `kusto` connection type adds `cluster` (required), `databases` (optional) an
   databases: [Samples]
 ```
 
-A problem in the file stops startup, reported as `<file>:<line>: <field>: <message>` ([operations.md](operations.md#startup-failures-from-the-files)). Check a file before deploying it with `tim-api check --connections <file>` ([operations.md](operations.md#tim-api-check)). The api's OBO credential is needed when a connection uses `obo` ([Authentication](#authentication)). `GET /api/instance` lists each connection's name, type, title, editor and databases, never its cluster, auth or scope.
+- A problem in the file stops startup. It is reported as `<file>:<line>: <field>: <message>` ([operations.md](operations.md#startup-failures-from-the-files)).
+- Check a file before deploying it with `tim-api check --connections <file>` ([operations.md](operations.md#tim-api-check)).
+- The api's OBO credential is needed when a connection uses `obo` ([Authentication](#authentication)).
+- `GET /api/instance` lists each connection's name, type, title, editor and databases. It never lists the cluster, auth or scope.
 
 ### Cluster allow-list
 
@@ -165,7 +190,14 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 
 ## Web container
 
-The image (`web/Dockerfile`, nginx on port 8080) renders its configuration at start. `docker-entrypoint.sh` validates these variables, writes `/tmp/tim/config.js` (`window.appConfig = {...}`, served as `/config.js`, never cached) and the nginx configuration `/tmp/tim/nginx.conf`, then starts nginx. The root filesystem can be read-only; only `/tmp` must be writable. A validation failure prints `tim-web: ...` to stderr and the container exits.
+The image (`web/Dockerfile`, nginx on port 8080) renders its configuration at start. `docker-entrypoint.sh`:
+
+1. validates these variables;
+2. writes `/tmp/tim/config.js` (`window.appConfig = {...}`), served as `/config.js` and never cached;
+3. writes the nginx configuration `/tmp/tim/nginx.conf`;
+4. starts nginx.
+
+The root filesystem can be read-only. Only `/tmp` must be writable. A validation failure prints `tim-web: ...` to stderr, and the container exits.
 
 | Variable           | Required | Default                                                   | `window.appConfig` key | Description                                                                                              |
 | ------------------ | -------- | --------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -185,7 +217,13 @@ The image (`web/Dockerfile`, nginx on port 8080) renders its configuration at st
 
 Empty optional values are left out of `config.js` so the app defaults apply; `agGridLicenseKey` is always written (empty means trial).
 
-The entrypoint also honours `TIM_RUNTIME_DIR` (output directory, default `/tmp/tim`), `TIM_NGINX_TEMPLATE` and `TIM_ENTRYPOINT_DRY_RUN=1` (render the files and exit). They exist for tests: the image serves `/config.js` from and includes `nginx.conf` from `/tmp/tim`, so a different `TIM_RUNTIME_DIR` is only useful when nginx is not started.
+The entrypoint also honours three variables that exist for tests:
+
+- `TIM_RUNTIME_DIR`: the output directory, default `/tmp/tim`;
+- `TIM_NGINX_TEMPLATE`;
+- `TIM_ENTRYPOINT_DRY_RUN=1`: render the files and exit.
+
+The image serves `/config.js` from `/tmp/tim`, and includes `nginx.conf` from there. So a different `TIM_RUNTIME_DIR` is only useful when nginx is not started.
 
 ### Web (Vite development)
 
@@ -275,7 +313,27 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 
 The chart in `deploy/helm/tim` sets the same variable names; the install procedure, the full values reference and workload identity are in [deployment.md](deployment.md#kubernetes-helm).
 
-- Non-secret variables come from two ConfigMaps (api and web), rendered from values: `config.environment` (`TIM_ENVIRONMENT`), `config.auth.tenantId` / `clientId`, `config.tags.clusterUri` / `database`, `api.logLevel` (`TIM_LOG_LEVEL`), `api.allowedKustoHosts` (`TIM_ALLOWED_KUSTO_HOSTS`; an empty list gives the api default), `api.corsAllowedOrigins`, `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`), `web.helpWikiUri`, `web.helpIssueUri`, `web.defaultClusters` (rendered as JSON) and `web.apiBasePath` (`API_BASEPATH`). `REDIRECT_URI` is `config.publicUrl` (default `https://<ingress.host>`) plus `/blank.html`, and `BACKEND_URI` is the api Service address.
-- Sensitive variables come from one Secret whose keys are the variable names: `TIM_DATABASE_URL` (required), `TIM_AUTH_CLIENT_SECRET` (optional) and `AGGRID_LICENSE` (optional), plus `POSTGRES_PASSWORD` with the in-cluster PostgreSQL. Either the chart creates it from `secrets.databaseUrl`, `secrets.authClientSecret` and `secrets.agGridLicense`, or `secrets.existingSecret` names a Secret you manage (then the chart creates none). The api reads `TIM_AUTH_CLIENT_SECRET` and the web container reads `AGGRID_LICENSE` as optional keys; when a key is absent the variable is not set.
-- Any other api variable (`TIM_MAX_RESULT_ROWS`, `TIM_RUN_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) is set through `api.extraEnv` / `api.extraEnvFrom`, and web variables through `web.extraEnv` / `web.extraEnvFrom`.
-- OBO credential: the chart does not require `TIM_AUTH_CLIENT_SECRET` the way production compose does. In production mode rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret) or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`). With workload identity, the webhook injects `AZURE_FEDERATED_TOKEN_FILE` into the api pod and the api uses it when `TIM_AUTH_CLIENT_SECRET` is unset.
+- **Non-secret variables** come from two ConfigMaps (api and web), rendered from values:
+  - `config.environment` (`TIM_ENVIRONMENT`);
+  - `config.auth.tenantId` / `clientId`;
+  - `config.tags.clusterUri` / `database`;
+  - `api.logLevel` (`TIM_LOG_LEVEL`);
+  - `api.allowedKustoHosts` (`TIM_ALLOWED_KUSTO_HOSTS`). An empty list gives the api default;
+  - `api.corsAllowedOrigins`;
+  - `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`);
+  - `web.helpWikiUri`, `web.helpIssueUri`;
+  - `web.defaultClusters`, rendered as JSON;
+  - `web.apiBasePath` (`API_BASEPATH`).
+- `REDIRECT_URI` is `config.publicUrl` (default `https://<ingress.host>`) plus `/blank.html`.
+- `BACKEND_URI` is the api Service address.
+- **Sensitive variables** come from one Secret whose keys are the variable names:
+  - `TIM_DATABASE_URL` (required);
+  - `TIM_AUTH_CLIENT_SECRET` (optional);
+  - `AGGRID_LICENSE` (optional);
+  - `POSTGRES_PASSWORD`, with the in-cluster PostgreSQL.
+- **Where the Secret comes from:** either the chart creates it from `secrets.databaseUrl`, `secrets.authClientSecret` and `secrets.agGridLicense`, or `secrets.existingSecret` names a Secret you manage. In the second case the chart creates none.
+- **Optional keys:** the api reads `TIM_AUTH_CLIENT_SECRET`, and the web container reads `AGGRID_LICENSE`, as optional keys. When a key is absent, the variable is not set.
+- **Any other variable:** api variables (`TIM_MAX_RESULT_ROWS`, `TIM_RUN_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) are set through `api.extraEnv` / `api.extraEnvFrom`. Web variables are set through `web.extraEnv` / `web.extraEnvFrom`.
+- **OBO credential:** the chart does not require `TIM_AUTH_CLIENT_SECRET` the way production compose does.
+  - In production mode, rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret), or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`).
+  - With workload identity, the webhook injects `AZURE_FEDERATED_TOKEN_FILE` into the api pod. The api uses it when `TIM_AUTH_CLIENT_SECRET` is unset.

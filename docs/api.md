@@ -113,7 +113,13 @@ A run is one execution of an action by the server ([architecture.md](architectur
 
 ### POST /api/runs
 
-Body: `{"action": "<key>", "params": {...}}`. `params` maps param names to values as the browser sends them, and may be left out when the action takes none. An unknown action or invalid params give `422` before a run exists, with every problem in `errors` (a `connection` param must name a connection of its type):
+Body: `{"action": "<key>", "params": {...}}`.
+
+- `params` maps param names to values as the browser sends them. It may be left out when the action takes none.
+- An unknown action or invalid params give `422` before a run exists, with every problem in `errors`.
+- A `connection` param must name a connection of its type.
+
+For example:
 
 ```json
 {
@@ -130,7 +136,16 @@ Body: `{"action": "<key>", "params": {...}}`. `params` maps param names to value
 }
 ```
 
-Before the run exists, TIM works out its connections (the action's fixed ones and its `connection` params' values) and gets a token for each `obo` connection. A failure answers the `POST`: `403 consent-required` when sign-in or consent is needed, `502` when Entra fails, `503` when OBO is unavailable. Otherwise the response is the [Run](#run): `200` when it ended within about one second, else `202` with `status: "running"`; poll `GET /api/runs/{runId}`.
+Before the run exists, TIM works out its connections: the action's fixed ones, and its `connection` params' values. It gets a token for each `obo` connection. A failure answers the `POST`:
+
+- `403 consent-required` when sign-in or consent is needed;
+- `502` when Entra fails;
+- `503` when OBO is unavailable.
+
+Otherwise the response is the [Run](#run):
+
+- `200` when it ended within about one second;
+- else `202` with `status: "running"`. Poll `GET /api/runs/{runId}`.
 
 ### GET /api/runs/{runId}
 
@@ -196,11 +211,22 @@ A result over a row or size limit makes the run `error`; it is not truncated. A 
 
 The schema an editor completes from, for a connection and a scope.
 
-Body: `{ "scope": { ... } }`, the values of the editor param's `schemaFrom` params by name, without its `connection` param. For Run KQL that is `{ "database": "..." }`.
+Body: `{ "scope": { ... } }`.
 
-Answer: `{ "kind": "...", "schema": ... }` from the connection type's hook (`Hook.editor_schema(scope)`), where `kind` says how to read `schema`. For the `kusto` connection type the kind is `kql` and the schema is the parsed `.show schema as json` document of the scope's `database`, unchanged. The answer is `204` with no body when the hook has none for the scope, as with a Kusto scope without a `database`.
+- `scope` holds the values of the editor param's `schemaFrom` params by name, without its `connection` param.
+- For Run KQL that is `{ "database": "..." }`.
 
-Errors: `404` for an unknown connection. The connection's `obo` token is got before the hook runs, so `403 consent-required`, `502` and `503` answer as on `POST /api/runs`. `502` with the hook's message when the hook fails, for example on a Kusto error or an unrecognised result.
+Answer: `{ "kind": "...", "schema": ... }`, from the connection type's hook (`Hook.editor_schema(scope)`).
+
+- `kind` says how to read `schema`.
+- For the `kusto` connection type, the kind is `kql`. The schema is the parsed `.show schema as json` document of the scope's `database`, unchanged.
+- The answer is `204` with no body when the hook has none for the scope, as with a Kusto scope without a `database`.
+
+Errors:
+
+- `404` for an unknown connection.
+- The connection's `obo` token is got before the hook runs. So `403 consent-required`, `502` and `503` answer as on `POST /api/runs`.
+- `502` with the hook's message when the hook fails, for example on a Kusto error or an unrecognised result.
 
 ## Kusto
 
@@ -238,7 +264,13 @@ Returns `202` while the run is `created`, including while it waits for a free sl
 | `executionMetrics` | object \| null | Kusto `QueryCompletionInformation` stats: `execution_time`, `resource_usage`, `input_dataset_statistics`, `dataset_statistics`, plus other keys Kusto sends. |
 | `mainError` | string \| null | User-safe message when `error` or `timedOut`. |
 
-Failure messages: Kusto's own error text (stack-trace lines removed, at most 2000 characters); `Result exceeds limit of N rows` or `N bytes` (see [Limits](#limits)); `Query exceeded the execution time limit of N seconds` (`timedOut`); `Run interrupted by server restart`; `The query failed unexpectedly`.
+Failure messages:
+
+- Kusto's own error text, with stack-trace lines removed, at most 2000 characters;
+- `Result exceeds limit of N rows` or `N bytes` (see [Limits](#limits));
+- `Query exceeded the execution time limit of N seconds` (`timedOut`);
+- `Run interrupted by server restart`;
+- `The query failed unexpectedly`.
 
 ### Cluster validation
 
@@ -262,7 +294,11 @@ Query parameters: `since` (datetime; only templates with `updated` strictly afte
 
 - `POST` body is `QueryTemplateCreate`: the editable fields plus `uuid` (client-generated); `isDeleted` must be absent or `false`. `409` if the `uuid` exists. The server sets `createdBy`, `updatedBy` and `updated`.
 - `PUT` body is `QueryTemplateReplace`: the editable fields plus `uuid`, which must equal the path (else `400`). Never creates (`404` if missing). `createdBy` and `isDeleted` are preserved.
-- `PATCH` body is a non-empty JSON array of `{ "op", "path", "value" }` with `op` one of `add`, `replace`, `remove`, `test` (`move` and `copy` are rejected). The patch is applied to the stored template's JSON, and the result must be a valid `QueryTemplate`. Patching `/uuid`, `/createdBy`, `/updatedBy`, `/updated` (or children) is `400`; `/isDeleted` is allowed, so `[{"op":"replace","path":"/isDeleted","value":false}]` restores a deleted template.
+- `PATCH` body is a non-empty JSON array of `{ "op", "path", "value" }`.
+  - `op` is one of `add`, `replace`, `remove`, `test`. `move` and `copy` are rejected.
+  - The patch is applied to the stored template's JSON. The result must be a valid `QueryTemplate`.
+  - Patching `/uuid`, `/createdBy`, `/updatedBy`, `/updated` (or children) is `400`.
+  - `/isDeleted` is allowed, so `[{"op":"replace","path":"/isDeleted","value":false}]` restores a deleted template.
 - `DELETE` sets `isDeleted` and is idempotent. Soft-deleted templates stay readable by `GET /{uuid}`.
 
 ### QueryTemplate
@@ -285,7 +321,11 @@ Query parameters: `since` (datetime; only templates with `updated` strictly afte
 
 ## Tagged events
 
-Tag rows are ingested into the tag cluster ([Kusto tables](architecture.md#kusto-tables)) with the app identity. The server sets `createdBy` (from the token) and `dateTimeUtc` (server clock) on every row. Each body is a JSON array of 1 to 1000 items; any invalid item fails the whole request with `400`. Success is `204`; an ingestion failure is `502`.
+Tag rows are ingested into the tag cluster ([Kusto tables](architecture.md#kusto-tables)) with the app identity.
+
+- The server sets `createdBy` (from the token) and `dateTimeUtc` (server clock) on every row.
+- Each body is a JSON array of 1 to 1000 items. Any invalid item fails the whole request with `400`.
+- Success is `204`. An ingestion failure is `502`.
 
 | Route | Item fields |
 |---|---|
@@ -299,4 +339,7 @@ Example:
 [{ "eventId": "e-123", "tag": "phishing", "isDeleted": false }]
 ```
 
-The tables are append-only: removing a tag or comment writes a new row with `isDeleted: true`. The SPA uses `determination` values `malicious`, `suspicious`, `benign`, and `removed` (with `isDeleted: true`) to clear one; the API accepts any non-blank string. Writes are not transactional across the three routes.
+- The tables are append-only. Removing a tag or comment writes a new row with `isDeleted: true`.
+- The SPA uses `determination` values `malicious`, `suspicious` and `benign`. It uses `removed` (with `isDeleted: true`) to clear one.
+- The API accepts any non-blank string.
+- Writes are not transactional across the three routes.

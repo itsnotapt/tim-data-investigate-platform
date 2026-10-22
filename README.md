@@ -15,7 +15,11 @@ cp .env.example .env        # optional; every variable has a development default
 docker compose up --build
 ```
 
-Open http://localhost:8081. The api runs with authentication disabled, but the web container signs in with Entra ID, so the UI needs a real app registration (see [docs/configuration.md](docs/configuration.md)). To work on the UI without one, use the edit-reload loop with stub sign-in described in [docs/development.md](docs/development.md), which also covers tests and linting.
+Open http://localhost:8081.
+
+- The api runs with authentication disabled.
+- The web container signs in with Entra ID, so the UI needs a real app registration (see [docs/configuration.md](docs/configuration.md)).
+- To work on the UI without one, use the edit-reload loop with stub sign-in described in [docs/development.md](docs/development.md). That guide also covers tests and linting.
 
 ## Repository layout
 

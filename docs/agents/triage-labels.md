@@ -14,4 +14,7 @@ State:
 | Ready for human | `ready-for-human` | Needs a human to implement it |
 | Won't fix | `wontfix` | Will not be actioned |
 
-An issue without a state label has not been triaged; triage gives it `needs-triage` first. From there it moves to `needs-info`, `ready-for-agent`, `ready-for-human` or `wontfix`, and `needs-info` returns to `needs-triage` when the reporter replies. Planning-map issues carry only `wayfinder:` labels ([issue tracker](issue-tracker.md#planning-maps-and-tickets)).
+- An issue without a state label has not been triaged. Triage gives it `needs-triage` first.
+- From there it moves to `needs-info`, `ready-for-agent`, `ready-for-human` or `wontfix`.
+- `needs-info` returns to `needs-triage` when the reporter replies.
+- Planning-map issues carry only `wayfinder:` labels ([issue tracker](issue-tracker.md#planning-maps-and-tickets)).
