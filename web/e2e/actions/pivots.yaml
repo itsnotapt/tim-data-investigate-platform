@@ -1,0 +1,54 @@
+# e2e and local development scenarios for pivots from result rows, run by the dev actions
+# (TIM_DEV_ACTIONS). Each pivots from the columns of Sign-ins or Generated rows.
+type: dev_rows
+key: dev-sessions
+name: Sessions for users
+menu: Development / Pivots
+description: The sessions of the users in the selected rows
+pivot: rows
+id: SessionId
+params:
+  - name: users
+    kind: string
+    title: Users
+    many: true
+    from_columns: [User, UserPrincipalName]
+rows:
+  - { User: alice@example.com, SessionId: s-alice-1 }
+  - { User: alice@example.com, SessionId: s-alice-2 }
+  - { User: bob@example.com, SessionId: s-bob-1 }
+  - { User: carol@example.com, SessionId: s-carol-1 }
+---
+type: dev_rows
+key: dev-sign-ins-by-result
+name: Sign-ins with a result
+menu: Development / Pivots
+description: Sign-ins with the result of the selected rows, which must agree
+pivot: rows
+id: CorrelationId
+params:
+  - name: result
+    kind: string
+    title: Result
+    from_columns: [Result]
+rows:
+  - { User: alice@example.com, CorrelationId: c-1, Result: Success }
+  - { User: bob@example.com, CorrelationId: c-2, Result: Failure }
+  - { User: alice@example.com, CorrelationId: c-3, Result: Failure }
+  - { User: carol@example.com, CorrelationId: c-1, Result: Success }
+---
+type: dev_rows
+key: dev-host
+name: Host details
+menu: Development / Pivots
+description: One host, from one row
+pivot: row
+id: Host
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+generate: 3
+columns:
+  - { name: Host, type: string }

@@ -1,3 +1,4 @@
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import ErrorIcon from '@mui/icons-material/Warning';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
@@ -13,7 +14,7 @@ export interface TreeNodeIconProps {
   active: boolean;
 }
 
-/** Spinner, red alert, ringed 0, row-count badge over a folder, or a faded folder. */
+/** Spinner, red alert, a note for a pivot that needs input, ringed 0, row-count badge over a folder, or a faded folder. */
 export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
   const status = nodeStatus(tab);
   const Folder = open ? FolderOpenIcon : FolderIcon;
@@ -32,6 +33,16 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
   if (status === 'error') {
     return (
       <ErrorIcon color="error" titleAccess="Error" data-testid="tree-icon" data-status="error" />
+    );
+  }
+  if (status === 'needsInput') {
+    return (
+      <EditNoteIcon
+        color="warning"
+        titleAccess="Needs input"
+        data-testid="tree-icon"
+        data-status="needsInput"
+      />
     );
   }
   if (status === 'noRows') {

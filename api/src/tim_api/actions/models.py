@@ -1,10 +1,11 @@
-"""``GET /api/instance``: what the browser needs to know about this instance."""
+"""``GET /api/instance``: what the browser needs to know about this instance; and
+``POST /api/actions/{key}/resolve``: a pivot's params."""
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import JsonValue
+from pydantic import Field, JsonValue
 from tim_actions import ColumnType, ParamKind
 
 from tim_api.models_common import ApiModel, omitted
@@ -80,6 +81,7 @@ class InstanceLabel(ApiModel):
 class Limits(ApiModel):
     max_result_rows: int
     max_result_bytes: int
+    max_pivot_rows: int
     rows_page_size: int
     run_timeout_seconds: int
 
@@ -92,3 +94,32 @@ class Instance(ApiModel):
     connections: list[InstanceConnection]
     labels: list[InstanceLabel]
     limits: Limits
+
+
+class PivotCell(ApiModel):
+    """The cell the analyst right-clicked."""
+
+    column: str
+    value: JsonValue
+
+
+class PivotRows(ApiModel):
+    """The selected rows, by value, each trimmed to the action's pivot columns."""
+
+    rows: list[dict[str, JsonValue]] = Field(min_length=1)
+    cell: PivotCell | None = omitted()
+
+
+class ResolvePivot(ApiModel):
+    """Body of ``POST /api/actions/{key}/resolve``."""
+
+    pivot: PivotRows
+
+
+class PivotResolution(ApiModel):
+    """A pivot's params, as wire values, and the params it couldn't fill.
+    ``reasons`` says why for those that have a reason, such as rows that disagree."""
+
+    params: dict[str, JsonValue]
+    missing: list[str]
+    reasons: dict[str, str]

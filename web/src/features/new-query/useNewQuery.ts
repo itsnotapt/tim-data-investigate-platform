@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import type { CatalogueAction } from '../../lib/api';
 import { getDefaultParams } from '../../lib/kql-templates/params';
-import { onlyConnection } from '../action-tab/paramValues';
+import { initialParams } from '../action-tab/paramValues';
 import { useInstanceStore } from '../instance';
 import { defaultNewQuery } from '../kusto-query/defaultQuery';
 import { useTabsStore, type TabsStore } from '../tabs';
@@ -58,14 +58,8 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
   );
   const createFromAction = useCallback(
     (action: CatalogueAction) => {
-      const params = Object.fromEntries(
-        action.params.filter((p) => p.default !== undefined).map((p) => [p.name, p.default]),
-      );
       const connections = useInstanceStore.getState().instance?.connections ?? [];
-      for (const p of action.params) {
-        const only = onlyConnection(p, connections);
-        if (only && params[p.name] === undefined) params[p.name] = only.name;
-      }
+      const params = initialParams(action, connections);
       const uuid = store.getState().createTab({
         componentName: 'ActionResult',
         parentUuid: null,

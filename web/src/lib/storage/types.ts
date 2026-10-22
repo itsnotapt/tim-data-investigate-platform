@@ -42,6 +42,11 @@ export interface DisplayComponentState {
   resultColumns?: RunColumn[] | null;
   /** Action tabs only: when that run started. */
   resultsStartedAt?: string | null;
+  /**
+   * Action tabs only: the params a pivot left missing, by name, each with the reason or `null`.
+   * Cleared when a run starts.
+   */
+  pivotMissing?: Record<string, string | null> | null;
 }
 
 /** Custom Kusto query params. */
