@@ -33,6 +33,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/runs/{runId}` | 200 | 400, 401, 404 | Read a run. |
 | POST | `/api/runs/{runId}/cancel` | 200 | 400, 401, 404 | Cancel a run (idempotent). |
 | GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows. |
+| POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 502, 503 | The editor schema of a connection, from its connection type's hook. |
 | POST | `/api/kusto/schema` | 200 | 400, 401, 403, 502, 503 | `.show schema as json` for a cluster database. |
 | POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 502, 503 | Start a query run. |
 | GET | `/api/kusto/query/{queryRunId}` | 200 or 202 | 400, 401, 404 | Read a query run. |
@@ -188,6 +189,18 @@ Failure messages: the action's own message; `Result exceeds limit of N rows` or 
 | Request body | 16 MiB | `TIM_MAX_REQUEST_BYTES` |
 
 A result over a row or size limit makes the run `error`; it is not truncated. A [query run](#kustoqueryrun) is capped at 100,000 rows and 64 MiB, or the two settings when they are lower; the other limits apply to it as they are.
+
+## Connections
+
+### POST /api/connections/{name}/schema
+
+The schema an editor completes from, for a connection and a scope.
+
+Body: `{ "scope": { ... } }`, the values of the editor param's `schemaFrom` params by name, without its `connection` param. For Run KQL that is `{ "database": "..." }`.
+
+Answer: `{ "kind": "...", "schema": ... }` from the connection type's hook (`Hook.editor_schema(scope)`), where `kind` says how to read `schema`. For the `kusto` connection type the kind is `kql` and the schema is the parsed `.show schema as json` document of the scope's `database`, unchanged. The answer is `204` with no body when the hook has none for the scope, as with a Kusto scope without a `database`.
+
+Errors: `404` for an unknown connection. The connection's `obo` token is got before the hook runs, so `403 consent-required`, `502` and `503` answer as on `POST /api/runs`. `502` with the hook's message when the hook fails, for example on a Kusto error or an unrecognised result.
 
 ## Kusto
 

@@ -24,7 +24,7 @@ from tim_actions._common import NonBlankStr
 from tim_actions.action import Action
 from tim_actions.columns import Column, ColumnType
 from tim_actions.connections import Connection
-from tim_actions.hooks import Hook, TokenFor
+from tim_actions.hooks import EditorSchema, Hook, TokenFor
 from tim_actions.params import Param
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
@@ -246,6 +246,36 @@ def error_message(exc: Exception) -> str:
     return "Kusto query failed."
 
 
+# --- the editor schema --------------------------------------------------------------------
+
+# Result column holding the schema document; ``ClusterSchema`` and ``DatabaseSchema`` are accepted.
+SCHEMA_COLUMNS = ("ClusterSchema", "DatabaseSchema")
+
+
+def schema_document(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Parse the schema JSON document out of the ``.show schema as json`` result.
+
+    Raises ``ValueError`` (safe, generic message) if no usable document is found.
+    """
+    if not rows:
+        raise ValueError("no rows")
+    row = rows[0]
+    raw: Any = None
+    for name in SCHEMA_COLUMNS:
+        if name in row:
+            raw = row[name]
+            break
+    else:
+        if len(row) != 1:
+            raise ValueError("unknown schema column")
+        raw = next(iter(row.values()))
+    # The command returns a JSON string; the SDK may already hand back a parsed object.
+    doc = json.loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(doc, dict):
+        raise ValueError("schema is not a JSON object")
+    return doc
+
+
 # --- the hook -----------------------------------------------------------------------------
 
 
@@ -388,6 +418,33 @@ class KustoHook(Hook):
             with self._lock:
                 self._running.pop(request_id, None)
         return _result(response)
+
+    def editor_schema(self, scope: dict[str, Any]) -> EditorSchema | None:
+        """``.show schema as json`` for the scope's ``database``; ``None`` without one."""
+        database = scope.get("database")
+        if not isinstance(database, str) or not database:
+            return None
+        try:
+            client = self.get_conn()
+            try:
+                response = client.execute_mgmt(
+                    database,
+                    ".show schema as json",
+                    ClientRequestProperties(),  # type: ignore[no-untyped-call]
+                )
+            finally:
+                client.close()
+        except kusto_exc.KustoError as exc:
+            raise RunError(error_message(exc)) from None
+        tables = response.primary_results
+        if not tables:
+            raise RunError("The Kusto cluster returned no schema.")
+        names = [c["ColumnName"] for c in tables[0].raw_columns]
+        rows = [dict(zip(names, row, strict=True)) for row in tables[0].raw_rows]
+        try:
+            return EditorSchema("kql", schema_document(rows))
+        except ValueError:
+            raise RunError("The Kusto cluster returned an unrecognised schema.") from None
 
     def cancel(self) -> None:
         """Cancel the queries in progress with ``.cancel query``, and refuse new ones."""

@@ -11,7 +11,7 @@ import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { CodeEditor } from '../../components/CodeEditor';
+import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
@@ -21,6 +21,7 @@ import { useTemplatesStore } from '../templates';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
+import { useEditorSchema } from './editorSchema';
 import { datetimeText, hasPill, sameParams } from './paramValues';
 import { PillsBar } from './PillsBar';
 import { RunPanel } from './RunPanel';
@@ -41,23 +42,32 @@ const NO_CONNECTIONS: readonly InstanceConnection[] = [];
 const defaultRun = (uuid: string) => void runActionTab(uuid);
 const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
 
-/** The editor of a `kql` or `sql` param, marked with the reason when the server refused it. */
+/**
+ * The editor of a `kql` or `sql` param, completing from the schema of its `schemaFrom` params, and
+ * marked with the reason when the server refused it.
+ */
 function QueryEditor({
   uuid,
   param,
-  value,
+  params,
+  values,
   error,
   onChange,
   onRun,
 }: {
   uuid: string;
   param: CatalogueParam;
-  value: unknown;
+  /** The action's params, and the values of all of them. */
+  params: readonly CatalogueParam[];
+  values: Record<string, unknown>;
   error: string | undefined;
   onChange: (value: string | undefined) => void;
   /** Ctrl/Cmd+Enter. */
   onRun: () => void;
 }) {
+  const [editor, setEditor] = useState<CodeEditorInstance | null>(null);
+  useEditorSchema(editor, param, params, values);
+  const value = values[param.name];
   const captionId = `${uuid}-${param.name}-caption`;
   const caption = error ?? param.help;
   return (
@@ -88,6 +98,7 @@ function QueryEditor({
           ariaLabel={param.title}
           value={typeof value === 'string' ? value : ''}
           onChange={(text) => onChange(text === '' ? undefined : text)}
+          onMount={setEditor}
         />
       </Box>
       {caption && (
@@ -305,7 +316,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           <QueryEditor
             uuid={uuid}
             param={queryParam}
-            value={params.params[queryParam.name]}
+            params={action?.params ?? []}
+            values={params.params}
             error={state.paramErrors?.[queryParam.name]}
             onChange={(value) => setParam(queryParam.name, value)}
             onRun={runNow}

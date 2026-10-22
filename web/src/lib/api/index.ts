@@ -6,3 +6,4 @@ export * from './queryRuns';
 export * from './taggedEvents';
 export * from './instance';
 export * from './runs';
+export * from './connections';

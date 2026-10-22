@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CatalogueAction, Instance, Run } from '../../lib/api';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
@@ -95,19 +96,21 @@ function setup(
   const onRun = run ? vi.fn() : undefined;
   const onCancel = run ? vi.fn() : undefined;
   render(
-    <MemoryRouter initialEntries={[`/view/${uuid}`]}>
-      <Routes>
-        <Route
-          path="/view/:uuid"
-          element={
-            <>
-              <ActionTab uuid={uuid} onRun={onRun} onCancel={onCancel} />
-              <Location />
-            </>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <SnackbarHost>
+      <MemoryRouter initialEntries={[`/view/${uuid}`]}>
+        <Routes>
+          <Route
+            path="/view/:uuid"
+            element={
+              <>
+                <ActionTab uuid={uuid} onRun={onRun} onCancel={onCancel} />
+                <Location />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </SnackbarHost>,
   );
   return { uuid, onRun, onCancel };
 }

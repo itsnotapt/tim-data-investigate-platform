@@ -11,6 +11,7 @@ from tim_api.actions import build_instance, build_registry, load_providers
 from tim_api.actions.router import router as instance_router
 from tim_api.auth.obo import build_obo_provider
 from tim_api.config import Settings, get_settings
+from tim_api.connections.router import router as connections_router
 from tim_api.deps import get_storage
 from tim_api.errors import register_exception_handlers
 from tim_api.kusto.router import router as kusto_router
@@ -130,6 +131,7 @@ def create_app(
 
     app.include_router(instance_router)
     app.include_router(tagged_events_router)
+    app.include_router(connections_router)
     app.include_router(kusto_router)
     app.include_router(query_runs_router)
     app.include_router(runs_router)

@@ -43,5 +43,10 @@ class Hook(ABC):
         """Stop the work in progress. Called from another thread on timeout or cancel."""
 
     def editor_schema(self, scope: dict[str, Any]) -> EditorSchema | None:
-        """The editor schema for ``scope`` (the values of a param's ``schema_from``), if any."""
+        """The editor schema for ``scope``, or ``None`` if the connection type has none.
+
+        ``scope`` holds the values of the editor param's ``schema_from`` params, by name,
+        without its ``connection`` param. Raises ``RunError``, with a message for the analyst,
+        when the schema can't be had.
+        """
         return None
