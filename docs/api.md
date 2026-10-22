@@ -29,6 +29,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/healthChecks/liveness` | 204 | none | Process is up. No checks; no auth. |
 | GET | `/api/healthChecks/readiness` | 204 | 503 | Storage is reachable. Kusto is not checked; no auth. |
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
+| POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
 | GET | `/api/runs/{runId}` | 200 | 400, 401, 404 | Read a run. |
 | POST | `/api/runs/{runId}/cancel` | 200 | 400, 401, 404 | Cancel a run (idempotent). |
@@ -75,12 +76,12 @@ Every non-2xx response has this body:
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
 | 403 | `forbidden` | Kusto denied the user access to the cluster or database. |
-| 404 | `not-found` | Unknown template, or a run or query run that is unknown, expired or owned by someone else. |
+| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. |
 | 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), or no change field (`errors.body`). |
+| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), or no change field (`errors.body`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -105,9 +106,44 @@ What the browser needs to know about this instance, built once at startup from t
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the result columns the action declares ([actions.md](actions.md#columns)); it is left out when the action declares none.
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql`). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
-- `limits`: `{maxResultRows, maxResultBytes, rowsPageSize, runTimeoutSeconds, maxAnnotationIds, annotationPollSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_ANNOTATION_IDS` and `TIM_ANNOTATION_POLL_SECONDS`.
+- `limits`: `{maxResultRows, maxResultBytes, maxPivotRows, rowsPageSize, runTimeoutSeconds, maxAnnotationIds, annotationPollSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_MAX_PIVOT_ROWS`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_ANNOTATION_IDS` and `TIM_ANNOTATION_POLL_SECONDS`.
 
 Keys marked `?` are left out when they have no value.
+
+## Actions
+
+### POST /api/actions/{key}/resolve
+
+The params of a pivot into an action, resolved from result rows the analyst selected ([actions.md](actions.md#params)).
+
+Body: `{"pivot": {"rows": [{"<column>": <value>}], "cell": {"column": "<column>", "value": <value>}}}`.
+
+- `rows` has at least one row, each a mapping of column name to value. The browser sends only the columns the action's `pivot.columns` and its params' `fromColumns` name; the server trims the rest.
+- `cell` is the right-clicked cell. It may be left out.
+
+Response: `{params, missing, reasons}`.
+
+- `params` maps param names to the resolved values, as the browser sends them.
+- `missing` lists the names of the params it couldn't fill.
+- `reasons` maps a missing param's name to why. A missing param without a reason is left out of it.
+
+For example:
+
+```json
+{
+  "params": { "users": ["alice@example.com", "bob@example.com"] },
+  "missing": ["result"],
+  "reasons": { "result": "The 2 selected rows have different Result values" }
+}
+```
+
+Errors:
+
+- `404` with the detail "Action not found" for an unknown `key`.
+- `422` with `errors["pivot.rows"]` holding the reason:
+  - "Not offered as a pivot" for an action with `pivot: none`;
+  - "Takes one row" for an action with `pivot: row` and more than one row;
+  - "At most 100 rows; 2,341 selected" for more rows than `TIM_MAX_PIVOT_ROWS`.
 
 ## Runs
 
@@ -207,6 +243,7 @@ Failure messages: the action's own message; `Result exceeds limit of N rows` or 
 | Concurrent runs and query runs per process | 16 | `TIM_MAX_CONCURRENT_RUNS` |
 | Distinct `id`s in one annotations change | 10,000 | `TIM_MAX_ANNOTATION_IDS` |
 | Request body | 16 MiB | `TIM_MAX_REQUEST_BYTES` |
+| Rows in a pivot | 100 | `TIM_MAX_PIVOT_ROWS` |
 
 A result over a row or size limit makes the run `error`; it is not truncated. A [query run](#kustoqueryrun) is capped at 100,000 rows and 64 MiB, or the two settings when they are lower; the other limits apply to it as they are.
 

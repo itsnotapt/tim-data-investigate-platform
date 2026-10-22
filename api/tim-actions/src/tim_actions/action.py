@@ -11,6 +11,7 @@ from pydantic import BaseModel, StringConstraints, field_validator
 from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
 from tim_actions.params import Param
+from tim_actions.pivots import PivotContext, Resolved, resolve_from_columns
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext
 
@@ -104,6 +105,12 @@ class Action(BaseModel, ABC):
         """The context menu's filter: a row needs one column from each group. Each
         required param's ``from_columns`` is a group."""
         return [list(p.from_columns) for p in self.params if p.required and p.from_columns]
+
+    def resolve(self, context: PivotContext) -> Resolved:
+        """The params a pivot from ``context``'s rows gives this action. The default reads each
+        param's ``from_columns``; override it, with ``pivot_columns()``, for logic that needs
+        code."""
+        return resolve_from_columns(self.params, context)
 
     def row_id(self, params: Mapping[str, Any]) -> RowId | None:
         """How each row of a run with these params gets its ``id``, or ``None`` for no ``id``.

@@ -14,6 +14,7 @@ export function stubBootstrap(): void {
       limits: {
         maxResultRows: 1,
         maxResultBytes: 1,
+        maxPivotRows: 100,
         rowsPageSize: 1,
         runTimeoutSeconds: 1,
         maxAnnotationIds: 10_000,

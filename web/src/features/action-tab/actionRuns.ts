@@ -218,7 +218,7 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
     return;
   }
   if (signal.aborted) return;
-  store.getState().updateState(uuid, { run, runParams: tab.params.params });
+  store.getState().updateState(uuid, { run, runParams: tab.params.params, pivotMissing: null });
   // Saved at once, so a reload picks the run up by its id.
   await store.getState().flush();
   await followRun(uuid, run, signal, options);

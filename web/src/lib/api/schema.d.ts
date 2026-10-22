@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/actions/{key}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Pivot
+         * @description A pivot into the action: its params resolved from the selected rows, and the required
+         *     params left without a value. ``422`` when the action isn't offered on these rows.
+         */
+        post: operations["resolvePivot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/annotations": {
         parameters: {
             query?: never;
@@ -701,6 +722,8 @@ export interface components {
             annotationPollSeconds: number;
             /** Maxannotationids */
             maxAnnotationIds: number;
+            /** Maxpivotrows */
+            maxPivotRows: number;
             /** Maxresultbytes */
             maxResultBytes: number;
             /** Maxresultrows */
@@ -724,6 +747,43 @@ export interface components {
             path: string;
             /** Value */
             value?: unknown;
+        };
+        /**
+         * PivotCell
+         * @description The cell the analyst right-clicked.
+         */
+        PivotCell: {
+            /** Column */
+            column: string;
+            value: components["schemas"]["JsonValue"];
+        };
+        /**
+         * PivotResolution
+         * @description A pivot's params, as wire values, and the params it couldn't fill.
+         *     ``reasons`` says why for those that have a reason, such as rows that disagree.
+         */
+        PivotResolution: {
+            /** Missing */
+            missing: string[];
+            /** Params */
+            params: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Reasons */
+            reasons: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * PivotRows
+         * @description The selected rows, by value, each trimmed to the action's pivot columns.
+         */
+        PivotRows: {
+            cell?: components["schemas"]["PivotCell"] | null;
+            /** Rows */
+            rows: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
         };
         /**
          * ProblemDetails
@@ -940,6 +1000,13 @@ export interface components {
          */
         QueryType: "view" | "query";
         /**
+         * ResolvePivot
+         * @description Body of ``POST /api/actions/{key}/resolve``.
+         */
+        ResolvePivot: {
+            pivot: components["schemas"]["PivotRows"];
+        };
+        /**
          * RowsPage
          * @description ``lastRow`` is the run's row count. ``annotations`` are those of the rows' ids that have
          *     any, current as of ``annotationVersion``.
@@ -1083,6 +1150,79 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    resolvePivot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolvePivot"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PivotResolution"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     changeAnnotations: {
         parameters: {
             query?: never;

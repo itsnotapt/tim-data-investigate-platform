@@ -108,6 +108,7 @@ beforeEach(async () => {
       limits: {
         maxResultRows: 1,
         maxResultBytes: 1,
+        maxPivotRows: 100,
         rowsPageSize: 10,
         runTimeoutSeconds: 600,
         maxAnnotationIds: 10_000,

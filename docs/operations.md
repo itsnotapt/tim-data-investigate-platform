@@ -241,6 +241,7 @@ Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM
 | Row pages are slow or large                  | `TIM_ROWS_PAGE_SIZE`                      |
 | Labelling a big selection is refused         | `TIM_MAX_ANNOTATION_IDS`                  |
 | Labels reach other analysts late, or the feed is busy | `TIM_ANNOTATION_POLL_SECONDS`    |
+| A pivot is refused with "At most N rows"      | `TIM_MAX_PIVOT_ROWS`                      |
 | `413` on requests                            | `TIM_MAX_REQUEST_BYTES` (nginx caps bodies at 25 MB) |
 
 ### Rotate secrets and keys

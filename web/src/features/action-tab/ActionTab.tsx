@@ -18,11 +18,12 @@ import { NewQueryMenu } from '../new-query';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
+import { useActionPivotMenu } from '../action-pivots';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
 import { useEditorSchema } from './editorSchema';
-import { datetimeText, hasPill, sameParams } from './paramValues';
+import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
 import { PillsBar } from './PillsBar';
 import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
@@ -118,11 +119,13 @@ function QueryEditor({
  * An action tab: the header (menu path, action and title) with Clone, the pills bar with Run or
  * the run going, and the inner tabs: the query of an action with a `kql` or `sql` param, the
  * results of the last run that succeeded, and the latest run's details. An action with a query
- * never switches inner tabs: a status line above the editor says how the latest run went.
+ * never switches inner tabs: a status line above the editor says how the latest run went. A pivot
+ * that left params missing waits for them, with its reasons.
  */
 export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
   const navigate = useNavigate();
+  const pivotMenu = useActionPivotMenu(uuid, onRun);
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
   const shown = useRunRows(uuid);
@@ -166,6 +169,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     ? `the run from ${datetimeText(state.resultsStartedAt)}`
     : 'the previous run';
   const edited = state.runParams != null && !sameParams(state.runParams, params.params);
+  const needed = stillMissing(state.pivotMissing, params.params);
+  const neededReasons = needed.flatMap((name) => state.pivotMissing?.[name] ?? []);
 
   const setParam = (name: string, value: unknown) => {
     const next = { ...params.params };
@@ -298,8 +303,18 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         onChange={setParam}
         errors={state.paramErrors}
         onReset={edited ? reset : undefined}
+        needed={needed}
         end={run}
       />
+
+      {needed.length > 0 && !state.isExecuting && (
+        <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
+          <div>Fill in {paramTitles(action, needed)} to run this pivot</div>
+          {neededReasons.map((reason) => (
+            <div key={reason}>{reason}</div>
+          ))}
+        </Alert>
+      )}
 
       <Tabs
         value={inner}
@@ -358,6 +373,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             rows={shown.rows}
             declaredColumns={action?.columns}
             runColumns={shown.columns}
+            getContextMenuItems={pivotMenu}
           />
         )}
         {!shown && hasResults && rowCount !== 0 && (
@@ -367,6 +383,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}
             runColumns={state.resultColumns}
+            getContextMenuItems={pivotMenu}
           />
         )}
       </Box>

@@ -9,6 +9,7 @@ import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
+import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
 import { useRowResults } from '../grid/useRowResults';
 import { useInstanceStore } from '../instance';
@@ -41,7 +42,6 @@ export type ActionResultsGridProps = Omit<
   | 'columnId'
   | 'columnDefs'
   | 'stateKey'
-  | 'getContextMenuItems'
   | 'rowClassRules'
   | 'selectionSymbol'
   | 'onCellKeyDown'
@@ -55,6 +55,8 @@ export type ActionResultsGridProps = Omit<
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
   runColumns?: readonly RunColumn[] | null;
+  /** More context menu items, after Label ▸ and Show details. */
+  getContextMenuItems?: GetExtraContextMenuItems;
 };
 
 /** Whether `next` is `shown` with more rows after it (pages append; a reload gives new objects). */
@@ -74,6 +76,7 @@ export function ActionResultsGrid({
   declaredColumns,
   runColumns,
   onGridReady,
+  getContextMenuItems,
   ...rest
 }: ActionResultsGridProps) {
   const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
@@ -154,7 +157,10 @@ export function ActionResultsGrid({
     }),
     [labels, max, idParam, notifyContext],
   );
-  const menu = useMemo(() => buildLabelMenu(labelling), [labelling]);
+  const menu = useMemo(
+    () => [buildLabelMenu(labelling), ...(getContextMenuItems ? [getContextMenuItems] : [])],
+    [labelling, getContextMenuItems],
+  );
   const keys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(
     (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
