@@ -1,9 +1,19 @@
 import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 5180;
-const API_PORT = 5181;
+const PORT = parseE2ePort(process.env['E2E_PORT']);
+const API_PORT = PORT + 1;
 const CI = !!process.env['CI'];
+
+/** Vite's port: E2E_PORT, else 5180. The api takes the next port, so 65534 is the highest. */
+function parseE2ePort(value: string | undefined): number {
+  if (value === undefined) return 5180;
+  const error = new Error(`E2E_PORT must be a whole number from 1 to 65534, got "${value}"`);
+  if (!/^\d+$/.test(value)) throw error;
+  const port = Number(value);
+  if (port < 1 || port > 65534) throw error;
+  return port;
+}
 
 /**
  * Headless Chromium against the vite dev server with the dev stub auth (VITE_AUTH_STUB=true), and
@@ -60,7 +70,8 @@ export default defineConfig({
     {
       command: `npx vite --port ${PORT} --strictPort`,
       url: `http://localhost:${PORT}`,
-      reuseExistingServer: !CI,
+      // Never reused, locally or in CI.
+      reuseExistingServer: false,
       stdout: 'ignore',
       env: { VITE_AUTH_STUB: 'true', TIM_API_PROXY_TARGET: `http://localhost:${API_PORT}` },
       timeout: 120_000,
