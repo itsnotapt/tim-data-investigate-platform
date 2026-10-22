@@ -78,7 +78,7 @@ The action type adds fields of its own, such as a connection and a query.
 | `many` | `false` | A list of values. Not for `kql`, `sql` or `connection`. |
 | `choices` | none | The values allowed. |
 | `connection_type` | none | For `kind: connection` only, which it requires. |
-| `schema_from` | none | For `kql` and `sql`: the params that scope the editor's schema. |
+| `schema_from` | none | For `kql` and `sql`: the params that scope the editor's schema, a `connection` param and the others whose values the connection type's hook gets as its scope. |
 | `from_columns` | none | The result columns a pivot takes the value from; the first non-empty one wins. A row is offered the action when it has one of each required param's columns. |
 | `help` | none | Help text. |
 

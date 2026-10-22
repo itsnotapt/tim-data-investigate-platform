@@ -498,6 +498,11 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - `resumeActionRuns` picks runs up again after a reload.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
 - `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. `StoredActionResultsGrid` reads `row_results` instead, after a reload.
+- `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.
+  - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.
+  - Schemas are cached per connection and scope. A failure is not cached.
+  - A late answer is ignored. A failure goes to the snackbar.
+  - One adapter per schema kind gives the editor the schema. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
 - Tests pass `onRun` to `ActionTab` instead of running.
 

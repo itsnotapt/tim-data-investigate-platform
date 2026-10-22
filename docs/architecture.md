@@ -375,6 +375,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`) and `GET /api/instance` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions`, `schema connections` and `check` |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
+| `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
 | `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
@@ -573,6 +574,26 @@ The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fiel
 - Columns are declared from Kusto's types.
 - The query's execution metrics are reported as run details: `executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`.
 - Kusto errors become sanitised messages: stack-trace lines removed, capped at 2000 characters.
+
+A hook can also give the editor schema of its connection: `Hook.editor_schema(scope)`.
+
+- It returns an `EditorSchema` of a `kind` and a `schema`, or `None`.
+- `scope` holds the values of the editor param's `schemaFrom` params, without its `connection` param.
+- `KustoHook` runs `.show schema as json` in the scope's `database`, and returns kind `kql`. Without a `database`, it returns `None`.
+- A Kusto error or an unrecognised result is a `RunError`.
+
+`POST /api/connections/{name}/schema` ([api.md](api.md#post-apiconnectionsnameschema)) serves it:
+
+1. It gets the connection's `obo` token, as `POST /api/runs` does.
+2. It calls the hook on a worker thread.
+3. It answers `204` for `None`, and `502` with a `RunError`'s message.
+
+In the browser, an editor param with `schemaFrom` loads its schema once its connection and scope params have values that have stayed unchanged for 400 ms.
+
+- Schemas are cached per connection and scope.
+- The browser has one completion adapter per kind.
+- The `kql` adapter gives Monaco's Kusto worker the schema, with the connection name where Monaco wants a cluster.
+- `useEditorSchema` and the adapters are in `web/src/features/action-tab/editorSchema.ts`.
 
 **Run KQL** (`tim.run_kql`) is the built-in action on a Kusto connection. It sets `pivot: none`. Its params:
 
