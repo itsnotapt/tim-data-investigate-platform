@@ -1,9 +1,9 @@
-"""Run KQL on a Kusto connection, as TIM runs it: the ``KustoHook`` against a fake SDK client, and
-the URL and value rules the hook shares with the API."""
+"""Kusto as TIM runs it: Run KQL and the ``KustoHook`` against a fake SDK client, the URL and value
+rules the hook shares with the API, and the literals query parameters are sent as."""
 
 import threading
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
@@ -11,13 +11,24 @@ import pytest
 from azure.kusto.data import ClientRequestProperties
 from azure.kusto.data import exceptions as kusto_exc
 
-from tim_actions import Analyst, Column, DetailValue, Hook, RunError, validate_params
+from tim_actions import (
+    Analyst,
+    Column,
+    DetailValue,
+    Hook,
+    Param,
+    ParamKind,
+    RunError,
+    validate_params,
+)
 from tim_actions.kusto import (
     RUN_KQL,
     KustoConnection,
     KustoHook,
     error_message,
+    kusto_literal,
     normalise_cluster_url,
+    query_parameters,
     serialise_value,
 )
 
@@ -282,3 +293,73 @@ def test_values_are_stored_as_json(kusto_type: str, value: Any, stored: Any) -> 
 )
 def test_sdk_errors_have_safe_messages(error: Exception, message: str) -> None:
     assert error_message(error) == message
+
+
+PLUS_TWO = timezone(timedelta(hours=2))
+
+
+@pytest.mark.parametrize(
+    ("kind", "value", "literal"),
+    [
+        ("string", 'it\'s "quoted"\nand multiline', 'it\'s "quoted"\nand multiline'),
+        ("number", 10, "10"),
+        ("number", -0.25, "-0.25"),
+        ("number", float("nan"), "real(nan)"),
+        ("number", float("inf"), "real(+inf)"),
+        ("number", float("-inf"), "real(-inf)"),
+        ("boolean", False, "false"),
+        (
+            "datetime",
+            datetime(2026, 10, 1, 12, 30, 15, 123456, tzinfo=PLUS_TWO),
+            "datetime(2026-10-01T10:30:15.1234560Z)",
+        ),
+        ("timespan", timedelta(0), "timespan(00:00:00)"),
+        ("timespan", timedelta(minutes=90, milliseconds=500), "timespan(01:30:00.5000000)"),
+        ("timespan", -timedelta(days=2, hours=3), "timespan(-2.03:00:00)"),
+        ("json", {"a": [1, None], "b": "café"}, 'dynamic({"a":[1,null],"b":"café"})'),
+        ("json", "x", 'dynamic("x")'),
+    ],
+)
+def test_a_value_is_sent_as_a_kusto_literal(kind: ParamKind, value: Any, literal: str) -> None:
+    assert kusto_literal(kind, value) == literal
+
+
+@pytest.mark.parametrize(
+    ("kind", "values", "literal"),
+    [
+        ("string", ['a"b', "café"], 'dynamic(["a\\"b","café"])'),
+        ("number", [1, 2.5, float("inf")], "dynamic([1,2.5,real(+inf)])"),
+        ("boolean", [True], "dynamic([true])"),
+        (
+            "datetime",
+            [datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 2, 3, tzinfo=UTC)],
+            "dynamic([datetime(2026-01-01T00:00:00.0000000Z),"
+            "datetime(2026-01-02T03:00:00.0000000Z)])",
+        ),
+        ("timespan", [timedelta(hours=1)], "dynamic([timespan(01:00:00)])"),
+        ("string", [], "dynamic([])"),
+    ],
+)
+def test_many_values_are_sent_as_a_dynamic_array(
+    kind: ParamKind, values: Any, literal: str
+) -> None:
+    assert kusto_literal(kind, values, many=True) == literal
+
+
+@pytest.mark.parametrize("kind", ["kql", "sql", "connection"])
+def test_an_editor_or_connection_value_is_not_a_query_parameter(kind: ParamKind) -> None:
+    with pytest.raises(ValueError, match=f"a {kind} param can't be a Kusto query parameter"):
+        kusto_literal(kind, "x")
+
+
+def test_query_parameters_are_the_validated_params_with_a_value() -> None:
+    params = (
+        Param("users", "string", many=True),
+        Param("since", "datetime"),
+        Param("limit", "number", required=False),
+    )
+    values = validate_params(params, {"users": ["alice"], "since": "2026-10-01T00:00:00Z"})
+    assert query_parameters(params, values) == {
+        "users": 'dynamic(["alice"])',
+        "since": "datetime(2026-10-01T00:00:00.0000000Z)",
+    }

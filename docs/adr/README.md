@@ -74,4 +74,5 @@ Numbers are never reused, so the sequence has gaps.
 | [0016](0016-release-versions.md) | Release versions for frontend, backend, the Helm chart and tim-actions | accepted | 2026-10-07 |
 | [0017](0017-actions-from-providers.md) | Actions are Python classes from installed providers, configured by YAML files | accepted | 2026-10-20 |
 | [0018](0018-fixed-connections.md) | Fixed connections | accepted | 2026-10-20 |
+| [0019](0019-params-are-bound.md) | Params are bound, never templated | accepted | 2026-10-20 |
 | [0021](0021-tim-actions-and-derived-images.md) | The `tim-actions` distribution and derived images | accepted | 2026-10-20 |

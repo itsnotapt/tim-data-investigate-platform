@@ -16,6 +16,6 @@ def _installed(module: str) -> bool:
 def provider() -> Provider:
     if not _installed("azure.kusto.data"):  # no kusto extra
         return Provider()
-    from tim_actions.kusto import RUN_KQL, KustoHook
+    from tim_actions.kusto import RUN_KQL, KqlQuery, KustoHook
 
-    return Provider(actions=[RUN_KQL], hooks=[KustoHook])
+    return Provider(actions=[RUN_KQL], action_types=[KqlQuery], hooks=[KustoHook])
