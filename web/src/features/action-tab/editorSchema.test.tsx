@@ -2,23 +2,22 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { HttpResponse, http } from 'msw';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CodeEditorInstance } from '../../components/CodeEditor';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CatalogueParam } from '../../lib/api';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
-import { clearEditorSchemaCache, loadEditorSchema, useEditorSchema } from './editorSchema';
-
-const setSchema = vi.fn();
-vi.mock('../../lib/monaco', () => ({
-  getKustoWorkerFor: () => Promise.resolve({ setSchemaFromShowSchema: setSchema }),
-}));
+import { clearEditorSchemaCache, useEditorSchema, type SchemaHandler } from './editorSchema';
 
 const server = setupMswServer();
-const editor = {} as CodeEditorInstance;
 const doc = (name: string) => ({
   Databases: { [name]: { Tables: {}, Functions: {}, EntityGroups: {}, Graphs: {} } },
+});
+const expectedSchema = (connection: string, database: string) => ({
+  kind: 'kql',
+  schema: doc(database),
+  connection,
+  scope: { database },
 });
 
 const wrapper = ({ children }: { children: ReactNode }) => <SnackbarHost>{children}</SnackbarHost>;
@@ -38,9 +37,10 @@ const kql = runKql[2]!;
 
 let calls: { name: string; scope: Record<string, unknown> }[] = [];
 const delays: Record<string, number> = {};
+const onSchema = vi.fn<SchemaHandler>();
 beforeEach(() => {
   configureTestApp();
-  setSchema.mockReset();
+  onSchema.mockReset();
   clearEditorSchemaCache();
   calls = [];
   server.use(
@@ -54,28 +54,56 @@ beforeEach(() => {
 });
 afterEach(resetTestApp);
 
-describe('loadEditorSchema', () => {
-  it('gives a kql schema to the Kusto worker, with the connection name as the cluster', async () => {
-    await loadEditorSchema(editor, 'security', { database: 'Samples' });
+describe('useEditorSchema', () => {
+  const render = (values: Record<string, unknown>, handler: SchemaHandler | null = onSchema) =>
+    renderHook((p) => useEditorSchema(kql, runKql, p.values, p.handler), {
+      wrapper,
+      initialProps: { handler, values },
+    });
+
+  // Longer than the hook's settle delay, for checks that nothing was fetched.
+  const pastSettling = () => new Promise((r) => setTimeout(r, 500));
+
+  it('fetches nothing until every schemaFrom param has a value', async () => {
+    const { rerender } = render({ connection: 'security' });
+    await pastSettling();
+    expect(calls).toEqual([]);
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'Samples' } });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(1));
     expect(calls).toEqual([{ name: 'security', scope: { database: 'Samples' } }]);
-    expect(setSchema).toHaveBeenCalledWith(doc('Samples'), 'security', 'Samples');
+    expect(onSchema).toHaveBeenCalledWith(
+      expectedSchema('security', 'Samples'),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('fetches nothing until there is a handler', async () => {
+    const { rerender } = render({ connection: 'security', database: 'Samples' }, null);
+    await pastSettling();
+    expect(calls).toEqual([]);
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'Samples' } });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(1));
   });
 
   it('fetches each connection and scope once, then reads the cache', async () => {
-    await loadEditorSchema(editor, 'security', { database: 'A' });
-    await loadEditorSchema(editor, 'security', { database: 'B' });
-    await Promise.all([
-      loadEditorSchema(editor, 'security', { database: 'A' }),
-      loadEditorSchema(editor, 'other', { database: 'A' }),
-      loadEditorSchema(editor, 'other', { database: 'A' }),
-    ]);
+    const { rerender } = render({ connection: 'security', database: 'A' });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(1));
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'B' } });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(2));
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'A' } });
+    render({ connection: 'other', database: 'A' });
+    render({ connection: 'other', database: 'A' });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(5));
     expect(calls).toEqual([
       { name: 'security', scope: { database: 'A' } },
       { name: 'security', scope: { database: 'B' } },
       { name: 'other', scope: { database: 'A' } },
     ]);
-    expect(setSchema).toHaveBeenCalledTimes(5);
-    expect(setSchema).toHaveBeenNthCalledWith(3, doc('A'), 'security', 'A');
+    expect(onSchema).toHaveBeenNthCalledWith(
+      3,
+      expectedSchema('security', 'A'),
+      expect.any(AbortSignal),
+    );
   });
 
   it('fetches again after a failure', async () => {
@@ -86,49 +114,19 @@ describe('loadEditorSchema', () => {
         { once: true },
       ),
     );
-    await expect(loadEditorSchema(editor, 'security', { database: 'Nope' })).rejects.toThrow(
-      "'Nope' was not found",
-    );
-    await loadEditorSchema(editor, 'security', { database: 'Nope' });
-    expect(calls).toHaveLength(1);
-    expect(setSchema).toHaveBeenCalledTimes(1);
-  });
-
-  it('leaves the editor alone when the connection has no schema for the scope', async () => {
-    server.use(
-      http.post(
-        apiUrl('/api/connections/:name/schema'),
-        () => new HttpResponse(null, { status: 204 }),
-      ),
-    );
-    await loadEditorSchema(editor, 'security', {});
-    expect(setSchema).not.toHaveBeenCalled();
-  });
-});
-
-describe('useEditorSchema', () => {
-  const render = (values: Record<string, unknown>, e: CodeEditorInstance | null = editor) =>
-    renderHook((p) => useEditorSchema(p.e, kql, runKql, p.values), {
-      wrapper,
-      initialProps: { e, values },
-    });
-
-  it('loads the schema of the chosen connection and database once the editor exists', async () => {
-    const { rerender } = render({ connection: 'security' }, null);
-    rerender({ e: editor, values: { connection: 'security' } });
-    rerender({ e: null, values: { connection: 'security', database: 'Samples' } });
-    expect(calls).toEqual([]);
-    rerender({ e: editor, values: { connection: 'security', database: 'Samples' } });
-    await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
-    expect(calls).toEqual([{ name: 'security', scope: { database: 'Samples' } }]);
-    expect(setSchema).toHaveBeenCalledWith(doc('Samples'), 'security', 'Samples');
+    const first = render({ connection: 'security', database: 'Nope' });
+    await waitFor(() => expect(document.body.textContent).toContain("'Nope' was not found"));
+    first.unmount();
+    render({ connection: 'security', database: 'Nope' });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(1));
+    expect(calls).toEqual([{ name: 'security', scope: { database: 'Nope' } }]);
   });
 
   it('waits for a typed database to settle before fetching', async () => {
     const { rerender } = render({ connection: 'security', database: 'S' });
-    rerender({ e: editor, values: { connection: 'security', database: 'Sa' } });
-    rerender({ e: editor, values: { connection: 'security', database: 'Samples' } });
-    await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'Sa' } });
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'Samples' } });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(1));
     expect(calls).toEqual([{ name: 'security', scope: { database: 'Samples' } }]);
   });
 
@@ -136,11 +134,14 @@ describe('useEditorSchema', () => {
     delays['Slow'] = 300;
     const { rerender } = render({ connection: 'security', database: 'Slow' });
     await waitFor(() => expect(calls).toHaveLength(1));
-    rerender({ e: editor, values: { connection: 'security', database: 'Fast' } });
-    await waitFor(() => expect(setSchema).toHaveBeenCalledTimes(1));
+    rerender({ handler: onSchema, values: { connection: 'security', database: 'Fast' } });
+    await waitFor(() => expect(onSchema).toHaveBeenCalledTimes(1));
     await new Promise((r) => setTimeout(r, 400));
-    expect(setSchema).toHaveBeenCalledTimes(1);
-    expect(setSchema).toHaveBeenCalledWith(doc('Fast'), 'security', 'Fast');
+    expect(onSchema).toHaveBeenCalledTimes(1);
+    expect(onSchema).toHaveBeenCalledWith(
+      expectedSchema('security', 'Fast'),
+      expect.any(AbortSignal),
+    );
     delete delays['Slow'];
   });
 
@@ -156,5 +157,19 @@ describe('useEditorSchema', () => {
         "Failed to load the editor schema: 'Nope' was not found",
       ),
     );
+  });
+
+  it('hands nothing over when the connection has no schema for the scope', async () => {
+    let answered = false;
+    server.use(
+      http.post(apiUrl('/api/connections/:name/schema'), () => {
+        answered = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    render({ connection: 'security', database: 'Samples' });
+    await waitFor(() => expect(answered).toBe(true));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(onSchema).not.toHaveBeenCalled();
   });
 });

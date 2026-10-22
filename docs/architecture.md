@@ -592,9 +592,9 @@ A hook can also give the editor schema of its connection: `Hook.editor_schema(sc
 In the browser, an editor param with `schemaFrom` loads its schema once its connection and scope params have values that have stayed unchanged for 400 ms.
 
 - Schemas are cached per connection and scope.
-- The browser has one completion adapter per kind.
+- `useEditorSchema` in `web/src/features/action-tab/editorSchema.ts` loads, caches and settles the schema. It hands `{kind, schema, connection, scope}` to a callback, and does not touch the editor.
+- The browser has one completion adapter per kind, in `web/src/features/action-tab/editorSchemaAdapters.ts`. The Query editor in `ActionTab.tsx` applies it from that callback.
 - The `kql` adapter gives Monaco's Kusto worker the schema, with the connection name where Monaco wants a cluster.
-- `useEditorSchema` and the adapters are in `web/src/features/action-tab/editorSchema.ts`.
 
 **Run KQL** (`tim.run_kql`) is the built-in action on a Kusto connection. It sets `pivot: none`. Its params:
 

@@ -9,7 +9,7 @@ import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
@@ -21,7 +21,8 @@ import { useTemplatesStore } from '../templates';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
-import { useEditorSchema } from './editorSchema';
+import { useEditorSchema, type SchemaHandler } from './editorSchema';
+import { applyEditorSchema } from './editorSchemaAdapters';
 import { datetimeText, hasPill, sameParams } from './paramValues';
 import { PillsBar } from './PillsBar';
 import { RunPanel } from './RunPanel';
@@ -66,7 +67,11 @@ function QueryEditor({
   onRun: () => void;
 }) {
   const [editor, setEditor] = useState<CodeEditorInstance | null>(null);
-  useEditorSchema(editor, param, params, values);
+  const applySchema = useMemo<SchemaHandler | null>(
+    () => (editor ? (loaded, signal) => applyEditorSchema(editor, loaded, signal) : null),
+    [editor],
+  );
+  useEditorSchema(param, params, values, applySchema);
   const value = values[param.name];
   const captionId = `${uuid}-${param.name}-caption`;
   const caption = error ?? param.help;

@@ -138,7 +138,7 @@ A set value replaces the default rather than adding to it, so keep `**.kusto.win
 
 | Variable          | Default | Description                                                                                                                                                                                                  |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TIM_DEV_ACTIONS` | `false` | Development only. Registers the development actions: `tim.dev_json` and the `dev_rows` action type ([development.md](development.md#development-actions)). Refused when `TIM_ENVIRONMENT=production`. |
+| `TIM_DEV_ACTIONS` | `false` | Development only. Registers the actions `tim.dev_json` and `dev_rows`, and the `dev_kql` connection type ([development.md](development.md#development-actions)). Refused when `TIM_ENVIRONMENT=production`. |
 | `TIM_ACTIONS_DIR` | none    | One flat directory of action files ([actions.md](actions.md#action-files)), read once at startup: `*.yaml` and `*.yml`, not recursing, dot-entries skipped. Empty means none. A path that isn't a directory stops startup. |
 
 A problem in any action file stops startup too ([operations.md](operations.md#startup-failures-from-the-files)). Check a directory before deploying it with `tim-api check --actions <dir>` ([operations.md](operations.md#tim-api-check)).

@@ -1,19 +1,22 @@
 """Development actions, which TIM registers only with ``TIM_DEV_ACTIONS`` (ADR-0011): rows an
-analyst pastes, and an action file type that gives rows, delays and errors for e2e scenarios."""
+analyst pastes, an action file type that gives rows, delays and errors for e2e scenarios, and a
+connection type with a fixed editor schema."""
 
 from __future__ import annotations
 
 import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, StrictInt, field_validator, model_validator
 
 from tim_actions._common import NonBlankStr
 from tim_actions.action import Action
 from tim_actions.columns import Column
+from tim_actions.connections import Connection
 from tim_actions.files import ActionDocument
+from tim_actions.hooks import EditorSchema, Hook
 from tim_actions.params import Param
 from tim_actions.provider import Provider
 from tim_actions.rows import IdColumns, RowId
@@ -161,6 +164,50 @@ class DevRows(Action):
         yield from (row for row in self._rows() if self._kept(row, params))
 
 
+class DevKqlConnection(Connection):
+    """A ``dev_kql`` connection: nothing behind it, so nothing to sign in to."""
+
+    type: Literal["dev_kql"]
+    auth: Literal["workload_identity"]
+
+
+_DEV_KQL_TABLES = {
+    "SignIns": (
+        ("TimeGenerated", "datetime"),
+        ("UserPrincipalName", "string"),
+        ("ResultType", "string"),
+    ),
+}
+
+
+class DevKqlHook(Hook):
+    """``dev_kql``: a connection type whose ``kql`` editor schema is the same few tables for any
+    database, so e2e flows can complete a query without Kusto. It runs no queries."""
+
+    connection_type = "dev_kql"
+    Connection = DevKqlConnection
+    editor = "kql"
+
+    def cancel(self) -> None:
+        pass
+
+    def editor_schema(self, scope: dict[str, Any]) -> EditorSchema | None:
+        """``.show schema as json`` of ``_DEV_KQL_TABLES`` for the scope's ``database``; ``None``
+        without one."""
+        database = scope.get("database")
+        if not isinstance(database, str) or not database:
+            return None
+        tables = {
+            name: {
+                "Name": name,
+                "OrderedColumns": [{"Name": c, "CslType": t} for c, t in columns],
+            }
+            for name, columns in _DEV_KQL_TABLES.items()
+        }
+        schema = {"Databases": {database: {"Name": database, "Tables": tables, "Functions": {}}}}
+        return EditorSchema("kql", schema)
+
+
 def provider() -> Provider:
-    """The development actions and action types."""
-    return Provider(actions=[DEV_JSON], action_types=[DevRows])
+    """The development actions, action types and connection type."""
+    return Provider(actions=[DEV_JSON], action_types=[DevRows], hooks=[DevKqlHook])
