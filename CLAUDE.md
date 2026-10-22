@@ -23,3 +23,7 @@ Single context: domain terms are defined only in [GLOSSARY.md](GLOSSARY.md), dec
 ### Subagents
 
 In `/implement`, exploration, doc updates, the full checks and mechanical review fixes go to the Sonnet `explorer` and `implementer` agents, without asking first. See [docs/agents/subagents.md](docs/agents/subagents.md).
+
+### Where the work goes
+
+`/implement` often starts in a checkout that's already busy with other work. Before the first edit, look at the branch, `git status` and `git worktree list`, then suggest where this ticket should live. Usually that's a fresh branch off `origin/main` ([naming](docs/RULES.md#6-git)), in its own worktree under `.claude/worktrees/` when the current checkout is mid-task. Check with the user before starting.
