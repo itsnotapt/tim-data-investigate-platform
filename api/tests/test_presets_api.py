@@ -48,7 +48,7 @@ def test_a_saved_preset_is_listed_for_its_owner(auth: AuthKit) -> None:
         created = client.post("/api/presets", json=bookmark())
         assert created.status_code == 201
         preset = created.json()
-        assert created.headers["location"] == f"/api/presets/{preset['presetId']}"
+        assert "location" not in created.headers
         assert preset["owner"] == ALICE
         assert preset["hidden"] is False
         assert preset["createdAt"] == preset["updatedAt"]
@@ -66,15 +66,11 @@ def test_others_see_shared_presets_but_not_private_ones(auth: AuthKit) -> None:
         shared = client.post("/api/presets", json=bookmark(visibility="shared")).json()
 
         listed = client.get("/api/presets", headers=as_bob(auth))
-        own = client.get(f"/api/presets/{shared['presetId']}")
-        foreign_private = client.get(f"/api/presets/{private['presetId']}", headers=as_bob(auth))
-        unknown = client.get("/api/presets/00000000-0000-0000-0000-000000000000")
+        alices = client.get("/api/presets").json()
 
     assert listed.status_code == 200
     assert listed.json() == [{**shared, "owned": False}]
-    assert own.json() == shared
-    assert foreign_private.status_code == 404
-    assert unknown.status_code == 404
+    assert alices == [private, shared]
 
 
 def test_each_analyst_is_told_whether_they_own_a_preset(auth: AuthKit) -> None:
@@ -84,13 +80,11 @@ def test_each_analyst_is_told_whether_they_own_a_preset(auth: AuthKit) -> None:
 
         alices = client.get("/api/presets").json()
         bobs = client.get("/api/presets", headers=as_bob(auth)).json()
-        bobs_one = client.get(url, headers=as_bob(auth)).json()
         replaced = client.put(url, json=bookmark(visibility="shared")).json()
 
     assert created["owned"] is True
     assert [p["owned"] for p in alices] == [True]
     assert [p["owned"] for p in bobs] == [False]
-    assert bobs_one["owned"] is False
     assert replaced["owned"] is True
 
 

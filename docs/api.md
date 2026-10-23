@@ -45,8 +45,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | PATCH | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404 | Apply a JSON Patch (RFC 6902). |
 | DELETE | `/api/templates/queries/{uuid}` | 204 | 400, 401, 404 | Soft delete (idempotent). |
 | GET | `/api/presets` | 200 | 400, 401 | List your presets and the shared ones. |
-| GET | `/api/presets/{presetId}` | 200 | 400, 401, 404 | Get one preset. |
-| POST | `/api/presets` | 201 | 400, 401, 422 | Create a preset. `Location: /api/presets/{presetId}`. |
+| POST | `/api/presets` | 201 | 400, 401, 422 | Create a preset. |
 | PUT | `/api/presets/{presetId}` | 200 | 400, 401, 403, 404, 422 | Replace a preset (owner only). |
 | DELETE | `/api/presets/{presetId}` | 204 | 400, 401, 403, 404 | Delete a preset for good (owner only). |
 | PUT | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Hide a preset for yourself (idempotent). |
@@ -371,13 +370,9 @@ Base path `/api/presets`. A preset is an action with some params fixed and the r
 
 Returns an array of `Preset`: the caller's own presets and the shared ones, oldest first (`createdAt`, then `presetId`). `owned` is whether the caller owns it, and `hidden` whether they hid it.
 
-### GET /api/presets/{presetId}
-
-Returns one `Preset`. `404` when it is unknown, or private and owned by someone else.
-
 ### POST, PUT, DELETE
 
-- `POST` body is `PresetFields`. The server assigns `presetId`, `owner` (from the token), `createdAt` and `updatedAt`. It returns `201` with the `Preset` and `Location: /api/presets/{presetId}`.
+- `POST` body is `PresetFields`. The server assigns `presetId`, `owner` (from the token), `createdAt` and `updatedAt`. It returns `201` with the `Preset`.
 - `PUT` body is `PresetFields`. It replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept. Last write wins.
 - `DELETE` deletes the preset for good, with every analyst's hidden mark on it. Only the owner can. `204`.
 - Errors:

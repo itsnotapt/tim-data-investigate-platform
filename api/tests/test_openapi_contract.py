@@ -44,7 +44,6 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
     ),
     ("get", "/api/presets", "listPresets", {"200"}, {"401"}),
     ("post", "/api/presets", "createPreset", {"201"}, {"400", "401", "422"}),
-    ("get", "/api/presets/{presetId}", "getPreset", {"200"}, {"400", "401", "404"}),
     (
         "put",
         "/api/presets/{presetId}",

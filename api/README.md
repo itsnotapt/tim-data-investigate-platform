@@ -431,7 +431,7 @@ Details are fixed strings. Exception messages are never echoed.
 
 ## Preset endpoints
 
-`presets/router.py` implements `/api/presets`: list, get, POST 201 with `Location`, PUT (whole replace), DELETE 204, and PUT and DELETE `/{presetId}/hidden`. [api.md](../docs/api.md#presets) has the rules.
+`presets/router.py` implements `/api/presets`: list, POST 201, PUT (whole replace), DELETE 204, and PUT and DELETE `/{presetId}/hidden`. [api.md](../docs/api.md#presets) has the rules.
 
 - The server assigns `presetId` and the timestamps (truncated to milliseconds), and takes `owner` from the principal.
 - `_check` requires `action` in the catalogue, and each input to be a param of it with `from_columns`. Failures are `422` with `errors` keys `action` and `inputs.<i>.name`.

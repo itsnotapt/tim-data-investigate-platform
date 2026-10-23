@@ -73,7 +73,7 @@ async def list_presets(store: Store, principal: Caller) -> list[Preset]:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_preset(
-    body: PresetFields, store: Store, principal: Caller, actions: Actions, response: Response
+    body: PresetFields, store: Store, principal: Caller, actions: Actions
 ) -> Preset:
     _check(body, actions)
     now = _now()
@@ -85,13 +85,7 @@ async def create_preset(
         updated_at=now,
     )
     await store.create(preset)
-    response.headers["Location"] = f"/api/presets/{preset.preset_id}"
     return Preset(**preset.model_dump(by_alias=False), owned=True, hidden=False)
-
-
-@router.get("/{presetId}")
-async def get_preset(preset_id: PresetId, store: Store, principal: Caller) -> Preset:
-    return await _visible(store, preset_id, principal)
 
 
 @router.put("/{presetId}")

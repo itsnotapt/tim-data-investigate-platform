@@ -177,8 +177,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Preset */
-        get: operations["getPreset"];
+        get?: never;
         /** Replace Preset */
         put: operations["replacePreset"];
         post?: never;
@@ -1740,66 +1739,6 @@ export interface operations {
             };
             /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Unhandled error (`internal`). */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    getPreset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                presetId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Preset"];
-                };
-            };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
-                headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Not found (`not-found`). */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -56,7 +56,6 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("get", "/api/runs/{runId}/rows"): ("getRunRows", (400, 404, 409, 410)),
     ("get", "/api/presets"): ("listPresets", ()),
     ("post", "/api/presets"): ("createPreset", (400, 422)),
-    ("get", "/api/presets/{presetId}"): ("getPreset", (400, 404)),
     ("put", "/api/presets/{presetId}"): ("replacePreset", (400, 403, 404, 422)),
     ("delete", "/api/presets/{presetId}"): ("deletePreset", (400, 403, 404)),
     ("put", "/api/presets/{presetId}/hidden"): ("hidePreset", (400, 404)),

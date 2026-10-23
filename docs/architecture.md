@@ -848,8 +848,7 @@ Presets are stored in PostgreSQL (`presets`, `preset_hidden`) behind `PresetStor
 The routes, under `/api/presets`:
 
 - **`GET`** returns the caller's own presets and the shared ones, oldest first. Each has `owned` and `hidden`: whether the caller owns it and whether they hid it.
-- **`POST`** creates a preset: `201`, with a `Location` header. The server assigns `presetId`, `owner` (from the token) and the timestamps.
-- **`GET /{presetId}`** returns one preset.
+- **`POST`** creates a preset: `201`, with the preset. The server assigns `presetId`, `owner` (from the token) and the timestamps.
 - **`PUT /{presetId}`** replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept.
 - **`DELETE /{presetId}`** deletes it for good, with every hidden mark on it. Only the owner can.
 - **`PUT` and `DELETE /{presetId}/hidden`** hide and unhide it for the caller only.
