@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from tim_api.annotations.models import Annotations, LabelState
+from tim_api.annotations.models import Annotations, Comment, LabelState, TagSuggestions
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
@@ -293,6 +293,8 @@ class MemoryRunStore(RunStore):
 class MemoryAnnotationStore(AnnotationStore):
     def __init__(self) -> None:
         self._state: dict[str, Annotations] = {}
+        # Who added each id's tags, and when: (id, tag) -> (by, at).
+        self._tags_added: dict[tuple[str, str], tuple[str, datetime]] = {}
         self._version = 0
         self._lock = asyncio.Lock()
 
@@ -300,14 +302,21 @@ class MemoryAnnotationStore(AnnotationStore):
         self, id: str, edit: AnnotationEdit, *, by: str, at: datetime, version: int
     ) -> Annotations | None:
         """The id's annotations after ``edit``, or ``None`` when it changes nothing."""
-        current = self._state.get(id)
-        before = current.label.key if current and current.label else None
-        if not edit.set_label or edit.label == before:
+        current = self._state.get(id) or Annotations(id=id, label=None, version=version)
+        update: dict[str, Any] = {}
+        before = current.label.key if current.label else None
+        if edit.set_label and edit.label != before:
+            update["label"] = (
+                None if edit.label is None else LabelState(key=edit.label, by=by, at=at)
+            )
+        tags = edit.tags_after(current.tags)
+        if tags != set(current.tags):
+            update["tags"] = sorted(tags)
+        if edit.comment is not None:
+            update["comments"] = [*current.comments, Comment(author=by, at=at, text=edit.comment)]
+        if not update:
             return None
-        label = None if edit.label is None else LabelState(key=edit.label, by=by, at=at)
-        if current is None:
-            return Annotations(id=id, label=label, version=version)
-        return current.model_copy(update={"label": label, "version": version})
+        return current.model_copy(update={**update, "version": version})
 
     async def change(
         self, ids: Collection[str], edit: AnnotationEdit, *, by: str, at: datetime
@@ -323,6 +332,11 @@ class MemoryAnnotationStore(AnnotationStore):
                 return AnnotationsChanged(changes=[], version=self._version)
             self._version = version
             for annotations in changed:
+                before = self._state.get(annotations.id)
+                for tag in set(before.tags if before else []) - set(annotations.tags):
+                    del self._tags_added[annotations.id, tag]
+                for tag in annotations.tags:
+                    self._tags_added.setdefault((annotations.id, tag), (by, at))
                 self._state[annotations.id] = annotations
             return AnnotationsChanged(changes=copy.deepcopy(changed), version=version)
 
@@ -343,6 +357,23 @@ class MemoryAnnotationStore(AnnotationStore):
             else:
                 page = after
             return AnnotationChanges(changes=copy.deepcopy(page), has_more=len(page) < len(after))
+
+    async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:
+        async with self._lock:
+            matching = {
+                key: added
+                for key, added in self._tags_added.items()
+                if key[1].lower().startswith(prefix.lower())
+            }
+        newest: dict[str, datetime] = {}
+        uses: dict[str, int] = {}
+        for (_, tag), (added_by, added_at) in matching.items():
+            uses[tag] = uses.get(tag, 0) + 1
+            if added_by == by:
+                newest[tag] = max(added_at, newest.get(tag, added_at))
+        recent = sorted(newest, key=lambda tag: (-newest[tag].timestamp(), tag))[:limit]
+        others = sorted((tag for tag in uses if tag not in newest), key=lambda t: (-uses[t], t))
+        return TagSuggestions(recent=recent, most_used=others[:limit])
 
 
 class MemoryStorage(Storage):

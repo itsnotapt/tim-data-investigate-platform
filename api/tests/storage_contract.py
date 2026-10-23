@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from tim_api.annotations.models import Annotations, LabelState
+from tim_api.annotations.models import Annotations, Comment, LabelState
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
 from tim_api.storage import AlreadyExistsError, AnnotationEdit, NotFoundError, Storage
@@ -699,6 +699,136 @@ class AnnotationContract:
         assert sorted(r.version for r in results) == list(range(1, 21))
         page = await store.changes(0, 100)
         assert [a.version for a in page.changes] == list(range(1, 21))
+
+    async def test_added_tags_join_each_id_s_tags_under_one_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(["a"], AnnotationEdit(add_tags=frozenset({"c2"})), by="alice", at=T0)
+        changed = await store.change(
+            ["a", "b"],
+            AnnotationEdit(add_tags=frozenset({"c2", "beacon", "Beacon"})),
+            by="bob",
+            at=T0,
+        )
+        assert changed.version == 2
+        assert changed.changes == [
+            Annotations(id="a", label=None, tags=["Beacon", "beacon", "c2"], version=2),
+            Annotations(id="b", label=None, tags=["Beacon", "beacon", "c2"], version=2),
+        ]
+        assert (await store.of_ids(["a"])).annotations["a"].tags == ["Beacon", "beacon", "c2"]
+
+    async def test_a_removed_tag_is_purged_and_a_tagless_id_is_kept(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(
+            ["a", "b"], AnnotationEdit(add_tags=frozenset({"c2", "beacon"})), by="alice", at=T0
+        )
+        changed = await store.change(
+            ["a", "b", "c"],
+            AnnotationEdit(remove_tags=frozenset({"c2", "beacon", "never-added"})),
+            by="bob",
+            at=_minutes(1),
+        )
+        assert changed.changes == [
+            Annotations(id="a", label=None, tags=[], version=2),
+            Annotations(id="b", label=None, tags=[], version=2),
+        ]
+        assert (await store.changes(1, 100)).changes == changed.changes
+        readded = await store.change(
+            ["a"], AnnotationEdit(add_tags=frozenset({"c2"})), by="carol", at=_minutes(2)
+        )
+        assert readded.changes == [Annotations(id="a", label=None, tags=["c2"], version=3)]
+        suggestions = await store.tag_suggestions("", by="alice", limit=10)
+        assert suggestions.recent == []
+
+    async def test_set_tags_replaces_each_id_s_tags(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(
+            ["a"], AnnotationEdit(add_tags=frozenset({"c2", "beacon"})), by="alice", at=T0
+        )
+        await store.change(["b"], AnnotationEdit(add_tags=frozenset({"beacon"})), by="alice", at=T0)
+        changed = await store.change(
+            ["a", "b", "c"],
+            AnnotationEdit(set_tags=frozenset({"beacon"})),
+            by="bob",
+            at=_minutes(1),
+        )
+        assert changed.changes == [
+            Annotations(id="a", label=None, tags=["beacon"], version=3),
+            Annotations(id="c", label=None, tags=["beacon"], version=3),
+        ]
+        cleared = await store.change(
+            ["a", "c"], AnnotationEdit(set_tags=frozenset()), by="bob", at=T0
+        )
+        assert [(a.id, a.tags) for a in cleared.changes] == [("a", []), ("c", [])]
+
+    async def test_tag_changes_that_change_nothing_take_no_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(["a"], AnnotationEdit(add_tags=frozenset({"c2"})), by="alice", at=T0)
+        for edit in (
+            AnnotationEdit(add_tags=frozenset({"c2"})),
+            AnnotationEdit(remove_tags=frozenset({"beacon"})),
+            AnnotationEdit(set_tags=frozenset({"c2"})),
+        ):
+            unchanged = await store.change(["a"], edit, by="bob", at=_minutes(1))
+            assert (unchanged.changes, unchanged.version) == ([], 1)
+
+    async def test_a_comment_is_appended_to_every_id_with_the_label_and_tags(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+        await store.change(["a"], AnnotationEdit(comment="first look"), by="alice", at=T0)
+        changed = await store.change(
+            ["a", "b"],
+            AnnotationEdit(
+                set_label=True, label="malicious", add_tags=frozenset({"c2"}), comment="beacons"
+            ),
+            by="bob",
+            at=_minutes(1),
+        )
+        bobs = Comment(author="bob", at=_minutes(1), text="beacons")
+        assert changed.changes == [
+            Annotations(
+                id="a",
+                label=LabelState(key="malicious", by="bob", at=_minutes(1)),
+                tags=["c2"],
+                comments=[Comment(author="alice", at=T0, text="first look"), bobs],
+                version=2,
+            ),
+            Annotations(
+                id="b",
+                label=LabelState(key="malicious", by="bob", at=_minutes(1)),
+                tags=["c2"],
+                comments=[bobs],
+                version=2,
+            ),
+        ]
+        again = await store.change(
+            ["b"], AnnotationEdit(comment="beacons"), by="bob", at=_minutes(1)
+        )
+        assert [len(a.comments) for a in again.changes] == [2]
+        assert again.version == 3
+
+    async def test_tag_suggestions_are_the_analyst_s_recent_tags_then_the_most_used(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+
+        async def tag(ids: list[str], tags: set[str], by: str, at: datetime) -> None:
+            await store.change(ids, AnnotationEdit(add_tags=frozenset(tags)), by=by, at=at)
+
+        await tag(["a", "b", "c"], {"Beacon"}, "bob", T0)
+        await tag(["a", "b"], {"botnet"}, "bob", T0)
+        await tag(["a"], {"c2", "beta"}, "bob", T0)
+        await tag(["x"], {"bad"}, "alice", _minutes(1))
+        await tag(["y"], {"Benign-ish"}, "alice", _minutes(2))
+        await tag(["z"], {"bad"}, "alice", _minutes(3))
+        got = await store.tag_suggestions("b", by="alice", limit=10)
+        assert (got.recent, got.most_used) == (
+            ["bad", "Benign-ish"],
+            ["Beacon", "botnet", "beta"],
+        )
+        limited = await store.tag_suggestions("B", by="alice", limit=1)
+        assert (limited.recent, limited.most_used) == (["bad"], ["Beacon"])
+        assert (await store.tag_suggestions("c", by="carol", limit=10)).recent == []
 
 
 class HealthContract:

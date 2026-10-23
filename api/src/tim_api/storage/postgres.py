@@ -32,6 +32,7 @@ from sqlalchemy import (
     bindparam,
     delete,
     exists,
+    func,
     insert,
     select,
     text,
@@ -43,7 +44,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
-from tim_api.annotations.models import Annotations, Comment, LabelState
+from tim_api.annotations.models import Annotations, Comment, LabelState, TagSuggestions
 from tim_api.query_runs.models import (
     KustoQueryEcho,
     KustoQueryRun,
@@ -645,6 +646,11 @@ class _NothingChanged(Exception):
     """Rolls back a change that changed nothing, so it takes no version."""
 
 
+def _in_code_point_order(column: Any) -> Any:
+    """``column`` collated by code point, as Python sorts strings, not by the database locale."""
+    return column.collate("C")
+
+
 def _ids_param(ids: Collection[str]) -> Any:
     return bindparam("ids", list(ids), type_=ARRAY(Text))
 
@@ -654,7 +660,9 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
     ids = _ids_param([state.id for state in states])
     found_tags: dict[str, list[str]] = {}
     for row in await conn.execute(
-        select(tags.c.id, tags.c.tag).where(tags.c.id == any_(ids)).order_by(tags.c.tag)
+        select(tags.c.id, tags.c.tag)
+        .where(tags.c.id == any_(ids))
+        .order_by(_in_code_point_order(tags.c.tag))
     ):
         found_tags.setdefault(row.id, []).append(row.tag)
     found_comments: dict[str, list[Comment]] = {}
@@ -696,51 +704,91 @@ class PostgresAnnotationStore(AnnotationStore):
                         .returning(annotation_clock.c.version)
                     )
                 ).scalar_one()
-                current = await conn.execute(
-                    select(id_state.c.id, id_state.c.label).where(
-                        id_state.c.id == any_(_ids_param(wanted))
+                labels = {
+                    row.id: row.label
+                    for row in await conn.execute(
+                        select(id_state.c.id, id_state.c.label).where(
+                            id_state.c.id == any_(_ids_param(wanted))
+                        )
                     )
+                }
+                had_tags: dict[str, set[str]] = {}
+                for row in await conn.execute(
+                    select(tags.c.id, tags.c.tag).where(tags.c.id == any_(_ids_param(wanted)))
+                ):
+                    had_tags.setdefault(row.id, set()).add(row.tag)
+                relabelled = [
+                    id for id in wanted if edit.set_label and labels.get(id) != edit.label
+                ]
+                added: list[tuple[str, str]] = []
+                removed: list[tuple[str, str]] = []
+                for id in wanted:
+                    before = had_tags.get(id, set())
+                    after = edit.tags_after(before)
+                    added += [(id, tag) for tag in sorted(after - before)]
+                    removed += [(id, tag) for tag in sorted(before - after)]
+                commented = wanted if edit.comment is not None else []
+                changed = sorted(
+                    {*relabelled, *commented, *(id for id, _ in added), *(id for id, _ in removed)}
                 )
-                labels = {row.id: row.label for row in current}
-                changed = [id for id in wanted if edit.set_label and labels.get(id) != edit.label]
                 if not changed:
                     raise _NothingChanged
-                labelled_by, labelled_at = (None, None) if edit.label is None else (by, at)
                 upsert = pg_insert(id_state)
                 await conn.execute(
                     upsert.on_conflict_do_update(
-                        index_elements=[id_state.c.id],
-                        set_={
-                            "label": upsert.excluded.label,
-                            "labelled_by": upsert.excluded.labelled_by,
-                            "labelled_at": upsert.excluded.labelled_at,
-                            "version": upsert.excluded.version,
-                        },
+                        index_elements=[id_state.c.id], set_={"version": upsert.excluded.version}
                     ),
-                    [
-                        {
-                            "id": id,
-                            "label": edit.label,
-                            "labelled_by": labelled_by,
-                            "labelled_at": labelled_at,
-                            "version": version,
-                        }
-                        for id in changed
-                    ],
+                    [{"id": id, "version": version} for id in changed],
                 )
-                await conn.execute(
-                    insert(label_changes),
-                    [
-                        {
-                            "id": id,
-                            "label": edit.label,
-                            "changed_by": by,
-                            "changed_at": at,
-                            "version": version,
-                        }
-                        for id in changed
-                    ],
-                )
+                if relabelled:
+                    labelled_by, labelled_at = (None, None) if edit.label is None else (by, at)
+                    await conn.execute(
+                        update(id_state)
+                        .where(id_state.c.id == any_(_ids_param(relabelled)))
+                        .values(label=edit.label, labelled_by=labelled_by, labelled_at=labelled_at)
+                    )
+                    await conn.execute(
+                        insert(label_changes),
+                        [
+                            {
+                                "id": id,
+                                "label": edit.label,
+                                "changed_by": by,
+                                "changed_at": at,
+                                "version": version,
+                            }
+                            for id in relabelled
+                        ],
+                    )
+                if added:
+                    await conn.execute(
+                        insert(tags),
+                        [
+                            {"id": id, "tag": tag, "added_by": by, "added_at": at}
+                            for id, tag in added
+                        ],
+                    )
+                if removed:
+                    await conn.execute(
+                        delete(tags).where(
+                            tags.c.id == bindparam("tag_id"), tags.c.tag == bindparam("tag_name")
+                        ),
+                        [{"tag_id": id, "tag_name": tag} for id, tag in removed],
+                    )
+                if commented:
+                    await conn.execute(
+                        insert(comments),
+                        [
+                            {
+                                "id": id,
+                                "author": by,
+                                "created_at": at,
+                                "text": edit.comment,
+                                "version": version,
+                            }
+                            for id in commented
+                        ],
+                    )
                 states = (
                     await conn.execute(
                         select(id_state)
@@ -785,6 +833,32 @@ class PostgresAnnotationStore(AnnotationStore):
             )
             found = await _annotations(conn, states)
         return AnnotationChanges(changes=found, has_more=has_more)
+
+    async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:
+        matching = func.starts_with(func.lower(tags.c.tag), func.lower(prefix))
+        mine = select(tags.c.tag).where(matching, tags.c.added_by == by).group_by(tags.c.tag)
+        async with self._db.begin() as conn:
+            recent = list(
+                (
+                    await conn.execute(
+                        mine.order_by(
+                            func.max(tags.c.added_at).desc(), _in_code_point_order(tags.c.tag)
+                        ).limit(limit)
+                    )
+                ).scalars()
+            )
+            most_used = list(
+                (
+                    await conn.execute(
+                        select(tags.c.tag)
+                        .where(matching, tags.c.tag.not_in(mine))
+                        .group_by(tags.c.tag)
+                        .order_by(func.count().desc(), _in_code_point_order(tags.c.tag))
+                        .limit(limit)
+                    )
+                ).scalars()
+            )
+        return TagSuggestions(recent=recent, most_used=most_used)
 
 
 class PostgresStorage(Storage):

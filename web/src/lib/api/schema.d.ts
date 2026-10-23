@@ -40,8 +40,8 @@ export interface paths {
         head?: never;
         /**
          * Change Annotations
-         * @description Change every id's annotations in one transaction under one version. ``label`` sets the
-         *     label, ``null`` clears it, and leaving it out keeps it.
+         * @description Change every id's annotations in one transaction under one version: the label, the tags
+         *     (added and removed, or replaced with ``setTags``) and a comment appended to each.
          */
         patch: operations["changeAnnotations"];
         trace?: never;
@@ -325,6 +325,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tag Suggestions
+         * @description Tags that start with ``prefix``, ignoring case: the caller's own, most recently added
+         *     first, then the others, on the most ids first.
+         */
+        get: operations["getTagSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates/queries": {
         parameters: {
             query?: never;
@@ -396,14 +417,25 @@ export interface components {
         };
         /**
          * AnnotationsChange
-         * @description ``PATCH /api/annotations``: a change to every one of ``ids``. Leaving ``label`` out keeps
-         *     it; ``null`` clears it.
+         * @description ``PATCH /api/annotations``: a change to every one of ``ids``.
+         *
+         *     - Leaving ``label`` out keeps it; ``null`` clears it.
+         *     - ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.
+         *     - ``comment`` is appended to each id's comments.
          */
         AnnotationsChange: {
+            /** Addtags */
+            addTags?: string[];
+            /** Comment */
+            comment?: string | null;
             /** Ids */
             ids: string[];
             /** Label */
             label?: string | null;
+            /** Removetags */
+            removeTags?: string[];
+            /** Settags */
+            setTags?: string[] | null;
         };
         /** CatalogueAction */
         CatalogueAction: {
@@ -1140,6 +1172,17 @@ export interface components {
             params?: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
+        };
+        /**
+         * TagSuggestions
+         * @description Tags that start with a prefix: the analyst's own, most recently added first, then the
+         *     others, most used first.
+         */
+        TagSuggestions: {
+            /** Mostused */
+            mostUsed: string[];
+            /** Recent */
+            recent: string[];
         };
     };
     responses: never;
@@ -2209,6 +2252,48 @@ export interface operations {
             };
             /** @description Upstream failure (`upstream`). */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getTagSuggestions: {
+        parameters: {
+            query?: {
+                prefix?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagSuggestions"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
