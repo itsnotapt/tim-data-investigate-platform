@@ -7,18 +7,8 @@ import type {
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
-import type { Annotations, CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
-import {
-  AnnotateDialog,
-  annotationColumnDefs,
-  buildAnnotateMenu,
-  makeAnnotateKeys,
-  reachOf,
-  savedMessage,
-  type AnnotateMenuOptions,
-  type AnnotateMode,
-  type Reach,
-} from '../annotate';
+import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
+import { annotationColumnDefs, useAnnotating } from '../annotate';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -31,9 +21,7 @@ import {
   labelColumnDef,
   LabelSymbol,
   makeLabelKeys,
-  targetIds,
   updateRowAnnotations,
-  type LabelledRow,
   type LabelMenuOptions,
   type RowsById,
 } from '../labels';
@@ -75,29 +63,6 @@ export type ActionResultsGridProps = Omit<
 /** Whether `next` is `shown` with more rows after it (pages append; a reload gives new objects). */
 const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
   shown.length > 0 && next.length > shown.length && next[shown.length - 1] === shown.at(-1);
-
-/** The Annotate dialog, open for these targets. */
-interface OpenDialog {
-  mode: AnnotateMode;
-  targets: string[];
-  reach: Reach;
-  current: Annotations[];
-  rowTags: string[];
-}
-
-/** The tags on the grid's rows, on the most rows first, ties in code-point order. */
-function tagsOnRows(api: GridApi<GridRowWithId>): string[] {
-  const counts = new Map<string, number>();
-  api.forEachNode((node) => {
-    const row: LabelledRow | undefined = node.data;
-    for (const tag of row?.annotations?.tags ?? []) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-  });
-  return [...counts]
-    .sort(([a, m], [b, n]) => n - m || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([tag]) => tag);
-}
 
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
@@ -198,58 +163,27 @@ export function ActionResultsGrid({
     }),
     [labels, max, idParam, notifyContext],
   );
-  const [dialog, setDialog] = useState<OpenDialog | null>(null);
-  const annotating = useMemo<AnnotateMenuOptions>(
-    () => ({
-      max,
-      idParam,
-      notify: (message) => notifyContext?.(message),
-      open: (mode, targetRows, grid) => {
-        const targets = targetIds(targetRows);
-        void getAnnotationStore()
-          .get(targets)
-          .then((found) =>
-            setDialog({
-              mode,
-              targets,
-              reach: reachOf(targetRows, index),
-              current: [...found.values()],
-              rowTags: grid.isDestroyed() ? [] : tagsOnRows(grid),
-            }),
-          );
-      },
-    }),
-    [max, idParam, notifyContext, index],
-  );
-  const onSaved = useCallback(
-    async (mode: AnnotateMode, changes: Annotations[]) => {
-      await getAnnotationStore().apply(changes, 'own');
-      pollAnnotationsSoon();
-      notifyContext?.(savedMessage(mode, changes.length));
-    },
-    [notifyContext],
-  );
+  const {
+    menu: annotateMenu,
+    keys: annotateKeys,
+    dialog,
+  } = useAnnotating({ labels, max, idParam, rowsById: index });
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
-      buildAnnotateMenu(annotating),
+      annotateMenu,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
     ],
-    [labelling, annotating, getContextMenuItems],
+    [labelling, annotateMenu, getContextMenuItems],
   );
-  const keys = useMemo(() => {
-    const label = makeLabelKeys(labelling);
-    const annotate = makeAnnotateKeys(annotating);
-    return (e: CellKeyDownEvent<GridRowWithId>) => {
-      label(e);
-      annotate(e);
-    };
-  }, [labelling, annotating]);
+  const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(
     (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
-      if ('column' in e) keys(e);
+      if (!('column' in e)) return;
+      labelKeys(e);
+      annotateKeys(e);
     },
-    [keys],
+    [labelKeys, annotateKeys],
   );
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
@@ -266,14 +200,7 @@ export function ActionResultsGrid({
         onCellKeyDown={onCellKeyDown}
         onGridReady={ready}
       />
-      {dialog && (
-        <AnnotateDialog
-          {...dialog}
-          labels={labels}
-          onSaved={(changes) => onSaved(dialog.mode, changes)}
-          onClose={() => setDialog(null)}
-        />
-      )}
+      {dialog}
     </>
   );
 }
