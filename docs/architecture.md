@@ -231,7 +231,7 @@ The New menu opens from the **New** button. It lists, in order:
 - Within a folder, subfolders come first, then actions, then presets.
 - The filter decides what shows:
   - **All** shows the actions and every preset that is not hidden.
-  - **Mine** and **Others'** show only presets that are not hidden, by owner. The web compares a preset's `owner` with the signed-in account's name (`useAccountName`).
+  - **Mine** and **Others'** show only presets that are not hidden, by the preset's `owned`, which the server sets for the caller. The web never compares names.
   - **Hidden** shows only the presets the analyst hid.
 - The search matches an action's name, folders and key. It matches a preset's name, folders, action, owner and From columns. While searching, the groups are open.
 - A caption under each preset says what it is:
@@ -846,7 +846,7 @@ Presets are stored in PostgreSQL (`presets`, `preset_hidden`) behind `PresetStor
 
 The routes, under `/api/presets`:
 
-- **`GET`** returns the caller's own presets and the shared ones, oldest first. Each has `hidden`, which is whether the caller hid it.
+- **`GET`** returns the caller's own presets and the shared ones, oldest first. Each has `owned` and `hidden`: whether the caller owns it and whether they hid it.
 - **`POST`** creates a preset: `201`, with a `Location` header. The server assigns `presetId`, `owner` (from the token) and the timestamps.
 - **`GET /{presetId}`** returns one preset.
 - **`PUT /{presetId}`** replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept.

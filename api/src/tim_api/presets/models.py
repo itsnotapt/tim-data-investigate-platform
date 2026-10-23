@@ -54,6 +54,8 @@ class StoredPreset(PresetFields):
 
 
 class Preset(StoredPreset):
-    """A preset as one analyst sees it: ``hidden`` is whether they hid it."""
+    """A preset as one analyst sees it: ``owned`` is whether they own it, ``hidden`` whether
+    they hid it."""
 
+    owned: bool
     hidden: bool

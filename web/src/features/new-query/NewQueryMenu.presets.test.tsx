@@ -31,6 +31,7 @@ const ME = 'alice@example.com';
 const base = {
   menuPath: ['Identity'],
   visibility: 'shared' as const,
+  owned: false,
   hidden: false,
   action: 'dev-sign-ins',
   createdAt: '2026-10-22T00:00:00Z',
@@ -42,6 +43,7 @@ const PRESETS: Preset[] = [
     presetId: 'p-mine',
     name: 'My bookmark',
     owner: ME,
+    owned: true,
     visibility: 'private',
     params: { limit: 5 },
     inputs: [{ name: 'users', source: 'param', fixed: true, value: ['alice'] }],
@@ -60,6 +62,7 @@ const PRESETS: Preset[] = [
     name: 'Daily users',
     menuPath: ['Daily'],
     owner: ME,
+    owned: true,
     params: {},
     inputs: [{ name: 'users', source: 'param', fixed: true, value: ['bob'] }],
   },
@@ -118,13 +121,7 @@ function setup() {
   const presets = createPresetsStore({ api });
   render(
     <MemoryRouter>
-      <NewQueryMenu
-        templates={[]}
-        actions={[signIns]}
-        store={tabs}
-        presetsStore={presets}
-        analyst={ME}
-      >
+      <NewQueryMenu templates={[]} actions={[signIns]} store={tabs} presetsStore={presets}>
         New
       </NewQueryMenu>
     </MemoryRouter>,

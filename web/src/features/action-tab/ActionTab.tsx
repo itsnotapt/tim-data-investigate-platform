@@ -14,7 +14,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
-import { useAccountName } from '../../lib/auth';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
 import { SavePresetDialog, usePresetsStore } from '../presets';
@@ -143,7 +142,6 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // The inner tab the analyst picked, held until the run changes: a run starts, gets its id or ends.
   const runKey = `${actionState?.run?.runId ?? ''}:${String(actionState?.isExecuting ?? false)}`;
   const [picked, setPicked] = useState<{ tab: InnerTab; runKey: string } | null>(null);
-  const analyst = useAccountName();
   // Save…: the preset the tab came from or was saved as, once the presets are fresh.
   const [saving, setSaving] = useState<{ source: Preset | undefined } | null>(null);
 
@@ -313,7 +311,6 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           action={action}
           params={params.params}
           source={saving.source}
-          analyst={analyst}
           onClose={() => setSaving(null)}
           onSaved={saved}
         />

@@ -764,7 +764,8 @@ export interface components {
         };
         /**
          * Preset
-         * @description A preset as one analyst sees it: ``hidden`` is whether they hid it.
+         * @description A preset as one analyst sees it: ``owned`` is whether they own it, ``hidden`` whether
+         *     they hid it.
          */
         Preset: {
             /** Action */
@@ -779,6 +780,8 @@ export interface components {
             menuPath?: string[];
             /** Name */
             name: string;
+            /** Owned */
+            owned: boolean;
             /** Owner */
             owner: string;
             /** Params */

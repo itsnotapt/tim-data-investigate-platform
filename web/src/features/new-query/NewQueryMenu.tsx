@@ -10,7 +10,6 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { useContext, useMemo, useState, type ReactNode } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import type { CatalogueAction, Preset } from '../../lib/api';
-import { useAccountName } from '../../lib/auth';
 import { useInstanceStore } from '../instance';
 import {
   presetFields,
@@ -50,8 +49,6 @@ export interface NewQueryMenuProps {
   store?: TabsStore;
   /** Override the presets store (tests). */
   presetsStore?: PresetsStore;
-  /** The signed-in analyst, who owns their presets; defaults to the signed-in account's name. */
-  analyst?: string;
 }
 
 const NO_ACTIONS: readonly CatalogueAction[] = [];
@@ -78,7 +75,6 @@ export function NewQueryMenu({
   size = 'medium',
   store,
   presetsStore = usePresetsStore,
-  analyst,
 }: NewQueryMenuProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState('');
@@ -88,14 +84,12 @@ export function NewQueryMenu({
     useNewQuery(store);
   const instanceActions = useInstanceStore((s) => s.instance?.actions ?? NO_ACTIONS);
   const presets = presetsStore((s) => s.presets);
-  const accountName = useAccountName();
-  const me = analyst ?? accountName;
   const notify = useContext(NotifyContext);
   const close = () => setAnchor(null);
 
   const actionNodes = useMemo(
-    () => buildNewMenuTree(actions ?? instanceActions, presets, { search, filter, analyst: me }),
-    [actions, instanceActions, presets, search, filter, me],
+    () => buildNewMenuTree(actions ?? instanceActions, presets, { search, filter }),
+    [actions, instanceActions, presets, search, filter],
   );
   const views = useMemo(
     () => buildTemplateMenuTree(templates, { queryType: 'view', search, queryOptions }),
@@ -126,7 +120,7 @@ export function NewQueryMenu({
     return (
       <PresetMoreMenu
         preset={preset}
-        owned={preset.owner === me}
+        owned={preset.owned}
         canOpen={entry.action !== undefined}
         onOpen={() => open(entry)}
         onEdit={() => entry.action && setEditing({ preset, action: entry.action })}
@@ -251,7 +245,6 @@ export function NewQueryMenu({
           action={editing.action}
           params={presetValues(editing.preset)}
           source={editing.preset}
-          analyst={me}
           store={presetsStore}
           onClose={() => setEditing(null)}
         />

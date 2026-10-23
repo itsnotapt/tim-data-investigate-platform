@@ -117,18 +117,16 @@ export type NewMenuEntry =
 export interface BuildNewMenuOptions {
   search?: string;
   filter?: NewMenuFilter;
-  /** The signed-in analyst, compared with each preset's `owner`. */
-  analyst: string;
 }
 
 const fromColumns = (preset: Preset): string[] =>
   (preset.inputs ?? []).flatMap((i) => (i.fixed ? [] : i.fromColumns));
 
-function presetShown(preset: Preset, filter: NewMenuFilter, analyst: string): boolean {
+function presetShown(preset: Preset, filter: NewMenuFilter): boolean {
   if (filter === 'hidden') return preset.hidden;
   if (preset.hidden) return false;
-  if (filter === 'mine') return preset.owner === analyst;
-  if (filter === 'others') return preset.owner !== analyst;
+  if (filter === 'mine') return preset.owned;
+  if (filter === 'others') return !preset.owned;
   return true;
 }
 
@@ -139,7 +137,7 @@ function presetShown(preset: Preset, filter: NewMenuFilter, analyst: string): bo
 export function buildNewMenuTree(
   actions: readonly CatalogueAction[],
   presets: readonly Preset[],
-  { search = '', filter = 'all', analyst }: BuildNewMenuOptions,
+  { search = '', filter = 'all' }: BuildNewMenuOptions,
 ): MenuNode<NewMenuEntry>[] {
   const byKey = new Map(actions.map((a) => [a.key, a]));
   const actionEntries: MenuEntry<NewMenuEntry>[] =
@@ -154,7 +152,7 @@ export function buildNewMenuTree(
           }))
       : [];
   const presetEntries: MenuEntry<NewMenuEntry>[] = presets
-    .filter((p) => presetShown(p, filter, analyst))
+    .filter((p) => presetShown(p, filter))
     .filter((p) => {
       const action = byKey.get(p.action);
       const texts = [p.name, ...(p.menuPath ?? []), p.action, p.owner, ...fromColumns(p)];

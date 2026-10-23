@@ -325,7 +325,7 @@ Two more pieces live beside it.
   - An action makes a root `ActionResult` tab (`createFromAction`), nested by its `menuPath`. The title is the action's name and the params are the defaults. It is not run.
   - A preset makes a root `ActionResult` tab (`createFromPreset`), nested by its `menuPath`. The title is the preset's name, and the params keep `presetId`. It is not run.
   - `presetTabParams` (`features/presets`) builds the params: the action's defaults, then the preset's `params`, then its fixed values. Each From row input still unset goes in `state.pivotMissing`.
-  - A filter shows All (with the actions), Mine, Others' or Hidden presets (`NewMenuFilter`). "Mine" compares `owner` with `useAccountName()` from `lib/auth`.
+  - A filter shows All (with the actions), Mine, Others' or Hidden presets (`NewMenuFilter`). "Mine" shows the presets whose `owned` is true; the server sets it for the caller.
   - `entryCaption` gives the line under a preset: "Bookmark · owner" when every input is fixed, or "<action> · pivot on <columns> · asks for <params>".
   - `PresetMoreMenu` is a preset's ⋯: Open, Edit… (owner; the dialog starts from `presetValues`, the preset's params and fixed values, not the action's defaults), Duplicate, Share with everyone or Make private (owner), Delete… with a confirm (owner), Hide or Unhide (others).
   - `usePresetsStore` (`features/presets`) holds the presets, and the menu refetches them each time it opens. Its calls go through `lib/api/presets.ts`.

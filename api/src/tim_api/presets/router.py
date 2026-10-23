@@ -86,7 +86,7 @@ async def create_preset(
     )
     await store.create(preset)
     response.headers["Location"] = f"/api/presets/{preset.preset_id}"
-    return Preset(**preset.model_dump(by_alias=False), hidden=False)
+    return Preset(**preset.model_dump(by_alias=False), owned=True, hidden=False)
 
 
 @router.get("/{presetId}")

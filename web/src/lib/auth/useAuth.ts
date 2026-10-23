@@ -8,11 +8,3 @@ export function useAuth(): UseAuth {
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
 }
-
-/**
- * The signed-in analyst's name, as the API names them (a preset's `owner`), or `''` when signed
- * out or outside an `<AuthProvider>`.
- */
-export function useAccountName(): string {
-  return useContext(AuthContext)?.account?.name ?? '';
-}

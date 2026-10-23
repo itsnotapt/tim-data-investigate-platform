@@ -122,6 +122,7 @@ function preset(over: Partial<Preset>): Preset {
     name: 'p',
     menuPath: [],
     owner: 'alice@example.com',
+    owned: true,
     visibility: 'private',
     hidden: false,
     action: 'dev-sign-ins',
@@ -141,6 +142,7 @@ const mine = preset({
 const theirs = preset({
   name: 'Bob pivot',
   owner: 'bob@example.com',
+  owned: false,
   visibility: 'shared',
   menuPath: ['Identity', 'Daily'],
   inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: ['Account'] }],
@@ -148,13 +150,13 @@ const theirs = preset({
 const hidden = preset({
   name: 'Carol hidden',
   owner: 'carol@example.com',
+  owned: false,
   visibility: 'shared',
   hidden: true,
 });
 
-const ME = 'alice@example.com';
 const build = (search: string, filter: Parameters<typeof buildNewMenuTree>[2]['filter']) =>
-  buildNewMenuTree([signIns, hosts], [mine, theirs, hidden], { search, filter, analyst: ME });
+  buildNewMenuTree([signIns, hosts], [mine, theirs, hidden], { search, filter });
 
 /** Folders as `Title (count)/[...]`, items by label. */
 function outline(nodes: MenuNode<NewMenuEntry>[]): unknown[] {

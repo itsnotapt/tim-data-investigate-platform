@@ -369,7 +369,7 @@ Base path `/api/presets`. A preset is an action with some params fixed and the r
 
 ### GET /api/presets
 
-Returns an array of `Preset`: the caller's own presets and the shared ones, oldest first (`createdAt`, then `presetId`). `hidden` is whether the caller hid it.
+Returns an array of `Preset`: the caller's own presets and the shared ones, oldest first (`createdAt`, then `presetId`). `owned` is whether the caller owns it, and `hidden` whether they hid it.
 
 ### GET /api/presets/{presetId}
 
@@ -403,6 +403,7 @@ Returns one `Preset`. `404` when it is unknown, or private and owned by someone 
 | `menuPath` | string[] | Menu folders, none blank. Default `[]`. |
 | `owner` | string | Server-set, from the token. |
 | `visibility` | `private` \| `shared` | Default `private`. |
+| `owned` | boolean | Server-set: whether the caller owns it. |
 | `hidden` | boolean | Server-set: whether the caller hid it. |
 | `action` | string | An action key in the catalogue. |
 | `params` | map | Param values by name. Default `{}`. Not validated until a run starts. |

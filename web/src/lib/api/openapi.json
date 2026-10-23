@@ -1017,7 +1017,7 @@
         "type": "object"
       },
       "Preset": {
-        "description": "A preset as one analyst sees it: ``hidden`` is whether they hid it.",
+        "description": "A preset as one analyst sees it: ``owned`` is whether they own it, ``hidden`` whether\nthey hid it.",
         "properties": {
           "action": {
             "title": "Action",
@@ -1056,6 +1056,10 @@
             "title": "Name",
             "type": "string"
           },
+          "owned": {
+            "title": "Owned",
+            "type": "boolean"
+          },
           "owner": {
             "title": "Owner",
             "type": "string"
@@ -1091,6 +1095,7 @@
           "owner",
           "createdAt",
           "updatedAt",
+          "owned",
           "hidden"
         ],
         "title": "Preset",

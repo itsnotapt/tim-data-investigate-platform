@@ -296,6 +296,7 @@ class MemoryPresetStore(PresetStore):
         return Preset.model_validate(
             {
                 **preset.model_dump(by_alias=False),
+                "owned": preset.owner == viewer,
                 "hidden": (preset.preset_id, viewer) in self._hidden,
             }
         )

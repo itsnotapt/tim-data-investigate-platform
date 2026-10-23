@@ -174,11 +174,11 @@ class PresetStore(ABC):
     @abstractmethod
     async def list(self, viewer: str) -> list[Preset]:
         """The presets ``viewer`` owns and those shared, ordered by ``created_at`` then
-        ``preset_id``, each with whether ``viewer`` hid it."""
+        ``preset_id``, each with whether ``viewer`` owns and hid it."""
 
     @abstractmethod
     async def get(self, preset_id: UUID, viewer: str) -> Preset | None:
-        """The preset, whoever owns it, with whether ``viewer`` hid it; ``None`` when
+        """The preset, whoever owns it, with whether ``viewer`` owns and hid it; ``None`` when
         unknown."""
 
     @abstractmethod

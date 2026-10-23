@@ -622,7 +622,7 @@ class PresetContract:
         await storage.presets.create(preset)
         got = await storage.presets.get(preset.preset_id, "alice")
         assert got is not None
-        assert got.model_dump() == {**preset.model_dump(), "hidden": False}
+        assert got.model_dump() == {**preset.model_dump(), "owned": True, "hidden": False}
 
     async def test_get_missing_is_none(self, storage: Storage) -> None:
         assert await storage.presets.get(uuid4(), "alice") is None
@@ -676,12 +676,22 @@ class PresetContract:
             "owner": "alice",
             "created_at": T0,
             "updated_at": _minutes(5),
+            "owned": True,
             "hidden": False,
         }
 
     async def test_replace_missing_raises(self, storage: Storage) -> None:
         with pytest.raises(NotFoundError):
             await storage.presets.replace(uuid4(), make_preset(), updated_at=T0)
+
+    async def test_owned_is_whether_the_viewer_is_the_owner(self, storage: Storage) -> None:
+        preset = make_preset(visibility="shared")
+        await storage.presets.create(preset)
+        assert [p.owned for p in await storage.presets.list("alice")] == [True]
+        assert [p.owned for p in await storage.presets.list("bob")] == [False]
+        bobs = await storage.presets.get(preset.preset_id, "bob")
+        assert bobs is not None
+        assert bobs.owned is False
 
     async def test_hidden_is_per_analyst(self, storage: Storage) -> None:
         preset = make_preset(visibility="shared")

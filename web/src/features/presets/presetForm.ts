@@ -37,7 +37,6 @@ export function initialForm(
   action: CatalogueAction,
   params: Record<string, unknown>,
   source: Preset | undefined,
-  analyst: string,
 ): PresetForm {
   const inputs = new Map((source?.inputs ?? []).map((i) => [i.name, i]));
   const modes = Object.fromEntries(
@@ -51,7 +50,7 @@ export function initialForm(
   return {
     name: source?.name ?? action.name,
     folder: (source?.menuPath ?? action.menuPath).join(' / '),
-    visibility: source?.owner === analyst ? source.visibility : 'private',
+    visibility: source?.owned ? source.visibility : 'private',
     modes,
   };
 }

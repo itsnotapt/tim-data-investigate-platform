@@ -71,10 +71,27 @@ def test_others_see_shared_presets_but_not_private_ones(auth: AuthKit) -> None:
         unknown = client.get("/api/presets/00000000-0000-0000-0000-000000000000")
 
     assert listed.status_code == 200
-    assert listed.json() == [shared]
+    assert listed.json() == [{**shared, "owned": False}]
     assert own.json() == shared
     assert foreign_private.status_code == 404
     assert unknown.status_code == 404
+
+
+def test_each_analyst_is_told_whether_they_own_a_preset(auth: AuthKit) -> None:
+    with client_for(auth) as client:
+        created = client.post("/api/presets", json=bookmark(visibility="shared")).json()
+        url = f"/api/presets/{created['presetId']}"
+
+        alices = client.get("/api/presets").json()
+        bobs = client.get("/api/presets", headers=as_bob(auth)).json()
+        bobs_one = client.get(url, headers=as_bob(auth)).json()
+        replaced = client.put(url, json=bookmark(visibility="shared")).json()
+
+    assert created["owned"] is True
+    assert [p["owned"] for p in alices] == [True]
+    assert [p["owned"] for p in bobs] == [False]
+    assert bobs_one["owned"] is False
+    assert replaced["owned"] is True
 
 
 def test_the_owner_replaces_a_preset_and_others_cannot(auth: AuthKit) -> None:

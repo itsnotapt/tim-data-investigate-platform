@@ -625,7 +625,7 @@ class PostgresPresetStore(PresetStore):
             )
             .label("hidden")
         )
-        return select(presets, hidden)
+        return select(presets, (presets.c.owner == viewer).label("owned"), hidden)
 
     async def list(self, viewer: str) -> list[Preset]:
         stmt = (

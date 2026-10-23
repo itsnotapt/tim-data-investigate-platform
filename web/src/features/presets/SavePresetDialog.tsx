@@ -29,8 +29,6 @@ export interface SavePresetDialogProps {
   params: Record<string, unknown>;
   /** The preset being edited or saved again, if any. */
   source?: Preset;
-  /** The signed-in analyst; only a preset's owner updates it. */
-  analyst: string;
   onClose: () => void;
   /** After a save, with the preset as saved. */
   onSaved?: (preset: Preset) => void;
@@ -46,15 +44,14 @@ export function SavePresetDialog({
   action,
   params,
   source,
-  analyst,
   onClose,
   onSaved,
   store = usePresetsStore,
 }: SavePresetDialogProps) {
-  const [form, setForm] = useState(() => initialForm(action, params, source, analyst));
+  const [form, setForm] = useState(() => initialForm(action, params, source));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const owned = source !== undefined && source.owner === analyst;
+  const owned = source !== undefined && source.owned;
   const setMode = (name: string, mode: InputMode) =>
     setForm((f) => ({ ...f, modes: { ...f.modes, [name]: mode } }));
 
