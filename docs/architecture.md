@@ -177,6 +177,7 @@ Besides the common fields, an action tab's state holds:
 4. **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
    - **Template pivot.** The params come from the template's `fields`. It creates a child template tab with a template snapshot, and runs it when the data is complete.
    - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
+   - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
 5. **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query using `{{> getTagEvents}}` returns the updated `TagEvent` column.
 
 An action tab runs differently:
@@ -342,12 +343,14 @@ The tree shows an action tab's status like any tab's:
 The results grid's right-click menu has **Pivot ▸**. Its targets are the selected rows. Right-clicking a row outside the selection selects just that row.
 
 - **Menu.**
-  - A disabled "Recent" heading and the analyst's last three pivots come first, named by their full menu path. They are kept in localStorage under `tim-recent-pivots`. A separator follows, then the actions by menu path.
+  - A disabled "Recent" heading and the analyst's last three pivots come first, named by their full menu path. They are kept in localStorage under `tim-recent-pivots`: an action by its key, a preset as `preset:<presetId>`. A separator follows, then the actions and presets in one tree of folders, actions first in each folder, as in the New menu.
   - It lists the actions whose `pivot` is not `null` and whose every pivot column group has a column in every target row.
-  - The item is omitted when no action applies.
-  - An action with `rows: "row"` is disabled, with the tooltip "Takes one row", when several rows are targeted.
-  - The whole item is disabled over `limits.maxPivotRows` rows, with the tooltip "At most 100 rows; 2,500 selected".
-- **Resolve.** Choosing an action sends `POST /api/actions/{key}/resolve` ([api.md](api.md#post-apiactionskeyresolve)). The rows hold the target rows' values, trimmed to the action's pivot columns and its params' `fromColumns`. The right-clicked cell is sent when its column is one of them.
+  - It lists the presets that [pivot from the rows](#presets-and-column-views). Hidden presets, and presets of an action not in the catalogue, are left out.
+  - The item is omitted when nothing applies.
+  - An action with `rows: "row"` is disabled, with the tooltip "Takes one row", when several rows are targeted. Presets have no such limit.
+  - The whole item is disabled over `limits.maxPivotRows` rows, for actions and presets alike, with the tooltip "At most 100 rows; 2,500 selected".
+  - `useActionPivotMenu` loads the presets store when it has not loaded yet.
+- **Resolve.** Choosing a preset resolves in the browser instead ([Preset pivots](#presets-and-column-views)). Choosing an action sends `POST /api/actions/{key}/resolve` ([api.md](api.md#post-apiactionskeyresolve)). The rows hold the target rows' values, trimmed to the action's pivot columns and its params' `fromColumns`. The right-clicked cell is sent when its column is one of them.
 - **Child tab.** It is an action tab under the current tab, created in the background, so focus stays on the parent. Its params are:
   - the action's defaults;
   - the only connection, for each `connection` param;
@@ -379,6 +382,14 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - A **From row input** has `fromColumns`: it takes the value from the first of these columns that the rows have. With no columns, the tab asks the analyst for it.
 - A preset with every input fixed is a bookmark.
 - Values are validated when a run starts, not when the preset is saved.
+
+**Preset pivots.** A preset can pivot when it has From row inputs and each has columns. The grid's [Pivot ▸ menu](#action-pivots) offers it when every target row has one of each input's columns.
+
+- Each input takes the first non-empty column of its `fromColumns` in each row: the first match wins.
+- A many-valued param takes the distinct values of the rows.
+- A single-valued param takes the value the rows agree on. When they differ, the menu item is disabled with the tooltip "The N selected rows have different {Title} values".
+- A required param left unset is missing, as when the server resolves a pivot. The child tab sets `pivotMissing` and waits.
+- The other params come from the action's defaults and the preset's fixed values, as when [opening a preset](#the-tab-and-new-menu).
 
 **Save….** The action tab header opens the Save dialog (`SavePresetDialog`).
 
