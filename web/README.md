@@ -330,6 +330,7 @@ Two more pieces live beside it.
   - `PresetMoreMenu` is a preset's ⋯: Open, Edit… (owner; the dialog starts from `presetValues`, the preset's params and fixed values, not the action's defaults), Duplicate, Share with everyone or Make private (owner), Delete… with a confirm (owner), Hide or Unhide (others).
   - `usePresetsStore` (`features/presets`) holds the presets, and the menu refetches them each time it opens. Its calls go through `lib/api/presets.ts`.
   - `SavePresetDialog` (`features/presets`) is opened by Save… in the action tab header, and by Edit….
+    - On a tab with a `presetId`, Save… refetches the presets first; if that fails it opens `PresetsLoadErrorDialog`, with Retry, instead.
     - Its fields and its preview show an unset value as a placeholder for the param's type, e.g. `<number>`.
     - The preview lists every param of the action.
 - Views and Queries submenus: a root `TemplateQueryResult`. It is not run.

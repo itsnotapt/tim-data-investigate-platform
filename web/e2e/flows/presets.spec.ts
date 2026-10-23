@@ -92,3 +92,33 @@ test('an analyst saves, shares, edits and deletes a preset, and another hides an
   await bob.page.getByRole('button', { name: 'Hidden', exact: true }).click();
   await expect(menu.getByText(name, { exact: true })).toBeHidden();
 });
+
+test("Save… on a preset's tab says when the presets can't be loaded, and retries", async ({
+  page,
+  idPrefix,
+}) => {
+  const name = `${idPrefix} Retry`;
+  await openAction(page, ['Development', 'Rows', 'Sign-ins']);
+  await page.getByRole('button', { name: 'Save…' }).click();
+  await page
+    .getByRole('dialog', { name: 'Save preset' })
+    .getByLabel('Name', { exact: true })
+    .fill(name);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('heading', { name })).toBeVisible();
+
+  let failing = true;
+  await page.route('**/api/presets', (route) =>
+    failing && route.request().method() === 'GET'
+      ? route.fulfill({ status: 503, body: 'down' })
+      : route.continue(),
+  );
+  await page.getByRole('button', { name: 'Save…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Save preset' });
+  await expect(dialog.getByText(/Couldn't load your presets/)).toBeVisible();
+  await expect(dialog.getByLabel('Name', { exact: true })).toBeHidden();
+
+  failing = false;
+  await dialog.getByRole('button', { name: 'Retry' }).click();
+  await expect(dialog.getByRole('button', { name: `Update "${name}"` })).toBeVisible();
+});

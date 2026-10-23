@@ -382,6 +382,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
   - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
 - After saving, the tab takes the preset's name and `presetId`.
+- On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
 
 **Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
 

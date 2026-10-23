@@ -16,7 +16,7 @@ import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
-import { SavePresetDialog, usePresetsStore } from '../presets';
+import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
@@ -142,8 +142,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // The inner tab the analyst picked, held until the run changes: a run starts, gets its id or ends.
   const runKey = `${actionState?.run?.runId ?? ''}:${String(actionState?.isExecuting ?? false)}`;
   const [picked, setPicked] = useState<{ tab: InnerTab; runKey: string } | null>(null);
-  // Save…: the preset the tab came from or was saved as, once the presets are fresh.
-  const [saving, setSaving] = useState<{ source: Preset | undefined } | null>(null);
+  // Save…: the preset the tab came from or was saved as, once the presets are fresh, or why they
+  // couldn't be loaded.
+  const [saving, setSaving] = useState<{ source?: Preset } | { error: string } | null>(null);
 
   if (tab?.componentName !== 'ActionResult') return null;
   const { state, params } = tab;
@@ -198,9 +199,14 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     if (copy) void navigate(`/view/${copy}`);
   };
   const openSave = async () => {
+    const { presetId } = params;
+    if (!presetId) {
+      setSaving({});
+      return;
+    }
     await usePresetsStore.getState().refresh();
-    const source = usePresetsStore.getState().presets.find((p) => p.presetId === params.presetId);
-    setSaving({ source });
+    const { error, presets } = usePresetsStore.getState();
+    setSaving(error ? { error } : { source: presets.find((p) => p.presetId === presetId) });
   };
   const saved = (preset: Preset) => {
     useTabsStore.getState().updateParams(uuid, { presetId: preset.presetId });
@@ -306,7 +312,14 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           Clone
         </Button>
       </Box>
-      {saving && action && (
+      {saving && 'error' in saving && (
+        <PresetsLoadErrorDialog
+          error={saving.error}
+          onRetry={() => void openSave()}
+          onClose={() => setSaving(null)}
+        />
+      )}
+      {saving && !('error' in saving) && action && (
         <SavePresetDialog
           action={action}
           params={params.params}
