@@ -1,8 +1,7 @@
 import type { CellKeyDownEvent, GridApi } from 'ag-grid-community';
 import type { ExtraMenuItems, GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import { targetIds, targetRows, whyUnlabellable, type LabelledRow } from '../labels';
-
-export type AnnotateMode = 'annotate' | 'comment';
+import type { AnnotateMode } from './annotateLogic';
 
 export interface AnnotateMenuOptions {
   /** The action takes its rows' id from an Id column param. */

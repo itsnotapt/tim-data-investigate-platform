@@ -85,7 +85,7 @@ interface OpenDialog {
   rowTags: string[];
 }
 
-/** The tags on the grid's rows, on the most rows first. */
+/** The tags on the grid's rows, on the most rows first, ties in code-point order. */
 function tagsOnRows(api: GridApi<GridRowWithId>): string[] {
   const counts = new Map<string, number>();
   api.forEachNode((node) => {
@@ -94,7 +94,9 @@ function tagsOnRows(api: GridApi<GridRowWithId>): string[] {
       counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
   });
-  return [...counts].sort(([, m], [, n]) => n - m).map(([tag]) => tag);
+  return [...counts]
+    .sort(([a, m], [b, n]) => n - m || (a < b ? -1 : a > b ? 1 : 0))
+    .map(([tag]) => tag);
 }
 
 /**

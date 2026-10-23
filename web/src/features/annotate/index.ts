@@ -4,9 +4,9 @@ import { commentsColumnDef, commentTextColumnDef, tagsColumnDef } from './annota
 export { AnnotateDialog } from './AnnotateDialog';
 export type { AnnotateDialogProps } from './AnnotateDialog';
 export { buildAnnotateMenu, makeAnnotateKeys } from './annotateMenu';
-export type { AnnotateMenuOptions, AnnotateMode } from './annotateMenu';
+export type { AnnotateMenuOptions } from './annotateMenu';
 export { reachOf, savedMessage } from './annotateLogic';
-export type { Reach } from './annotateLogic';
+export type { AnnotateMode, Reach } from './annotateLogic';
 export {
   COMMENT_TEXT_COLUMN_ID,
   COMMENTS_COLUMN_ID,

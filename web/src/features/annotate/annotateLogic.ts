@@ -1,6 +1,9 @@
 import type { Annotations, AnnotationsChange, InstanceLabel, TagSuggestions } from '../../lib/api';
 import { shownLabel } from '../labels/labels';
 
+/** What the Annotate dialog edits: tags and a comment, or the comment alone. */
+export type AnnotateMode = 'annotate' | 'comment';
+
 const count = (n: number) => n.toLocaleString('en-US');
 const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
 
@@ -210,7 +213,7 @@ export function suggestionGroups(
 }
 
 /** The toast after a saved change that changed `changed` ids. */
-export function savedMessage(mode: 'annotate' | 'comment', changed: number): string {
+export function savedMessage(mode: AnnotateMode, changed: number): string {
   if (changed === 0) return 'Nothing to change';
   const ids = plural(changed, 'id', 'ids');
   return mode === 'comment' ? `Commented on ${ids}` : `Annotated ${ids}`;

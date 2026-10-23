@@ -29,6 +29,7 @@ import {
   suggestionGroups,
   tagChips,
   undoRemoval,
+  type AnnotateMode,
   type Reach,
   type TagChip,
   type TagEdits,
@@ -36,7 +37,7 @@ import {
 
 export interface AnnotateDialogProps {
   /** `annotate`: label, tags and comment (Annotate…); `comment`: the comment only (Comment…). */
-  mode: 'annotate' | 'comment';
+  mode: AnnotateMode;
   /** The distinct `id`s the change is for. */
   targets: readonly string[];
   reach: Reach;
@@ -162,15 +163,15 @@ export function AnnotateDialog({
 
   useEffect(() => {
     if (!tagging) return;
-    let current = true;
+    let live = true;
     const timer = setTimeout(() => {
       getTagSuggestions(input.trim(), call).then(
-        (s) => current && setSuggested(s),
-        () => current && setSuggested(NO_SUGGESTIONS),
+        (s) => live && setSuggested(s),
+        () => live && setSuggested(NO_SUGGESTIONS),
       );
     }, SUGGEST_DELAY_MS);
     return () => {
-      current = false;
+      live = false;
       clearTimeout(timer);
     };
   }, [input, tagging, call]);
