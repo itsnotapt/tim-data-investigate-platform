@@ -60,6 +60,8 @@ export interface KustoQueryParams {
 export interface ActionParams {
   action: string;
   params: Record<string, unknown>;
+  /** The preset the tab was opened from or last saved as, which Save… offers to update. */
+  presetId?: string;
 }
 
 /** Template component params: user inputs plus a full template snapshot (not a reference). */

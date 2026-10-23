@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router';
-import type { CatalogueAction } from '../../lib/api';
+import type { CatalogueAction, Preset } from '../../lib/api';
 import { getDefaultParams } from '../../lib/kql-templates/params';
 import { initialParams } from '../action-tab/paramValues';
 import { useInstanceStore } from '../instance';
 import { defaultNewQuery } from '../kusto-query/defaultQuery';
+import { presetTabParams } from '../presets';
 import { useTabsStore, type TabsStore } from '../tabs';
 import type { QueryTemplate } from './types';
 
@@ -20,6 +21,11 @@ export interface NewQueryActions {
    * connection param that has only one (not run).
    */
   createFromAction: (action: CatalogueAction) => string;
+  /**
+   * New root action tab from a preset of `action`, titled with the preset's name (not run). Its
+   * From row inputs that are unset wait to be filled in.
+   */
+  createFromPreset: (preset: Preset, action: CatalogueAction) => string;
 }
 
 /** Creates tabs from the New menu (W1) and navigates to them. */
@@ -71,5 +77,22 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
     },
     [store, navigate],
   );
-  return { createAdHoc, createFromTemplate, createFromAction };
+  const createFromPreset = useCallback(
+    (preset: Preset, action: CatalogueAction) => {
+      const connections = useInstanceStore.getState().instance?.connections ?? [];
+      const { params, missing } = presetTabParams(preset, action, connections);
+      const uuid = store.getState().createTab({
+        componentName: 'ActionResult',
+        parentUuid: null,
+        title: preset.name,
+        params: { action: action.key, params, presetId: preset.presetId },
+      });
+      if (Object.keys(missing).length > 0)
+        store.getState().updateState(uuid, { pivotMissing: missing });
+      void navigate(`/view/${uuid}`);
+      return uuid;
+    },
+    [store, navigate],
+  );
+  return { createAdHoc, createFromTemplate, createFromAction, createFromPreset };
 }

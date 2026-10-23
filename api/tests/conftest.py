@@ -111,8 +111,8 @@ async def storage(request: pytest.FixtureRequest) -> AsyncIterator[Storage]:
         async with engine.begin() as conn:
             await conn.execute(
                 text(
-                    "TRUNCATE query_templates, query_runs, runs, run_rows, id_state, "
-                    "label_changes, tags, comments"
+                    "TRUNCATE query_templates, query_runs, runs, run_rows, presets, preset_hidden, "
+                    "id_state, label_changes, tags, comments"
                 )
             )
             await conn.execute(text("UPDATE annotation_clock SET version = 0"))

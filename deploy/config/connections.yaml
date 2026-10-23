@@ -1,0 +1,9 @@
+# The connections file (docs/actions.md#connections-file). Every connection below is commented
+# out. Read when TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml.
+#
+# - name: samples
+#   title: Samples (help cluster)
+#   type: kusto
+#   auth: obo
+#   cluster: https://help.kusto.windows.net
+#   databases: [Samples]

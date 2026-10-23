@@ -27,6 +27,14 @@ COPY tim-actions/src ./tim-actions/src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
+# The constraints derived images install providers against (ADR-0021): every locked dependency,
+# plus tim-api and tim-actions pinned to their installed versions so a provider for another
+# tim-actions major fails to resolve.
+RUN uv export --locked --no-dev --no-hashes --no-header --no-emit-workspace \
+        --output-file constraints.txt \
+ && /app/.venv/bin/python -c "from importlib.metadata import version; \
+print(*(f'{d}=={version(d)}' for d in ('tim-api', 'tim-actions')), sep='\n')" >> constraints.txt
+
 
 FROM mirror.gcr.io/library/python:3.12-slim-trixie AS runtime
 
@@ -34,10 +42,18 @@ RUN groupadd --system --gid 10001 tim \
  && useradd --system --uid 10001 --gid tim --no-create-home --shell /usr/sbin/nologin tim
 
 COPY --from=builder --chown=tim:tim /app/.venv /app/.venv
+# Derived images: `uv pip install --python /app/.venv/bin/python -c /app/constraints.txt <packages>`
+# (docs/deployment.md). The tim user has no home, so uv runs without a cache.
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /bin/
+COPY --from=builder /app/constraints.txt /app/constraints.txt
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_CACHE=1 \
+    UV_PYTHON_DOWNLOADS=never
 
 WORKDIR /app
 # Migrations: `docker run ... alembic upgrade head` (alembic.ini + migrations/ live in /app).

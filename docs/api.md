@@ -47,6 +47,12 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | PUT | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404 | Replace the editable fields. |
 | PATCH | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404 | Apply a JSON Patch (RFC 6902). |
 | DELETE | `/api/templates/queries/{uuid}` | 204 | 400, 401, 404 | Soft delete (idempotent). |
+| GET | `/api/presets` | 200 | 400, 401 | List your presets and the shared ones. |
+| POST | `/api/presets` | 201 | 400, 401, 422 | Create a preset. |
+| PUT | `/api/presets/{presetId}` | 200 | 400, 401, 403, 404, 422 | Replace a preset (owner only). |
+| DELETE | `/api/presets/{presetId}` | 204 | 400, 401, 403, 404 | Delete a preset for good (owner only). |
+| PUT | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Hide a preset for yourself (idempotent). |
+| DELETE | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Unhide a preset for yourself (idempotent). |
 | POST | `/api/taggedevents/savedEvents` | 204 | 400, 401, 502 | Save events (rows) to `SavedEvent`. |
 | POST | `/api/taggedevents/tags` | 204 | 400, 401, 502 | Add or remove tags in `EventTag`. |
 | POST | `/api/taggedevents/comments` | 204 | 400, 401, 502 | Add or remove comments in `EventComment`. |
@@ -76,13 +82,13 @@ Every non-2xx response has this body:
 | 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
-| 403 | `forbidden` | Kusto denied the user access to the cluster or database. |
-| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. |
+| 403 | `forbidden` | Kusto denied the user access to the cluster or database. Or a change to a preset the caller does not own. |
+| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. An unknown preset, or someone else's private one. |
 | 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action (`errors.action`) or an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -457,6 +463,61 @@ Query parameters: `since` (datetime; only templates with `updated` strictly afte
 | `isDeleted` | boolean | Read-only except through PATCH. |
 | `updated` | datetime | Server-set, millisecond precision. |
 | `createdBy`, `updatedBy` | string | Server-set. |
+
+## Presets
+
+Base path `/api/presets`. A preset is an action with some params fixed and the rest filled in by the analyst or from rows ([GLOSSARY.md](../GLOSSARY.md)). A preset is private to its owner, or shared with everyone.
+
+### GET /api/presets
+
+Returns an array of `Preset`: the caller's own presets and the shared ones, oldest first (`createdAt`, then `presetId`). `owned` is whether the caller owns it, and `hidden` whether they hid it.
+
+### POST, PUT, DELETE
+
+- `POST` body is `PresetFields`. The server assigns `presetId`, `owner` (from the token), `createdAt` and `updatedAt`. It returns `201` with the `Preset`.
+- `PUT` body is `PresetFields`. It replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept. Last write wins.
+- `DELETE` deletes the preset for good, with every analyst's hidden mark on it. Only the owner can. `204`.
+- Errors:
+  - `404` for an unknown preset, or someone else's private one.
+  - `403` for a `PUT` or `DELETE` on a preset the caller does not own.
+  - `422` for an `action` that is not in the catalogue (`errors.action`), or an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`).
+- Param values are not checked here. They are validated when a run starts.
+
+### PUT, DELETE /api/presets/{presetId}/hidden
+
+- `PUT` hides the preset for the caller only, and `DELETE` unhides it. Both are idempotent and return `204`.
+- Any preset the caller can see can be hidden, their own included.
+- `404` for an unknown preset, or someone else's private one.
+
+### Preset
+
+`PresetFields` has the writable fields below. `Preset` adds the server-set ones.
+
+| Field | Type | Rules |
+|---|---|---|
+| `presetId` | uuid | Server-set. |
+| `name` | string | Not blank. |
+| `menuPath` | string[] | Menu folders, none blank. Default `[]`. |
+| `owner` | string | Server-set, from the token. |
+| `visibility` | `private` \| `shared` | Default `private`. |
+| `owned` | boolean | Server-set: whether the caller owns it. |
+| `hidden` | boolean | Server-set: whether the caller hid it. |
+| `action` | string | An action key in the catalogue. |
+| `params` | map | Param values by name. Default `{}`. Not validated until a run starts. |
+| `inputs` | array of `PresetInput` | Default `[]`. |
+| `createdAt`, `updatedAt` | datetime | Server-set. |
+
+### PresetInput
+
+An input names a param of the preset's action that declares `from_columns`, and takes its type from that param. The boolean `fixed` tells the two shapes apart: a fixed input and a From row input ([GLOSSARY.md](../GLOSSARY.md)).
+
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string | The param's name. Not blank. |
+| `source` | `param` | |
+| `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
+| `value` | JSON | Fixed only: the value saved with the preset. |
+| `fromColumns` | string[] | From row only: the columns to read, in order. The input takes the first one the rows have. With none, the form asks for the value. |
 
 ## Tagged events
 
