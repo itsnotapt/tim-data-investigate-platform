@@ -2,12 +2,15 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>;
 
-/** `localStorage` key of the recent pivots: a JSON list of action keys, the latest first. */
+/**
+ * `localStorage` key of the recent pivots: a JSON list of their keys (`recentPivotKey`), the
+ * latest first.
+ */
 export const RECENT_PIVOTS_KEY = 'tim-recent-pivots';
 const KEEP = 3;
 
 interface RecentPivotsState {
-  /** Keys of the actions of the analyst's last pivots, the latest first. */
+  /** Keys of the actions and presets of the analyst's last pivots, the latest first. */
   keys: readonly string[];
   record: (key: string) => void;
 }

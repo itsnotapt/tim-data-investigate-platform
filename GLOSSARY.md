@@ -109,7 +109,7 @@ A query template whose fields are filled from grid rows, offered as a pivot in t
 A template input filled from the clicked or selected grid rows when pivoting.
 
 **Pivot**:
-Running an action or a query template from a grid row's context menu, with its params filled from the clicked or selected rows. It opens a child tab under the tab it came from.
+Running an action, a preset or a query template from a grid row's context menu, with its params filled from the clicked or selected rows. It opens a child tab under the tab it came from.
 _Avoid_: drill-down
 
 **Managed template**:
