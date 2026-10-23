@@ -64,7 +64,7 @@ Key points:
 - Templates are rendered to KQL in the browser. The API receives the final KQL text.
 - Queries run on the API. It exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run. The SPA polls the query run.
 - Tag data is written through the API, as the app identity. It is read back with KQL, inside the user's own queries.
-- Labels are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
+- Labels, tags and comments are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
 
 ## Web architecture
 
@@ -84,7 +84,7 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `column-views`, `tagging`, `share`, `export-import` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `tagging`, `share`, `export-import` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
@@ -177,6 +177,7 @@ Besides the common fields, an action tab's state holds:
 4. **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
    - **Template pivot.** The params come from the template's `fields`. It creates a child template tab with a template snapshot, and runs it when the data is complete.
    - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
+   - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
 5. **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query using `{{> getTagEvents}}` returns the updated `TagEvent` column.
 
 An action tab runs differently:
@@ -343,12 +344,14 @@ The tree shows an action tab's status like any tab's:
 The results grid's right-click menu has **Pivot ▸**. Its targets are the selected rows. Right-clicking a row outside the selection selects just that row.
 
 - **Menu.**
-  - A disabled "Recent" heading and the analyst's last three pivots come first, named by their full menu path. They are kept in localStorage under `tim-recent-pivots`. A separator follows, then the actions by menu path.
+  - A disabled "Recent" heading and the analyst's last three pivots come first, named by their full menu path. They are kept in localStorage under `tim-recent-pivots`: an action by its key, a preset as `preset:<presetId>`. A separator follows, then the actions and presets in one tree of folders, actions first in each folder, as in the New menu.
   - It lists the actions whose `pivot` is not `null` and whose every pivot column group has a column in every target row.
-  - The item is omitted when no action applies.
-  - An action with `rows: "row"` is disabled, with the tooltip "Takes one row", when several rows are targeted.
-  - The whole item is disabled over `limits.maxPivotRows` rows, with the tooltip "At most 100 rows; 2,500 selected".
-- **Resolve.** Choosing an action sends `POST /api/actions/{key}/resolve` ([api.md](api.md#post-apiactionskeyresolve)). The rows hold the target rows' values, trimmed to the action's pivot columns and its params' `fromColumns`. The right-clicked cell is sent when its column is one of them.
+  - It lists the presets that [pivot from the rows](#presets-and-column-views). Hidden presets, and presets of an action not in the catalogue, are left out.
+  - The item is omitted when nothing applies.
+  - An action with `rows: "row"` is disabled, with the tooltip "Takes one row", when several rows are targeted. Presets have no such limit.
+  - The whole item is disabled over `limits.maxPivotRows` rows, for actions and presets alike, with the tooltip "At most 100 rows; 2,500 selected".
+  - `useActionPivotMenu` loads the presets store when it has not loaded yet.
+- **Resolve.** Choosing a preset resolves in the browser instead ([Preset pivots](#presets-and-column-views)). Choosing an action sends `POST /api/actions/{key}/resolve` ([api.md](api.md#post-apiactionskeyresolve)). The rows hold the target rows' values, trimmed to the action's pivot columns and its params' `fromColumns`. The right-clicked cell is sent when its column is one of them.
 - **Child tab.** It is an action tab under the current tab, created in the background, so focus stays on the parent. Its params are:
   - the action's defaults;
   - the only connection, for each `connection` param;
@@ -381,6 +384,15 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - A preset with every input fixed is a bookmark.
 - A **query parameter** input has a name and a `type`, and is fixed or From row like a param. It is allowed only on an action with a `json` param named `parameters`, which is Run KQL. The preset's `parameters` value is built from these inputs.
 - Values are validated when a run starts, not when the preset is saved.
+
+**Preset pivots.** A preset can pivot when it has From row inputs and each has columns. The grid's [Pivot ▸ menu](#action-pivots) offers it when every target row has one of each input's columns.
+
+- Each input takes the first non-empty column of its `fromColumns` in each row: the first match wins.
+- A many-valued param, or a `dynamic` query parameter, takes the distinct values of the rows.
+- Any other input takes the value the rows agree on. When they differ, the menu item is disabled with the tooltip "The N selected rows have different {Title} values". A query parameter's title is its name.
+- A query parameter's value goes in its `parameters` entry.
+- A required param left unset is missing, as when the server resolves a pivot, and so is a query parameter left without a value, by its pill's name (`parameters.<name>`). The child tab sets `pivotMissing` and waits.
+- The other params come from the action's defaults and the preset's fixed values, as when [opening a preset](#the-tab-and-new-menu).
 
 **Save….** The action tab header opens the Save dialog (`SavePresetDialog`).
 
@@ -421,9 +433,9 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - **Starting.** Bootstrap (`web/src/app/useBootstrap.ts`) starts the poller once the instance is loaded, with the instance's `limits.annotationPollSeconds`.
 - **A new browser** starts at cursor `0` and reads the whole feed.
 
-### Grid tagging
+### Grid annotating
 
-An action tab's grid labels rows by `id` ([ADR-0006](adr/0006-ag-grid-enterprise.md): the context menu is the only UI for it). The code is in `web/src/features/labels/` and `features/action-tab/ActionResultsGrid.tsx`.
+An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0006-ag-grid-enterprise.md): the context menu is the only UI for it). The code is in `web/src/features/labels/`, `web/src/features/annotate/` and `features/action-tab/ActionResultsGrid.tsx`.
 
 - **How a row shows its label.**
   - The row's fill, a stripe on its left edge and a symbol in the selection column.
@@ -431,17 +443,31 @@ An action tab's grid labels rows by `id` ([ADR-0006](adr/0006-ag-grid-enterprise
   - A stored key that the labels file no longer lists shows grey, as its bare key, with no symbol.
   - Every row with the same `id` shows it, in any tab.
 - **The Label column.** Column `tim:label` holds the label's name. It is hidden until the analyst shows it, and it has a set filter and can be grouped.
+- **Comments column.** Column `tim:comments` is shown. It has a comment icon and the count, and the latest comment, with its author, as the tooltip.
+- **Hidden columns.** The analyst can show two more.
+  - **Tags** (`tim:tags`) holds the row's tags. Its set filter lists each tag once, plus "(no tags)", and it can be grouped.
+  - **Comment text** (`tim:commentText`) holds the text of the row's comments, and has a text filter.
 - **Label ▸.** The right-click menu has a **Label** submenu for the selected rows, or for the clicked row when none is selected.
   - It lists the instance's labels in file order, each with a colour swatch and its key 1 to 9.
   - A label is checked when every target row with an `id` has it.
   - **Clear label** (0) comes last.
+- **Annotate… and Comment….** The menu has both after **Label ▸**, for the same target rows.
+  - **Annotate…** (T) opens the Annotate dialog. It saves the label, the tags and a comment as one change.
+  - **Comment…** (C) opens the same dialog with the comment only.
+  - They are disabled, with the reason as a tooltip, in the same cases as **Label ▸** (see Targets).
+- **The Annotate dialog.**
+  - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
+  - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
+  - **Suggestions.** From `GET /api/tags/suggestions`, in the groups "Your recent tags" and "Most used".
+  - **Comment.** A text field. It is added to every target.
+  - **Save.** Sends one `PATCH /api/annotations`. Ctrl or Cmd+Enter saves. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
-- **Number keys.** 1 to 9 set the label at that place in the list, and 0 clears it. They act on the selected rows, or the focused row when none is selected. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
+- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
 - **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
   - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";
   - no target row has an `id`, and the action has no such param: "No id: this action gives its rows no id".
-- **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it.
+- **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it. The Annotate dialog's own save reports "Annotated N ids", "Commented on N ids" or "Nothing to change".
   - "Labelled 3 ids Malicious", or "Cleared the label of 3 ids". Ids that already had the label are left out of the count.
   - "Already Malicious" or "No labels to clear" when nothing changed.
   - A failure shows "Couldn't label: …".
@@ -529,7 +555,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check` |
-| `annotations/` | `/api/annotations` routes (`router.py`) and the `Annotations` models |
+| `annotations/` | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
 | `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
@@ -951,24 +977,34 @@ The wire shape is the same everywhere: `Annotations = {id, label: {key, by, at} 
 
 **A change** (`PATCH /api/annotations`) checks the body, then writes in one transaction:
 
-1. It answers `422` for a label key the instance doesn't have, for more than `TIM_MAX_ANNOTATION_IDS` distinct ids, and for a body that changes nothing.
+1. It answers `422` for a label key the instance doesn't have, for more than `TIM_MAX_ANNOTATION_IDS` distinct ids, for a body that changes nothing, and for an invalid tag or comment ([api.md](api.md#patch-apiannotations)). Tags and the comment are trimmed.
 2. It takes the next version first: `UPDATE annotation_clock SET version = version + 1 RETURNING version`. The lock on that row queues concurrent writers, so the versions are gapless and in commit order.
-3. It finds the ids whose label differs from the one asked for.
-4. For those it upserts `id_state`, with the label, who set it (from the token), when, and the version, and adds a row to `label_changes`.
-5. It answers with the changed ids' annotations and the version.
+3. It finds the ids that change: those whose label differs from the one asked for, those that gain or lose a tag, and, for a comment, all of them. `setTags` gains and loses the difference from the current tags.
+4. For those it upserts `id_state` with the version.
+5. For a changed label it sets the label, who set it (from the token) and when in `id_state`, and adds a row to `label_changes`.
+6. It inserts the added tags into `tags` and deletes the removed ones. It inserts the comment into `comments`, with the author from the token.
+7. It answers with the changed ids' annotations and the version.
 
 A change that changes nothing rolls back. It takes no version, writes no history and answers `changes: []` with the current version.
 
 **State and history.**
 
 - `id_state` has one row per `id` that was ever labelled. Clearing a label keeps the row, with `label: null`, so the removal reaches other browsers through the feed.
-- `label_changes` keeps every change: the label, who changed it, when, and the version.
+- `label_changes` keeps every label change: the label, who changed it, when, and the version.
+- `tags` keeps the current tags of each `id`. A removed tag is deleted, with no history.
+- `comments` keeps every comment. Comments are never removed.
 
 **The change feed** (`GET /api/annotations/changes?since=V`) gives the `id`s whose `id_state.version` is above `V`, as they now are, in version order.
 
 - A page ends after a whole version, so it holds at least 1,000 `id`s unless the feed ends there, and more when its last change touches more.
 - `next` is the version of the page's last change, and the `since` for the next request. `hasMore` says whether more follow.
 - Because versions are gapless and in commit order, a reader that has read up to `V` never misses a lower version that commits later.
+
+**Tag suggestions.** `GET /api/tags/suggestions?prefix=` reads `tags`, matching the prefix ignoring case.
+
+- `recent` is the tags the caller added, the most recently added first.
+- `mostUsed` is the other tags, on the most `id`s first. A tag the caller added is only in `recent`.
+- Each list has at most 10 tags.
 
 **Rows.** `GET /api/runs/{runId}/rows` adds the annotations of its page's `id`s (`annotations`, by `id`) and `annotationVersion`, the version read before them, so the annotations are never older than it.
 
@@ -1012,7 +1048,7 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
 
 - **Identity** comes from the validated token only. The API ignores `requestedBy`, `createdBy`, `updatedBy`, `updated` and `dateTimeUtc` sent by a client. The SPA also strips them.
 - **Runs and query runs are owner-scoped.** Another user's run id is indistinguishable from an unknown one (`404`).
-- **Annotations are instance-wide.** Every signed-in analyst reads and changes the labels of every `id`. The author of a change comes from the token.
+- **Annotations are instance-wide.** Every signed-in analyst reads and changes the labels, tags and comments of every `id`. The author of a change comes from the token.
 - **A run reaches only the connections in the connections file**, whose endpoints the operator chose.
   - Analysts never name an endpoint, so the API cannot be used to forward user tokens to arbitrary hosts.
   - Hooks get a `token_for(scope)` callable and never see the analyst's token.

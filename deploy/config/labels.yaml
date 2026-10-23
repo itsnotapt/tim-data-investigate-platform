@@ -1,0 +1,5 @@
+# The labels file (docs/actions.md#labels-file). It needs at least one label, so it lists the
+# default labels: pointing TIM_LABELS_FILE=/etc/tim/labels.yaml at it as shipped changes nothing.
+- {key: malicious, name: Malicious, colour: red, symbol: skull}
+- {key: suspicious, name: Suspicious, colour: amber, symbol: warning}
+- {key: benign, name: Benign, colour: green, symbol: check}

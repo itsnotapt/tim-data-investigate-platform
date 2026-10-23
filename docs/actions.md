@@ -295,6 +295,15 @@ docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connect
   - Regenerate them when the image's providers change.
 - **In CI:** run `tim-api check --actions <dir> --connections <file> --labels <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections, <k> labels`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
 
+## Building and deploying
+
+Files and providers reach an instance as follows.
+
+- **Providers.** Build a [derived image](deployment.md#derived-images): the backend image with the providers installed. Tag it `<tim version>-<revision>`, and rebuild it on each TIM release.
+- **Compose.** Put the files in `TIM_CONFIG_DIR` and name them with `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` ([deployment.md](deployment.md#instance-files)). Set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` for a derived image.
+- **Before you deploy.** Run `tim-api check` in the image you deploy ([Checking files](#checking-files)).
+- **After a change.** The api reads the files at startup, so restart it.
+
 ## Writing file-capable action types
 
 An action type can be written as files when it sets `type_name` and a `File` model, a subclass of `tim_actions.ActionDocument` with the action type's own fields. A field annotated `Sidecar()` takes a sidecar.
@@ -374,3 +383,5 @@ def provider() -> Provider:
 ```
 
 The files must be in the package's wheel, as `acme_tim/actions/*.yaml`. A provider's files can name any installed action type, not only its own.
+
+Depend on `tim-actions` as `>=1,<2`. An instance installs the provider in a derived image ([Building and deploying](#building-and-deploying)).

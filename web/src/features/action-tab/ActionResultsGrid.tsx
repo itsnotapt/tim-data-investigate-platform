@@ -8,6 +8,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
+import { annotationColumnDefs, useAnnotating } from '../annotate';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -55,7 +56,7 @@ export type ActionResultsGridProps = Omit<
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
   runColumns?: readonly RunColumn[] | null;
-  /** More context menu items, after Label ▸ and Show details. */
+  /** More context menu items, after Label ▸, Annotate…, Comment… and Show details. */
   getContextMenuItems?: GetExtraContextMenuItems;
 };
 
@@ -65,7 +66,8 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
- * `id`: the label's fill, stripe and symbol, the hidden Label column, Label ▸ and the number keys.
+ * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
+ * text columns, Label ▸, Annotate…, Comment… and their keys.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  */
@@ -88,7 +90,11 @@ export function ActionResultsGrid({
   );
   const notifyContext = useContext(NotifyContext);
   const columnDefs = useMemo(
-    () => [...buildActionColumnDefs(declaredColumns, runColumns), labelColumnDef(labels)],
+    () => [
+      ...buildActionColumnDefs(declaredColumns, runColumns),
+      ...annotationColumnDefs(),
+      labelColumnDef(labels),
+    ],
     [declaredColumns, runColumns, labels],
   );
   // The grid is given `given` as its row data; rows that continue them go in by transaction, so a
@@ -157,31 +163,45 @@ export function ActionResultsGrid({
     }),
     [labels, max, idParam, notifyContext],
   );
+  const {
+    menu: annotateMenu,
+    keys: annotateKeys,
+    dialog,
+  } = useAnnotating({ labels, max, idParam, rowsById: index });
   const menu = useMemo(
-    () => [buildLabelMenu(labelling), ...(getContextMenuItems ? [getContextMenuItems] : [])],
-    [labelling, getContextMenuItems],
+    () => [
+      buildLabelMenu(labelling),
+      annotateMenu,
+      ...(getContextMenuItems ? [getContextMenuItems] : []),
+    ],
+    [labelling, annotateMenu, getContextMenuItems],
   );
-  const keys = useMemo(() => makeLabelKeys(labelling), [labelling]);
+  const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(
     (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
-      if ('column' in e) keys(e);
+      if (!('column' in e)) return;
+      labelKeys(e);
+      annotateKeys(e);
     },
-    [keys],
+    [labelKeys, annotateKeys],
   );
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
-    <ResultsGrid
-      {...rest}
-      stateKey={uuid}
-      rows={given}
-      columnId={ROW_ID}
-      columnDefs={columnDefs}
-      getContextMenuItems={menu}
-      rowClassRules={rowClassRules}
-      selectionSymbol={LabelSymbol}
-      onCellKeyDown={onCellKeyDown}
-      onGridReady={ready}
-    />
+    <>
+      <ResultsGrid
+        {...rest}
+        stateKey={uuid}
+        rows={given}
+        columnId={ROW_ID}
+        columnDefs={columnDefs}
+        getContextMenuItems={menu}
+        rowClassRules={rowClassRules}
+        selectionSymbol={LabelSymbol}
+        onCellKeyDown={onCellKeyDown}
+        onGridReady={ready}
+      />
+      {dialog}
+    </>
   );
 }
 

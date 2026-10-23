@@ -49,7 +49,7 @@ export async function setLabel(
   { store, labels, notify, pollSoon }: LabellingDeps,
 ): Promise<void> {
   try {
-    const { changes } = await changeAnnotations(targets, key);
+    const { changes } = await changeAnnotations({ ids: [...targets], label: key });
     await store.apply(changes, 'own');
     pollSoon();
     const name = key === null ? null : shownLabel(key, labels).name;

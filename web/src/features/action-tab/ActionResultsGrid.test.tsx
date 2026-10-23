@@ -128,7 +128,18 @@ describe('ActionResultsGrid', () => {
       .getColumnState()
       .map((c) => c.colId)
       .filter((id) => !id.startsWith('ag-Grid-'));
-    expect(order).toEqual(['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes', 'tim:label']);
+    expect(order).toEqual([
+      'Timestamp',
+      'User',
+      'Raw',
+      'KiB',
+      'row',
+      'Raw Bytes',
+      'tim:comments',
+      'tim:tags',
+      'tim:commentText',
+      'tim:label',
+    ]);
   });
 
   it('adds the rows of each page that arrives, and replaces rows that are not a continuation', async () => {

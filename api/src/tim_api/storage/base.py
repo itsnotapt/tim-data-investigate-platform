@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from tim_api.annotations.models import Annotations
+from tim_api.annotations.models import Annotations, TagSuggestions
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
@@ -205,11 +205,26 @@ class PresetStore(ABC):
 
 @dataclass(frozen=True)
 class AnnotationEdit:
-    """What one change does to every id it names: with ``set_label``, set the label to ``label``,
-    or clear it when that is ``None``."""
+    """What one change does to every id it names.
+
+    - With ``set_label``, set the label to ``label``, or clear it when that is ``None``.
+    - Add ``add_tags``, then remove ``remove_tags``; or, when ``set_tags`` isn't ``None``, make
+      the tags exactly ``set_tags``.
+    - Append ``comment`` when it isn't ``None``.
+    """
 
     set_label: bool = False
     label: str | None = None
+    add_tags: frozenset[str] = frozenset()
+    remove_tags: frozenset[str] = frozenset()
+    set_tags: frozenset[str] | None = None
+    comment: str | None = None
+
+    def tags_after(self, tags: Collection[str]) -> set[str]:
+        """The tags an id with ``tags`` has after this edit."""
+        if self.set_tags is not None:
+            return set(self.set_tags)
+        return (set(tags) | self.add_tags) - self.remove_tags
 
 
 @dataclass(frozen=True)
@@ -259,6 +274,12 @@ class AnnotationStore(ABC):
     async def changes(self, since: int, limit: int) -> AnnotationChanges:
         """The ids changed after version ``since``: the first ``limit``, and the others of the
         last one's version, so a page always ends after a whole version."""
+
+    @abstractmethod
+    async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:
+        """Up to ``limit`` of the tags ``by`` added that are still on an id, newest first, then
+        up to ``limit`` of the other tags, on the most ids first. A tag matches when it starts
+        with ``prefix``, ignoring case. Ties go in tag order."""
 
 
 class Storage(ABC):

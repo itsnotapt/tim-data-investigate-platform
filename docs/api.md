@@ -34,8 +34,9 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/runs/{runId}` | 200 | 400, 401, 404 | Read a run. |
 | POST | `/api/runs/{runId}/cancel` | 200 | 400, 401, 404 | Cancel a run (idempotent). |
 | GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows, with their annotations. |
-| PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label of `id`s. |
+| PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and comments of `id`s. |
 | GET | `/api/annotations/changes` | 200 | 400, 401 | The change feed: the `id`s changed after a version. |
+| GET | `/api/tags/suggestions` | 200 | 401 | Tags that start with a prefix: the caller's recent ones, then the most used. |
 | POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 502, 503 | The editor schema of a connection, from its connection type's hook. |
 | POST | `/api/kusto/schema` | 200 | 400, 401, 403, 502, 503 | `.show schema as json` for a cluster database. |
 | POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 502, 503 | Start a query run. |
@@ -89,7 +90,7 @@ Every non-2xx response has this body:
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), or no change field (`errors.body`). |
+| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -279,11 +280,15 @@ An `id`'s annotations are shared by every analyst ([architecture.md](architectur
 
 Changes the annotations of every `id` in `ids`, in one transaction under one version.
 
-Body: `{"ids": ["evt-1042", "evt-1043"], "label": "malicious"}`.
+Body: `{"ids": ["evt-1042", "evt-1043"], "label": "malicious", "addTags": ["phishing"], "comment": "Seen on the VPN"}`.
 
 - `ids` has 1 or more `id`s of 1 to 512 characters each. Repeats count once.
 - `label` is the `key` of one of the instance's labels, which sets it. `null` clears the `id`'s label. Leaving it out keeps it.
-- The author is the caller named in the token.
+- `addTags` and `removeTags` are arrays of tags to add to, and remove from, every `id`.
+- `setTags` replaces every `id`'s tags with its array. `[]` clears them. It can't be combined with `addTags` or `removeTags`.
+- A tag is trimmed, and is 1 to 100 characters. A tag can't be in both `addTags` and `removeTags`. A removed tag is deleted.
+- `comment` is appended to every `id`'s comments. It is trimmed, can't be blank and has no length limit.
+- The author of a label, tag or comment is the caller named in the token.
 
 The answer is `200`:
 
@@ -302,7 +307,8 @@ The answer is `200`:
 }
 ```
 
-- `changes` has the `id`s that changed, as they now are, each with the change's `version`. An `id` that already had the asked-for label is left out, and clearing an `id` with no label changes nothing.
+- `changes` has the `id`s that changed, as they now are, each with the change's `version`. An `id` that already had the asked-for label and tags is left out, and clearing an `id` with no label changes nothing.
+- A comment always changes every `id`.
 - A change that changes nothing takes no version and writes no history. It answers `changes: []` and the current `version`.
 - A cleared `id` is in `changes` with `label: null`.
 
@@ -315,7 +321,11 @@ Problems:
   |---|---|
   | `label` | `Unknown label: <key>` for a key that isn't one of the instance's labels. |
   | `ids` | `At most 10,000 ids; 23,412 given`, for more distinct `id`s than `maxAnnotationIds`. |
-  | `body` | `Give at least one change: label`, for a body with no change field. |
+  | `body` | `Give at least one change: label, addTags, removeTags, setTags or comment`, for a body with no change field. |
+  | `setTags` | `setTags can't be combined with addTags or removeTags`. |
+  | `removeTags` | `Both added and removed: <tags>`, for a tag in `addTags` and `removeTags`. |
+  | `addTags`, `removeTags`, `setTags` | `A tag can't be blank`, or `At most 100 characters: <tag>`. |
+  | `comment` | `A comment can't be blank`. |
 
 ### GET /api/annotations/changes
 
@@ -330,6 +340,18 @@ The change feed. Query: `since`, a version from `0`, required.
 - `next` is the version of the page's last change, or `since` for an empty page. Ask again with `since=<next>` while `hasMore` is `true`.
 - An `id` whose annotations were all removed is in the feed, with `label: null`.
 - Versions are gapless and in commit order.
+
+### GET /api/tags/suggestions
+
+Tags that start with a prefix, for the tag editor. Query: `prefix`, optional; it is trimmed and matched ignoring case. Without it, every tag matches.
+
+```json
+{ "recent": ["phishing"], "mostUsed": ["vpn", "lateral-movement"] }
+```
+
+- `recent` has the caller's own tags, the most recently added first.
+- `mostUsed` has the tags of the whole instance, on the most `id`s first. The caller's own tags are left out.
+- Each list has at most 10 tags.
 
 ## Connections
 

@@ -141,7 +141,7 @@ A set value replaces the default rather than adding to it, so keep `**.kusto.win
 | `TIM_DEV_ACTIONS` | `false` | Development only. Registers the actions `tim.dev_json` and `dev_rows`, and the `dev_kql` connection type ([development.md](development.md#development-actions)). Refused when `TIM_ENVIRONMENT=production`. |
 | `TIM_ACTIONS_DIR` | none    | One flat directory of action files ([actions.md](actions.md#action-files)), read once at startup: `*.yaml` and `*.yml`, not recursing, dot-entries skipped. Empty means none. A path that isn't a directory stops startup. |
 
-A problem in any action file stops startup too ([operations.md](operations.md#startup-failures-from-the-files)). Check a directory before deploying it with `tim-api check --actions <dir>` ([operations.md](operations.md#tim-api-check)).
+A problem in any action file stops startup too ([operations.md](operations.md#startup-failures-from-the-files)). Check a directory before deploying it with `tim-api check --actions <dir>` ([operations.md](operations.md#tim-api-check)). Under Compose, the directory sits in `TIM_CONFIG_DIR`, mounted at `/etc/tim` ([deployment.md](deployment.md#instance-files)).
 
 ### Labels and annotations
 
@@ -312,6 +312,9 @@ Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](adr
 | `TIM_AUTH_CLIENT_SECRET`                              | empty                                                      | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
 | `TIM_ALLOWED_KUSTO_HOSTS`                             | empty                                                      | Passed to `migrate` and `api`. Empty uses the api default.                                  |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | empty                                                      | Passed to `web`.                                                                            |
+| `TIM_CONFIG_DIR`                                      | `./deploy/config`                                          | Host directory mounted read-only at `/etc/tim` in the api.                                  |
+| `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE`, `TIM_LABELS_FILE` | empty                                               | Passed to the api: container paths under `/etc/tim`. Empty means none.                      |
+| `TIM_DEV_ACTIONS`                                     | `false`                                                    | Passed to the api. Registers the development actions ([development.md](development.md#development-actions)). |
 
 Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http://api:8080` for `web` and `FORWARDED_ALLOW_IPS=*` for the api; these do not come from `.env`. `TIM_CORS_ALLOWED_ORIGINS` is not passed by the dev stack.
 
@@ -330,6 +333,8 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | `TIM_TAG_DATABASE`                                    | no       | `Research`                    | Passed to the api and, as `TAG_DATABASE`, to `web`.                                            |
 | `TIM_ALLOWED_KUSTO_HOSTS`, `TIM_CORS_ALLOWED_ORIGINS` | no       | empty                         | Passed to `migrate` and `api`.                                                                 |
 | `TIM_LOG_LEVEL`                                       | no       | `INFO`                        | Passed to `migrate` and `api`.                                                                 |
+| `TIM_CONFIG_DIR`                                      | no       | `./config`                    | Host directory mounted read-only at `/etc/tim` in the api; a relative path is from `deploy/`.  |
+| `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE`, `TIM_LABELS_FILE` | no | empty                       | Passed to the api: container paths under `/etc/tim`. Empty means none. See [Instance files](deployment.md#instance-files). |
 | `AGGRID_LICENSE`                                      | no       | empty                         | Passed to `web`. Empty runs AG Grid Enterprise in trial mode.                                  |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | no       | empty                         | Passed to `web`.                                                                               |
 | `WEB_PORT`                                            | no       | `8080`                        | Host port of `web`, the only published port.                                                   |

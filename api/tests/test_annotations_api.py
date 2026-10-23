@@ -1,5 +1,5 @@
-"""``/api/annotations``: labelling ids and the change feed, against every storage
-implementation."""
+"""``/api/annotations``: labelling, tagging and commenting on ids, and the change feed; and
+``/api/tags/suggestions``. Against every storage implementation."""
 
 from __future__ import annotations
 
@@ -115,9 +115,27 @@ async def test_a_change_that_changes_nothing_takes_no_version(
     [
         ({"ids": ["c-1"], "label": "verdict"}, {"label": ["Unknown label: verdict"]}),
         (
-            {"ids": ["c-1"]},
-            {"body": ["Give at least one change: label"]},
+            {"ids": ["c-1"], "addTags": []},
+            {"body": ["Give at least one change: label, addTags, removeTags, setTags or comment"]},
         ),
+        (
+            {"ids": ["c-1"], "setTags": ["c2"], "addTags": ["beacon"]},
+            {"setTags": ["setTags can't be combined with addTags or removeTags"]},
+        ),
+        (
+            {"ids": ["c-1"], "setTags": [], "removeTags": ["beacon"]},
+            {"setTags": ["setTags can't be combined with addTags or removeTags"]},
+        ),
+        (
+            {"ids": ["c-1"], "addTags": ["x" * 101]},
+            {"addTags": [f"At most 100 characters: {'x' * 101}"]},
+        ),
+        ({"ids": ["c-1"], "setTags": ["  "]}, {"setTags": ["A tag can't be blank"]}),
+        (
+            {"ids": ["c-1"], "addTags": ["c2 "], "removeTags": [" c2"]},
+            {"removeTags": ["Both added and removed: c2"]},
+        ),
+        ({"ids": ["c-1"], "comment": " \n "}, {"comment": ["A comment can't be blank"]}),
     ],
 )
 async def test_an_invalid_change_is_a_422(
@@ -164,6 +182,75 @@ async def test_more_distinct_ids_than_max_annotation_ids_is_a_422(
     assert three.status_code == 200
     assert four.status_code == 422
     assert four.json()["errors"] == {"ids": ["At most 3 ids; 4 given"]}
+
+
+def tags_of(body: dict[str, Any]) -> list[tuple[str, list[str]]]:
+    return [(change["id"], change["tags"]) for change in body["changes"]]
+
+
+async def test_tags_are_trimmed_added_and_removed_in_one_change(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "addTags": ["c2", "Beacon"]})
+        response = await env.patch(
+            {
+                "ids": ["c-1", "c-2"],
+                "addTags": [" beacon ", "x" * 100],
+                "removeTags": ["c2"],
+                "label": "malicious",
+            }
+        )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["version"] == 2
+    assert tags_of(body) == [
+        ("c-1", ["Beacon", "beacon", "x" * 100]),
+        ("c-2", ["beacon", "x" * 100]),
+    ]
+    assert [label_of(change) for change in body["changes"]] == [
+        ("c-1", "malicious", ALICE),
+        ("c-2", "malicious", ALICE),
+    ]
+
+
+async def test_set_tags_overrides_each_id_s_tags(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1", "c-2"], "addTags": ["c2", "beacon"]})
+        replaced = (await env.patch({"ids": ["c-1", "c-2"], "setTags": ["beacon", "tor"]})).json()
+        cleared = (await env.patch({"ids": ["c-1"], "setTags": []})).json()
+    assert tags_of(replaced) == [("c-1", ["beacon", "tor"]), ("c-2", ["beacon", "tor"])]
+    assert tags_of(cleared) == [("c-1", [])]
+
+
+async def test_tag_changes_that_change_nothing_take_no_version(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "addTags": ["c2"]})
+        added = (await env.patch({"ids": ["c-1"], "addTags": ["c2"]})).json()
+        removed = (await env.patch({"ids": ["c-1"], "removeTags": ["tor"]})).json()
+        feed = await env.changes(1)
+    assert (added["changes"], added["version"]) == ([], 1)
+    assert (removed["changes"], removed["version"]) == ([], 1)
+    assert feed["changes"] == []
+
+
+async def test_a_comment_is_appended_to_every_id_by_the_caller(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "comment": "first look"})
+        env.as_user(BOB, "oid-b")
+        body = (await env.patch({"ids": ["c-1", "c-2"], "comment": " beacons every 60s \n"})).json()
+    assert [
+        [(c["author"], c["text"]) for c in change["comments"]] for change in body["changes"]
+    ] == [
+        [(ALICE, "first look"), (BOB, "beacons every 60s")],
+        [(BOB, "beacons every 60s")],
+    ]
+    assert body["version"] == 2
+    datetime.fromisoformat(body["changes"][1]["comments"][0]["at"])
 
 
 async def test_the_labels_file_decides_the_keys(
@@ -277,3 +364,31 @@ async def test_annotations_need_a_signed_in_analyst(storage: Storage, auth: Auth
         patched = await env.patch({"ids": ["a"], "label": "benign"})
         feed = await env.client.get("/api/annotations/changes", params={"since": 0})
     assert (patched.status_code, feed.status_code) == (401, 401)
+
+
+async def test_suggestions_are_the_caller_s_recent_tags_then_the_most_used(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        env.as_user(BOB, "oid-b")
+        await env.patch({"ids": ["a", "b", "c"], "addTags": ["beacon"]})
+        await env.patch({"ids": ["a", "b"], "addTags": ["botnet", "c2"]})
+        env.as_user(ALICE, "oid-a")
+        await env.patch({"ids": ["x"], "addTags": ["Bad"]})
+        response = await env.client.get("/api/tags/suggestions", params={"prefix": "b"})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"recent": ["Bad"], "mostUsed": ["beacon", "botnet"]}
+
+
+async def test_without_a_prefix_every_tag_matches(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["a"], "addTags": ["c2", "beacon"]})
+        response = await env.client.get("/api/tags/suggestions")
+    assert response.json() == {"recent": ["beacon", "c2"], "mostUsed": []}
+
+
+async def test_suggestions_need_a_signed_in_caller(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth) as env:
+        del env.client.headers["Authorization"]
+        response = await env.client.get("/api/tags/suggestions", params={"prefix": "b"})
+    assert response.status_code == 401

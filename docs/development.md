@@ -109,7 +109,8 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 | Playwright with `CI` set: `forbidOnly`, 1 retry, 3 workers, HTML report                             | `list` reporter only, no retries                                                              |
 | The e2e job's api on a `postgres:17` service (`TIM_TEST_DATABASE_URL`). The job also runs when `api/` changes | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                  |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
-| `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions           | Needs those tools installed; read the workflow for the exact commands                         |
+| `build-api.yml` `docker-build-api`: builds the api image and runs the derived-image and `deploy/config` checks | Needs Docker; read the workflow for the exact commands |
+| `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions, and the rendered `/etc/tim` mount and variables of both compose files | Needs those tools installed; read the workflow for the exact commands |
 | `lint-workflows.yml`: actionlint and shellcheck on workflows, plus the `.github/scripts` tests     | `python3 -B -m unittest discover -s .github/scripts` (`-B` keeps `__pycache__` out of the tree) |
 
 ## e2e tests
@@ -117,7 +118,8 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 `npm run e2e` in `web/` runs every Playwright flow in `web/e2e/`. `playwright.config.ts` starts two servers:
 
 - **The api**, on the port after Vite's (`E2E_PORT + 1`, default 5181), through `web/e2e/api_server.py` (`uv run --project ../api`).
-  - It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true`, `TIM_ACTIONS_DIR=web/e2e/actions` and `TIM_CONNECTIONS_FILE=web/e2e/connections.yaml`.
+  - It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true`, `TIM_ACTIONS_DIR=web/e2e/actions`, `TIM_CONNECTIONS_FILE=web/e2e/connections.yaml` and `TIM_LABELS_FILE=web/e2e/labels.yaml`.
+  - The dev compose stack runs the same instance with `TIM_CONFIG_DIR=./web/e2e`, `TIM_ACTIONS_DIR=/etc/tim/actions`, `TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml`, `TIM_LABELS_FILE=/etc/tim/labels.yaml` and `TIM_DEV_ACTIONS=true` in `.env`.
   - Its Postgres is `TIM_TEST_DATABASE_URL`. Without it, it is a temporary `pgserver`, deleted when the run ends.
   - The script empties that database and applies the migrations once per run. So never point `TIM_TEST_DATABASE_URL` at a database you want to keep.
 - **Vite**, on `E2E_PORT` (default 5180), with `VITE_AUTH_STUB=true`. It proxies `/api` to that api (`TIM_API_PROXY_TARGET`).
@@ -190,7 +192,7 @@ There are two actions:
 To use them with the main loop, uncomment `TIM_DEV_ACTIONS` and `TIM_ACTIONS_DIR` in `api/.env`.
 
 - The actions in `web/e2e/actions` are the e2e scenarios.
-- The dev `compose.yaml` carries the same variables, commented out.
+- The dev `compose.yaml` takes `TIM_DEV_ACTIONS` and the instance file paths from the root `.env`, and mounts `TIM_CONFIG_DIR` (default `deploy/config`) at `/etc/tim` ([deployment.md](deployment.md#instance-files)).
 
 ## The uv workspace
 
@@ -274,7 +276,7 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
 | Workflow | Paths |
 |---|---|
 | `build-web.yml` | `web/`, the workflow file, and `.editorconfig`, which Prettier reads |
-| `build-api.yml` | `api/`, the workflow file, `docs/architecture.md` and `web/src/lib/api/openapi.json`, which the api tests read |
+| `build-api.yml` | `api/`, the workflow file, `docs/architecture.md` and `web/src/lib/api/openapi.json`, which the api tests read, and `deploy/config/`, which the image build checks |
 
 - The gate job fails when the `changes` job or a build job failed or was cancelled.
 - Runs on release-please PRs wait for approval (**Approve and run** on the PR) before they report.
