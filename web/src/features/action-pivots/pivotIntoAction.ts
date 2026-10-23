@@ -88,7 +88,7 @@ export async function pivotIntoAction({
   if (needed.length > 0) {
     store.getState().updateState(uuid, { pivotMissing: missing });
     notify({
-      message: `Opened ${action.name}: needs ${paramTitles(action, needed)}`,
+      message: `Opened ${action.name}: needs ${paramTitles(action.params, needed)}`,
       action: goToChild,
     });
   } else {

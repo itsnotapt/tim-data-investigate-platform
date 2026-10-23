@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
-from tim_actions import Action, Analyst, ParamsError, validate_params
+from tim_actions import Action, Analyst, ParamsError
 
 from tim_api.auth.dependencies import get_current_principal, get_obo_provider
 from tim_api.auth.obo import OboTokenProvider
@@ -62,7 +62,7 @@ async def start_run(
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
     try:
-        params = validate_params(action.params, body.params, connections=connections.types())
+        params = action.check_params(body.params, connections=connections.types())
     except ParamsError as exc:
         raise UnprocessableError(exc.errors) from None
     run_connections = await connections.open(run_connection_names(action, params), principal, obo)

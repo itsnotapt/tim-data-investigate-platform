@@ -62,6 +62,7 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
                 },
             ],
             "pivot": {"rows": "rows", "columns": [["UserPrincipalName", "Upn"]]},
+            "actionFile": False,
         }
     ]
 
@@ -189,4 +190,6 @@ def test_the_instance_lists_its_connections_without_their_endpoints(
         ("database", "string"),
         ("kql", "kql"),
         ("idColumn", "string"),
+        ("parameters", "json"),
     ]
+    assert run_kql["actionFile"] is True

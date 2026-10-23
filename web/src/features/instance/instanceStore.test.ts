@@ -7,6 +7,7 @@ const instance = (version: string, names: string[] = []): Instance => ({
   actions: names.map((name) => ({
     key: name.toLowerCase(),
     kind: 'query',
+    actionFile: false,
     name,
     menuPath: [],
     connections: [],

@@ -60,6 +60,9 @@ class CatalogueAction(ApiModel):
     params: list[CatalogueParam]
     pivot: CataloguePivot | None
     columns: list[CatalogueColumn] | None = omitted()
+    action_file: bool
+    """Whether a preset of this action has an action file, from
+    ``GET /api/presets/{presetId}/actionFile``."""
 
 
 class InstanceConnection(ApiModel):

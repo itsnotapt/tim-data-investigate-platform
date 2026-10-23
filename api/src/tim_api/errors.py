@@ -23,6 +23,7 @@ from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError
 from tim_api.kusto.validation import InvalidClusterError
 from tim_api.models_common import ApiModel
 from tim_api.observability import get_trace_id, log_safe
+from tim_api.presets.action_file import NoActionFileError
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.storage import AlreadyExistsError, NotFoundError, StorageUnavailableError
 from tim_api.tagged_events.ingest import TagIngestError
@@ -206,6 +207,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(
         RunNotSucceededError,
         fixed(409, "The run has not succeeded", slug="run-not-succeeded"),
+    )
+    app.add_exception_handler(
+        NoActionFileError,
+        fixed(409, "This preset has no action file", slug="no-action-file"),
     )
     app.add_exception_handler(
         ResultsGoneError,

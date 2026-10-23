@@ -2,6 +2,7 @@
 OBO is faked at ``token_for``, and Kusto at the SDK client."""
 
 import asyncio
+import json
 import os
 from collections.abc import AsyncIterator
 from datetime import timedelta
@@ -165,6 +166,100 @@ async def test_an_obo_error_answers_the_post_and_starts_no_run(
     env.obo.error = error
     response = await env.start(database="Samples", kql="StormEvents")
     assert (response.status_code, response.json()["detail"]) == (status, detail)
+    assert env.kusto.queries == []
+
+
+def sent_parameters(kusto: FakeKusto) -> dict[str, str]:
+    [(_, _, properties)] = kusto.queries
+    parameters: dict[str, str] = json.loads(properties.to_json())["Parameters"]
+    return parameters
+
+
+async def test_query_parameters_are_declared_before_the_kql_and_sent_typed(env: Env) -> None:
+    kql = "StormEvents\n| where State in (States) and StartTime > Since | take Limit"
+    started = await env.start(
+        database="Samples",
+        kql=kql,
+        parameters=[
+            {"name": "States", "type": "dynamic", "value": ["TEXAS", "FLORIDA"]},
+            {"name": "Since", "type": "datetime", "value": "2007-09-01T00:00:00Z"},
+            {"name": "Limit", "type": "long", "value": 10},
+            {"name": "Ratio", "type": "real", "value": 0.5},
+            {"name": "Fatal", "type": "bool", "value": True},
+            {"name": "Within", "type": "timespan", "value": "PT36H"},
+            {"name": "Source", "type": "string", "value": "Trained Spotter"},
+        ],
+    )
+    assert started.json()["status"] == "succeeded", started.json().get("error")
+
+    [(_, sent, _)] = env.kusto.queries
+    assert sent == (
+        "declare query_parameters(States:dynamic, Since:datetime, Limit:long, Ratio:real, "
+        "Fatal:bool, Within:timespan, Source:string);\n" + kql
+    )
+    assert sent_parameters(env.kusto) == {
+        "States": 'dynamic(["TEXAS","FLORIDA"])',
+        "Since": "datetime(2007-09-01T00:00:00.0000000Z)",
+        "Limit": "10",
+        "Ratio": "0.5",
+        "Fatal": "true",
+        "Within": "timespan(1.12:00:00)",
+        "Source": "Trained Spotter",
+    }
+
+
+async def test_without_query_parameters_the_kql_is_sent_as_written(env: Env) -> None:
+    await env.wait(
+        (await env.start(database="Samples", kql="StormEvents", parameters=[])).json()["runId"]
+    )
+    [(_, sent, _)] = env.kusto.queries
+    assert (sent, sent_parameters(env.kusto)) == ("StormEvents", {})
+
+
+@pytest.mark.parametrize(
+    ("parameters", "errors"),
+    [
+        (
+            [{"name": "Since", "type": "datetime", "value": "yesterday"}],
+            {"params.parameters.Since": ["Must be an ISO 8601 datetime"]},
+        ),
+        (
+            [{"name": "Limit", "type": "long", "value": None}],
+            {"params.parameters.Limit": ["Required"]},
+        ),
+        (
+            [{"name": "Limit", "type": "long", "value": 1.5}],
+            {"params.parameters.Limit": ["Must be a whole number"]},
+        ),
+        (
+            [{"name": "Limit", "type": "int64", "value": 1}],
+            {
+                "params.parameters": [
+                    "Limit: type must be one of string, long, real, bool, "
+                    "datetime, timespan, dynamic"
+                ]
+            },
+        ),
+        (
+            [{"name": "1st", "type": "long", "value": 1}],
+            {
+                "params.parameters": [
+                    "1st: name must start with a letter or _ and hold only letters, digits and _"
+                ]
+            },
+        ),
+        (
+            [{"name": "a", "type": "long", "value": 1}, {"name": "a", "type": "long", "value": 2}],
+            {"params.parameters": ["a: names must be unique"]},
+        ),
+        ({"a": 1}, {"params.parameters": ["Must be a list of {name, type, value}"]}),
+    ],
+)
+async def test_bad_query_parameters_are_unprocessable(
+    env: Env, parameters: Any, errors: dict[str, list[str]]
+) -> None:
+    response = await env.start(database="Samples", kql="StormEvents", parameters=parameters)
+    assert (response.status_code, response.json()["errors"]) == (422, errors)
     assert env.kusto.queries == []
 
 

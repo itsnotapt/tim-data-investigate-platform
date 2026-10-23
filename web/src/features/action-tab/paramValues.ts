@@ -195,11 +195,8 @@ export const isUnset = (value: unknown): boolean =>
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 
 /** The titles of the params `names`, falling back to the name, as an English list: "Result and Host". */
-export const paramTitles = (
-  action: CatalogueAction | undefined,
-  names: readonly string[],
-): string =>
-  LIST.format(names.map((name) => action?.params.find((p) => p.name === name)?.title ?? name));
+export const paramTitles = (params: readonly CatalogueParam[], names: readonly string[]): string =>
+  LIST.format(names.map((name) => params.find((p) => p.name === name)?.title ?? name));
 
 /** The params a pivot left missing that are still unset, in the order the pivot gave them. */
 export const stillMissing = (

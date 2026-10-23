@@ -25,6 +25,7 @@ const server = setupMswServer();
 const action: CatalogueAction = {
   key: 'dev-sign-ins',
   kind: 'query',
+  actionFile: false,
   name: 'Sign-ins',
   menuPath: ['Development', 'Rows'],
   connections: [],
@@ -34,6 +35,7 @@ const action: CatalogueAction = {
 const runKql: CatalogueAction = {
   key: 'tim.run_kql',
   kind: 'query',
+  actionFile: false,
   name: 'Run KQL',
   menuPath: [],
   connections: [],
@@ -55,6 +57,7 @@ const runKql: CatalogueAction = {
       many: false,
       schemaFrom: ['connection', 'database'],
     },
+    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
   ],
   pivot: null,
 };
@@ -455,6 +458,95 @@ describe('ActionTab with a query param', () => {
     expect(editor).toHaveAccessibleDescription('Must not be empty');
     await userEvent.type(screen.getByRole('textbox', { name: 'Query' }), ' ');
     expect(editor).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('shows a pill per query parameter, needed until its entry is filled in', async () => {
+    const parameters = [
+      { name: 'Upn', type: 'string', value: null },
+      { name: 'Limit', type: 'long', value: 10 },
+    ];
+    const { uuid } = setup({ pivotMissing: { 'parameters.Upn': null } }, 'tim.run_kql', {
+      params: { ...kql, parameters },
+    });
+    expect(screen.getByText('Fill in Upn to run this pivot')).toBeInTheDocument();
+    // The needed pill's popover opens by itself.
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('button', { name: /^Query parameters:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Limit: 10' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Upn: needed' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Upn' }), 'alice@example.com');
+    await userEvent.keyboard('{Escape}');
+
+    expect(useTabsStore.getState().tabs[uuid]?.params).toMatchObject({
+      params: {
+        parameters: [
+          { name: 'Upn', type: 'string', value: 'alice@example.com' },
+          { name: 'Limit', type: 'long', value: 10 },
+        ],
+      },
+    });
+    expect(screen.getByRole('button', { name: 'Upn: alice@example.com' })).toBeInTheDocument();
+    expect(screen.queryByText('Fill in Upn to run this pivot')).not.toBeInTheDocument();
+  });
+
+  it('marks a query parameter the server refused, until it is edited', async () => {
+    setup({ paramErrors: { 'parameters.Limit': 'Must be a whole number' } }, 'tim.run_kql', {
+      params: { ...kql, parameters: [{ name: 'Limit', type: 'long', value: 1.5 }] },
+    });
+    const pill = screen.getByRole('button', { name: 'Limit: 1.5' });
+    expect(pill).toHaveAccessibleDescription('Must be a whole number');
+    await userEvent.click(pill);
+    const field = screen.getByRole('textbox', { name: 'Limit' });
+    await userEvent.clear(field);
+    await userEvent.type(field, '2');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: 'Limit: 2' })).not.toHaveAccessibleDescription(
+      'Must be a whole number',
+    );
+  });
+
+  it('takes the query parameters declared in Save… onto the tab', async () => {
+    server.use(
+      http.post(apiUrl('/api/presets'), async ({ request }) =>
+        HttpResponse.json(
+          {
+            ...((await request.json()) as object),
+            presetId: 'p-1',
+            owner: 'jo@example.com',
+            owned: true,
+            hidden: false,
+            createdAt: '2026-10-23T00:00:00Z',
+            updatedAt: '2026-10-23T00:00:00Z',
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    const { uuid } = setupKql();
+    await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
+    const dialog = screen.getByRole('dialog', { name: 'Save preset' });
+    const add = within(dialog).getByRole('button', { name: 'Add query parameter' });
+    await userEvent.click(add);
+    await userEvent.click(add);
+    const [since, upn] = within(dialog).getAllByRole('group', { name: /^Query parameter/ });
+    await userEvent.type(within(since!).getByRole('combobox', { name: 'Name' }), 'Since');
+    await userEvent.selectOptions(within(since!).getByRole('combobox', { name: 'Type' }), 'long');
+    await userEvent.type(within(since!).getByRole('textbox', { name: 'Value' }), '7');
+    await userEvent.type(within(upn!).getByRole('combobox', { name: 'Name' }), 'Upn');
+    await userEvent.click(within(upn!).getByRole('button', { name: 'From row' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('button', { name: 'Since: 7' })).toBeInTheDocument();
+    expect(useTabsStore.getState().tabs[uuid]?.params).toMatchObject({
+      presetId: 'p-1',
+      params: {
+        parameters: [
+          { name: 'Since', type: 'long', value: 7 },
+          { name: 'Upn', type: 'string', value: null },
+        ],
+      },
+    });
   });
 
   it('has no Query tab for an action without a query param', () => {

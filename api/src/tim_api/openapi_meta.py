@@ -28,7 +28,10 @@ _DESCRIPTIONS = {
     401: "Missing, invalid or expired token (`unauthorized`).",
     403: "Consent required or Kusto denied the user (`consent-required` / `forbidden`).",
     404: "Not found (`not-found`).",
-    409: "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`).",
+    409: (
+        "Already exists, the run has not succeeded, or the preset has no action file "
+        "(`conflict` / `run-not-succeeded` / `no-action-file`)."
+    ),
     410: "The run's results are no longer available (`results-gone`).",
     422: "Invalid values, keyed by field such as `params.<name>` (`validation`).",
     500: "Unhandled error (`internal`).",
@@ -60,6 +63,7 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("delete", "/api/presets/{presetId}"): ("deletePreset", (400, 403, 404)),
     ("put", "/api/presets/{presetId}/hidden"): ("hidePreset", (400, 404)),
     ("delete", "/api/presets/{presetId}/hidden"): ("unhidePreset", (400, 404)),
+    ("get", "/api/presets/{presetId}/actionFile"): ("getPresetActionFile", (400, 404, 409)),
     ("get", "/api/templates/queries"): ("listTemplates", (400,)),
     ("get", "/api/templates/queries/{uuid}"): ("getTemplate", (400, 404)),
     ("post", "/api/templates/queries"): ("createTemplate", (400, 409)),

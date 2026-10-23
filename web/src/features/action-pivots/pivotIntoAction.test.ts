@@ -13,6 +13,7 @@ const server = setupMswServer();
 const SIGN_INS: CatalogueAction = {
   key: 'sign-ins',
   kind: 'query',
+  actionFile: false,
   name: 'Sign-ins',
   menuPath: ['Identity'],
   connections: [],

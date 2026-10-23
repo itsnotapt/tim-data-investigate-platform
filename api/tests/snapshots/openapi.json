@@ -105,6 +105,10 @@
       },
       "CatalogueAction": {
         "properties": {
+          "actionFile": {
+            "title": "Actionfile",
+            "type": "boolean"
+          },
           "columns": {
             "anyOf": [
               {
@@ -182,7 +186,8 @@
           "menuPath",
           "connections",
           "params",
-          "pivot"
+          "pivot",
+          "actionFile"
         ],
         "title": "CatalogueAction",
         "type": "object"
@@ -563,7 +568,7 @@
         "type": "object"
       },
       "FixedInput": {
-        "description": "An input whose value is saved with the preset. Its type is the param's.",
+        "description": "A param input whose value is saved with the preset. Its type is the param's.",
         "properties": {
           "fixed": {
             "const": true,
@@ -592,8 +597,52 @@
         "title": "FixedInput",
         "type": "object"
       },
+      "FixedQueryParameter": {
+        "description": "A query parameter whose value is saved with the preset: a name in the query, declared\nwith ``type``.",
+        "properties": {
+          "fixed": {
+            "const": true,
+            "title": "Fixed",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "const": "queryParameter",
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "long",
+              "real",
+              "bool",
+              "datetime",
+              "timespan",
+              "dynamic"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "type",
+          "fixed",
+          "value"
+        ],
+        "title": "FixedQueryParameter",
+        "type": "object"
+      },
       "FromRowInput": {
-        "description": "An input filled from the first of ``fromColumns`` the rows have. With no columns, the\nform asks the analyst for it.",
+        "description": "A param input filled from the first of ``fromColumns`` the rows have. With no columns, the\nform asks the analyst for it.",
         "properties": {
           "fixed": {
             "const": false,
@@ -624,6 +673,54 @@
           "fromColumns"
         ],
         "title": "FromRowInput",
+        "type": "object"
+      },
+      "FromRowQueryParameter": {
+        "description": "A query parameter filled from the first of ``fromColumns`` the rows have; a ``dynamic`` one\ntakes every distinct value. With no columns, the form asks the analyst for it.",
+        "properties": {
+          "fixed": {
+            "const": false,
+            "title": "Fixed",
+            "type": "boolean"
+          },
+          "fromColumns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fromcolumns",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "const": "queryParameter",
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "long",
+              "real",
+              "bool",
+              "datetime",
+              "timespan",
+              "dynamic"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "type",
+          "fixed",
+          "fromColumns"
+        ],
+        "title": "FromRowQueryParameter",
         "type": "object"
       },
       "Instance": {
@@ -1220,6 +1317,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/FromRowInput"
+                },
+                {
+                  "$ref": "#/components/schemas/FixedQueryParameter"
+                },
+                {
+                  "$ref": "#/components/schemas/FromRowQueryParameter"
                 }
               ]
             },
@@ -1297,6 +1400,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/FromRowInput"
+                },
+                {
+                  "$ref": "#/components/schemas/FixedQueryParameter"
+                },
+                {
+                  "$ref": "#/components/schemas/FromRowQueryParameter"
                 }
               ]
             },
@@ -3329,6 +3438,103 @@
         ]
       }
     },
+    "/api/presets/{presetId}/actionFile": {
+      "get": {
+        "description": "The YAML of an action that runs what the preset runs, for an operator to add to the\ninstance's action files.",
+        "operationId": "getPresetActionFile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "presetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Presetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get Action File",
+        "tags": [
+          "presets"
+        ]
+      }
+    },
     "/api/presets/{presetId}/hidden": {
       "delete": {
         "operationId": "unhidePreset",
@@ -3884,7 +4090,7 @@
                 }
               }
             },
-            "description": "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`)."
+            "description": "Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`)."
           },
           "410": {
             "content": {
@@ -4330,7 +4536,7 @@
                 }
               }
             },
-            "description": "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`)."
+            "description": "Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`)."
           },
           "500": {
             "content": {

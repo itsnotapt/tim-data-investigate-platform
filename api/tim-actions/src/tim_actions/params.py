@@ -25,7 +25,8 @@ class ParamsError(ValueError):
         self.errors = errors
 
 
-_PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+"""A param name: a letter or ``_``, then letters, digits and ``_``."""
 # Kinds the tab edits as one value: an editor or a connection pick.
 _SINGLE_ONLY: frozenset[str] = frozenset({"kql", "sql", "connection"})
 
@@ -54,7 +55,7 @@ class Param:
 
     @model_validator(mode="after")
     def _check(self) -> Param:
-        if not _PARAM_NAME.match(self.name):
+        if not PARAM_NAME.match(self.name):
             raise ValueError(
                 "name must start with a letter or _ and hold only letters, digits and _"
             )

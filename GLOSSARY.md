@@ -37,10 +37,10 @@ An action with some of its params fixed and the rest filled in by the analyst or
 _Avoid_: saved action, favourite
 
 **Fixed input**:
-An input of a preset whose value is saved with the preset. Only a param that rows can fill (it declares `from_columns`) can be an input.
+An input of a preset whose value is saved with the preset. An input is a param that rows can fill (it declares `from_columns`) or a query parameter.
 
 **From row input**:
-An input of a preset that takes its value from a column of the row the analyst pivots on. With no columns, the tab asks the analyst for the value.
+An input of a preset, a param or a query parameter, that takes its value from a column of the row the analyst pivots on. With no columns, the tab asks the analyst for the value.
 
 **Bookmark**:
 A preset whose inputs are all fixed. Opening it needs nothing more from the analyst.
@@ -51,6 +51,10 @@ The nested, searchable menu of actions and presets, with query templates beside 
 **Param**:
 A named, typed value an action takes, or one a query template's form asks the analyst for.
 _Avoid_: argument, variable
+
+**Query parameter**:
+A name declared in the KQL of an action tab of Run KQL and sent to Kusto as a Kusto query parameter, with a type. It is not a param of the action. In a preset it is an input, fixed or From row, and the preset can be copied as an action file.
+_Avoid_: KQL variable
 
 **Action type** (for action authors):
 The reusable Python code behind a family of actions. Each action names one action type and gives its configuration.

@@ -68,6 +68,7 @@ def _action(action: Action) -> CatalogueAction:
         params=[_param(param) for param in action.params],
         pivot=pivot,
         columns=None if action.columns is None else [_column(c) for c in action.columns],
+        action_file=action.has_preset_file,
     )
 
 

@@ -249,6 +249,7 @@ The New menu opens from the **New** button. It lists, in order:
   - For the owner: **Edit…** (the Save dialog on the preset, starting from the preset's own params and fixed values, not the action's defaults), **Share with everyone** or **Make private**, and **Delete…**, which asks to confirm.
   - For anyone else: **Hide** or **Unhide**, for that analyst only.
 - A preset whose action is not in the catalogue cannot be opened or edited.
+- **Copy as action file**, when the action's `actionFile` is true: copies the preset's YAML ([api.md](api.md#get-apipresetspresetidactionfile)) to the clipboard.
 - The presets are refetched each time the menu opens, so presets others shared since show up.
 
 Choosing an action creates a root action tab and gives it focus. The tab is titled with the action's name, and its params are the params' defaults. It does not run.
@@ -259,7 +260,7 @@ Opening a preset creates a root action tab in the same way, titled with the pres
 - then the preset's `params`;
 - then the preset's fixed values.
 
-A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
+A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
 
 The action tab has a header, a pills bar and inner tabs.
 
@@ -373,29 +374,33 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - Open tabs keep their snapshot. A tab opened from a preset holds plain params like any other tab.
 - Last write wins.
 
-**Inputs.** An input names one param of the preset's action that declares `from_columns` (`source: "param"`).
+**Inputs.** An input is one param of the preset's action that declares `from_columns` (`source: "param"`), or a query parameter (`source: "queryParameter"`).
 
 - A **fixed input** has a `value`, which is saved with the preset.
 - A **From row input** has `fromColumns`: it takes the value from the first of these columns that the rows have. With no columns, the tab asks the analyst for it.
 - A preset with every input fixed is a bookmark.
+- A **query parameter** input has a name and a `type`, and is fixed or From row like a param. It is allowed only on an action with a `json` param named `parameters`, which is Run KQL. The preset's `parameters` value is built from these inputs.
 - Values are validated when a run starts, not when the preset is saved.
 
 **Save….** The action tab header opens the Save dialog (`SavePresetDialog`).
 
 - Name, menu folder (folders separated by `/`) and **Share with everyone**.
 - For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
+- A **Query parameters** section, on an action that takes them. Add a parameter: its name is suggested from the names in the query. Pick its type, then **Fixed** with a value, or **From row** with columns.
 - A preview of what the action receives, one line for every param of the action.
   - A From row input shows as `<column of the clicked row>`.
+  - For query parameters it shows the `declare query_parameters` line before the query, and a line per query parameter.
+  - A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
   - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
-- After saving, the tab takes the preset's name and `presetId`.
+- After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
 - On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
 
 **Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
 
 - `GET /api/presets` returns the caller's presets and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
 - The server assigns `presetId`, `owner` (from the token) and the timestamps.
-- It checks that `action` is in the catalogue and that each input is a param of it with `from_columns`.
+- It checks that `action` is in the catalogue, that each param input is a param of it with `from_columns`, and that query parameter inputs are on an action that takes them, with unique names that are Kusto identifiers.
 - `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
 
 ### Annotations in the browser
@@ -762,7 +767,10 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `connection`: a Kusto connection;
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
-- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`.
+- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
+- `parameters`, optional, `json`: the query parameters, `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params` checks the entries and answers `params.parameters.<name>` or `params.parameters`.
+
+A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 
 **`kql_query`** (`KqlQuery`, with `KqlQueryFile` as its file model) is a file-capable action type with the fields `connection`, `database` and `kql`. In files, `kql` can be a `kql_file` sidecar.
 
@@ -794,7 +802,7 @@ Both follow [ADR-0012](adr/0012-query-run-limits-and-lifecycle.md). They share o
 
 A run:
 
-1. **Start.** `POST /api/runs` looks up the action and validates the params with `tim_actions.validate_params`. A `422` comes before a run exists. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`, and starts a tracked asyncio task.
+1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`, and starts a tracked asyncio task.
 2. **Execute.** The task waits for a concurrency slot, still `running`. Then it runs the action's synchronous `run(params, ctx)` in its own daemon thread.
    - `ctx` gives `analyst`, `deadline` (when the timeout ends), `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
    - `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value. It gives one hook per connection per run.
@@ -906,14 +914,15 @@ The routes, under `/api/presets`:
 - **`PUT /{presetId}`** replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept.
 - **`DELETE /{presetId}`** deletes it for good, with every hidden mark on it. Only the owner can.
 - **`PUT` and `DELETE /{presetId}/hidden`** hide and unhide it for the caller only.
+- **`GET /{presetId}/actionFile`** returns the preset as an action file in YAML (`presets/action_file.py`). It asks the action's `preset_file`; `409` `no-action-file` when the action has none, or when a Run KQL preset lacks a connection, database or query.
 
 Rules:
 
 - `404` for an unknown preset, or someone else's private one.
 - `403` for a `PUT` or `DELETE` by anyone but the owner.
-- `422` for an `action` that is not in the catalogue (`errors.action`), or an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`).
+- `422` for an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter on an action that takes none (`errors["inputs.<i>.source"]`), or a query parameter name that is not a Kusto identifier or is used twice.
 - Param values are not checked here. They are validated when a run starts.
-- Inputs are told apart by the boolean `fixed`, not by an OpenAPI discriminator.
+- Inputs are told apart by `source` and the boolean `fixed`, not by an OpenAPI discriminator.
 
 ### Tagged events
 
