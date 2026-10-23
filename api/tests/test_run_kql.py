@@ -270,6 +270,16 @@ async def test_an_unknown_connection_is_unprocessable(env: Env) -> None:
     assert env.obo.calls == []
 
 
+async def live_run(client: httpx.AsyncClient, body: dict[str, Any]) -> dict[str, Any]:
+    """Starts a run and waits for it to finish."""
+    run: dict[str, Any] = (await client.post("/api/runs", json=body)).json()
+    async with asyncio.timeout(60):
+        while run["status"] == "running":
+            await asyncio.sleep(0.5)
+            run = (await client.get(f"/api/runs/{run['runId']}")).json()
+    return run
+
+
 @pytest.mark.kusto
 @pytest.mark.skipif(not LIVE_CLUSTER, reason="TIM_TEST_KUSTO_CLUSTER not set")
 async def test_run_kql_on_a_real_cluster(
@@ -290,11 +300,7 @@ async def test_run_kql_on_a_real_cluster(
                 "idColumn": "n",
             },
         }
-        run = (await client.post("/api/runs", json=body)).json()
-        async with asyncio.timeout(60):
-            while run["status"] == "running":
-                await asyncio.sleep(0.5)
-                run = (await client.get(f"/api/runs/{run['runId']}")).json()
+        run = await live_run(client, body)
         assert run["status"] == "succeeded", run.get("error")
         assert [(c["name"], c["type"]) for c in run["columns"]] == [
             ("n", "number"),
@@ -303,3 +309,48 @@ async def test_run_kql_on_a_real_cluster(
         assert "executionTime" in run["details"]
         rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
         assert [(r["id"], r["data"]) for r in rows] == [("1", {"n": 1, "s": "x"})]
+
+
+@pytest.mark.kusto
+@pytest.mark.skipif(not LIVE_CLUSTER, reason="TIM_TEST_KUSTO_CLUSTER not set")
+async def test_run_kql_with_query_parameters_on_a_real_cluster(
+    auth: AuthKit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kusto accepts the declare statement and a value of each type."""
+    assert LIVE_CLUSTER
+    cluster, database = LIVE_CLUSTER.rstrip("/"), LIVE_DATABASE
+    async with open_client(
+        auth, AzureObo(), tmp_path, monkeypatch, cluster=cluster, database=database
+    ) as client:
+        body = {
+            "action": "tim.run_kql",
+            "params": {
+                "connection": "security",
+                "database": database,
+                "kql": "print n = Limit + 1, s = Source, t = Since + Within, f = not(Fatal),"
+                " r = Ratio * 2, c = array_length(States)",
+                "idColumn": "n",
+                "parameters": [
+                    {"name": "States", "type": "dynamic", "value": ["TEXAS", "FLORIDA"]},
+                    {"name": "Since", "type": "datetime", "value": "2007-09-01T00:00:00Z"},
+                    {"name": "Limit", "type": "long", "value": 10},
+                    {"name": "Ratio", "type": "real", "value": 0.25},
+                    {"name": "Fatal", "type": "bool", "value": True},
+                    {"name": "Within", "type": "timespan", "value": "PT36H"},
+                    {"name": "Source", "type": "string", "value": "Trained 'Spotter'"},
+                ],
+            },
+        }
+        run = await live_run(client, body)
+        assert run["status"] == "succeeded", run.get("error")
+        rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
+        assert [r["data"] for r in rows] == [
+            {
+                "n": 11,
+                "s": "Trained 'Spotter'",
+                "t": "2007-09-02T12:00:00Z",
+                "f": False,
+                "r": 0.5,
+                "c": 2,
+            }
+        ]
