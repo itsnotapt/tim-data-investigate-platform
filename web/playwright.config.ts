@@ -18,7 +18,8 @@ function parseE2ePort(value: string | undefined): number {
 /**
  * Headless Chromium against the vite dev server with the dev stub auth (VITE_AUTH_STUB=true), and
  * a real tim-api (e2e/api_server.py) that vite proxies `/api` to: auth disabled, so it takes each
- * analyst from the stub token, with the development actions and the action files in e2e/actions.
+ * analyst from the stub token, with the development actions, the action files in e2e/actions and
+ * the labels in e2e/labels.yaml.
  * Its Postgres (TIM_TEST_DATABASE_URL, else a temporary pgserver) is reset once per run.
  *
  * Flows that import e2e/realApi.ts use the real api. Those that import e2e/fixtures.ts intercept
@@ -61,6 +62,11 @@ export default defineConfig({
         TIM_AUTH_DISABLED: 'true',
         TIM_DEV_ACTIONS: 'true',
         TIM_ACTIONS_DIR: resolve(import.meta.dirname, 'e2e/actions'),
+        TIM_CONNECTIONS_FILE: resolve(import.meta.dirname, 'e2e/connections.yaml'),
+        TIM_LABELS_FILE: resolve(import.meta.dirname, 'e2e/labels.yaml'),
+        // A teammate's label shows within seconds; a few ids are enough to pass the limit.
+        TIM_ANNOTATION_POLL_SECONDS: '2',
+        TIM_MAX_ANNOTATION_IDS: '5',
         TIM_AUTH_TENANT_ID: '00000000-0000-0000-0000-000000000000',
         TIM_AUTH_CLIENT_ID: '00000000-0000-0000-0000-000000000000',
         TIM_TAG_CLUSTER_URI: 'https://example.westeurope.kusto.windows.net',

@@ -161,29 +161,48 @@ The streaming ingestion policy makes a saved tag, comment or saved event queryab
 
 ### `tim-api check`
 
-The api image runs the startup validation of its providers, an action files directory and a connections file. It needs no database, credentials or other settings:
+The api image runs the startup validation of its providers, an action files directory, a connections file and a labels file. It needs no database, credentials or other settings:
 
 ```bash
 docker run --rm -v "$PWD/actions:/actions:ro" <api image> tim-api check --actions /actions
 docker run --rm -v "$PWD/connections.yaml:/connections.yaml:ro" <api image> tim-api check --connections /connections.yaml
+docker run --rm -v "$PWD/labels.yaml:/labels.yaml:ro" <api image> tim-api check --labels /labels.yaml
 docker run --rm <api image> tim-api schema actions > action-file.schema.json
 docker run --rm <api image> tim-api schema connections > connections.schema.json
+docker run --rm <api image> tim-api schema labels > labels.schema.json
 ```
 
 `check` ends in one of three ways:
 
-- **Valid:** it prints one line for each action left out of the catalogue, such as `Action tim.run_kql left out: no kusto connection for its connection param`. Then it prints `OK: <n> actions, <m> connections`, and exits 0.
+- **Valid:** it prints one line for each action left out of the catalogue, such as `Action tim.run_kql left out: no kusto connection for its connection param`. Then it prints `OK: <n> actions, <m> connections, <k> labels`, and exits 0.
 - **Invalid:** it prints `Invalid instance:` and the same problems startup would report, one per line, and exits 1.
-- **Bad path:** a `--actions` path that isn't a directory, or a `--connections` path that isn't a file, exits 2.
+- **Bad path:** a `--actions` path that isn't a directory, or a `--connections` or `--labels` path that isn't a file, exits 2.
 
 Options and use:
 
 - Without `--actions`, it checks only the installed providers and their package data.
 - Without `--connections`, the instance has no connections.
+- Without `--labels`, the instance has the default labels.
 - From a checkout, run `uv run tim-api check --actions <dir>` in `api/`.
 - Use the image you deploy. The action types a file may name are the ones installed in it.
 
 Writing files and the schema: [actions.md](actions.md#checking-files).
+
+### The change feed
+
+The change feed carries annotations ([architecture.md](architecture.md#annotations-and-the-change-feed)) to every open browser, so a label set by one analyst shows in the others.
+
+- **What it is.** `GET /api/annotations/changes?since=V` returns the `id`s changed after version `V`, as they now are, 1,000 or more at a time.
+- **Versions.** Each change to annotations takes the next number from a one-row counter, `annotation_clock`, so the versions are gapless and in commit order. Writers queue on that row, which is fine for changes made by analysts.
+- **Polling cost.**
+  - Each browser reads the feed every `TIM_ANNOTATION_POLL_SECONDS` (30), when its window gets focus, and soon after the analyst's own change.
+  - A read with nothing new is one indexed query and a body of a few bytes.
+  - Many tabs of one browser cost one poller: the tab holding a Web Lock reads, and tells the others.
+  - So the load is one request per open browser per interval. Raise the interval to lower it. Labels then reach other analysts later.
+- **Tombstones.** An `id` whose annotations are all removed keeps its row in `id_state`, with no label, so the removal reaches other browsers. Rows are never deleted, and nothing needs cleaning up.
+- **History.** `label_changes` keeps every label change with who made it and when.
+- **Cursors.** A browser keeps its place in its own IndexedDB. A new browser, or one with its site data cleared, reads the whole feed once.
+- **The labels file.** Check a file with `tim-api check --labels <file>`, and print its JSON Schema with `tim-api schema labels` ([`tim-api check`](#tim-api-check)). Stored labels keep the `key` they were set with. A key that is later taken out of the file shows grey in the grid, and can still be cleared or replaced.
 
 ### Query run retention and cleanup
 
@@ -220,6 +239,8 @@ Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM
 | Runs stopped at the time limit               | `TIM_RUN_TIMEOUT_SECONDS` (nginx waits 620 s; raising it above 600 also needs a change to `web/docker/nginx.conf.template`) |
 | Runs stay `running` (query runs `created`) under heavy use | `TIM_MAX_CONCURRENT_RUNS` (per api process, shared by runs and query runs) |
 | Row pages are slow or large                  | `TIM_ROWS_PAGE_SIZE`                      |
+| Labelling a big selection is refused         | `TIM_MAX_ANNOTATION_IDS`                  |
+| Labels reach other analysts late, or the feed is busy | `TIM_ANNOTATION_POLL_SECONDS`    |
 | A pivot is refused with "At most N rows"      | `TIM_MAX_PIVOT_ROWS`                      |
 | `413` on requests                            | `TIM_MAX_REQUEST_BYTES` (nginx caps bodies at 25 MB) |
 
@@ -244,7 +265,7 @@ Browsers fetch `/config.js` uncached, so users receive web changes on their next
 
 ## Startup failures from the files
 
-The api reads the action files and the connections file once, at startup: its providers' package data, `TIM_ACTIONS_DIR` and `TIM_CONNECTIONS_FILE`.
+The api reads the action files, the connections file and the labels file once, at startup: its providers' package data, `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE`.
 
 - Any problem stops it before it serves.
 - So in a rolling update, the new pods never become ready, and the old ones keep serving.
@@ -277,13 +298,18 @@ Each line names the file, the line and the field.
 | `no connection named <name>`, `connection <name> is <type>, not <type>` | An action's fixed connection isn't in the connections file, or is of another connection type. |
 | `TIM_ACTIONS_DIR: invalid (Value error, no directory ...)` | `TIM_ACTIONS_DIR` names a path that isn't a directory. The api exits with `Invalid configuration:`. |
 | `TIM_CONNECTIONS_FILE: invalid (Value error, no file ...)` | `TIM_CONNECTIONS_FILE` names a path that isn't a file. The api exits with `Invalid configuration:`. |
+| `duplicate label key` | Two labels share a `key`. |
+| `Input should be 'red', 'amber', ...` on a label's `colour` or `symbol` | The name isn't in the palette. `tim-api schema labels` lists the colours and symbols. |
+| `give the labels in one YAML document` | The file has no YAML document (a zero-byte file) or more than one. Put the labels in one document. |
+| `the labels file lists at least one label` | The file's document is an empty list. Add a label, or leave `TIM_LABELS_FILE` unset to get the default labels. |
+| `TIM_LABELS_FILE: invalid (Value error, no file ...)` | `TIM_LABELS_FILE` names a path that isn't a file. The api exits with `Invalid configuration:`. |
 
 ## Common failures
 
 | Symptom                                                  | Cause and fix                                                                                                                                                         |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | api exits at startup with `Invalid configuration:` and lines like `- TIM_AUTH_TENANT_ID: missing (...)` | A required `TIM_*` variable is missing or invalid; the message names each one (never the value). Common: `TIM_DATABASE_URL` not `postgresql+asyncpg://`, a non-https `TIM_TAG_CLUSTER_URI`, `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production`. |
-| api exits at startup with `Invalid instance:`            | A provider, an action file or the connections file has a problem; see [Startup failures from the files](#startup-failures-from-the-files). |
+| api exits at startup with `Invalid instance:`            | A provider, an action file, the connections file or the labels file has a problem; see [Startup failures from the files](#startup-failures-from-the-files). |
 | api exits at startup about the OBO credential            | A connection uses `obo`, and neither `TIM_AUTH_CLIENT_SECRET` nor a readable `AZURE_FEDERATED_TOKEN_FILE` is set (the message says which).                                                          |
 | api starts but requests fail with database errors; `/api/healthChecks/readiness` returns `503`; problem responses say "Service unavailable" | PostgreSQL is down or unreachable (or the schema is not migrated; run the migrations). The connection pool checks connections before use, so the api serves again once the database is back.                 |
 | Every API call returns 401                               | Token rejected: wrong `TIM_AUTH_TENANT_ID` / `TIM_AUTH_CLIENT_ID` (audience `api://<client id>`), or an expired token.                                                |

@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from tim_api.storage import PresetStore, QueryRunStore, RunStore, Storage, TemplateStore
+from tim_api.storage import (
+    AnnotationStore,
+    PresetStore,
+    QueryRunStore,
+    RunStore,
+    Storage,
+    TemplateStore,
+)
 
 
 def get_storage(request: Request) -> Storage:
@@ -26,3 +33,7 @@ def get_run_store(request: Request) -> RunStore:
 
 def get_preset_store(request: Request) -> PresetStore:
     return get_storage(request).presets
+
+
+def get_annotation_store(request: Request) -> AnnotationStore:
+    return get_storage(request).annotations

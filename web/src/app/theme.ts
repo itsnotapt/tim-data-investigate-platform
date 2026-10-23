@@ -1,5 +1,21 @@
 import { createTheme } from '@mui/material/styles';
+import type { LabelColour } from '../lib/api';
 import { COLOR_SCHEME_ATTRIBUTE } from './themeKeys';
+
+/** The palette colours a labels file can name, as `labelColour` in the API. */
+export const LABEL_COLOURS = [
+  'red',
+  'amber',
+  'green',
+  'teal',
+  'blue',
+  'purple',
+  'pink',
+  'grey',
+] as const satisfies readonly LabelColour[];
+
+/** The colour of a stored label key that is no longer configured. */
+export const UNCONFIGURED_LABEL_COLOUR: LabelColour = 'grey';
 
 /** Code editor frame (dotted border) and background. */
 interface EditorColours {
@@ -17,6 +33,8 @@ interface DeterminationColours {
   suspicious: string;
   benign: string;
 }
+/** One colour per label colour: the row fill (`label`) or its decorative stripe. */
+type LabelColours = Record<LabelColour, string>;
 
 // TIM's own palette entries, emitted as `--mui-palette-<entry>-<key>`; `theme.vars` is always set.
 declare module '@mui/material/styles' {
@@ -28,12 +46,16 @@ declare module '@mui/material/styles' {
     grid: GridColours;
     determination: DeterminationColours;
     stripe: DeterminationColours;
+    label: LabelColours;
+    labelStripe: LabelColours;
   }
   interface PaletteOptions {
     editor?: EditorColours;
     grid?: GridColours;
     determination?: DeterminationColours;
     stripe?: DeterminationColours;
+    label?: LabelColours;
+    labelStripe?: LabelColours;
   }
 }
 
@@ -57,6 +79,26 @@ export const theme = createTheme({
         grid: { header: '#f5f7f7', oddRow: '#fcfdfe' },
         determination: { malicious: '#fecaca', suspicious: '#fde68a', benign: '#bbf7d0' },
         stripe: { malicious: '#dc2626', suspicious: '#d97706', benign: '#16a34a' },
+        label: {
+          red: '#fecaca',
+          amber: '#fde68a',
+          green: '#bbf7d0',
+          teal: '#99f6e4',
+          blue: '#bfdbfe',
+          purple: '#e9d5ff',
+          pink: '#fbcfe8',
+          grey: '#e5e7eb',
+        },
+        labelStripe: {
+          red: '#dc2626',
+          amber: '#d97706',
+          green: '#16a34a',
+          teal: '#0d9488',
+          blue: '#2563eb',
+          purple: '#9333ea',
+          pink: '#db2777',
+          grey: '#6b7280',
+        },
       },
     },
     dark: {
@@ -70,6 +112,26 @@ export const theme = createTheme({
         grid: { header: '#262626', oddRow: '#232323' },
         determination: { malicious: '#7f1d1d', suspicious: '#713f12', benign: '#14532d' },
         stripe: { malicious: '#f87171', suspicious: '#fbbf24', benign: '#4ade80' },
+        label: {
+          red: '#7f1d1d',
+          amber: '#713f12',
+          green: '#14532d',
+          teal: '#134e4a',
+          blue: '#1e3a8a',
+          purple: '#581c87',
+          pink: '#831843',
+          grey: '#374151',
+        },
+        labelStripe: {
+          red: '#f87171',
+          amber: '#fbbf24',
+          green: '#4ade80',
+          teal: '#2dd4bf',
+          blue: '#60a5fa',
+          purple: '#c084fc',
+          pink: '#f472b6',
+          grey: '#9ca3af',
+        },
       },
     },
   },

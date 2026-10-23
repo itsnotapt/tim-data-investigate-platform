@@ -179,7 +179,8 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao` and `queryOptionsDao`.
+- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `queryOptionsDao`, `annotationsDao` and `annotationSyncDao`.
+- Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
 
@@ -515,7 +516,8 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.
   - Schemas are cached per connection and scope. A failure is not cached.
   - A late answer is ignored. A failure goes to the snackbar.
-  - One adapter per schema kind gives the editor the schema. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
+  - It hands `{kind, schema, connection, scope}` to its `onSchema` callback. It does not touch the editor.
+- `editorSchemaAdapters.ts`: `applyEditorSchema`, one adapter per schema kind, applied by the Query editor in `ActionTab.tsx`. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
 - Tests pass `onRun` to `ActionTab` instead of running.
 

@@ -12,11 +12,17 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from tim_api.annotations.models import Annotations, LabelState
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
     AlreadyExistsError,
+    AnnotationChanges,
+    AnnotationEdit,
+    AnnotationsChanged,
+    AnnotationsOf,
+    AnnotationStore,
     NotFoundError,
     PresetStore,
     QueryRunStore,
@@ -351,12 +357,68 @@ class MemoryPresetStore(PresetStore):
                 self._hidden.discard((preset_id, analyst))
 
 
+class MemoryAnnotationStore(AnnotationStore):
+    def __init__(self) -> None:
+        self._state: dict[str, Annotations] = {}
+        self._version = 0
+        self._lock = asyncio.Lock()
+
+    def _edited(
+        self, id: str, edit: AnnotationEdit, *, by: str, at: datetime, version: int
+    ) -> Annotations | None:
+        """The id's annotations after ``edit``, or ``None`` when it changes nothing."""
+        current = self._state.get(id)
+        before = current.label.key if current and current.label else None
+        if not edit.set_label or edit.label == before:
+            return None
+        label = None if edit.label is None else LabelState(key=edit.label, by=by, at=at)
+        if current is None:
+            return Annotations(id=id, label=label, version=version)
+        return current.model_copy(update={"label": label, "version": version})
+
+    async def change(
+        self, ids: Collection[str], edit: AnnotationEdit, *, by: str, at: datetime
+    ) -> AnnotationsChanged:
+        async with self._lock:
+            version = self._version + 1
+            changed = [
+                annotations
+                for id in sorted(set(ids))
+                if (annotations := self._edited(id, edit, by=by, at=at, version=version))
+            ]
+            if not changed:
+                return AnnotationsChanged(changes=[], version=self._version)
+            self._version = version
+            for annotations in changed:
+                self._state[annotations.id] = annotations
+            return AnnotationsChanged(changes=copy.deepcopy(changed), version=version)
+
+    async def of_ids(self, ids: Collection[str]) -> AnnotationsOf:
+        async with self._lock:
+            found = {id: self._state[id] for id in ids if id in self._state}
+            return AnnotationsOf(annotations=copy.deepcopy(found), version=self._version)
+
+    async def changes(self, since: int, limit: int) -> AnnotationChanges:
+        async with self._lock:
+            after = sorted(
+                (a for a in self._state.values() if a.version > since),
+                key=lambda a: (a.version, a.id),
+            )
+            if len(after) > limit:
+                last = after[limit - 1].version
+                page = [a for a in after if a.version <= last]
+            else:
+                page = after
+            return AnnotationChanges(changes=copy.deepcopy(page), has_more=len(page) < len(after))
+
+
 class MemoryStorage(Storage):
     def __init__(self) -> None:
         self.templates = MemoryTemplateStore()
         self.query_runs = MemoryQueryRunStore()
         self.runs = MemoryRunStore()
         self.presets = MemoryPresetStore()
+        self.annotations = MemoryAnnotationStore()
 
     async def health(self) -> bool:
         return True

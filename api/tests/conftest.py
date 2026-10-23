@@ -110,8 +110,12 @@ async def storage(request: pytest.FixtureRequest) -> AsyncIterator[Storage]:
         engine = create_async_engine(dsn)
         async with engine.begin() as conn:
             await conn.execute(
-                text("TRUNCATE query_templates, query_runs, runs, run_rows, presets, preset_hidden")
+                text(
+                    "TRUNCATE query_templates, query_runs, runs, run_rows, presets, preset_hidden, "
+                    "id_state, label_changes, tags, comments"
+                )
             )
+            await conn.execute(text("UPDATE annotation_clock SET version = 0"))
         await engine.dispose()
         store = PostgresStorage(dsn)
     yield store

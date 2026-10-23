@@ -14,10 +14,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from tim_api.annotations.models import Annotations
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
@@ -201,6 +203,64 @@ class PresetStore(ABC):
         when the preset is missing."""
 
 
+@dataclass(frozen=True)
+class AnnotationEdit:
+    """What one change does to every id it names: with ``set_label``, set the label to ``label``,
+    or clear it when that is ``None``."""
+
+    set_label: bool = False
+    label: str | None = None
+
+
+@dataclass(frozen=True)
+class AnnotationsChanged:
+    """The ids a change changed, as they now are, and the version: the change's own, or the
+    current one when nothing changed."""
+
+    changes: list[Annotations]
+    version: int
+
+
+@dataclass(frozen=True)
+class AnnotationsOf:
+    """The annotations of those ids that have any, and the version they are current as of."""
+
+    annotations: dict[str, Annotations]
+    version: int
+
+
+@dataclass(frozen=True)
+class AnnotationChanges:
+    """A page of the change feed: the ids changed after ``since``, as they now are, in version
+    order. ``has_more`` when later changes are left for the next page."""
+
+    changes: list[Annotations]
+    has_more: bool
+
+
+class AnnotationStore(ABC):
+    """The annotations of ids, with one version counter (ADR-0020). Every change is one
+    transaction that takes the next version, so versions are gapless and in commit order."""
+
+    @abstractmethod
+    async def change(
+        self, ids: Collection[str], edit: AnnotationEdit, *, by: str, at: datetime
+    ) -> AnnotationsChanged:
+        """Apply ``edit`` to every one of ``ids`` under one new version. An id the edit leaves as
+        it was isn't changed, and a change that changes nothing takes no version and writes no
+        history."""
+
+    @abstractmethod
+    async def of_ids(self, ids: Collection[str]) -> AnnotationsOf:
+        """The annotations of those of ``ids`` that have any, including ids whose annotations
+        have all been removed."""
+
+    @abstractmethod
+    async def changes(self, since: int, limit: int) -> AnnotationChanges:
+        """The ids changed after version ``since``: the first ``limit``, and the others of the
+        last one's version, so a page always ends after a whole version."""
+
+
 class Storage(ABC):
     """Bundle wired into the app: the stores plus lifecycle and health."""
 
@@ -208,6 +268,7 @@ class Storage(ABC):
     query_runs: QueryRunStore
     runs: RunStore
     presets: PresetStore
+    annotations: AnnotationStore
 
     @abstractmethod
     async def health(self) -> bool:

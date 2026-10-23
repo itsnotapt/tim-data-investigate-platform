@@ -1,0 +1,10 @@
+# The e2e api's connections file (TIM_CONNECTIONS_FILE). dev_kql connections, which come with
+# TIM_DEV_ACTIONS.
+- name: dev-logs
+  title: Development logs
+  type: dev_kql
+  auth: workload_identity
+- name: dev-audit
+  title: Development audit
+  type: dev_kql
+  auth: workload_identity

@@ -89,8 +89,10 @@ def test_the_instance_carries_its_limits(auth: AuthKit, monkeypatch: pytest.Monk
         "maxPivotRows": 20,
         "rowsPageSize": 250,
         "runTimeoutSeconds": 90,
+        "maxAnnotationIds": 10000,
+        "annotationPollSeconds": 30,
     }
-    assert (body["actions"], body["connections"], body["labels"]) == ([], [], [])
+    assert (body["actions"], body["connections"]) == ([], [])
 
 
 def test_an_action_that_does_not_pivot_has_a_null_pivot(auth: AuthKit) -> None:

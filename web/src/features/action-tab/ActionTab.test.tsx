@@ -69,6 +69,8 @@ const instance: Instance = {
     maxPivotRows: 100,
     rowsPageSize: 10,
     runTimeoutSeconds: 600,
+    maxAnnotationIds: 10_000,
+    annotationPollSeconds: 30,
   },
 };
 const succeeded: Run = {
@@ -395,6 +397,8 @@ describe('ActionTab with a query param', () => {
             { row: 1, id: null, data: { State: 'IOWA' } },
           ],
           lastRow: 2,
+          annotations: {},
+          annotationVersion: 0,
         }),
       ),
     );

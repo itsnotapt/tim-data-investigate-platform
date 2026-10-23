@@ -69,6 +69,8 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("post", "/api/taggedevents/savedEvents"): ("saveEvents", (400, 502)),
     ("post", "/api/taggedevents/tags"): ("tagEvents", (400, 502)),
     ("post", "/api/taggedevents/comments"): ("commentEvents", (400, 502)),
+    ("patch", "/api/annotations"): ("changeAnnotations", (400, 422)),
+    ("get", "/api/annotations/changes"): ("getAnnotationChanges", (400,)),
 }
 _PUBLIC = {"liveness", "readiness"}
 

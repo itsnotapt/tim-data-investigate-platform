@@ -9,6 +9,7 @@ from tim_actions import Provider
 
 from tim_api.actions import build_instance, build_registry, load_providers
 from tim_api.actions.router import router as instance_router
+from tim_api.annotations.router import router as annotations_router
 from tim_api.auth.obo import build_obo_provider
 from tim_api.config import Settings, get_settings
 from tim_api.connections.router import router as connections_router
@@ -51,8 +52,8 @@ async def _lifespan(
             "*** AUTHENTICATION IS DISABLED (TIM_AUTH_DISABLED=true): every request runs as the "
             "analyst its stub token (dev:<upn>) names, or a fixed dev user. Development only. ***"
         )
-    # Any problem with the installed providers, the action files or the connections file stops
-    # startup (ADR-0017, ADR-0018).
+    # Any problem with the installed providers, the action files, the connections file or the
+    # labels file stops startup (ADR-0017, ADR-0018, ADR-0020).
     if settings.dev_actions:
         logger.warning(
             "Development actions are registered (TIM_DEV_ACTIONS=true). Development only."
@@ -61,6 +62,7 @@ async def _lifespan(
         load_providers(providers, dev_actions=settings.dev_actions),
         settings.actions_dir,
         connections_file=settings.connections_file,
+        labels_file=settings.labels_file,
     )
     for reason in registry.left_out:
         logger.info(reason)
@@ -131,6 +133,7 @@ def create_app(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     app.include_router(instance_router)
+    app.include_router(annotations_router)
     app.include_router(tagged_events_router)
     app.include_router(connections_router)
     app.include_router(kusto_router)

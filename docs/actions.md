@@ -10,6 +10,7 @@ The guide for operators and action authors. It covers what configures an instanc
 - **Providers**, installed packages that add action types, Python actions and action files of their own, found through the `tim.actions` entry-point group.
 - **Action files**, YAML in one flat directory, `TIM_ACTIONS_DIR` ([configuration.md](configuration.md#actions)).
 - **The connections file**, YAML, `TIM_CONNECTIONS_FILE` ([configuration.md](configuration.md#connections)).
+- **The labels file**, YAML, `TIM_LABELS_FILE` ([configuration.md](configuration.md#labels-and-annotations)).
 
 All are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
 
@@ -61,7 +62,7 @@ The fields every action file takes:
 | `description` | no | A longer description. |
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
-| `id` | no | The column that gives each row its `id`, or a list of alternative columns. Leave it out and the rows have no `id`. |
+| `id` | no | The column that gives each row its `id`, or a list of alternative columns. Leave it out and the rows have no `id`, so they cannot be annotated. |
 | `columns` | no | Declared result columns, below. |
 
 The action type adds fields of its own, such as a connection and a query.
@@ -154,6 +155,29 @@ An action names its connections in two ways:
 
 Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in problem answers the start request. A hook gets a `token_for(scope)` callable and never sees the analyst's own token.
 
+## Labels file
+
+The labels file lists the instance's **labels**: what analysts can mark a row with. It is a YAML list, one entry per label. Without it the instance has Malicious (red, skull), Suspicious (amber, warning) and Benign (green, check).
+
+```yaml
+# yaml-language-server: $schema=./labels.schema.json
+- {key: malicious, name: Malicious, colour: red, symbol: skull}
+- {key: escalated, name: Escalated, colour: blue, symbol: flag}
+- {key: benign, name: Benign, colour: green, symbol: check}
+```
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `key` | yes | What annotations store: 1 to 64 characters, no whitespace, unique in the file. |
+| `name` | yes | What analysts see, 1 to 100 characters. |
+| `colour` | yes | `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. |
+| `symbol` | no | `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`. |
+
+- The file lists at least one label, and no other fields.
+- The first nine labels take the keys 1 to 9 in the grid.
+- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or `idColumn` of Run KQL).
+- Keep a `key` for good. Annotations store it, so renaming it leaves the old key on every `id` that has it, shown grey. Change `name`, `colour` or `symbol` instead.
+
 ## Built-in actions
 
 The built-in provider adds the `kql_query` action type and the **Run KQL** action. Both need the `kusto` extra.
@@ -245,20 +269,21 @@ An optional param without a value is not sent, so the default in `declare query_
 
 ## Checking files
 
-The api image prints the JSON Schema of the action types and connection types installed in it, and validates action files and the connections file the way startup does, without a database or credentials ([operations.md](operations.md#tim-api-check)):
+The api image prints the JSON Schema of the action types, connection types and labels installed in it, and validates action files, the connections file and the labels file the way startup does, without a database or credentials ([operations.md](operations.md#tim-api-check)):
 
 ```bash
 docker run --rm <api image> tim-api schema actions > action-file.schema.json
 docker run --rm <api image> tim-api schema connections > connections.schema.json
-docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connections.yaml:ro" <api image> tim-api check --actions /actions --connections /connections.yaml
+docker run --rm <api image> tim-api schema labels > labels.schema.json
+docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connections.yaml:ro" -v "$PWD/labels.yaml:/labels.yaml:ro" <api image> tim-api check --actions /actions --connections /connections.yaml --labels /labels.yaml
 ```
 
 - **In the editor:** commit `action-file.schema.json` next to the files, and point `yaml-language-server` at it.
   - Point it with a `# yaml-language-server: $schema=./action-file.schema.json` line at the top of each file, or with a `yaml.schemas` setting.
   - It completes and checks the fields of each document by its `type`.
-  - Do the same with `connections.schema.json` for the connections file.
-  - Regenerate both when the image's providers change.
-- **In CI:** run `tim-api check --actions <dir> --connections <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
+  - Do the same with `connections.schema.json` for the connections file and `labels.schema.json` for the labels file.
+  - Regenerate them when the image's providers change.
+- **In CI:** run `tim-api check --actions <dir> --connections <file> --labels <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections, <k> labels`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
 
 ## Writing file-capable action types
 

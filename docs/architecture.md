@@ -64,6 +64,7 @@ Key points:
 - Templates are rendered to KQL in the browser. The API receives the final KQL text.
 - Queries run on the API. It exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run. The SPA polls the query run.
 - Tag data is written through the API, as the app identity. It is read back with KQL, inside the user's own queries.
+- Labels are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
 
 ## Web architecture
 
@@ -83,8 +84,9 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `column-views`, `tagging`, `share`, `export-import` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `column-views`, `tagging`, `share`, `export-import` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
+| `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
 | `web/src/lib/config/` | Runtime config loader |
 | `web/src/lib/kql-templates/` | Template engine, escaping, param building, `getTagEvents` partial |
@@ -191,6 +193,7 @@ An action tab runs differently:
 4. **Store.** For a succeeded run, the rows are loaded page by page from `GET /api/runs/{runId}/rows`.
    - Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load.
    - Until they all have, the tab shows "Results · 20000 of 85000".
+   - The page's `annotations` go to the annotation store before its rows reach the grid ([Annotations in the browser](#annotations-in-the-browser)).
    - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, id, data}` rows, in one write. The tab's `resultsRunId`, `resultColumns` and row count are written with them.
    - A failed or abandoned load shows none of its rows.
    - A tab whose rows are stored needs no API call. So it still shows them after the run has expired on the server.
@@ -206,7 +209,7 @@ One run is followed per tab. Starting another run stops following the previous o
 
 ### IndexedDB
 
-Database `tim` (version 1):
+Database `tim` (version 2):
 
 | Store | Key | Value |
 |---|---|---|
@@ -214,6 +217,10 @@ Database `tim` (version 1):
 | `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
 | `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state) |
 | `query_options` | template uuid (out-of-line) | `{hide?, ...}` |
+| `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
+| `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
+
+Annotations are never stored in `row_results`.
 
 ### The tab and New menu
 
@@ -386,10 +393,55 @@ A preset is an action with some params fixed and the rest filled in by the analy
 
 **Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
 
-- `GET /api/presets` returns the caller's presets and the shared ones, oldest first, each with `hidden` for the caller.
+- `GET /api/presets` returns the caller's presets and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
 - The server assigns `presetId`, `owner` (from the token) and the timestamps.
 - It checks that `action` is in the catalogue and that each input is a param of it with `from_columns`.
 - `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
+
+### Annotations in the browser
+
+`web/src/lib/annotations/` keeps the annotations of every `id` the browser has seen, apart from any tab's rows ([ADR-0020](adr/0020-annotations-in-postgres.md)).
+
+- **The store.** `apply` writes each `Annotations` newer than the stored one to IndexedDB `annotations`, so the newest `version` wins. It then tells the listeners of every tab of the browser, over a `BroadcastChannel` named `tim-annotations`.
+- **Where annotations come from.** Each applied change has a source:
+  - `rows`: the `annotations` of a page of a run's rows;
+  - `own`: the answer to the analyst's own `PATCH`;
+  - `feed`: the change feed.
+- **The poller.** One poller runs per browser: the tab that holds the Web Lock `tim-annotations-poller`. The other tabs queue for the lock, and take over when the holder closes.
+  - It reads the feed from the cursor in `annotation_sync` when it starts, every `annotationPollSeconds` (30 by default), when its window gets focus, and when asked.
+  - It is asked soon after the analyst's own change. A tab that doesn't hold the lock asks the holder through the channel.
+  - It reads page after page while the answer has `hasMore`, and saves the cursor after each page.
+  - A failed read is tried again at the next poll.
+  - Without Web Locks every tab polls.
+- **Starting.** Bootstrap (`web/src/app/useBootstrap.ts`) starts the poller once the instance is loaded, with the instance's `limits.annotationPollSeconds`.
+- **A new browser** starts at cursor `0` and reads the whole feed.
+
+### Grid tagging
+
+An action tab's grid labels rows by `id` ([ADR-0006](adr/0006-ag-grid-enterprise.md): the context menu is the only UI for it). The code is in `web/src/features/labels/` and `features/action-tab/ActionResultsGrid.tsx`.
+
+- **How a row shows its label.**
+  - The row's fill, a stripe on its left edge and a symbol in the selection column.
+  - The label's `colour` and `symbol` pick them from the theme's palette (`label` and `labelStripe` in `web/src/app/theme.ts`, light and dark).
+  - A stored key that the labels file no longer lists shows grey, as its bare key, with no symbol.
+  - Every row with the same `id` shows it, in any tab.
+- **The Label column.** Column `tim:label` holds the label's name. It is hidden until the analyst shows it, and it has a set filter and can be grouped.
+- **Label ▸.** The right-click menu has a **Label** submenu for the selected rows, or for the clicked row when none is selected.
+  - It lists the instance's labels in file order, each with a colour swatch and its key 1 to 9.
+  - A label is checked when every target row with an `id` has it.
+  - **Clear label** (0) comes last.
+- **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
+- **Number keys.** 1 to 9 set the label at that place in the list, and 0 clears it. They act on the selected rows, or the focused row when none is selected. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
+- **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
+  - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
+  - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";
+  - no target row has an `id`, and the action has no such param: "No id: this action gives its rows no id".
+- **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it.
+  - "Labelled 3 ids Malicious", or "Cleared the label of 3 ids". Ids that already had the label are left out of the count.
+  - "Already Malicious" or "No labels to clear" when nothing changed.
+  - A failure shows "Couldn't label: …".
+- **Flash.** A change that arrives from the feed, such as a teammate's, flashes the rows it changes.
+- **Row updates.** The grid keeps a map from each `id` to its rows. A changed `id` updates all of them with one AG Grid transaction.
 
 ### Template engine
 
@@ -467,11 +519,12 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its template, preset, run and query-run stores |
+| `deps.py` | FastAPI dependencies returning the storage and its template, preset, run, query-run and annotation stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
-| `cli.py` | The `tim-api` command: `schema actions`, `schema connections` and `check` |
+| `cli.py` | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check` |
+| `annotations/` | `/api/annotations` routes (`router.py`) and the `Annotations` models |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
 | `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
@@ -495,6 +548,7 @@ Database migrations are in `api/migrations` (Alembic).
 | `columns.py` | `Column` |
 | `connections.py` | `Connection`, the base of a connection type's entries in the connections file |
 | `connections_file.py` | The connections file: the loader (`load_connections_file`) and the JSON Schema (`connections_file_schema`) |
+| `labels_file.py` | The labels file: `Label`, the default labels, the loader (`load_labels_file`) and the JSON Schema (`labels_file_schema`) |
 | `hooks.py` | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema` |
 | `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
 | `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
@@ -699,9 +753,9 @@ A hook can also give the editor schema of its connection: `Hook.editor_schema(sc
 In the browser, an editor param with `schemaFrom` loads its schema once its connection and scope params have values that have stayed unchanged for 400 ms.
 
 - Schemas are cached per connection and scope.
-- The browser has one completion adapter per kind.
+- `useEditorSchema` in `web/src/features/action-tab/editorSchema.ts` loads, caches and settles the schema. It hands `{kind, schema, connection, scope}` to a callback, and does not touch the editor.
+- The browser has one completion adapter per kind, in `web/src/features/action-tab/editorSchemaAdapters.ts`. The Query editor in `ActionTab.tsx` applies it from that callback.
 - The `kql` adapter gives Monaco's Kusto worker the schema, with the connection name where Monaco wants a cluster.
-- `useEditorSchema` and the adapters are in `web/src/features/action-tab/editorSchema.ts`.
 
 **Run KQL** (`tim.run_kql`) is the built-in action on a Kusto connection. It sets `pivot: none`. Its params:
 
@@ -874,9 +928,44 @@ The three `POST /api/taggedevents/*` routes:
 - A failure gives `502`.
 - `TIM_TAG_INGEST_FAKE=true` (development only) swaps in an in-memory recorder.
 
+### Annotations and the change feed
+
+An `id`'s annotations are its label, tags and comments ([ADR-0020](adr/0020-annotations-in-postgres.md)).
+Kusto tagging ([Tagged events](#tagged-events)) runs beside them.
+
+The wire shape is the same everywhere: `Annotations = {id, label: {key, by, at} | null, tags, comments, version}`. `version` is the version of the change that last touched the `id`.
+
+**Labels.** The instance's labels come from the labels file, `TIM_LABELS_FILE` ([actions.md](actions.md#labels-file)), read with the action files at startup. Without the file there are three: Malicious, Suspicious and Benign.
+
+- A label's `key` is what annotations store, so changing a label's name or colour changes how rows look, not what is stored.
+- `GET /api/instance` lists the labels.
+
+**A change** (`PATCH /api/annotations`) checks the body, then writes in one transaction:
+
+1. It answers `422` for a label key the instance doesn't have, for more than `TIM_MAX_ANNOTATION_IDS` distinct ids, and for a body that changes nothing.
+2. It takes the next version first: `UPDATE annotation_clock SET version = version + 1 RETURNING version`. The lock on that row queues concurrent writers, so the versions are gapless and in commit order.
+3. It finds the ids whose label differs from the one asked for.
+4. For those it upserts `id_state`, with the label, who set it (from the token), when, and the version, and adds a row to `label_changes`.
+5. It answers with the changed ids' annotations and the version.
+
+A change that changes nothing rolls back. It takes no version, writes no history and answers `changes: []` with the current version.
+
+**State and history.**
+
+- `id_state` has one row per `id` that was ever labelled. Clearing a label keeps the row, with `label: null`, so the removal reaches other browsers through the feed.
+- `label_changes` keeps every change: the label, who changed it, when, and the version.
+
+**The change feed** (`GET /api/annotations/changes?since=V`) gives the `id`s whose `id_state.version` is above `V`, as they now are, in version order.
+
+- A page ends after a whole version, so it holds at least 1,000 `id`s unless the feed ends there, and more when its last change touches more.
+- `next` is the version of the page's last change, and the `since` for the next request. `hasMore` says whether more follow.
+- Because versions are gapless and in commit order, a reader that has read up to `V` never misses a lower version that commits later.
+
+**Rows.** `GET /api/runs/{runId}/rows` adds the annotations of its page's `id`s (`annotations`, by `id`) and `annotationVersion`, the version read before them, so the annotations are never older than it.
+
 ### Persistence
 
-`storage/` defines `TemplateStore`, `PresetStore`, `RunStore`, `QueryRunStore` and a `Storage` bundle (health, close).
+`storage/` defines `TemplateStore`, `PresetStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
 
 - `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`).
 - In development only, `memory://` selects an in-memory store. Production refuses it.
@@ -889,6 +978,11 @@ The three `POST /api/taggedevents/*` routes:
 | `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
 | `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
 | `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
+| `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
+| `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |
+| `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |
+| `tags` | `(id, tag)` | `added_by`, `added_at` |
+| `comments` | none | `id`, `author`, `created_at`, `text`, `version`; index on `(id, version)` |
 | `query_runs` | `query_run_id` | `requested_by` (owner), `status`, `execute_date_time_utc`, `expires_at`, `kusto_query`, `result_data`, `execution_metrics` (JSONB), `main_error`; indexes on owner, expiry, and `created` runs |
 
 `run_rows` is `UNLOGGED`, so it is not written to the WAL.
@@ -909,6 +1003,7 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
 
 - **Identity** comes from the validated token only. The API ignores `requestedBy`, `createdBy`, `updatedBy`, `updated` and `dateTimeUtc` sent by a client. The SPA also strips them.
 - **Runs and query runs are owner-scoped.** Another user's run id is indistinguishable from an unknown one (`404`).
+- **Annotations are instance-wide.** Every signed-in analyst reads and changes the labels of every `id`. The author of a change comes from the token.
 - **A run reaches only the connections in the connections file**, whose endpoints the operator chose.
   - Analysts never name an endpoint, so the API cannot be used to forward user tokens to arbitrary hosts.
   - Hooks get a `token_for(scope)` callable and never see the analyst's token.

@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact, type CustomCellRendererProps } from 'ag-grid-react';
 import { themeBalham } from 'ag-grid-community';
 import type {
   CellEditRequestEvent,
+  CellKeyDownEvent,
   ColDef,
   CellFocusedEvent,
+  FullWidthCellKeyDownEvent,
   GridApi,
   GridReadyEvent,
+  RowClassRules,
 } from 'ag-grid-community';
 import { ColumnViewBar } from '../column-views';
 import { DetailPanel } from './DetailPanel';
@@ -22,6 +25,7 @@ import type { GridRow, GridRowWithId, TemplateColumns } from './columns';
 import { useDeterminationSymbols } from './determinationSymbols';
 import {
   buildSelectionColumnDef,
+  buildSymbolSelectionColumnDef,
   determinationSymbolsMenuItem,
   makeGetContextMenuItems,
   staticGridOptions,
@@ -81,6 +85,14 @@ export interface ResultsGridProps {
    * re-created. Without it column state is not kept.
    */
   stateKey?: string;
+  /** Extra row class rules, beside the determination ones. */
+  rowClassRules?: RowClassRules<GridRowWithId>;
+  /**
+   * The selection column's symbol, always shown, instead of the determination symbol the analyst
+   * can show or hide.
+   */
+  selectionSymbol?: ComponentType<CustomCellRendererProps>;
+  onCellKeyDown?: (event: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => void;
 }
 
 export function ResultsGrid({
@@ -97,6 +109,9 @@ export function ResultsGrid({
   columnViews = true,
   detailPanel = true,
   stateKey,
+  rowClassRules,
+  selectionSymbol,
+  onCellKeyDown,
 }: ResultsGridProps) {
   const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
@@ -153,15 +168,24 @@ export function ResultsGrid({
   const showSymbols = useDeterminationSymbols((s) => s.show);
   const setShowSymbols = useDeterminationSymbols((s) => s.setShow);
   const selectionColumnDef = useMemo(
-    () => buildSelectionColumnDef(showSymbols, setShowSymbols),
-    [showSymbols, setShowSymbols],
+    () =>
+      selectionSymbol
+        ? buildSymbolSelectionColumnDef(selectionSymbol)
+        : buildSelectionColumnDef(showSymbols, setShowSymbols),
+    [selectionSymbol, showSymbols, setShowSymbols],
   );
   const menu = useMemo(
     () =>
-      makeGetContextMenuItems(extraMenuItems, [
-        determinationSymbolsMenuItem(showSymbols, setShowSymbols),
-      ]),
-    [extraMenuItems, showSymbols, setShowSymbols],
+      makeGetContextMenuItems(
+        extraMenuItems,
+        selectionSymbol ? [] : [determinationSymbolsMenuItem(showSymbols, setShowSymbols)],
+      ),
+    [extraMenuItems, selectionSymbol, showSymbols, setShowSymbols],
+  );
+
+  const classRules = useMemo(
+    () => ({ ...staticGridOptions.rowClassRules, ...rowClassRules }),
+    [rowClassRules],
   );
 
   // The open panel follows the focused cell's row.
@@ -207,6 +231,8 @@ export function ResultsGrid({
           getContextMenuItems={menu}
           onCellEditRequest={onCellEditRequest}
           onCellFocused={onCellFocused}
+          onCellKeyDown={onCellKeyDown}
+          rowClassRules={classRules}
           onStateUpdated={save}
           onGridReady={(e) => {
             apiRef.current = e.api;

@@ -55,7 +55,19 @@ def _tables(dsn: str) -> set[str]:
     return result
 
 
-ALL_TABLES = {"query_templates", "query_runs", "runs", "run_rows", "presets", "preset_hidden"}
+ALL_TABLES = {
+    "query_templates",
+    "query_runs",
+    "runs",
+    "run_rows",
+    "presets",
+    "preset_hidden",
+    "annotation_clock",
+    "id_state",
+    "label_changes",
+    "tags",
+    "comments",
+}
 
 
 def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
@@ -76,6 +88,8 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
         "ix_runs_expires_at",
         "ix_runs_running_started",
         "ix_presets_created_id",
+        "ix_id_state_version",
+        "ix_comments_id",
     } <= found
 
     migrate(scratch_dsn)  # idempotent
