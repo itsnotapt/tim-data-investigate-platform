@@ -22,6 +22,10 @@ x-api-env: &api-env
   TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
   TIM_ALLOWED_KUSTO_HOSTS: ${TIM_ALLOWED_KUSTO_HOSTS:-}
   TIM_CORS_ALLOWED_ORIGINS: ${TIM_CORS_ALLOWED_ORIGINS:-}
+  # Paths under /etc/tim (the api's config mount); empty means none.
+  TIM_ACTIONS_DIR: ${TIM_ACTIONS_DIR:-}
+  TIM_CONNECTIONS_FILE: ${TIM_CONNECTIONS_FILE:-}
+  TIM_LABELS_FILE: ${TIM_LABELS_FILE:-}
   FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-${TIM_SUBNET:-10.89.0.0/24}}
 
 services:
@@ -64,6 +68,9 @@ services:
         condition: service_completed_successfully
     read_only: true
     tmpfs: [/tmp]
+    # The instance files, read at startup (deploy/config/README.md).
+    volumes:
+      - ${TIM_CONFIG_DIR:-./config}:/etc/tim:ro
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     # HEALTHCHECK (liveness) comes from the image; readiness is /api/healthChecks/readiness.

@@ -1,0 +1,11 @@
+# An action file: each YAML document is one action (docs/actions.md#action-files). Every action
+# below is commented out. Read when TIM_ACTIONS_DIR=/etc/tim/actions.
+#
+# type: kql_query
+# key: acme.storm_count
+# name: Storm count
+# pivot: none
+# connection: samples          # a connection in connections.yaml
+# database: Samples
+# kql: |
+#   StormEvents | count

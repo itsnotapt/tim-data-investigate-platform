@@ -96,6 +96,8 @@ TIM_WEB_IMAGE_TAG=1.6.0
 
 Use a matching pair, for example the versions a chart release pins in `deploy/helm/tim/image-tags.yaml`. Then run `docker compose ... pull`, followed by `docker compose ... up -d --no-build`.
 
+To run providers, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` to a [derived image](#derived-images).
+
 `deploy/.env` variables:
 
 | Variable | Required | Default | Notes |
@@ -112,6 +114,8 @@ Use a matching pair, for example the versions a chart release pins in `deploy/he
 | `WEB_PORT` | no | `8080` | Host port of web |
 | `TIM_SUBNET` | no | `10.89.0.0/24` | Compose network; change if it overlaps a host or VPN range |
 | `FORWARDED_ALLOW_IPS` | no | `TIM_SUBNET` | Addresses the api trusts for `X-Forwarded-*` |
+| `TIM_CONFIG_DIR` | no | `./config` | Host directory mounted read-only at `/etc/tim` in the api |
+| `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE`, `TIM_LABELS_FILE` | no | empty | Container paths under `/etc/tim` of the action files, connections file and labels file; empty = none |
 | `TIM_API_IMAGE`, `TIM_API_IMAGE_TAG` | no | `tim-api`, `local` | Api image and tag |
 | `TIM_WEB_IMAGE`, `TIM_WEB_IMAGE_TAG` | no | `tim-web`, `local` | Web image and tag |
 
@@ -119,6 +123,43 @@ Use a matching pair, for example the versions a chart release pins in `deploy/he
 - Data lives in the `postgres-data` volume. Back it up. `down -v` deletes it.
 
 The dev stack (`compose.yaml`, root `.env`) is described in [development.md](development.md).
+
+### Instance files
+
+The api reads its action files, connections file and labels file from `/etc/tim`.
+
+- **Mount.** `deploy/compose.prod.yaml` binds `TIM_CONFIG_DIR` read-only at `/etc/tim`. The default is `deploy/config`, and a relative path is from `deploy/`.
+- **Paths.** Three variables in `deploy/.env` name what the api reads. Empty means none.
+  - `TIM_ACTIONS_DIR`, for example `/etc/tim/actions`.
+  - `TIM_CONNECTIONS_FILE`, for example `/etc/tim/connections.yaml`.
+  - `TIM_LABELS_FILE`, for example `/etc/tim/labels.yaml`.
+- **As shipped.** `deploy/config` holds commented examples and the default labels. With the variables empty, the api reads none of them.
+- **Startup only.** The api reads the files once, at startup. A change takes a restart of `api` (`docker compose -f deploy/compose.prod.yaml --env-file deploy/.env restart api`).
+- **Errors stop startup.** Any problem in a file keeps the api from starting ([operations.md](operations.md#startup-failures-from-the-files)). Check the files first with `tim-api check` ([actions.md](actions.md#checking-files)).
+
+The formats are in [actions.md](actions.md). `deploy/config/README.md` lists the files.
+
+## Derived images
+
+An instance that uses providers runs a derived image: TIM's backend image with the providers installed. Both Compose and Helm use it.
+
+The backend image ships `uv` and `/app/constraints.txt`. The constraints pin every dependency from TIM's `uv.lock`, and pin `tim-api` and `tim-actions` to the versions in the image.
+
+```dockerfile
+FROM ghcr.io/itsnotapt/tim-data-investigate-platform/backend:4.0.0
+COPY --chown=tim:tim acme-provider /tmp/acme-provider
+RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/acme-provider
+```
+
+- **Packages.** `uv pip install` takes anything it can resolve: a local directory as above, a wheel, a git URL or an index name.
+- **User.** The image runs as `tim`, which owns `/app/.venv`. No `USER` switch is needed.
+- **Constraints.** A provider can't move TIM's pins. A provider that needs another `tim-actions` major fails the build with `No solution found`.
+- **No runtime installs.** Nothing installs when the container starts. Every replica runs the same packages.
+- **Tags.** Name a derived image `<tim version>-<revision>`, for example `4.0.0-acme.3`. The revision counts your own changes on that TIM version.
+- **Checks.** `tim-api schema` and `tim-api check` run in the derived image and include the providers' types ([actions.md](actions.md#checking-files)).
+- **Use it.** In Compose, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG`. In Helm, set `api.image.repository`, and always set `api.image.tag` or `api.image.digest`.
+
+How to write a provider is in [actions.md](actions.md#providers).
 
 ## Kubernetes (Helm)
 
@@ -326,6 +367,9 @@ Ingress controllers have their own body-size and timeout defaults: ingress-nginx
   1. Update the checkout, or `TIM_API_IMAGE_TAG` and `TIM_WEB_IMAGE_TAG`.
   2. Run `docker compose -f deploy/compose.prod.yaml --env-file deploy/.env up -d --build`, or `pull` then `up -d --no-build`.
   3. `migrate` re-runs. It is a no-op when the schema is current. Then api and web are recreated.
+- **Derived images:** rebuild each one `FROM` the new backend tag on every TIM release, and retag it `<tim version>-<revision>`.
+  - Then point the stack at the new tag: `TIM_API_IMAGE_TAG` in Compose, `api.image.tag` in Helm.
+  - A provider that needs another `tim-actions` major fails the rebuild. Update the provider first.
 - **Helm:** run `helm upgrade` with the new chart `--version`.
   - The images follow the pair that chart version pins. Set `api.image.tag` or `web.image.tag` only to override.
   - The migrations Job runs first. The Deployments then roll with `maxUnavailable` 25 %, gated on readiness.
