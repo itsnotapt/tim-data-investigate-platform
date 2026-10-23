@@ -49,10 +49,16 @@ A file next to an action file that holds the text of one of an action's fields, 
 An installable package that adds action types, actions and connection types to an instance.
 _Avoid_: action package, plugin, extension
 
+**Derived image** (for operators):
+A container image built `FROM` TIM's backend image that installs providers into it. An instance that uses providers runs one.
+
 ### Instance
 
 **Instance**:
 One deployment of TIM with its configured actions, connections, labels and limits.
+
+**Instance files**:
+The action files, the connections file and the labels file an instance reads at startup.
 
 **Connection type**:
 A kind of system TIM can connect to, such as Kusto or Snowflake.

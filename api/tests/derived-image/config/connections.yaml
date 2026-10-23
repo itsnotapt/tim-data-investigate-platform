@@ -1,0 +1,5 @@
+# The derived image's connections file: its one connection is of the provider's connection type.
+- name: ci
+  title: CI
+  type: ci_static
+  auth: workload_identity

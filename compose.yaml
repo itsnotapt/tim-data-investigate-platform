@@ -39,10 +39,12 @@ services:
       TIM_TAG_DATABASE: ${TIM_TAG_DATABASE:-Research}
       TIM_AUTH_CLIENT_SECRET: ${TIM_AUTH_CLIENT_SECRET:-}
       TIM_ALLOWED_KUSTO_HOSTS: ${TIM_ALLOWED_KUSTO_HOSTS:-}
-      # Dev only: the development actions, with the e2e scenarios as the action files (mounted
-      # in the api service below).
-      # TIM_DEV_ACTIONS: "true"
-      # TIM_ACTIONS_DIR: /etc/tim/actions
+      # Dev only: the development actions (docs/development.md).
+      TIM_DEV_ACTIONS: ${TIM_DEV_ACTIONS:-false}
+      # Paths under /etc/tim (the api's config mount below); empty means none.
+      TIM_ACTIONS_DIR: ${TIM_ACTIONS_DIR:-}
+      TIM_CONNECTIONS_FILE: ${TIM_CONNECTIONS_FILE:-}
+      TIM_LABELS_FILE: ${TIM_LABELS_FILE:-}
       # uvicorn trusts X-Forwarded-* only from these addresses; the web container proxies here.
       FORWARDED_ALLOW_IPS: "*"
     depends_on:
@@ -59,8 +61,9 @@ services:
         condition: service_completed_successfully
     ports:
       - "${API_PORT:-8080}:8080"
-    # volumes:
-    #   - ./web/e2e/actions:/etc/tim/actions:ro
+    # The instance files, read at startup, as in deploy/compose.prod.yaml.
+    volumes:
+      - ${TIM_CONFIG_DIR:-./deploy/config}:/etc/tim:ro
     # Health check comes from the image's HEALTHCHECK (/api/healthChecks/liveness).
 
   web:

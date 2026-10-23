@@ -2,7 +2,8 @@ name: Build api
 
 # Pull requests always run this workflow, so the required build-api-gate check always reports;
 # the changes job skips the build jobs when the PR does not touch api/, this file, or a file the
-# api tests read from outside api/ (docs/architecture.md, web/src/lib/api/openapi.json).
+# api tests read from outside api/ (docs/architecture.md, web/src/lib/api/openapi.json,
+# deploy/config/).
 on:
   pull_request:
   push:
@@ -12,6 +13,7 @@ on:
       - api/**
       - docs/architecture.md
       - web/src/lib/api/openapi.json
+      - deploy/config/**
       - .github/workflows/build-api.yml
 
 concurrency:
@@ -53,7 +55,7 @@ jobs:
             # Diff on its own line, so a failed diff fails this job and the gate instead of reading
             # as "no changes".
             files=$(git diff --name-only "$BASE...$HEAD")
-            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|\.github/workflows/build-api\.yml$)' <<<"$files"; then
+            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|deploy/config/|\.github/workflows/build-api\.yml$)' <<<"$files"; then
               changed=true
             else
               changed=false
@@ -170,13 +172,49 @@ jobs:
         with:
           driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
 
+      # Loaded into the runner's Docker, not pushed, for the steps below.
       - name: Build Docker image (no push)
         uses: docker/build-push-action@v7
         with:
           context: ./api
           push: false
+          load: true
+          tags: tim-api:ci
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
+
+      - name: Check deploy/config
+        run: >-
+          docker run --rm -v "$GITHUB_WORKSPACE/deploy/config:/etc/tim:ro" tim-api:ci
+          tim-api check --actions /etc/tim/actions --connections /etc/tim/connections.yaml
+          --labels /etc/tim/labels.yaml
+
+      # A derived image as docs/deployment.md describes, from the image above. The default
+      # builder (docker driver) sees images loaded into the runner's Docker; the buildx builder
+      # above does not.
+      - name: Build a derived image with a provider
+        run: >-
+          docker buildx build --builder default --load --build-arg BASE=tim-api:ci
+          --tag tim-derived:ci tests/derived-image
+
+      # The connections file uses the provider's connection type, so the check fails without it.
+      - name: Check the derived image
+        run: |
+          docker run --rm -v "$PWD/tests/derived-image/config:/etc/tim:ro" tim-derived:ci \
+            tim-api check --connections /etc/tim/connections.yaml
+          docker run --rm tim-derived:ci tim-api schema connections | grep -q '"ci_static"'
+
+      - name: A provider for another tim-actions major fails the build
+        run: |
+          if docker buildx build --builder default --build-arg BASE=tim-api:ci \
+              --build-arg PROVIDER=incompatible tests/derived-image > build.log 2>&1; then
+            echo "the incompatible provider installed" >&2
+            exit 1
+          fi
+          # Only the constraints' tim-actions pin counts: without it the build fails too, because
+          # no tim-actions 2 is published.
+          grep -qE 'depends on tim-actions>=2,<3 and tim-actions==[0-9]' build.log \
+            || { cat build.log; exit 1; }
 
   # The required status check on main. It always runs and fails when a needed job failed or was
   # cancelled; build jobs skipped because api/ is unchanged count as passed.

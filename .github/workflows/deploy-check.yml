@@ -184,3 +184,30 @@ jobs:
               -e 's|^TIM_AUTH_CLIENT_SECRET=$|TIM_AUTH_CLIENT_SECRET=ci|' \
               deploy/.env.example > deploy/.env
           docker compose -f deploy/compose.prod.yaml --env-file deploy/.env config --quiet
+
+      # The api mounts TIM_CONFIG_DIR read-only at /etc/tim and gets the three file variables,
+      # empty by default.
+      - name: Check the instance files
+        run: |
+          # assert_api_mount <compose args> -- <config dir> <actions dir> <connections file> <labels file>
+          assert_api_mount() {
+            local args=()
+            while [ "$1" != -- ]; do args+=("$1"); shift; done
+            shift
+            docker compose "${args[@]}" config --format json | jq -e \
+              --arg dir "$1" --arg actions "$2" --arg connections "$3" --arg labels "$4" '
+                .services.api as $api
+                | ([($api.volumes // [])[] | select(.target == "/etc/tim") | del(.bind)]
+                    == [{type: "bind", source: $dir, target: "/etc/tim", read_only: true}])
+                and $api.environment.TIM_ACTIONS_DIR == $actions
+                and $api.environment.TIM_CONNECTIONS_FILE == $connections
+                and $api.environment.TIM_LABELS_FILE == $labels' > /dev/null
+          }
+          assert_api_mount -f compose.yaml -- "$PWD/deploy/config" "" "" ""
+          assert_api_mount -f deploy/compose.prod.yaml --env-file deploy/.env -- "$PWD/deploy/config" "" "" ""
+          sed -i -e 's|^#TIM_CONFIG_DIR=.*|TIM_CONFIG_DIR=/srv/tim|' \
+                 -e 's|^TIM_ACTIONS_DIR=$|TIM_ACTIONS_DIR=/etc/tim/actions|' \
+                 -e 's|^TIM_CONNECTIONS_FILE=$|TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml|' \
+                 -e 's|^TIM_LABELS_FILE=$|TIM_LABELS_FILE=/etc/tim/labels.yaml|' deploy/.env
+          assert_api_mount -f deploy/compose.prod.yaml --env-file deploy/.env -- /srv/tim \
+            /etc/tim/actions /etc/tim/connections.yaml /etc/tim/labels.yaml
