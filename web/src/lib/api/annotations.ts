@@ -4,19 +4,23 @@ import type { components } from './schema';
 export type Annotations = components['schemas']['Annotations'];
 export type ChangedAnnotations = components['schemas']['ChangedAnnotations'];
 export type AnnotationChangesPage = components['schemas']['AnnotationChangesPage'];
+export type AnnotationsChange = components['schemas']['AnnotationsChange'];
+export type TagSuggestions = components['schemas']['TagSuggestions'];
 
 const BASE = '/api/annotations';
 
-/** Sets the label of every one of `ids`, or clears it with `null`, under one version. */
+/**
+ * Changes every one of `change.ids` under one version: the label (`null` clears it, leaving it out
+ * keeps it), the tags and a comment.
+ */
 export async function changeAnnotations(
-  ids: readonly string[],
-  label: string | null,
+  change: AnnotationsChange,
   { client = getApiClient(), ...rest }: CallOptions = {},
 ): Promise<ChangedAnnotations> {
   const res = await client.request<ChangedAnnotations>({
     method: 'PATCH',
     path: BASE,
-    body: { ids, label },
+    body: change,
     ...rest,
   });
   return res.data;
@@ -30,6 +34,19 @@ export async function getAnnotationChanges(
   const res = await client.request<AnnotationChangesPage>({
     path: `${BASE}/changes`,
     query: { since: String(since) },
+    ...rest,
+  });
+  return res.data;
+}
+
+/** Tags that start with `prefix`, ignoring case: the analyst's recent ones, then the most used. */
+export async function getTagSuggestions(
+  prefix: string,
+  { client = getApiClient(), ...rest }: CallOptions = {},
+): Promise<TagSuggestions> {
+  const res = await client.request<TagSuggestions>({
+    path: '/api/tags/suggestions',
+    query: { prefix },
     ...rest,
   });
   return res.data;

@@ -12,7 +12,7 @@ export interface LabelMenuOptions extends LabellingDeps {
 }
 
 /** The selected rows, or `node`'s row (clicked or focused) when nothing is selected. */
-function targetRows(
+export function targetRows(
   api: GridApi<GridRowWithId>,
   node: IRowNode<GridRowWithId> | null | undefined,
 ): LabelledRow[] {

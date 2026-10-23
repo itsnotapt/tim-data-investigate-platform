@@ -200,7 +200,7 @@ The change feed carries annotations ([architecture.md](architecture.md#annotatio
   - Many tabs of one browser cost one poller: the tab holding a Web Lock reads, and tells the others.
   - So the load is one request per open browser per interval. Raise the interval to lower it. Labels then reach other analysts later.
 - **Tombstones.** An `id` whose annotations are all removed keeps its row in `id_state`, with no label, so the removal reaches other browsers. Rows are never deleted, and nothing needs cleaning up.
-- **History.** `label_changes` keeps every label change with who made it and when.
+- **History.** `label_changes` keeps every label change with who made it and when. Comments are kept with their author and time; removed tags are deleted.
 - **Cursors.** A browser keeps its place in its own IndexedDB. A new browser, or one with its site data cleared, reads the whole feed once.
 - **The labels file.** Check a file with `tim-api check --labels <file>`, and print its JSON Schema with `tim-api schema labels` ([`tim-api check`](#tim-api-check)). Stored labels keep the `key` they were set with. A key that is later taken out of the file shows grey in the grid, and can still be cleared or replaced.
 

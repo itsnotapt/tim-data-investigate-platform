@@ -39,11 +39,19 @@ AnnotationId = Annotated[str, StringConstraints(min_length=1, max_length=MAX_ID_
 
 
 class AnnotationsChange(ApiModel):
-    """``PATCH /api/annotations``: a change to every one of ``ids``. Leaving ``label`` out keeps
-    it; ``null`` clears it."""
+    """``PATCH /api/annotations``: a change to every one of ``ids``.
+
+    - Leaving ``label`` out keeps it; ``null`` clears it.
+    - ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.
+    - ``comment`` is appended to each id's comments.
+    """
 
     ids: list[AnnotationId] = Field(min_length=1)
     label: str | None = None
+    add_tags: list[str] = Field(default_factory=list)
+    remove_tags: list[str] = Field(default_factory=list)
+    set_tags: list[str] | None = None
+    comment: str | None = None
 
 
 class ChangedAnnotations(ApiModel):
@@ -52,6 +60,14 @@ class ChangedAnnotations(ApiModel):
 
     changes: list[Annotations]
     version: int
+
+
+class TagSuggestions(ApiModel):
+    """Tags that start with a prefix: the analyst's own, most recently added first, then the
+    others, most used first."""
+
+    recent: list[str]
+    most_used: list[str]
 
 
 class AnnotationChangesPage(ApiModel):

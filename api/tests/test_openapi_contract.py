@@ -65,6 +65,7 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
     ("post", "/api/taggedevents/comments", "commentEvents", {"204"}, {"400", "401", "502"}),
     ("patch", "/api/annotations", "changeAnnotations", {"200"}, {"400", "401", "422"}),
     ("get", "/api/annotations/changes", "getAnnotationChanges", {"200"}, {"400", "401"}),
+    ("get", "/api/tags/suggestions", "getTagSuggestions", {"200"}, {"401"}),
     ("get", "/api/healthChecks/liveness", "liveness", {"204"}, set()),
     ("get", "/api/healthChecks/readiness", "readiness", {"204"}, {"503"}),
 ]
@@ -172,6 +173,7 @@ def test_request_and_response_schemas(spec: dict[str, Any]) -> None:
     assert ok_schema("/api/annotations/changes", "get", "200")["$ref"].endswith(
         "/AnnotationChangesPage"
     )
+    assert ok_schema("/api/tags/suggestions", "get", "200")["$ref"].endswith("/TagSuggestions")
 
 
 def test_action_defined_content_is_open_json(spec: dict[str, Any]) -> None:

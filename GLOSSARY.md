@@ -147,25 +147,32 @@ _Avoid_: ordinal, row id
 ### Annotations
 
 **Annotations**:
-What is recorded against an `id`: its label, tags and comments together._Avoid_: tags, tag state, id state
+What is recorded against an `id`: its label, tags and comments together.
+_Avoid_: tags, tag state, id state
 
 **Label**:
 One of the instance's configured labels, each with a name, a colour and optionally a symbol. An `id` carries at most one, and it colours that `id`'s rows.
 _Avoid_: verdict, classification
+
+**Tag**:
+A free-text string of 1 to 100 characters on an `id`'s annotations. An `id` has each tag once, and every analyst sees it. A tag is added or removed, and a removed tag is deleted.
+
+**Comment**:
+A note on an `id`'s annotations, with its author and time. An `id` can have many. A comment is kept for good.
 
 ### Tagging
 
 **Saved event**:
 A snapshot of a result row kept so it can be tagged and commented on. A row is saved before it is tagged or commented.
 
-**Tag**:
-A free-text string an analyst attaches to a saved event.
+**Event tag**:
+A free-text string an analyst attaches to a saved event. It is kept in Kusto, apart from an `id`'s [tags](#annotations).
 
-**Comment**:
-An analyst's note on a saved event, optionally carrying a determination.
+**Event comment**:
+An analyst's note on a saved event, optionally carrying a determination. It is kept in Kusto, apart from an `id`'s [comments](#annotations).
 
 **Tagged event**:
-An event that has tags or comments. Queries that ask for it show its tags, comments and determination alongside the row.
+An event that has event tags or event comments. Queries that ask for it show its tags, comments and determination alongside the row.
 
 **Determination**:
 An analyst's judgement of whether an event is malicious, suspicious or benign. It colours the event's row in the grid and, when the analyst turns symbols on, marks it with a symbol.

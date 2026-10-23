@@ -73,8 +73,26 @@
         "type": "object"
       },
       "AnnotationsChange": {
-        "description": "``PATCH /api/annotations``: a change to every one of ``ids``. Leaving ``label`` out keeps\nit; ``null`` clears it.",
+        "description": "``PATCH /api/annotations``: a change to every one of ``ids``.\n\n- Leaving ``label`` out keeps it; ``null`` clears it.\n- ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.\n- ``comment`` is appended to each id's comments.",
         "properties": {
+          "addTags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Addtags",
+            "type": "array"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
           "ids": {
             "items": {
               "maxLength": 512,
@@ -95,6 +113,27 @@
               }
             ],
             "title": "Label"
+          },
+          "removeTags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removetags",
+            "type": "array"
+          },
+          "setTags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settags"
           }
         },
         "required": [
@@ -2193,6 +2232,31 @@
         ],
         "title": "StartRun",
         "type": "object"
+      },
+      "TagSuggestions": {
+        "description": "Tags that start with a prefix: the analyst's own, most recently added first, then the\nothers, most used first.",
+        "properties": {
+          "mostUsed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Mostused",
+            "type": "array"
+          },
+          "recent": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recent",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recent",
+          "mostUsed"
+        ],
+        "title": "TagSuggestions",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -2316,7 +2380,7 @@
     },
     "/api/annotations": {
       "patch": {
-        "description": "Change every id's annotations in one transaction under one version. ``label`` sets the\nlabel, ``null`` clears it, and leaving it out keeps it.",
+        "description": "Change every id's annotations in one transaction under one version: the label, the tags\n(added and removed, or replaced with ``setTags``) and a comment appended to each.",
         "operationId": "changeAnnotations",
         "requestBody": {
           "content": {
@@ -4164,6 +4228,73 @@
         "summary": "Add Tags",
         "tags": [
           "taggedevents"
+        ]
+      }
+    },
+    "/api/tags/suggestions": {
+      "get": {
+        "description": "Tags that start with ``prefix``, ignoring case: the caller's own, most recently added\nfirst, then the others, on the most ids first.",
+        "operationId": "getTagSuggestions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "prefix",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Prefix",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagSuggestions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Tag Suggestions",
+        "tags": [
+          "annotations"
         ]
       }
     },

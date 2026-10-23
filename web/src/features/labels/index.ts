@@ -1,4 +1,5 @@
-export { buildLabelMenu, makeLabelKeys } from './labelMenu';
+export { buildLabelMenu, makeLabelKeys, targetRows } from './labelMenu';
+export { targetIds, whyUnlabellable } from './labelling';
 export type { LabelMenuOptions } from './labelMenu';
 export {
   indexRows,
