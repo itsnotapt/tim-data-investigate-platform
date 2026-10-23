@@ -319,15 +319,26 @@ Two more pieces live beside it.
 - `useTreeSelection(activeUuid)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
 - Remove selected: calls `removeTab`, which cascades, then navigates to `/` with replace if the active tab is gone.
 
-`features/new-query` holds the New menu: `<NewQueryMenu templates queryOptions? ariaLabel? store?>label</NewQueryMenu>`. Choosing an entry creates a root tab and navigates to it.
+`features/new-query` holds the New menu: `<NewQueryMenu templates queryOptions? actions? ariaLabel? store? presetsStore? analyst?>label</NewQueryMenu>`. Choosing an entry creates a root tab and navigates to it.
 
 - "New query": a `KustoQueryResult` draft titled "New query", with `DEFAULT_QUERY_EXAMPLE` from `features/kusto-query/defaultQuery.ts`.
-- Actions submenu: a root `ActionResult` tab, nested by each action's `menuPath` (`buildActionMenuTree`). The title is the action's name and the params are the defaults. It is not run.
+- Actions and presets submenu: one tree of folders (`buildNewMenuTree`), where each folder shows its item count.
+  - An action makes a root `ActionResult` tab (`createFromAction`), nested by its `menuPath`. The title is the action's name and the params are the defaults. It is not run.
+  - A preset makes a root `ActionResult` tab (`createFromPreset`), nested by its `menuPath`. The title is the preset's name, and the params keep `presetId`. It is not run.
+  - `presetTabParams` (`features/presets`) builds the params: the action's defaults, then the preset's `params`, then its fixed values. Each From row input still unset goes in `state.pivotMissing`.
+  - A filter shows All (with the actions), Mine, Others' or Hidden presets (`NewMenuFilter`). "Mine" shows the presets whose `owned` is true; the server sets it for the caller.
+  - `entryCaption` gives the line under a preset: "Bookmark · owner" when every input is fixed, or "<action> · pivot on <columns> · asks for <params>".
+  - `PresetMoreMenu` is a preset's ⋯: Open, Edit… (owner; the dialog starts from `presetValues`, the preset's params and fixed values, not the action's defaults), Duplicate, Share with everyone or Make private (owner), Delete… with a confirm (owner), Hide or Unhide (others).
+  - `usePresetsStore` (`features/presets`) holds the presets, and the menu refetches them each time it opens. Its calls go through `lib/api/presets.ts`.
+  - `SavePresetDialog` (`features/presets`) is opened by Save… in the action tab header, and by Edit….
+    - On a tab with a `presetId`, Save… refetches the presets first; if that fails it opens `PresetsLoadErrorDialog`, with Retry, instead.
+    - Its fields and its preview show an unset value as a placeholder for the param's type, e.g. `<number>`.
+    - The preview lists every param of the action.
 - Views and Queries submenus: a root `TemplateQueryResult`. It is not run.
   - Folders are keyed by the full path (`buildTemplateMenuTree`). `SubMenu` renders them. Both builders are in `menuTree.ts`.
   - The title is the template's summary.
   - The params come from `getDefaultParams`, and `state.editQuery` is `true`.
-- Search: case-insensitive over menu and summary. For actions it matches name, folders and key. It expands the groups.
+- Search: case-insensitive over menu and summary. For actions it matches name, folders and key; for presets, name, folders, action, owner and From columns. It expands the groups.
 - Hidden templates: `queryOptions[uuid].hide` leaves a template out.
 - The Welcome page's "Get Started" button is a `NewQueryMenu`.
 
@@ -483,7 +494,7 @@ Form pieces:
 The tab that runs an action. How it behaves is in [architecture.md](../docs/architecture.md#the-tab-and-new-menu); this is where the code is.
 
 - `ActionTab.tsx`: the tab, registered for `ActionResult`.
-  - It has a header with Clone, and a pills bar with Run, or the running spinner with Cancel.
+  - It has a header with Save… and Clone, and a pills bar with Run, or the running spinner with Cancel.
   - Its inner tabs are "Query" (for a `kql` or `sql` param), "Results · N" and "Run · duration".
   - It picks the inner tab, and shows the previous results during a run.
   - It finds its action in `useInstanceStore` by `params.action`. The param values are plain values, in `params.params`.

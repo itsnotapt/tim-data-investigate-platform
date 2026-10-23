@@ -12,7 +12,7 @@ An investigation is a tree of tabs. Each pivot creates a child tab.
 |---|---|---|
 | Web | `web/` | React SPA served by nginx |
 | API | `api/` | Python 3.12, FastAPI |
-| Persistence | PostgreSQL | templates, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
+| Persistence | PostgreSQL | templates, presets, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Related docs:
 
@@ -34,14 +34,16 @@ Related docs:
                 v                                             |
  +------------------------------+     +-----------------------+------------+
  | web container (nginx)        |---->| api container (FastAPI)            |
- | static files, /config.js,    |     |  templates, runs, query runs,      |
- | security headers, /api proxy |     |  tag ingest                        |
+ | static files, /config.js,    |     |  templates, presets, runs,         |
+ | security headers, /api proxy |     |  query runs, tag ingest            |
  +------------------------------+     +---+-------------+-----------+------+
                                           |             |           |
                                           v             |           |
                               +--------------------+    |           |
                               | PostgreSQL         |    |           |
                               | query_templates    |    |           |
+                              | presets,           |    |           |
+                              | preset_hidden      |    |           |
                               | runs, run_rows     |    |           |
                               | query_runs         |    |           |
                               +--------------------+    |           |
@@ -82,7 +84,7 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `pivots`, `action-pivots`, `grid`, `labels`, `column-views`, `tagging`, `share`, `export-import` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `column-views`, `tagging`, `share`, `export-import` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
@@ -97,7 +99,7 @@ Key points:
 
 Features import `lib/*` and `components/*`. Between features:
 
-- **Public `index.ts`:** eight features have one: `new-query`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid` and `column-views`. Most imports between features go through it.
+- **Public `index.ts`:** nine features have one: `new-query`, `presets`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid` and `column-views`. Most imports between features go through it.
 - **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery`, `share/shareLink` and `grid/rowUpdates`.
 - **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. Code loaded at startup imports `lib/kql-templates/params` directly. Those `index.ts` files pull in AG Grid and Handlebars (see [Bundle](#bundle)).
 - **Lazy pages:** `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs`, `share` and `export-import` directly.
@@ -135,6 +137,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - Visited tabs stay mounted up to a cap of 100. The least recently visited are evicted.
   - Each tab stores a snapshot of its template, so later template edits do not change existing tabs.
 - **`templatesStore`** caches the template list from the API, plus local query options.
+- **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`columnViewsStore`** holds column views.
 - **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
   - Bootstrap loads it before the templates.
@@ -143,7 +146,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 
 A tab is one of three kinds, named by `componentName`: `KustoQueryResult`, `TemplateQueryResult` and `ActionResult`.
 
-An action tab's params are `{action, params}`: the action's key, and the param values as plain values, as the browser sends them. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
+An action tab's params are `{action, params, presetId?}`: the action's key, the param values as plain values, as the browser sends them, and the preset the tab was opened from or saved as. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
 
 Besides the common fields, an action tab's state holds:
 
@@ -221,15 +224,46 @@ Annotations are never stored in `row_results`.
 
 ### The tab and New menu
 
-The New menu offers an **Actions** group beside Views and Queries.
+The New menu opens from the **New** button. It lists, in order:
 
-- Its folders are each action's `menuPath`.
-- The search matches the action's name, its folders and its key.
-- Choosing an action creates a root action tab and gives it focus. The tab is titled with the action's name, and its params are the params' defaults. It does not run.
+- **New query**, which creates a Kusto tab.
+- A search box.
+- An **All / Mine / Others' / Hidden** filter for presets.
+- **Actions and presets**, one tree of folders.
+- **Views** and **Queries**, the query templates.
+
+**Actions and presets** share one namespace of folders.
+
+- A folder is an action's `menuPath` or a preset's `menuPath`. Each folder shows how many items are below it.
+- Within a folder, subfolders come first, then actions, then presets.
+- The filter decides what shows:
+  - **All** shows the actions and every preset that is not hidden.
+  - **Mine** and **Others'** show only presets that are not hidden, by the preset's `owned`, which the server sets for the caller. The web never compares names.
+  - **Hidden** shows only the presets the analyst hid.
+- The search matches an action's name, folders and key. It matches a preset's name, folders, action, owner and From columns. While searching, the groups are open.
+- A caption under each preset says what it is:
+  - a preset with every input fixed is a bookmark: "Bookmark · <owner>";
+  - otherwise "<action> · pivot on <columns> · asks for <params>", where the second part lists the From columns, and the third the From row inputs with no columns.
+- Each preset has a **⋯** menu:
+  - **Open**, and **Duplicate**, for everyone. Duplicate creates a private "Copy of <name>".
+  - For the owner: **Edit…** (the Save dialog on the preset, starting from the preset's own params and fixed values, not the action's defaults), **Share with everyone** or **Make private**, and **Delete…**, which asks to confirm.
+  - For anyone else: **Hide** or **Unhide**, for that analyst only.
+- A preset whose action is not in the catalogue cannot be opened or edited.
+- The presets are refetched each time the menu opens, so presets others shared since show up.
+
+Choosing an action creates a root action tab and gives it focus. The tab is titled with the action's name, and its params are the params' defaults. It does not run.
+
+Opening a preset creates a root action tab in the same way, titled with the preset's name. Its params are:
+
+- the action's defaults, and the only connection for each `connection` param;
+- then the preset's `params`;
+- then the preset's fixed values.
+
+A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
 
 The action tab has a header, a pills bar and inner tabs.
 
-**Header:** the action's menu path · the action, and the tab's title, with a **Clone** button. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus.
+**Header:** the action's menu path · the action, and the tab's title, with **Save…** and **Clone** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus.
 
 **Pills bar:** one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
@@ -328,6 +362,41 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
   - A warning note says "Fill in <params> to run this pivot", with the reasons.
   - The first needed pill's popover opens when the tab is first shown.
   - The analyst presses Run once the params are filled.
+
+### Presets and column views
+
+A preset is an action with some params fixed and the rest filled in by the analyst or from rows ([GLOSSARY.md](../GLOSSARY.md)). Its stored shape is in [api.md](api.md#preset).
+
+- A preset holds params only. It has no test values and no results.
+- It is private to its owner, or shared with everyone.
+- Others read a shared preset but do not change it. They open it, duplicate it, or hide it for themselves.
+- Open tabs keep their snapshot. A tab opened from a preset holds plain params like any other tab.
+- Last write wins.
+
+**Inputs.** An input names one param of the preset's action that declares `from_columns` (`source: "param"`).
+
+- A **fixed input** has a `value`, which is saved with the preset.
+- A **From row input** has `fromColumns`: it takes the value from the first of these columns that the rows have. With no columns, the tab asks the analyst for it.
+- A preset with every input fixed is a bookmark.
+- Values are validated when a run starts, not when the preset is saved.
+
+**Save….** The action tab header opens the Save dialog (`SavePresetDialog`).
+
+- Name, menu folder (folders separated by `/`) and **Share with everyone**.
+- For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
+- A preview of what the action receives, one line for every param of the action.
+  - A From row input shows as `<column of the clicked row>`.
+  - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
+- A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
+- After saving, the tab takes the preset's name and `presetId`.
+- On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
+
+**Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
+
+- `GET /api/presets` returns the caller's presets and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
+- The server assigns `presetId`, `owner` (from the token) and the timestamps.
+- It checks that `action` is in the catalogue and that each input is a param of it with `from_columns`.
+- `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
 
 ### Annotations in the browser
 
@@ -450,7 +519,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its template, run, query-run and annotation stores |
+| `deps.py` | FastAPI dependencies returning the storage and its template, preset, run, query-run and annotation stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
@@ -462,6 +531,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
 | `templates/` | Template routes and models |
+| `presets/` | `/api/presets` routes (`router.py`) and models |
 | `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
 | `storage/` | Storage interfaces, PostgreSQL and in-memory implementations, retention loop |
 | `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export |
@@ -825,6 +895,26 @@ The routes:
 
 The server sets `updatedBy` and `updated` on every write.
 
+### Presets
+
+Presets are stored in PostgreSQL (`presets`, `preset_hidden`) behind `PresetStore`. The models are in `presets/models.py`.
+
+The routes, under `/api/presets`:
+
+- **`GET`** returns the caller's own presets and the shared ones, oldest first. Each has `owned` and `hidden`: whether the caller owns it and whether they hid it.
+- **`POST`** creates a preset: `201`, with the preset. The server assigns `presetId`, `owner` (from the token) and the timestamps.
+- **`PUT /{presetId}`** replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept.
+- **`DELETE /{presetId}`** deletes it for good, with every hidden mark on it. Only the owner can.
+- **`PUT` and `DELETE /{presetId}/hidden`** hide and unhide it for the caller only.
+
+Rules:
+
+- `404` for an unknown preset, or someone else's private one.
+- `403` for a `PUT` or `DELETE` by anyone but the owner.
+- `422` for an `action` that is not in the catalogue (`errors.action`), or an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`).
+- Param values are not checked here. They are validated when a run starts.
+- Inputs are told apart by the boolean `fixed`, not by an OpenAPI discriminator.
+
 ### Tagged events
 
 The three `POST /api/taggedevents/*` routes:
@@ -875,7 +965,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 
 ### Persistence
 
-`storage/` defines `TemplateStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
+`storage/` defines `TemplateStore`, `PresetStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
 
 - `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`).
 - In development only, `memory://` selects an in-memory store. Production refuses it.
@@ -884,6 +974,8 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | Table | Key | Notes |
 |---|---|---|
 | `query_templates` | `uuid` | Editable fields, `path`/`params`/`fields`/`columns` as JSONB, `is_deleted`, `updated`, `created_by`, `updated_by`; index on `(updated, uuid)` |
+| `presets` | `preset_id` | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)` |
+| `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
 | `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
 | `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |

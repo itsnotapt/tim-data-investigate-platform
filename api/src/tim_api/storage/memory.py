@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from tim_api.annotations.models import Annotations, LabelState
+from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
@@ -23,6 +24,7 @@ from tim_api.storage.base import (
     AnnotationsOf,
     AnnotationStore,
     NotFoundError,
+    PresetStore,
     QueryRunStore,
     RunStore,
     Storage,
@@ -290,6 +292,71 @@ class MemoryRunStore(RunStore):
             return len(stale)
 
 
+class MemoryPresetStore(PresetStore):
+    def __init__(self) -> None:
+        self._items: dict[UUID, StoredPreset] = {}
+        self._hidden: set[tuple[UUID, str]] = set()
+        self._lock = asyncio.Lock()
+
+    def _view(self, preset: StoredPreset, viewer: str) -> Preset:
+        return Preset.model_validate(
+            {
+                **preset.model_dump(by_alias=False),
+                "owned": preset.owner == viewer,
+                "hidden": (preset.preset_id, viewer) in self._hidden,
+            }
+        )
+
+    async def list(self, viewer: str) -> list[Preset]:
+        async with self._lock:
+            items = [
+                p for p in self._items.values() if p.owner == viewer or p.visibility == "shared"
+            ]
+            items.sort(key=lambda p: (p.created_at, p.preset_id))
+            return [self._view(p, viewer) for p in items]
+
+    async def get(self, preset_id: UUID, viewer: str) -> Preset | None:
+        async with self._lock:
+            found = self._items.get(preset_id)
+            return self._view(found, viewer) if found else None
+
+    async def create(self, preset: StoredPreset) -> None:
+        async with self._lock:
+            if preset.preset_id in self._items:
+                raise AlreadyExistsError(str(preset.preset_id))
+            self._items[preset.preset_id] = preset.model_copy(deep=True)
+
+    async def replace(self, preset_id: UUID, fields: PresetFields, *, updated_at: datetime) -> None:
+        async with self._lock:
+            current = self._items.get(preset_id)
+            if current is None:
+                raise NotFoundError(str(preset_id))
+            self._items[preset_id] = StoredPreset.model_validate(
+                {
+                    **fields.model_dump(by_alias=False),
+                    "preset_id": preset_id,
+                    "owner": current.owner,
+                    "created_at": current.created_at,
+                    "updated_at": updated_at,
+                }
+            )
+
+    async def delete(self, preset_id: UUID) -> None:
+        async with self._lock:
+            if self._items.pop(preset_id, None) is None:
+                raise NotFoundError(str(preset_id))
+            self._hidden = {h for h in self._hidden if h[0] != preset_id}
+
+    async def set_hidden(self, preset_id: UUID, analyst: str, hidden: bool) -> None:
+        async with self._lock:
+            if preset_id not in self._items:
+                raise NotFoundError(str(preset_id))
+            if hidden:
+                self._hidden.add((preset_id, analyst))
+            else:
+                self._hidden.discard((preset_id, analyst))
+
+
 class MemoryAnnotationStore(AnnotationStore):
     def __init__(self) -> None:
         self._state: dict[str, Annotations] = {}
@@ -350,6 +417,7 @@ class MemoryStorage(Storage):
         self.templates = MemoryTemplateStore()
         self.query_runs = MemoryQueryRunStore()
         self.runs = MemoryRunStore()
+        self.presets = MemoryPresetStore()
         self.annotations = MemoryAnnotationStore()
 
     async def health(self) -> bool:

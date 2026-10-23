@@ -32,6 +32,22 @@ A named, saved arrangement of the results grid's columns, usable in any tab.
 **Action**:
 A named operation an analyst runs, which takes params and returns rows.
 
+**Preset**:
+An action with some of its params fixed and the rest filled in by the analyst or from rows, saved by an analyst under a name and a menu folder. It is private to its owner or shared with everyone. An analyst can hide someone else's preset for themselves.
+_Avoid_: saved action, favourite
+
+**Fixed input**:
+An input of a preset whose value is saved with the preset. Only a param that rows can fill (it declares `from_columns`) can be an input.
+
+**From row input**:
+An input of a preset that takes its value from a column of the row the analyst pivots on. With no columns, the tab asks the analyst for the value.
+
+**Bookmark**:
+A preset whose inputs are all fixed. Opening it needs nothing more from the analyst.
+
+**New menu**:
+The nested, searchable menu of actions and presets, with query templates beside them, from which an analyst starts a tab.
+
 **Param**:
 A named, typed value an action takes, or one a query template's form asks the analyst for.
 _Avoid_: argument, variable

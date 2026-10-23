@@ -23,6 +23,7 @@ from tim_api.observability import (
     configure_logging,
 )
 from tim_api.openapi_meta import install_openapi
+from tim_api.presets.router import router as presets_router
 from tim_api.query_runs.router import router as query_runs_router
 from tim_api.query_runs.runner import RACE_SECONDS, cancel_tasks, mark_stale_runs
 from tim_api.runs.connections import Connections
@@ -136,6 +137,7 @@ def create_app(
     app.include_router(tagged_events_router)
     app.include_router(connections_router)
     app.include_router(kusto_router)
+    app.include_router(presets_router)
     app.include_router(query_runs_router)
     app.include_router(runs_router)
     app.include_router(templates_router)

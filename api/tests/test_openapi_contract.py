@@ -42,6 +42,18 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
         {"200"},
         {"400", "401", "404", "409", "410"},
     ),
+    ("get", "/api/presets", "listPresets", {"200"}, {"401"}),
+    ("post", "/api/presets", "createPreset", {"201"}, {"400", "401", "422"}),
+    (
+        "put",
+        "/api/presets/{presetId}",
+        "replacePreset",
+        {"200"},
+        {"400", "401", "403", "404", "422"},
+    ),
+    ("delete", "/api/presets/{presetId}", "deletePreset", {"204"}, {"400", "401", "403", "404"}),
+    ("put", "/api/presets/{presetId}/hidden", "hidePreset", {"204"}, {"400", "401", "404"}),
+    ("delete", "/api/presets/{presetId}/hidden", "unhidePreset", {"204"}, {"400", "401", "404"}),
     ("get", "/api/templates/queries", "listTemplates", {"200"}, {"400", "401"}),
     ("get", "/api/templates/queries/{uuid}", "getTemplate", {"200"}, {"400", "401", "404"}),
     ("post", "/api/templates/queries", "createTemplate", {"201"}, {"400", "401", "409"}),
@@ -193,3 +205,11 @@ def test_enums_match_contract(spec: dict[str, Any]) -> None:
 def test_create_template_documents_location_header(spec: dict[str, Any]) -> None:
     response = spec["paths"]["/api/templates/queries"]["post"]["responses"]["201"]
     assert "Location" in response["headers"]
+
+
+def test_preset_inputs_are_told_apart_by_a_boolean(spec: dict[str, Any]) -> None:
+    # An OpenAPI discriminator maps strings, so it would turn `fixed` into "True" and "False".
+    schemas = spec["components"]["schemas"]
+    assert "discriminator" not in schemas["PresetFields"]["properties"]["inputs"]["items"]
+    assert schemas["FixedInput"]["properties"]["fixed"]["const"] is True
+    assert schemas["FromRowInput"]["properties"]["fixed"]["const"] is False

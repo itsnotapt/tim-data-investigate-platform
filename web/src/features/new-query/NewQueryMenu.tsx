@@ -5,12 +5,30 @@ import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
-import { useMemo, useState, type ReactNode } from 'react';
-import type { CatalogueAction } from '../../lib/api';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { NotifyContext } from '../../components/notifyContext';
+import type { CatalogueAction, Preset } from '../../lib/api';
 import { useInstanceStore } from '../instance';
+import {
+  presetFields,
+  presetValues,
+  SavePresetDialog,
+  usePresetsStore,
+  type PresetsState,
+  type PresetsStore,
+} from '../presets';
 import type { TabsStore } from '../tabs';
+import { PresetMoreMenu } from './PresetMoreMenu';
 import { SubMenu } from './SubMenu';
-import { buildActionMenuTree, buildTemplateMenuTree } from './menuTree';
+import {
+  buildNewMenuTree,
+  buildTemplateMenuTree,
+  entryCaption,
+  type NewMenuEntry,
+  type NewMenuFilter,
+} from './menuTree';
 import type { QueryOptions, QueryTemplate } from './types';
 import { useNewQuery } from './useNewQuery';
 
@@ -29,13 +47,23 @@ export interface NewQueryMenuProps {
   size?: 'small' | 'medium' | 'large';
   /** Override the tab store (tests). */
   store?: TabsStore;
+  /** Override the presets store (tests). */
+  presetsStore?: PresetsStore;
 }
 
 const NO_ACTIONS: readonly CatalogueAction[] = [];
 
+const FILTERS: readonly [NewMenuFilter, string][] = [
+  ['all', 'All'],
+  ['mine', 'Mine'],
+  ['others', "Others'"],
+  ['hidden', 'Hidden'],
+];
+
 /**
- * "New query" button + menu: ad-hoc query, search, then Actions (under their menu paths), Views and
- * Queries submenus (screens 05, 06, 31).
+ * "New query" button + menu: a Kusto tab, search, the presets filter, then actions and presets in
+ * one tree of folders, and the Views and Queries submenus (screens 05, 06, 31). The presets are
+ * refetched each time the menu opens.
  */
 export function NewQueryMenu({
   templates,
@@ -46,16 +74,22 @@ export function NewQueryMenu({
   variant = 'text',
   size = 'medium',
   store,
+  presetsStore = usePresetsStore,
 }: NewQueryMenuProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState('');
-  const { createAdHoc, createFromTemplate, createFromAction } = useNewQuery(store);
+  const [filter, setFilter] = useState<NewMenuFilter>('all');
+  const [editing, setEditing] = useState<{ preset: Preset; action: CatalogueAction } | null>(null);
+  const { createAdHoc, createFromTemplate, createFromAction, createFromPreset } =
+    useNewQuery(store);
   const instanceActions = useInstanceStore((s) => s.instance?.actions ?? NO_ACTIONS);
+  const presets = presetsStore((s) => s.presets);
+  const notify = useContext(NotifyContext);
   const close = () => setAnchor(null);
 
   const actionNodes = useMemo(
-    () => buildActionMenuTree(actions ?? instanceActions, search),
-    [actions, instanceActions, search],
+    () => buildNewMenuTree(actions ?? instanceActions, presets, { search, filter }),
+    [actions, instanceActions, presets, search, filter],
   );
   const views = useMemo(
     () => buildTemplateMenuTree(templates, { queryType: 'view', search, queryOptions }),
@@ -67,6 +101,51 @@ export function NewQueryMenu({
   );
   const searching = search.trim() !== '';
 
+  const open = (entry: NewMenuEntry) => {
+    if (entry.kind === 'action') createFromAction(entry.action);
+    else if (entry.action) createFromPreset(entry.preset, entry.action);
+    else return;
+    close();
+  };
+  /** Runs a change to a preset, and says so when it fails. */
+  const change = (what: string, run: (s: PresetsState) => Promise<unknown>) => {
+    run(presetsStore.getState()).catch((e: unknown) => {
+      notify?.(`Couldn't ${what}: ${e instanceof Error ? e.message : String(e)}`);
+    });
+  };
+  const moreMenu = (entry: NewMenuEntry) => {
+    if (entry.kind !== 'preset') return null;
+    const { preset } = entry;
+    const id = preset.presetId;
+    return (
+      <PresetMoreMenu
+        preset={preset}
+        owned={preset.owned}
+        canOpen={entry.action !== undefined}
+        onOpen={() => open(entry)}
+        onEdit={() => entry.action && setEditing({ preset, action: entry.action })}
+        onDuplicate={() =>
+          change('duplicate it', (s) =>
+            s.create({
+              ...presetFields(preset),
+              name: `Copy of ${preset.name}`,
+              visibility: 'private',
+            }),
+          )
+        }
+        onVisibility={(visibility) =>
+          change('change who sees it', (s) =>
+            s.replace(id, { ...presetFields(preset), visibility }),
+          )
+        }
+        onDelete={() => change('delete it', (s) => s.remove(id))}
+        onHidden={(hidden) =>
+          change(hidden ? 'hide it' : 'unhide it', (s) => s.setHidden(id, hidden))
+        }
+      />
+    );
+  };
+
   return (
     <>
       <Button
@@ -75,7 +154,10 @@ export function NewQueryMenu({
         aria-expanded={anchor ? true : undefined}
         variant={variant}
         size={size}
-        onClick={(e) => setAnchor(e.currentTarget)}
+        onClick={(e) => {
+          setAnchor(e.currentTarget);
+          void presetsStore.getState().refresh();
+        }}
       >
         {children}
       </Button>
@@ -111,16 +193,31 @@ export function NewQueryMenu({
             }}
           />
         </li>
+        <li style={{ padding: '4px 16px' }}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            fullWidth
+            aria-label="Show presets"
+            value={filter}
+            onChange={(_, value: NewMenuFilter | null) => value && setFilter(value)}
+          >
+            {FILTERS.map(([value, label]) => (
+              <ToggleButton key={value} value={value}>
+                {label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </li>
         {actionNodes.length > 0 && (
           <li>
             <SubMenu
-              title="Actions"
+              title="Actions and presets"
               nodes={actionNodes}
               forceOpen={searching}
-              onSelect={(a) => {
-                createFromAction(a);
-                close();
-              }}
+              onSelect={open}
+              caption={entryCaption}
+              itemAction={moreMenu}
             />
           </li>
         )}
@@ -143,6 +240,15 @@ export function NewQueryMenu({
             </li>
           ))}
       </Menu>
+      {editing && (
+        <SavePresetDialog
+          action={editing.action}
+          params={presetValues(editing.preset)}
+          source={editing.preset}
+          store={presetsStore}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   );
 }

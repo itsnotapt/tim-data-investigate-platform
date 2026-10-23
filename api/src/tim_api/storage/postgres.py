@@ -44,6 +44,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from tim_api.annotations.models import Annotations, Comment, LabelState
+from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import (
     KustoQueryEcho,
     KustoQueryRun,
@@ -59,6 +60,7 @@ from tim_api.storage.base import (
     AnnotationsOf,
     AnnotationStore,
     NotFoundError,
+    PresetStore,
     QueryRunStore,
     RunStore,
     Storage,
@@ -153,6 +155,31 @@ run_rows = Table(
     Column("data", _JSON, nullable=False),
     PrimaryKeyConstraint("run_id", "ordinal"),
     prefixes=["UNLOGGED"],
+)
+
+presets = Table(
+    "presets",
+    metadata,
+    Column("preset_id", Uuid, primary_key=True),
+    Column("owner", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("menu_path", _JSON, nullable=False),
+    Column("visibility", String(16), nullable=False),
+    Column("action", Text, nullable=False),
+    Column("params", _JSON, nullable=False),
+    Column("inputs", _JSON, nullable=False),
+    Column("created_at", _TS, nullable=False),
+    Column("updated_at", _TS, nullable=False),
+    # list() orders by (created_at, preset_id).
+    Index("ix_presets_created_id", "created_at", "preset_id"),
+)
+
+preset_hidden = Table(
+    "preset_hidden",
+    metadata,
+    Column("preset_id", Uuid, ForeignKey("presets.preset_id", ondelete="CASCADE"), nullable=False),
+    Column("analyst", Text, nullable=False),
+    PrimaryKeyConstraint("preset_id", "analyst"),
 )
 
 # One row: the change feed's version. Every annotation change takes it first, so its row lock
@@ -324,6 +351,14 @@ def _run_from_row(row: Any) -> Run:
         row_count=m["row_count"],
         error=m["error"],
     )
+
+
+def _preset_field_values(fields: PresetFields) -> dict[str, Any]:
+    return fields.model_dump(mode="json", by_alias=False, include=set(PresetFields.model_fields))
+
+
+def _preset_from_row(row: Any) -> Preset:
+    return Preset.model_validate(dict(row._mapping))
 
 
 class _Db:
@@ -641,6 +676,94 @@ class PostgresRunStore(RunStore):
         return len(stale)
 
 
+class PostgresPresetStore(PresetStore):
+    def __init__(self, db: _Db) -> None:
+        self._db = db
+
+    @staticmethod
+    def _select(viewer: str) -> Any:
+        hidden = (
+            exists()
+            .where(
+                preset_hidden.c.preset_id == presets.c.preset_id,
+                preset_hidden.c.analyst == viewer,
+            )
+            .label("hidden")
+        )
+        return select(presets, (presets.c.owner == viewer).label("owned"), hidden)
+
+    async def list(self, viewer: str) -> list[Preset]:
+        stmt = (
+            self._select(viewer)
+            .where((presets.c.owner == viewer) | (presets.c.visibility == "shared"))
+            .order_by(presets.c.created_at, presets.c.preset_id)
+        )
+        async with self._db.begin() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [_preset_from_row(r) for r in rows]
+
+    async def get(self, preset_id: UUID, viewer: str) -> Preset | None:
+        stmt = self._select(viewer).where(presets.c.preset_id == preset_id)
+        async with self._db.begin() as conn:
+            row = (await conn.execute(stmt)).first()
+        return _preset_from_row(row) if row else None
+
+    async def create(self, preset: StoredPreset) -> None:
+        values = {
+            **_preset_field_values(preset),
+            "preset_id": preset.preset_id,
+            "owner": preset.owner,
+            "created_at": preset.created_at,
+            "updated_at": preset.updated_at,
+        }
+        try:
+            async with self._db.begin() as conn:
+                await conn.execute(insert(presets).values(**values))
+        except IntegrityError:
+            raise AlreadyExistsError(str(preset.preset_id)) from None
+
+    async def replace(self, preset_id: UUID, fields: PresetFields, *, updated_at: datetime) -> None:
+        stmt = (
+            update(presets)
+            .where(presets.c.preset_id == preset_id)
+            .values(**_preset_field_values(fields), updated_at=updated_at)
+            .returning(presets.c.preset_id)
+        )
+        async with self._db.begin() as conn:
+            if (await conn.execute(stmt)).first() is None:
+                raise NotFoundError(str(preset_id))
+
+    async def delete(self, preset_id: UUID) -> None:
+        stmt = (
+            delete(presets).where(presets.c.preset_id == preset_id).returning(presets.c.preset_id)
+        )
+        async with self._db.begin() as conn:
+            if (await conn.execute(stmt)).first() is None:
+                raise NotFoundError(str(preset_id))
+
+    async def set_hidden(self, preset_id: UUID, analyst: str, hidden: bool) -> None:
+        async with self._db.begin() as conn:
+            found = await conn.execute(
+                select(presets.c.preset_id)
+                .where(presets.c.preset_id == preset_id)
+                .with_for_update()
+            )
+            if found.first() is None:
+                raise NotFoundError(str(preset_id))
+            if hidden:
+                await conn.execute(
+                    pg_insert(preset_hidden)
+                    .values(preset_id=preset_id, analyst=analyst)
+                    .on_conflict_do_nothing()
+                )
+            else:
+                await conn.execute(
+                    delete(preset_hidden).where(
+                        preset_hidden.c.preset_id == preset_id, preset_hidden.c.analyst == analyst
+                    )
+                )
+
+
 class _NothingChanged(Exception):
     """Rolls back a change that changed nothing, so it takes no version."""
 
@@ -794,6 +917,7 @@ class PostgresStorage(Storage):
         self.templates = PostgresTemplateStore(db)
         self.query_runs = PostgresQueryRunStore(db)
         self.runs = PostgresRunStore(db)
+        self.presets = PostgresPresetStore(db)
         self.annotations = PostgresAnnotationStore(db)
 
     async def health(self) -> bool:

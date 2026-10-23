@@ -40,9 +40,10 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `runs`, `query_runs` and `annotations`:
+`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs` and `annotations`:
 
 - `TemplateStore`;
+- `PresetStore`, for presets and each analyst's hidden marks;
 - `RunStore`, for runs and their rows;
 - `QueryRunStore`, for Kusto query runs;
 - `AnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
@@ -52,7 +53,7 @@ There are two implementations:
 - `PostgresStorage`: SQLAlchemy 2 async with asyncpg (ADR-0004);
 - an in-memory store (`TIM_DATABASE_URL=memory://`): development only, rejected in production.
 
-Endpoints get stores through `tim_api.deps.get_template_store`, `get_run_store` and `get_query_run_store`.
+Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store` and `get_query_run_store`.
 
 **Migrations (Alembic).** The schema lives in `migrations/`. `tim_api.storage.postgres.metadata` is the model definition.
 
@@ -187,7 +188,7 @@ The build is multi-stage, on `python:3.12-slim-trixie` (Debian 13, from `mirror.
 Pydantic v2 models mirror the schemas in [api.md](../docs/api.md).
 
 - They use camelCase aliases, ignore unknown input fields, and serialise by alias.
-- They are in `actions/models.py`, `templates/models.py`, `runs/models.py`, `query_runs/models.py`, `tagged_events/models.py` and `kusto/models.py`.
+- They are in `actions/models.py`, `templates/models.py`, `presets/models.py`, `runs/models.py`, `query_runs/models.py`, `tagged_events/models.py` and `kusto/models.py`.
 - The shared base and UTC datetime type are in `models_common.py`.
 
 Rules:
@@ -429,6 +430,14 @@ Details are fixed strings. Exception messages are never echoed.
   - exposed header `x-trace-id`;
   - no credentials.
 - `TIM_LOG_LEVEL` configures the `tim_api` logger at startup.
+
+## Preset endpoints
+
+`presets/router.py` implements `/api/presets`: list, POST 201, PUT (whole replace), DELETE 204, and PUT and DELETE `/{presetId}/hidden`. [api.md](../docs/api.md#presets) has the rules.
+
+- The server assigns `presetId` and the timestamps (truncated to milliseconds), and takes `owner` from the principal.
+- `_check` requires `action` in the catalogue, and each input to be a param of it with `from_columns`. Failures are `422` with `errors` keys `action` and `inputs.<i>.name`.
+- `_visible` answers `404` for an unknown preset or someone else's private one. `_owned` adds `403` for a change by a non-owner.
 
 ## Template endpoints
 

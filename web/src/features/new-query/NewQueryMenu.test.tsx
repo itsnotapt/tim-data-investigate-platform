@@ -166,7 +166,7 @@ describe('NewQueryMenu', () => {
   it('opens an action under its menu path as an action tab with its defaults, and focuses it', async () => {
     const store = setup();
     await userEvent.click(screen.getByRole('button', { name: 'New' }));
-    await userEvent.click(screen.getByText('Actions'));
+    await userEvent.click(screen.getByText('Actions and presets'));
     expect(screen.getByText('Slow')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Identity'));
     await userEvent.click(screen.getByText('Entra'));
@@ -199,7 +199,7 @@ describe('NewQueryMenu', () => {
     });
     const store = setup();
     await userEvent.click(screen.getByRole('button', { name: 'New' }));
-    await userEvent.click(screen.getByText('Actions'));
+    await userEvent.click(screen.getByText('Actions and presets'));
     await userEvent.click(screen.getByText('Run KQL'));
     const [tab] = Object.values(store.getState().tabs);
     expect(tab?.params).toEqual({ action: 'tim.run_kql', params: { connection: 'security' } });

@@ -20,6 +20,7 @@ from typing import Any
 from uuid import UUID
 
 from tim_api.annotations.models import Annotations
+from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.templates.models import QueryTemplate, QueryTemplateFields
@@ -171,6 +172,37 @@ class RunStore(ABC):
         with ``message``, and their partial rows are deleted; returns how many."""
 
 
+class PresetStore(ABC):
+    @abstractmethod
+    async def list(self, viewer: str) -> list[Preset]:
+        """The presets ``viewer`` owns and those shared, ordered by ``created_at`` then
+        ``preset_id``, each with whether ``viewer`` owns and hid it."""
+
+    @abstractmethod
+    async def get(self, preset_id: UUID, viewer: str) -> Preset | None:
+        """The preset, whoever owns it, with whether ``viewer`` owns and hid it; ``None`` when
+        unknown."""
+
+    @abstractmethod
+    async def create(self, preset: StoredPreset) -> None:
+        """Insert. Raises ``AlreadyExistsError`` if the ``preset_id`` exists."""
+
+    @abstractmethod
+    async def replace(self, preset_id: UUID, fields: PresetFields, *, updated_at: datetime) -> None:
+        """Overwrite the owner's fields; ``owner`` and ``created_at`` are kept. Raises
+        ``NotFoundError`` when missing."""
+
+    @abstractmethod
+    async def delete(self, preset_id: UUID) -> None:
+        """Delete the preset and every analyst's hidden mark on it. Raises ``NotFoundError``
+        when missing."""
+
+    @abstractmethod
+    async def set_hidden(self, preset_id: UUID, analyst: str, hidden: bool) -> None:
+        """Hide or unhide the preset for ``analyst``; idempotent. Raises ``NotFoundError``
+        when the preset is missing."""
+
+
 @dataclass(frozen=True)
 class AnnotationEdit:
     """What one change does to every id it names: with ``set_label``, set the label to ``label``,
@@ -235,6 +267,7 @@ class Storage(ABC):
     templates: TemplateStore
     query_runs: QueryRunStore
     runs: RunStore
+    presets: PresetStore
     annotations: AnnotationStore
 
     @abstractmethod
