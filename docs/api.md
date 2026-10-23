@@ -33,7 +33,9 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
 | GET | `/api/runs/{runId}` | 200 | 400, 401, 404 | Read a run. |
 | POST | `/api/runs/{runId}/cancel` | 200 | 400, 401, 404 | Cancel a run (idempotent). |
-| GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows. |
+| GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows, with their annotations. |
+| PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label of `id`s. |
+| GET | `/api/annotations/changes` | 200 | 400, 401 | The change feed: the `id`s changed after a version. |
 | POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 502, 503 | The editor schema of a connection, from its connection type's hook. |
 | POST | `/api/kusto/schema` | 200 | 400, 401, 403, 502, 503 | `.show schema as json` for a cluster database. |
 | POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 502, 503 | Start a query run. |
@@ -69,7 +71,7 @@ Every non-2xx response has this body:
 
 | Status | `type` slug | Cause |
 |---|---|---|
-| 400 | `validation` | Invalid body, query or path; malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`. |
+| 400 | `validation` | Invalid body, query or path; malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`. |
 | 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
@@ -79,7 +81,7 @@ Every non-2xx response has this body:
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). |
+| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), or no change field (`errors.body`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -91,10 +93,10 @@ Every non-2xx response has this body:
 What the browser needs to know about this instance, built once at startup from the installed providers and the action files ([architecture.md](architecture.md#actions-and-providers)):
 
 ```
-{version, actions: [Action], connections: [Connection], labels: [], limits}
+{version, actions: [Action], connections: [Connection], labels: [Label], limits}
 ```
 
-- `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, and the rest of this body. It changes when any of them does, for example after a rolling update.
+- `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, the labels file, and the rest of this body. It changes when any of them does, for example after a rolling update.
 - `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?}`:
   - `kind` is `query`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
@@ -103,8 +105,8 @@ What the browser needs to know about this instance, built once at startup from t
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the result columns the action declares ([actions.md](actions.md#columns)); it is left out when the action declares none.
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql`). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
-- `labels` is empty.
-- `limits`: `{maxResultRows, maxResultBytes, rowsPageSize, runTimeoutSeconds, maxPivotRows}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS` and `TIM_MAX_PIVOT_ROWS`.
+- `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
+- `limits`: `{maxResultRows, maxResultBytes, maxPivotRows, rowsPageSize, runTimeoutSeconds, maxAnnotationIds, annotationPollSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_MAX_PIVOT_ROWS`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_ANNOTATION_IDS` and `TIM_ANNOTATION_POLL_SECONDS`.
 
 Keys marked `?` are left out when they have no value.
 
@@ -196,13 +198,15 @@ Cancels a `running` run and returns it with `200`. The run turns `cancelled` onc
 Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `startRow + rowsPageSize`). Returns the rows with `startRow <= row < endRow`:
 
 ```
-{rows: [{row, id, data}], lastRow}
+{rows: [{row, id, data}], lastRow, annotations: {id: Annotations}, annotationVersion}
 ```
 
 - `row` is the row number, from `0`, unique within the run.
 - `id` is the row's `id` as text, or `null` when it has none. Rows can share an `id`.
 - `data` is the row as the action returned it, as column-name to value; datetimes are ISO 8601 strings, and NaN and infinities are `null`.
 - `lastRow` is the run's row count. A page past it is empty.
+- `annotations` holds the [Annotations](#annotations) of the page's `id`s, by `id`. An `id` that was never annotated has none. An `id` whose annotations were all removed has an entry with `label: null`.
+- `annotationVersion` is the change feed version the annotations are current as of. They are never older than it.
 
 `409 run-not-succeeded` when the run isn't `succeeded`. `410 results-gone` when it succeeded with rows but they are no longer stored, after a database crash or failover; the run can be started again.
 
@@ -237,10 +241,86 @@ Failure messages: the action's own message; `Result exceeds limit of N rows` or 
 | Execution time | 600 s | `TIM_RUN_TIMEOUT_SECONDS` |
 | Run retention | 86,400 s | `TIM_RUN_RETENTION_SECONDS` |
 | Concurrent runs and query runs per process | 16 | `TIM_MAX_CONCURRENT_RUNS` |
+| Distinct `id`s in one annotations change | 10,000 | `TIM_MAX_ANNOTATION_IDS` |
 | Request body | 16 MiB | `TIM_MAX_REQUEST_BYTES` |
 | Rows in a pivot | 100 | `TIM_MAX_PIVOT_ROWS` |
 
 A result over a row or size limit makes the run `error`; it is not truncated. A [query run](#kustoqueryrun) is capped at 100,000 rows and 64 MiB, or the two settings when they are lower; the other limits apply to it as they are.
+
+## Annotations
+
+An `id`'s annotations are shared by every analyst ([architecture.md](architecture.md#annotations-and-the-change-feed)). Everywhere they appear in this shape:
+
+```json
+{
+  "id": "evt-1042",
+  "label": { "key": "malicious", "by": "alex@example.com", "at": "2026-10-21T09:30:12Z" },
+  "tags": [],
+  "comments": [],
+  "version": 17
+}
+```
+
+- `id` is the text key the annotations belong to.
+- `label` is `null` when the `id` has none. `key` is a label's `key` from [`GET /api/instance`](#get-apiinstance), `by` the analyst who set it and `at` when.
+- `tags` and `comments` are arrays.
+- `version` is the version of the change that last touched the `id`.
+
+### PATCH /api/annotations
+
+Changes the annotations of every `id` in `ids`, in one transaction under one version.
+
+Body: `{"ids": ["evt-1042", "evt-1043"], "label": "malicious"}`.
+
+- `ids` has 1 or more `id`s of 1 to 512 characters each. Repeats count once.
+- `label` is the `key` of one of the instance's labels, which sets it. `null` clears the `id`'s label. Leaving it out keeps it.
+- The author is the caller named in the token.
+
+The answer is `200`:
+
+```json
+{
+  "changes": [
+    {
+      "id": "evt-1042",
+      "label": { "key": "malicious", "by": "alex@example.com", "at": "2026-10-21T09:30:12Z" },
+      "tags": [],
+      "comments": [],
+      "version": 18
+    }
+  ],
+  "version": 18
+}
+```
+
+- `changes` has the `id`s that changed, as they now are, each with the change's `version`. An `id` that already had the asked-for label is left out, and clearing an `id` with no label changes nothing.
+- A change that changes nothing takes no version and writes no history. It answers `changes: []` and the current `version`.
+- A cleared `id` is in `changes` with `label: null`.
+
+Problems:
+
+- `400 validation` for a body that isn't valid: no `ids`, an `id` over 512 characters.
+- `422 validation`, with `errors` keyed by field:
+
+  | `errors` key | Cause |
+  |---|---|
+  | `label` | `Unknown label: <key>` for a key that isn't one of the instance's labels. |
+  | `ids` | `At most 10,000 ids; 23,412 given`, for more distinct `id`s than `maxAnnotationIds`. |
+  | `body` | `Give at least one change: label`, for a body with no change field. |
+
+### GET /api/annotations/changes
+
+The change feed. Query: `since`, a version from `0`, required.
+
+```json
+{ "changes": [ /* Annotations */ ], "next": 18, "hasMore": false }
+```
+
+- `changes` has the annotations of each `id` changed after version `since`, as the `id` now is, in version order. An `id` changed several times appears once.
+- A page ends after a whole version, so it has at least 1,000 `id`s when more follow, and more when its last change touched more.
+- `next` is the version of the page's last change, or `since` for an empty page. Ask again with `since=<next>` while `hasMore` is `true`.
+- An `id` whose annotations were all removed is in the feed, with `label: null`.
+- Versions are gapless and in commit order.
 
 ## Connections
 

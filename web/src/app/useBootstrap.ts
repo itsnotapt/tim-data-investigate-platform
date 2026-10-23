@@ -3,6 +3,7 @@ import { resumeActionRuns } from '../features/action-tab';
 import { refreshInstanceOnFocus, useInstanceStore } from '../features/instance';
 import { useTabsStore } from '../features/tabs';
 import { useTemplatesStore } from '../features/templates';
+import { startAnnotationSync } from '../lib/annotations';
 import { useAuth } from '../lib/auth';
 import { loadColumnViews } from './columnViewsState';
 
@@ -17,6 +18,8 @@ export interface BootstrapSteps {
   resumeRuns: () => void;
   /** Refetches the instance on window focus while loaded; returns the cleanup. */
   watchInstance: () => () => void;
+  /** Starts reading the annotation change feed while loaded; returns the stop. */
+  syncAnnotations: () => () => void;
 }
 
 async function loadTabs(): Promise<void> {
@@ -33,6 +36,8 @@ const defaultSteps: BootstrapSteps = {
   loadTabs,
   resumeRuns: () => void resumeActionRuns(),
   watchInstance: () => refreshInstanceOnFocus(useInstanceStore),
+  syncAnnotations: () =>
+    startAnnotationSync(useInstanceStore.getState().instance?.limits.annotationPollSeconds ?? 30),
 };
 
 export interface UseBootstrap {
@@ -91,6 +96,7 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
 
   const loaded = signedIn && result?.attempt === attempt && result.status === 'loaded';
   useEffect(() => (loaded ? steps.watchInstance() : undefined), [loaded, steps]);
+  useEffect(() => (loaded ? steps.syncAnnotations() : undefined), [loaded, steps]);
 
   const { login } = auth;
   const retry = useCallback(() => {

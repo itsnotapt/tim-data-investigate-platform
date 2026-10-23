@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getAnnotationStore } from '../../lib/annotations';
 import type { Run, RunRow } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
+import { annotated } from '../../test/annotationFakes';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
@@ -47,7 +49,13 @@ const rowsHandler = (pages: string[] = []) =>
     pages.push(url.search);
     const start = Number(url.searchParams.get('startRow'));
     const end = Math.min(Number(url.searchParams.get('endRow')), start + 2);
-    return HttpResponse.json({ rows: rows.slice(start, end), lastRow: rows.length });
+    const page = rows.slice(start, end);
+    return HttpResponse.json({
+      rows: page,
+      lastRow: rows.length,
+      annotations: page.some((r) => r.id === 'c-1') ? { 'c-1': annotated('c-1', 4) } : {},
+      annotationVersion: 7,
+    });
   });
 
 /** Answers each poll with the next run; the last repeats. */
@@ -103,6 +111,8 @@ beforeEach(async () => {
         maxPivotRows: 100,
         rowsPageSize: 10,
         runTimeoutSeconds: 600,
+        maxAnnotationIds: 10_000,
+        annotationPollSeconds: 30,
       },
     },
   });
@@ -142,6 +152,18 @@ describe('runActionTab', () => {
     expect(tab().rowDataTrigger).not.toBeNull();
   });
 
+  it('keeps the annotations that come with the rows apart from the rows', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(3))),
+      rowsHandler(),
+    );
+    await runActionTab('a', { store, sleep });
+    expect(await rowResultsDao.get('a')).toEqual(rows);
+    expect([...(await getAnnotationStore().get(['c-1', 'c-2'])).values()]).toEqual([
+      annotated('c-1', 4),
+    ]);
+  });
+
   it('shows each page of rows as it arrives, before every page is stored', async () => {
     let releaseSecondPage = () => {};
     const secondPage = new Promise<void>((resolve) => (releaseSecondPage = resolve));
@@ -150,7 +172,12 @@ describe('runActionTab', () => {
       http.get(apiUrl(`/api/runs/${RUN_ID}/rows`), async ({ request }) => {
         const start = Number(new URL(request.url).searchParams.get('startRow'));
         if (start > 0) await secondPage;
-        return HttpResponse.json({ rows: rows.slice(start, start + 2), lastRow: rows.length });
+        return HttpResponse.json({
+          rows: rows.slice(start, start + 2),
+          lastRow: rows.length,
+          annotations: {},
+          annotationVersion: 0,
+        });
       }),
     );
     const running = runActionTab('a', { store, sleep });
@@ -175,7 +202,12 @@ describe('runActionTab', () => {
       http.get(apiUrl(`/api/runs/${RUN_ID}/rows`), ({ request }) => {
         const start = Number(new URL(request.url).searchParams.get('startRow'));
         if (start > 0) return problemResponse(410, { type: 'urn:tim:problem:results-gone' });
-        return HttpResponse.json({ rows: rows.slice(0, 2), lastRow: rows.length });
+        return HttpResponse.json({
+          rows: rows.slice(0, 2),
+          lastRow: rows.length,
+          annotations: {},
+          annotationVersion: 0,
+        });
       }),
     );
     await runActionTab('a', { store, sleep });

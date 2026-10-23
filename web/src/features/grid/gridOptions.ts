@@ -9,6 +9,8 @@ import type {
   SideBarDef,
   StatusPanelDef,
 } from 'ag-grid-community';
+import type { CustomCellRendererProps } from 'ag-grid-react';
+import type { ComponentType } from 'react';
 import { DeterminationSymbol } from './DeterminationSymbol';
 import { ExecutionStatusPanel } from './ExecutionStatusPanel';
 import { aggFuncs } from './aggregation';
@@ -82,11 +84,16 @@ export function buildContextMenu(extra: ExtraMenuItems = []): ExtraMenuItems {
   ];
 }
 
+/**
+ * The grid's context menu. Its targets are the selected rows, so opening it on a row that isn't
+ * selected selects just that row first.
+ */
 export function makeGetContextMenuItems(
   extra?: GetExtraContextMenuItems,
   selectionColumnItems: ExtraMenuItems = [],
 ): GetContextMenuItems {
   return (params) => {
+    if (params.node?.data && !params.node.isSelected()) params.node.setSelected(true, true);
     const items = extra?.(params) ?? [];
     return buildContextMenu(
       params.column?.getColId() === SELECTION_COLUMN_ID
@@ -107,19 +114,34 @@ export function determinationSymbolsMenuItem(
   return { name: 'Show determination symbols', checked: show, action: () => setShow(!show) };
 }
 
-/**
- * Selection column, pinned left: the checkbox, plus the row's determination symbol when `show` is
- * on. The width is the 7px cell padding each side, the 16px checkbox, and the 6px gap and widest
- * symbol.
- */
+/** Selection column: the checkbox, plus the row's determination symbol when `show` is on. */
 export function buildSelectionColumnDef(
   show: boolean,
   setShow: (show: boolean) => void,
 ): SelectionColumnDef {
-  const width = show ? 55 : 30;
   return {
-    cellRenderer: show ? DeterminationSymbol : undefined,
+    ...selectionColumnDef(show ? DeterminationSymbol : undefined),
     columnMenuItems: [determinationSymbolsMenuItem(show, setShow)],
+  };
+}
+
+/** Selection column: the checkbox and the row's `symbol`, always shown. */
+export function buildSymbolSelectionColumnDef(
+  symbol: ComponentType<CustomCellRendererProps>,
+): SelectionColumnDef {
+  return selectionColumnDef(symbol);
+}
+
+/**
+ * Selection column, pinned left: the checkbox, and `symbol` when there is one. The width is the 7px
+ * cell padding each side, the 16px checkbox, and the 6px gap and widest symbol.
+ */
+function selectionColumnDef(
+  symbol: ComponentType<CustomCellRendererProps> | undefined,
+): SelectionColumnDef {
+  const width = symbol ? 55 : 30;
+  return {
+    cellRenderer: symbol,
     pinned: 'left',
     lockPinned: true,
     lockPosition: true,

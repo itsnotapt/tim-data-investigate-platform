@@ -6,6 +6,9 @@ export type CatalogueAction = components['schemas']['CatalogueAction'];
 export type CatalogueParam = components['schemas']['CatalogueParam'];
 export type CatalogueColumn = components['schemas']['CatalogueColumn'];
 export type InstanceConnection = components['schemas']['InstanceConnection'];
+export type InstanceLabel = components['schemas']['InstanceLabel'];
+export type LabelColour = InstanceLabel['colour'];
+export type LabelSymbol = NonNullable<InstanceLabel['symbol']>;
 
 /** The instance's actions, connections, labels and limits. */
 export async function getInstance({

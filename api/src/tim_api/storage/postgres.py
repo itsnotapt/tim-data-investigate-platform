@@ -14,7 +14,9 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -26,17 +28,22 @@ from sqlalchemy import (
     Table,
     Text,
     Uuid,
+    any_,
+    bindparam,
     delete,
     exists,
     insert,
     select,
     text,
+    true,
     update,
 )
-from sqlalchemy.dialects.postgresql import JSON, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
+from tim_api.annotations.models import Annotations, Comment, LabelState
 from tim_api.query_runs.models import (
     KustoQueryEcho,
     KustoQueryRun,
@@ -46,6 +53,11 @@ from tim_api.query_runs.models import (
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
     AlreadyExistsError,
+    AnnotationChanges,
+    AnnotationEdit,
+    AnnotationsChanged,
+    AnnotationsOf,
+    AnnotationStore,
     NotFoundError,
     QueryRunStore,
     RunStore,
@@ -141,6 +153,60 @@ run_rows = Table(
     Column("data", _JSON, nullable=False),
     PrimaryKeyConstraint("run_id", "ordinal"),
     prefixes=["UNLOGGED"],
+)
+
+# One row: the change feed's version. Every annotation change takes it first, so its row lock
+# makes version order commit order (ADR-0020).
+annotation_clock = Table(
+    "annotation_clock",
+    metadata,
+    Column("one", Boolean, primary_key=True, server_default=true()),
+    Column("version", BigInteger, nullable=False),
+    CheckConstraint("one", name="ck_annotation_clock_one_row"),
+)
+
+# Kept when an id's annotations are all removed, so the removal reaches other browsers.
+id_state = Table(
+    "id_state",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column("label", Text),
+    Column("labelled_by", Text),
+    Column("labelled_at", _TS),
+    Column("version", BigInteger, nullable=False),
+    Index("ix_id_state_version", "version"),
+)
+
+label_changes = Table(
+    "label_changes",
+    metadata,
+    Column("id", Text, nullable=False),
+    Column("label", Text),
+    Column("changed_by", Text, nullable=False),
+    Column("changed_at", _TS, nullable=False),
+    Column("version", BigInteger, nullable=False),
+    PrimaryKeyConstraint("id", "version"),
+)
+
+tags = Table(
+    "tags",
+    metadata,
+    Column("id", Text, nullable=False),
+    Column("tag", Text, nullable=False),
+    Column("added_by", Text, nullable=False),
+    Column("added_at", _TS, nullable=False),
+    PrimaryKeyConstraint("id", "tag"),
+)
+
+comments = Table(
+    "comments",
+    metadata,
+    Column("id", Text, nullable=False),
+    Column("author", Text, nullable=False),
+    Column("created_at", _TS, nullable=False),
+    Column("text", Text, nullable=False),
+    Column("version", BigInteger, nullable=False),
+    Index("ix_comments_id", "id", "version"),
 )
 
 _TEMPLATE_JSON_COLUMNS = ("path", "params", "fields", "columns")
@@ -575,6 +641,152 @@ class PostgresRunStore(RunStore):
         return len(stale)
 
 
+class _NothingChanged(Exception):
+    """Rolls back a change that changed nothing, so it takes no version."""
+
+
+def _ids_param(ids: Collection[str]) -> Any:
+    return bindparam("ids", list(ids), type_=ARRAY(Text))
+
+
+async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Annotations]:
+    """The annotations of the ``id_state`` rows ``states``, in their order."""
+    ids = _ids_param([state.id for state in states])
+    found_tags: dict[str, list[str]] = {}
+    for row in await conn.execute(
+        select(tags.c.id, tags.c.tag).where(tags.c.id == any_(ids)).order_by(tags.c.tag)
+    ):
+        found_tags.setdefault(row.id, []).append(row.tag)
+    found_comments: dict[str, list[Comment]] = {}
+    for row in await conn.execute(
+        select(comments).where(comments.c.id == any_(ids)).order_by(comments.c.version)
+    ):
+        found_comments.setdefault(row.id, []).append(
+            Comment(author=row.author, at=row.created_at, text=row.text)
+        )
+    return [
+        Annotations(
+            id=state.id,
+            label=None
+            if state.label is None
+            else LabelState(key=state.label, by=state.labelled_by, at=state.labelled_at),
+            tags=found_tags.get(state.id, []),
+            comments=found_comments.get(state.id, []),
+            version=state.version,
+        )
+        for state in states
+    ]
+
+
+class PostgresAnnotationStore(AnnotationStore):
+    def __init__(self, db: _Db) -> None:
+        self._db = db
+
+    async def change(
+        self, ids: Collection[str], edit: AnnotationEdit, *, by: str, at: datetime
+    ) -> AnnotationsChanged:
+        wanted = sorted(set(ids))
+        try:
+            async with self._db.begin() as conn:
+                # First, so that writers queue on the clock's row lock.
+                version = (
+                    await conn.execute(
+                        update(annotation_clock)
+                        .values(version=annotation_clock.c.version + 1)
+                        .returning(annotation_clock.c.version)
+                    )
+                ).scalar_one()
+                current = await conn.execute(
+                    select(id_state.c.id, id_state.c.label).where(
+                        id_state.c.id == any_(_ids_param(wanted))
+                    )
+                )
+                labels = {row.id: row.label for row in current}
+                changed = [id for id in wanted if edit.set_label and labels.get(id) != edit.label]
+                if not changed:
+                    raise _NothingChanged
+                labelled_by, labelled_at = (None, None) if edit.label is None else (by, at)
+                upsert = pg_insert(id_state)
+                await conn.execute(
+                    upsert.on_conflict_do_update(
+                        index_elements=[id_state.c.id],
+                        set_={
+                            "label": upsert.excluded.label,
+                            "labelled_by": upsert.excluded.labelled_by,
+                            "labelled_at": upsert.excluded.labelled_at,
+                            "version": upsert.excluded.version,
+                        },
+                    ),
+                    [
+                        {
+                            "id": id,
+                            "label": edit.label,
+                            "labelled_by": labelled_by,
+                            "labelled_at": labelled_at,
+                            "version": version,
+                        }
+                        for id in changed
+                    ],
+                )
+                await conn.execute(
+                    insert(label_changes),
+                    [
+                        {
+                            "id": id,
+                            "label": edit.label,
+                            "changed_by": by,
+                            "changed_at": at,
+                            "version": version,
+                        }
+                        for id in changed
+                    ],
+                )
+                states = (
+                    await conn.execute(
+                        select(id_state)
+                        .where(id_state.c.id == any_(_ids_param(changed)))
+                        .order_by(id_state.c.id)
+                    )
+                ).all()
+                return AnnotationsChanged(changes=await _annotations(conn, states), version=version)
+        except _NothingChanged:
+            async with self._db.begin() as conn:
+                current = (await conn.execute(select(annotation_clock.c.version))).scalar_one()
+            return AnnotationsChanged(changes=[], version=current)
+
+    async def of_ids(self, ids: Collection[str]) -> AnnotationsOf:
+        async with self._db.begin() as conn:
+            # The version before the state, so the state is never older than it.
+            version = (await conn.execute(select(annotation_clock.c.version))).scalar_one()
+            states = (
+                await conn.execute(select(id_state).where(id_state.c.id == any_(_ids_param(ids))))
+            ).all()
+            found = await _annotations(conn, states)
+        return AnnotationsOf(annotations={a.id: a for a in found}, version=version)
+
+    async def changes(self, since: int, limit: int) -> AnnotationChanges:
+        after = id_state.c.version > since
+        async with self._db.begin() as conn:
+            last = (
+                await conn.execute(
+                    select(id_state.c.version)
+                    .where(after)
+                    .order_by(id_state.c.version)
+                    .offset(limit - 1)
+                    .limit(1)
+                )
+            ).scalar()
+            page = select(id_state).where(after).order_by(id_state.c.version, id_state.c.id)
+            if last is not None:
+                page = page.where(id_state.c.version <= last)
+            states = (await conn.execute(page)).all()
+            has_more = last is not None and bool(
+                (await conn.execute(select(exists().where(id_state.c.version > last)))).scalar()
+            )
+            found = await _annotations(conn, states)
+        return AnnotationChanges(changes=found, has_more=has_more)
+
+
 class PostgresStorage(Storage):
     def __init__(self, url: str, *, pool_size: int = 10) -> None:
         self._engine = create_async_engine(url, pool_size=pool_size, pool_pre_ping=True)
@@ -582,6 +794,7 @@ class PostgresStorage(Storage):
         self.templates = PostgresTemplateStore(db)
         self.query_runs = PostgresQueryRunStore(db)
         self.runs = PostgresRunStore(db)
+        self.annotations = PostgresAnnotationStore(db)
 
     async def health(self) -> bool:
         try:

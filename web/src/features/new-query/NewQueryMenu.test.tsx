@@ -192,6 +192,8 @@ describe('NewQueryMenu', () => {
           maxPivotRows: 100,
           rowsPageSize: 1,
           runTimeoutSeconds: 1,
+          maxAnnotationIds: 10_000,
+          annotationPollSeconds: 30,
         },
       },
     });

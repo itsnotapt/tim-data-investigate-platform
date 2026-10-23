@@ -2,6 +2,11 @@
 
 from tim_api.storage.base import (
     AlreadyExistsError,
+    AnnotationChanges,
+    AnnotationEdit,
+    AnnotationsChanged,
+    AnnotationsOf,
+    AnnotationStore,
     NotFoundError,
     QueryRunStore,
     RunStore,
@@ -17,6 +22,11 @@ from tim_api.storage.retention import start_retention_loop, sweep_expired
 
 __all__ = [
     "AlreadyExistsError",
+    "AnnotationChanges",
+    "AnnotationEdit",
+    "AnnotationStore",
+    "AnnotationsChanged",
+    "AnnotationsOf",
     "MemoryStorage",
     "NotFoundError",
     "PostgresStorage",

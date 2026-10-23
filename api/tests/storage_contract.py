@@ -16,9 +16,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from tim_api.annotations.models import Annotations, LabelState
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
-from tim_api.storage import AlreadyExistsError, NotFoundError, Storage
+from tim_api.storage import AlreadyExistsError, AnnotationEdit, NotFoundError, Storage
 from tim_api.templates.models import QueryTemplate, QueryTemplateFields
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -586,6 +587,118 @@ class RunContract:
         again = await storage.runs.get(run.run_id, T0)
         assert again is not None
         assert again.params["user"] == "alice@example.com"
+
+
+def label(key: str | None) -> AnnotationEdit:
+    return AnnotationEdit(set_label=True, label=key)
+
+
+def labelled(id: str, key: str, by: str, at: datetime, version: int) -> Annotations:
+    return Annotations(id=id, label=LabelState(key=key, by=by, at=at), version=version)
+
+
+def unlabelled(id: str, version: int) -> Annotations:
+    return Annotations(id=id, label=None, version=version)
+
+
+class AnnotationContract:
+    async def test_a_label_is_set_on_every_id_under_one_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        changed = await store.change(["b", "a"], label("malicious"), by="alice", at=T0)
+        assert changed.version == 1
+        assert changed.changes == [
+            labelled("a", "malicious", "alice", T0, 1),
+            labelled("b", "malicious", "alice", T0, 1),
+        ]
+        got = await store.of_ids(["a", "b", "c"])
+        assert got.version == 1
+        assert got.annotations == {
+            "a": labelled("a", "malicious", "alice", T0, 1),
+            "b": labelled("b", "malicious", "alice", T0, 1),
+        }
+
+    async def test_each_change_takes_the_next_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(["a"], label("malicious"), by="alice", at=T0)
+        changed = await store.change(["a"], label("benign"), by="bob", at=_minutes(1))
+        assert changed == type(changed)(
+            changes=[labelled("a", "benign", "bob", _minutes(1), 2)], version=2
+        )
+
+    async def test_a_change_that_changes_nothing_takes_no_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(["a"], label("malicious"), by="alice", at=T0)
+        unchanged = await store.change(["a"], label("malicious"), by="bob", at=_minutes(1))
+        assert (unchanged.changes, unchanged.version) == ([], 1)
+        cleared = await store.change(["never-labelled"], label(None), by="bob", at=_minutes(1))
+        assert (cleared.changes, cleared.version) == ([], 1)
+        nothing = await store.change(["a"], AnnotationEdit(), by="bob", at=_minutes(1))
+        assert (nothing.changes, nothing.version) == ([], 1)
+        got = await store.of_ids(["a", "never-labelled"])
+        assert got.annotations == {"a": labelled("a", "malicious", "alice", T0, 1)}
+        assert (await store.changes(0, 100)).changes == [labelled("a", "malicious", "alice", T0, 1)]
+
+    async def test_only_the_ids_the_change_changes_take_its_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(["a"], label("benign"), by="alice", at=T0)
+        changed = await store.change(["a", "b"], label("benign"), by="bob", at=_minutes(1))
+        assert changed.changes == [labelled("b", "benign", "bob", _minutes(1), 2)]
+        got = await store.of_ids(["a", "b"])
+        assert got.annotations["a"] == labelled("a", "benign", "alice", T0, 1)
+
+    async def test_a_cleared_label_keeps_the_id_with_the_clearing_version(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+        await store.change(["a", "b"], label("malicious"), by="alice", at=T0)
+        cleared = await store.change(["a"], label(None), by="bob", at=_minutes(1))
+        assert cleared.changes == [unlabelled("a", 2)]
+        assert (await store.of_ids(["a"])).annotations == {"a": unlabelled("a", 2)}
+        assert (await store.changes(1, 100)).changes == [unlabelled("a", 2)]
+
+    async def test_the_feed_gives_the_current_state_of_each_id_changed_after_since(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+        await store.change(["a", "b"], label("malicious"), by="alice", at=T0)
+        await store.change(["c"], label("benign"), by="alice", at=_minutes(1))
+        await store.change(["a"], label("suspicious"), by="bob", at=_minutes(2))
+        page = await store.changes(0, 100)
+        assert page.has_more is False
+        assert page.changes == [
+            labelled("b", "malicious", "alice", T0, 1),
+            labelled("c", "benign", "alice", _minutes(1), 2),
+            labelled("a", "suspicious", "bob", _minutes(2), 3),
+        ]
+        assert (await store.changes(2, 100)).changes == [
+            labelled("a", "suspicious", "bob", _minutes(2), 3)
+        ]
+        assert await store.changes(3, 100) == type(page)(changes=[], has_more=False)
+
+    async def test_a_feed_page_ends_after_a_whole_version(self, storage: Storage) -> None:
+        store = storage.annotations
+        await store.change(["a", "b", "c"], label("malicious"), by="alice", at=T0)
+        await store.change(["d"], label("benign"), by="alice", at=T0)
+        await store.change(["e"], label("benign"), by="alice", at=T0)
+        first = await store.changes(0, 2)
+        assert ([a.id for a in first.changes], first.has_more) == (["a", "b", "c"], True)
+        second = await store.changes(1, 2)
+        assert ([a.id for a in second.changes], second.has_more) == (["d", "e"], False)
+        assert (await store.changes(1, 1)).has_more is True
+
+    async def test_annotations_start_at_version_zero(self, storage: Storage) -> None:
+        assert await storage.annotations.of_ids(["a"]) == type(
+            await storage.annotations.of_ids([])
+        )(annotations={}, version=0)
+
+    async def test_concurrent_changes_take_gapless_versions(self, storage: Storage) -> None:
+        store = storage.annotations
+        results = await asyncio.gather(
+            *(store.change([f"id-{n}"], label("benign"), by="alice", at=T0) for n in range(20))
+        )
+        assert sorted(r.version for r in results) == list(range(1, 21))
+        page = await store.changes(0, 100)
+        assert [a.version for a in page.changes] == list(range(1, 21))
 
 
 class HealthContract:

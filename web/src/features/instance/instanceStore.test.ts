@@ -21,6 +21,8 @@ const instance = (version: string, names: string[] = []): Instance => ({
     maxPivotRows: 100,
     rowsPageSize: 10,
     runTimeoutSeconds: 600,
+    maxAnnotationIds: 10_000,
+    annotationPollSeconds: 30,
   },
 });
 

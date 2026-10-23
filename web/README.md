@@ -179,7 +179,8 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao` and `queryOptionsDao`.
+- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `queryOptionsDao`, `annotationsDao` and `annotationSyncDao`.
+- Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
 

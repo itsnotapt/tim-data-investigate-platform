@@ -39,6 +39,10 @@ function makeSteps(calls: string[] = []) {
         calls.push('watchInstance');
         return () => void calls.push('unwatchInstance');
       }),
+      syncAnnotations: vi.fn(() => {
+        calls.push('syncAnnotations');
+        return () => void calls.push('unsyncAnnotations');
+      }),
     } satisfies BootstrapSteps,
   };
 }
@@ -58,6 +62,7 @@ describe('useBootstrap', () => {
         'tabs',
         'resumeRuns',
         'watchInstance',
+        'syncAnnotations',
       ]),
     );
   });
