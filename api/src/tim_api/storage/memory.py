@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from tim_api.annotations.models import Annotations, Comment, LabelState, TagSuggestions
+from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
@@ -23,6 +24,7 @@ from tim_api.storage.base import (
     AnnotationsChanged,
     AnnotationsOf,
     AnnotationStore,
+    ColumnViewStore,
     NotFoundError,
     PresetStore,
     QueryRunStore,
@@ -357,6 +359,72 @@ class MemoryPresetStore(PresetStore):
                 self._hidden.discard((preset_id, analyst))
 
 
+class MemoryColumnViewStore(ColumnViewStore):
+    def __init__(self) -> None:
+        self._items: dict[UUID, StoredColumnView] = {}
+        self._hidden: set[tuple[UUID, str]] = set()
+        self._lock = asyncio.Lock()
+
+    def _view(self, view: StoredColumnView, viewer: str) -> ColumnView:
+        return ColumnView.model_validate(
+            {
+                **view.model_dump(by_alias=False),
+                "owned": view.owner == viewer,
+                "hidden": (view.view_id, viewer) in self._hidden,
+            }
+        )
+
+    async def list(self, viewer: str) -> list[ColumnView]:
+        async with self._lock:
+            items = [
+                v for v in self._items.values() if v.owner == viewer or v.visibility == "shared"
+            ]
+            items.sort(key=lambda v: (v.created_at, v.view_id))
+            return [self._view(v, viewer) for v in items]
+
+    async def get(self, view_id: UUID, viewer: str) -> ColumnView | None:
+        async with self._lock:
+            found = self._items.get(view_id)
+            return self._view(found, viewer) if found else None
+
+    async def create(self, view: StoredColumnView) -> None:
+        async with self._lock:
+            if view.view_id in self._items:
+                raise AlreadyExistsError(str(view.view_id))
+            self._items[view.view_id] = view.model_copy(deep=True)
+
+    async def replace(
+        self, view_id: UUID, fields: ColumnViewFields, *, updated_at: datetime
+    ) -> None:
+        async with self._lock:
+            current = self._items.get(view_id)
+            if current is None:
+                raise NotFoundError(str(view_id))
+            self._items[view_id] = current.model_copy(
+                update={
+                    **fields.model_copy(deep=True).model_dump(
+                        by_alias=False, include=set(ColumnViewFields.model_fields)
+                    ),
+                    "updated_at": updated_at,
+                }
+            )
+
+    async def delete(self, view_id: UUID) -> None:
+        async with self._lock:
+            if self._items.pop(view_id, None) is None:
+                raise NotFoundError(str(view_id))
+            self._hidden = {h for h in self._hidden if h[0] != view_id}
+
+    async def set_hidden(self, view_id: UUID, analyst: str, hidden: bool) -> None:
+        async with self._lock:
+            if view_id not in self._items:
+                raise NotFoundError(str(view_id))
+            if hidden:
+                self._hidden.add((view_id, analyst))
+            else:
+                self._hidden.discard((view_id, analyst))
+
+
 class MemoryAnnotationStore(AnnotationStore):
     def __init__(self) -> None:
         self._state: dict[str, Annotations] = {}
@@ -449,6 +517,7 @@ class MemoryStorage(Storage):
         self.query_runs = MemoryQueryRunStore()
         self.runs = MemoryRunStore()
         self.presets = MemoryPresetStore()
+        self.column_views = MemoryColumnViewStore()
         self.annotations = MemoryAnnotationStore()
 
     async def health(self) -> bool:

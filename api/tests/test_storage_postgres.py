@@ -62,6 +62,8 @@ ALL_TABLES = {
     "run_rows",
     "presets",
     "preset_hidden",
+    "column_views",
+    "column_view_hidden",
     "annotation_clock",
     "id_state",
     "label_changes",
@@ -88,6 +90,7 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
         "ix_runs_expires_at",
         "ix_runs_running_started",
         "ix_presets_created_id",
+        "ix_column_views_created_id",
         "ix_id_state_version",
         "ix_comments_id",
     } <= found

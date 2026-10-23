@@ -12,6 +12,7 @@ from tim_api.actions.router import router as instance_router
 from tim_api.annotations.router import router as annotations_router
 from tim_api.annotations.router import tags_router
 from tim_api.auth.obo import build_obo_provider
+from tim_api.column_views.router import router as column_views_router
 from tim_api.config import Settings, get_settings
 from tim_api.connections.router import router as connections_router
 from tim_api.deps import get_storage
@@ -137,6 +138,7 @@ def create_app(
     app.include_router(annotations_router)
     app.include_router(tags_router)
     app.include_router(tagged_events_router)
+    app.include_router(column_views_router)
     app.include_router(connections_router)
     app.include_router(kusto_router)
     app.include_router(presets_router)
