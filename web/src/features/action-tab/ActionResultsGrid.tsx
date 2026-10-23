@@ -1,3 +1,4 @@
+import Box from '@mui/material/Box';
 import type {
   CellKeyDownEvent,
   FullWidthCellKeyDownEvent,
@@ -8,7 +9,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
-import { annotationColumnDefs, useAnnotating } from '../annotate';
+import { annotationColumnDefs, useAnnotating, useHistoryPanel } from '../annotate';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -46,6 +47,7 @@ export type ActionResultsGridProps = Omit<
   | 'rowClassRules'
   | 'selectionSymbol'
   | 'onCellKeyDown'
+  | 'onCellFocused'
 > & {
   uuid: string;
   /** The action the rows came from. */
@@ -56,7 +58,7 @@ export type ActionResultsGridProps = Omit<
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
   runColumns?: readonly RunColumn[] | null;
-  /** More context menu items, after Label ▸, Annotate…, Comment… and Show details. */
+  /** More context menu items, after Label ▸, Show details, Annotate…, Comment… and History. */
   getContextMenuItems?: GetExtraContextMenuItems;
 };
 
@@ -67,7 +69,7 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
  * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
- * text columns, Label ▸, Annotate…, Comment… and their keys.
+ * text columns, Label ▸, Annotate…, Comment…, History and their keys, and the History panel.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  */
@@ -168,26 +170,33 @@ export function ActionResultsGrid({
     keys: annotateKeys,
     dialog,
   } = useAnnotating({ labels, max, idParam, rowsById: index });
+  const history = useHistoryPanel({ labels, idParam });
+  const historyMenu = history.menu;
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
-      annotateMenu,
+      ((params) => [
+        ...annotateMenu(params),
+        ...historyMenu(params),
+      ]) satisfies GetExtraContextMenuItems,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
     ],
-    [labelling, annotateMenu, getContextMenuItems],
+    [labelling, annotateMenu, historyMenu, getContextMenuItems],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
+  const historyKeys = history.keys;
   const onCellKeyDown = useCallback(
     (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
       if (!('column' in e)) return;
       labelKeys(e);
       annotateKeys(e);
+      historyKeys(e);
     },
-    [labelKeys, annotateKeys],
+    [labelKeys, annotateKeys, historyKeys],
   );
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
-    <>
+    <Box sx={{ position: 'relative', overflow: 'hidden' }}>
       <ResultsGrid
         {...rest}
         stateKey={uuid}
@@ -198,10 +207,12 @@ export function ActionResultsGrid({
         rowClassRules={rowClassRules}
         selectionSymbol={LabelSymbol}
         onCellKeyDown={onCellKeyDown}
+        onCellFocused={history.onCellFocused}
         onGridReady={ready}
       />
+      {history.panel}
       {dialog}
-    </>
+    </Box>
   );
 }
 

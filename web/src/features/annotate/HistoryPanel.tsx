@@ -1,13 +1,17 @@
 import CloseIcon from '@mui/icons-material/Close';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import {
+  changeAnnotations,
   getAnnotationHistory,
+  isApiError,
   type Annotations,
   type CallOptions,
   type HistoryEntry,
@@ -36,7 +40,10 @@ const when = (at: string) => {
   return `${formatUtcDate(d)} ${formatUtcTime(d)} UTC`;
 };
 
-const reasonOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const reasonOf = (e: unknown): string => {
+  if (isApiError(e) && e.errors) return Object.values(e.errors).flat().join('; ');
+  return e instanceof Error ? e.message : String(e);
+};
 
 /** Each history entry's line, newest first: a label change as "old → new", a comment as is. */
 function HistoryItems({
@@ -78,14 +85,26 @@ function HistoryItems({
 
 /**
  * The History side panel of the focused row: the `id`, its label with who and when, its tags, its
- * history newest first, then the row's fields. Persistent and absolutely positioned in the grid's
+ * comment box (Ctrl+Enter adds), its history newest first, then the row's fields. Persistent and absolutely positioned in the grid's
  * container, like the detail panel.
  */
-export function HistoryPanel({ row, annotations, labels, onClose, call }: HistoryPanelProps) {
+export function HistoryPanel({
+  row,
+  annotations,
+  labels,
+  onCommented,
+  onClose,
+  call,
+}: HistoryPanelProps) {
   const id = row?.id ?? null;
   const version = annotations?.version;
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped after a comment from the panel, to read the history again.
+  const [read, setRead] = useState(0);
+  const [comment, setComment] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (id === null) return;
@@ -101,7 +120,31 @@ export function HistoryPanel({ row, annotations, labels, onClose, call }: Histor
     return () => {
       live = false;
     };
-  }, [id, version, call]);
+  }, [id, version, read, call]);
+
+  const addComment = async () => {
+    const text = comment.trim();
+    if (id === null || text === '' || saving) return;
+    setSaving(true);
+    setCommentError(null);
+    try {
+      const { changes } = await changeAnnotations({ ids: [id], comment: text }, call);
+      await onCommented(changes);
+      setComment('');
+      setRead((n) => n + 1);
+    } catch (e) {
+      setCommentError(`Couldn't add the comment: ${reasonOf(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      void addComment();
+    }
+  };
 
   const label = annotations?.label ?? null;
   return (
@@ -156,6 +199,31 @@ export function HistoryPanel({ row, annotations, labels, onClose, call }: Histor
                 <Chip key={tag} size="small" label={tag} />
               ))}
             </Box>
+            <TextField
+              label="Comment"
+              multiline
+              minRows={2}
+              fullWidth
+              size="small"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onKeyDown={onKeyDown}
+              helperText="Ctrl+Enter adds"
+            />
+            <Box sx={{ textAlign: 'right', mb: 2 }}>
+              <Button
+                size="small"
+                onClick={() => void addComment()}
+                disabled={comment.trim() === '' || saving}
+              >
+                Add comment
+              </Button>
+            </Box>
+            {commentError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {commentError}
+              </Alert>
+            )}
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}

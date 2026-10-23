@@ -449,6 +449,16 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Annotate…** (T) opens the Annotate dialog. It saves the label, the tags and a comment as one change.
   - **Comment…** (C) opens the same dialog with the comment only.
   - They are disabled, with the reason as a tooltip, in the same cases as **Label ▸** (see Targets).
+- **History.** The menu has **History** (H) after **Annotate…** and **Comment…**. It acts on the clicked or focused row only.
+  - It is disabled, with the reason as a tooltip, for a row without an `id`. The key H shows the reason in a toast.
+  - It opens the History panel.
+- **The History panel.** A side panel (`HistoryPanel.tsx`, opened by `useHistoryPanel.tsx`) for one `id`. From the top it shows:
+  - the `id`, and its current label with who set it and when, and its tags;
+  - a comment box. Ctrl or Cmd+Enter or **Add comment** appends a comment to the `id`. Comments are append-only;
+  - the history, newest first: label changes as "old → new", and comments as a thread;
+  - the row's fields.
+  - **Close history** closes it.
+- **Following the row.** The panel follows the focused row (`onCellFocused` on `ResultsGrid`). It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it and it reads the history again (`GET /api/annotations/history`).
 - **The Annotate dialog.**
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
   - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
@@ -456,7 +466,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Comment.** A text field. It is added to every target.
   - **Save.** Sends one `PATCH /api/annotations`. Ctrl or Cmd+Enter saves. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
-- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
+- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. H opens History on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
 - **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
   - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";
@@ -989,6 +999,13 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - A page ends after a whole version, so it holds at least 1,000 `id`s unless the feed ends there, and more when its last change touches more.
 - `next` is the version of the page's last change, and the `since` for the next request. `hasMore` says whether more follow.
 - Because versions are gapless and in commit order, a reader that has read up to `V` never misses a lower version that commits later.
+
+**History.** `GET /api/annotations/history?id=` reads `label_changes` and `comments` for the `id` and merges them, newest first.
+
+- Within one version, the label change comes before the comment.
+- Tags are not in it, and it has no paging.
+- An `id` that was never changed gives `entries: []`.
+- The memory store keeps a history list per `id`.
 
 **Tag suggestions.** `GET /api/tags/suggestions?prefix=` reads `tags`, matching the prefix ignoring case.
 

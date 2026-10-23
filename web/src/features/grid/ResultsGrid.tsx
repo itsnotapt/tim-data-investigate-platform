@@ -93,6 +93,8 @@ export interface ResultsGridProps {
    */
   selectionSymbol?: ComponentType<CustomCellRendererProps>;
   onCellKeyDown?: (event: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => void;
+  /** Called when a cell takes focus, after the detail panel follows it. */
+  onCellFocused?: (event: CellFocusedEvent<GridRowWithId>) => void;
 }
 
 export function ResultsGrid({
@@ -112,6 +114,7 @@ export function ResultsGrid({
   rowClassRules,
   selectionSymbol,
   onCellKeyDown,
+  onCellFocused: givenOnCellFocused,
 }: ResultsGridProps) {
   const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
@@ -189,11 +192,16 @@ export function ResultsGrid({
   );
 
   // The open panel follows the focused cell's row.
-  const onCellFocused = useCallback((e: CellFocusedEvent<GridRowWithId>) => {
-    if (!detailOpenRef.current || e.rowIndex === null) return;
-    const node = e.api.getDisplayedRowAtIndex(e.rowIndex);
-    if (node?.data) setDetailRow(node.data);
-  }, []);
+  const onCellFocused = useCallback(
+    (e: CellFocusedEvent<GridRowWithId>) => {
+      if (detailOpenRef.current && e.rowIndex !== null) {
+        const node = e.api.getDisplayedRowAtIndex(e.rowIndex);
+        if (node?.data) setDetailRow(node.data);
+      }
+      givenOnCellFocused?.(e);
+    },
+    [givenOnCellFocused],
+  );
 
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>

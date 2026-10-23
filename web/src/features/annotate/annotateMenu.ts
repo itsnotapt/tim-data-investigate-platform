@@ -35,6 +35,47 @@ export function buildAnnotateMenu({
   };
 }
 
+export interface HistoryMenuOptions {
+  /** The action takes its rows' id from an Id column param. */
+  idParam: boolean;
+  /** Opens the History panel on `row`. */
+  open: (row: LabelledRow) => void;
+  notify: (message: string) => void;
+}
+
+/** History (H) for the right-clicked row; disabled, with the reason, for a row without an id. */
+export function buildHistoryMenu({ idParam, open }: HistoryMenuOptions): GetExtraContextMenuItems {
+  return (params) => {
+    const row = params.node?.data as LabelledRow | undefined;
+    if (!row) return [];
+    const reason = whyUnlabellable(targetIds([row]), 1, idParam);
+    const items: ExtraMenuItems = [
+      {
+        name: 'History',
+        shortcut: 'H',
+        disabled: reason !== null,
+        tooltip: reason ?? undefined,
+        action: () => open(row),
+      },
+    ];
+    return items;
+  };
+}
+
+/** H opens the History panel on the focused row. A row without an id gives the reason in a toast. */
+export function makeHistoryKeys({ idParam, open, notify }: HistoryMenuOptions) {
+  return (e: CellKeyDownEvent<GridRowWithId>) => {
+    const key = e.event as KeyboardEvent | null | undefined;
+    if (!key || key.ctrlKey || key.metaKey || key.altKey || key.key.toLowerCase() !== 'h') return;
+    const row = e.node.data;
+    if (!row || e.api.getEditingCells().length > 0) return;
+    key.preventDefault();
+    const reason = whyUnlabellable(targetIds([row]), 1, idParam);
+    if (reason !== null) return notify(reason);
+    open(row);
+  };
+}
+
 const KEYS: Record<string, AnnotateMode> = { t: 'annotate', c: 'comment' };
 
 /**

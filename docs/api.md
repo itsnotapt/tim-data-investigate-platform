@@ -36,6 +36,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows, with their annotations. |
 | PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and comments of `id`s. |
 | GET | `/api/annotations/changes` | 200 | 400, 401 | The change feed: the `id`s changed after a version. |
+| GET | `/api/annotations/history` | 200 | 400, 401 | The history of an `id`: its label changes and comments, newest first. |
 | GET | `/api/tags/suggestions` | 200 | 401 | Tags that start with a prefix: the caller's recent ones, then the most used. |
 | POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 502, 503 | The editor schema of a connection, from its connection type's hook. |
 | POST | `/api/kusto/schema` | 200 | 400, 401, 403, 502, 503 | `.show schema as json` for a cluster database. |
@@ -78,7 +79,7 @@ Every non-2xx response has this body:
 
 | Status | `type` slug | Cause |
 |---|---|---|
-| 400 | `validation` | Invalid body, query or path; malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`. |
+| 400 | `validation` | Invalid body, query or path; malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). |
 | 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
@@ -337,6 +338,31 @@ The change feed. Query: `since`, a version from `0`, required.
 - `next` is the version of the page's last change, or `since` for an empty page. Ask again with `since=<next>` while `hasMore` is `true`.
 - An `id` whose annotations were all removed is in the feed, with `label: null`.
 - Versions are gapless and in commit order.
+
+### GET /api/annotations/history
+
+The history of one `id`. Query: `id`, required, 1 to 512 characters.
+
+```json
+{
+  "entries": [
+    { "kind": "comment", "author": "sam@example.com", "at": "2026-10-21T09:31:40Z", "text": "Seen on two hosts." },
+    { "kind": "label", "label": "malicious", "by": "alex@example.com", "at": "2026-10-21T09:30:12Z" }
+  ]
+}
+```
+
+- `entries` has the label changes and comments of the `id`, newest first. There is no paging.
+- A label entry has the `label` key it set, or `null` when the change cleared it, with who (`by`) and when (`at`).
+- A comment entry has its `author`, `at` and `text`.
+- Within one change, the label entry comes before the comment.
+- Tags are not in the history.
+- An `id` that was never changed answers `200` with `entries: []`.
+
+Problems:
+
+- `400 validation` with `errors.id` for a missing, empty or over-512-character `id`.
+- `401` without a signed-in analyst.
 
 ### GET /api/tags/suggestions
 
