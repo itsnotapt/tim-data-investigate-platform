@@ -5,18 +5,17 @@ from uuid import UUID
 
 from pydantic import Field
 
-from tim_api.models_common import ApiModel, NonBlankStr, UtcDatetime, omitted
+from tim_api.models_common import ApiModel, NonBlankStr, UtcDatetime
 
 Visibility = Literal["private", "shared"]
 InputSource = Literal["param"]
 
 
 class FixedInput(ApiModel):
-    """An input whose value is saved with the preset."""
+    """An input whose value is saved with the preset. Its type is the param's."""
 
     name: NonBlankStr
     source: InputSource
-    type: str | None = omitted()
     fixed: Literal[True]
     value: Any
 
@@ -27,7 +26,6 @@ class FromRowInput(ApiModel):
 
     name: NonBlankStr
     source: InputSource
-    type: str | None = omitted()
     fixed: Literal[False]
     from_columns: list[NonBlankStr]
 

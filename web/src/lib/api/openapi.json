@@ -416,7 +416,7 @@
         "type": "object"
       },
       "FixedInput": {
-        "description": "An input whose value is saved with the preset.",
+        "description": "An input whose value is saved with the preset. Its type is the param's.",
         "properties": {
           "fixed": {
             "const": true,
@@ -431,17 +431,6 @@
             "const": "param",
             "title": "Source",
             "type": "string"
-          },
-          "type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Type"
           },
           "value": {
             "title": "Value"
@@ -479,17 +468,6 @@
             "const": "param",
             "title": "Source",
             "type": "string"
-          },
-          "type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Type"
           }
         },
         "required": [

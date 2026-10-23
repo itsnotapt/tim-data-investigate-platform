@@ -521,7 +521,7 @@ export interface components {
         };
         /**
          * FixedInput
-         * @description An input whose value is saved with the preset.
+         * @description An input whose value is saved with the preset. Its type is the param's.
          */
         FixedInput: {
             /**
@@ -536,8 +536,6 @@ export interface components {
              * @constant
              */
             source: "param";
-            /** Type */
-            type?: string | null;
             /** Value */
             value: unknown;
         };
@@ -561,8 +559,6 @@ export interface components {
              * @constant
              */
             source: "param";
-            /** Type */
-            type?: string | null;
         };
         /**
          * Instance

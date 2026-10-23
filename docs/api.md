@@ -412,13 +412,12 @@ Returns one `Preset`. `404` when it is unknown, or private and owned by someone 
 
 ### PresetInput
 
-An input names a param of the preset's action that declares `from_columns`. The boolean `fixed` tells the two shapes apart: a fixed input and a From row input ([GLOSSARY.md](../GLOSSARY.md)).
+An input names a param of the preset's action that declares `from_columns`, and takes its type from that param. The boolean `fixed` tells the two shapes apart: a fixed input and a From row input ([GLOSSARY.md](../GLOSSARY.md)).
 
 | Field | Type | Rules |
 |---|---|---|
 | `name` | string | The param's name. Not blank. |
 | `source` | `param` | |
-| `type` | string | Optional. |
 | `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
 | `value` | JSON | Fixed only: the value saved with the preset. |
 | `fromColumns` | string[] | From row only: the columns to read, in order. The input takes the first one the rows have. With none, the form asks for the value. |

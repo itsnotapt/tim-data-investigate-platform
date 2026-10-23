@@ -186,3 +186,16 @@ def test_a_param_input_must_be_a_param_the_rows_can_fill(auth: AuthKit) -> None:
         "inputs.1.name": ["limit has no from_columns"],
         "inputs.2.name": ["Unknown param"],
     }
+
+
+def test_a_param_input_takes_its_type_from_the_param_so_a_sent_type_is_dropped(
+    auth: AuthKit,
+) -> None:
+    inputs = [{"name": "users", "source": "param", "type": "long", "fixed": True, "value": ["a"]}]
+    with client_for(auth) as client:
+        created = client.post("/api/presets", json=bookmark(inputs=inputs))
+
+    assert created.status_code == 201
+    assert created.json()["inputs"] == [
+        {"name": "users", "source": "param", "fixed": True, "value": ["a"]}
+    ]
