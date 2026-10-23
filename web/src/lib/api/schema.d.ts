@@ -67,6 +67,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/annotations/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Annotation History
+         * @description The history of ``id``, newest first.
+         */
+        get: operations["getAnnotationHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connections/{name}/schema": {
         parameters: {
             query?: never;
@@ -455,6 +475,14 @@ export interface components {
             next: number;
         };
         /**
+         * AnnotationHistory
+         * @description ``GET /api/annotations/history``: an id's label changes and comments, newest first.
+         */
+        AnnotationHistory: {
+            /** Entries */
+            entries: (components["schemas"]["LabelEntry"] | components["schemas"]["CommentEntry"])[];
+        };
+        /**
          * Annotations
          * @description An id's annotations, as of ``version``: the version of the change that last touched it.
          */
@@ -602,6 +630,23 @@ export interface components {
             at: string;
             /** Author */
             author: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * CommentEntry
+         * @description A comment in an id's history.
+         */
+        CommentEntry: {
+            /** At */
+            at: string;
+            /** Author */
+            author: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "comment";
             /** Text */
             text: string;
         };
@@ -830,6 +875,23 @@ export interface components {
             } | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * LabelEntry
+         * @description A label change in an id's history: the label it set, ``null`` when it cleared it.
+         */
+        LabelEntry: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "label";
+            /** Label */
+            label: string | null;
         };
         /**
          * LabelState
@@ -1505,6 +1567,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnnotationChangesPage"];
+                };
+            };
+            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getAnnotationHistory: {
+        parameters: {
+            query: {
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationHistory"];
                 };
             };
             /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */

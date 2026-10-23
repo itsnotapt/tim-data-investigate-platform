@@ -6,6 +6,8 @@ export type ChangedAnnotations = components['schemas']['ChangedAnnotations'];
 export type AnnotationChangesPage = components['schemas']['AnnotationChangesPage'];
 export type AnnotationsChange = components['schemas']['AnnotationsChange'];
 export type TagSuggestions = components['schemas']['TagSuggestions'];
+export type AnnotationHistory = components['schemas']['AnnotationHistory'];
+export type HistoryEntry = AnnotationHistory['entries'][number];
 
 const BASE = '/api/annotations';
 
@@ -34,6 +36,19 @@ export async function getAnnotationChanges(
   const res = await client.request<AnnotationChangesPage>({
     path: `${BASE}/changes`,
     query: { since: String(since) },
+    ...rest,
+  });
+  return res.data;
+}
+
+/** The label changes and comments of `id`, newest first. */
+export async function getAnnotationHistory(
+  id: string,
+  { client = getApiClient(), ...rest }: CallOptions = {},
+): Promise<AnnotationHistory> {
+  const res = await client.request<AnnotationHistory>({
+    path: `${BASE}/history`,
+    query: { id },
     ...rest,
   });
   return res.data;

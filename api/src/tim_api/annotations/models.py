@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints
 
@@ -60,6 +60,33 @@ class ChangedAnnotations(ApiModel):
 
     changes: list[Annotations]
     version: int
+
+
+class LabelEntry(ApiModel):
+    """A label change in an id's history: the label it set, ``null`` when it cleared it."""
+
+    kind: Literal["label"]
+    label: str | None
+    by: str
+    at: UtcDatetime
+
+
+class CommentEntry(ApiModel):
+    """A comment in an id's history."""
+
+    kind: Literal["comment"]
+    author: str
+    at: UtcDatetime
+    text: str
+
+
+HistoryEntry = Annotated[LabelEntry | CommentEntry, Field(discriminator="kind")]
+
+
+class AnnotationHistory(ApiModel):
+    """``GET /api/annotations/history``: an id's label changes and comments, newest first."""
+
+    entries: list[HistoryEntry]
 
 
 class TagSuggestions(ApiModel):

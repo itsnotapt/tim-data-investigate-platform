@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from tim_api.annotations.models import Annotations, TagSuggestions
+from tim_api.annotations.models import Annotations, HistoryEntry, TagSuggestions
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
@@ -274,6 +274,11 @@ class AnnotationStore(ABC):
     async def changes(self, since: int, limit: int) -> AnnotationChanges:
         """The ids changed after version ``since``: the first ``limit``, and the others of the
         last one's version, so a page always ends after a whole version."""
+
+    @abstractmethod
+    async def history(self, id: str) -> list[HistoryEntry]:
+        """The label changes and comments of ``id``, newest first, the label change before the
+        comment of the same change; none for an id never changed."""
 
     @abstractmethod
     async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:

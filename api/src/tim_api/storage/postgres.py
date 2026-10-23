@@ -44,7 +44,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
-from tim_api.annotations.models import Annotations, Comment, LabelState, TagSuggestions
+from tim_api.annotations.models import (
+    Annotations,
+    Comment,
+    CommentEntry,
+    HistoryEntry,
+    LabelEntry,
+    LabelState,
+    TagSuggestions,
+)
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import (
     KustoQueryEcho,
@@ -956,6 +964,24 @@ class PostgresAnnotationStore(AnnotationStore):
             )
             found = await _annotations(conn, states)
         return AnnotationChanges(changes=found, has_more=has_more)
+
+    async def history(self, id: str) -> list[HistoryEntry]:
+        async with self._db.begin() as conn:
+            labelled = await conn.execute(select(label_changes).where(label_changes.c.id == id))
+            commented = await conn.execute(select(comments).where(comments.c.id == id))
+            # Keyed newest first, the label change before the comment of the same version.
+            found: list[tuple[tuple[int, int], HistoryEntry]] = []
+            for row in labelled:
+                entry: HistoryEntry = LabelEntry(
+                    kind="label", label=row.label, by=row.changed_by, at=row.changed_at
+                )
+                found.append(((-row.version, 0), entry))
+            for row in commented:
+                entry = CommentEntry(
+                    kind="comment", author=row.author, at=row.created_at, text=row.text
+                )
+                found.append(((-row.version, 1), entry))
+        return [entry for _, entry in sorted(found, key=lambda f: f[0])]
 
     async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:
         matching = func.starts_with(func.lower(tags.c.tag), func.lower(prefix))
