@@ -16,13 +16,49 @@ export interface DetailPanelProps {
   onClose: () => void;
 }
 
+/** A row's fields as a list of names and values; empty values are left out. */
+export function DetailFields({
+  data,
+  nameWidth = 250,
+}: {
+  data: Record<string, unknown> | null | undefined;
+  /** CSS width of the names column, in px. */
+  nameWidth?: number;
+}) {
+  return (
+    <Box
+      component="dl"
+      sx={{ display: 'grid', gridTemplateColumns: `${nameWidth}px auto`, fontSize: '0.9rem', m: 0 }}
+    >
+      {detailEntries(data).map(({ key, text }) => (
+        <Box key={key} sx={{ display: 'contents' }}>
+          <Box component="dt" sx={{ mt: '5px', fontWeight: 500, overflowWrap: 'anywhere' }}>
+            {key}
+          </Box>
+          <Box
+            component="dd"
+            sx={{
+              mt: '5px',
+              m: 0,
+              pl: '10px',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {text}
+          </Box>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
 /**
  * Right-hand drawer with the fields of one row.
  * Persistent (no overlay, the grid stays usable) and absolutely positioned in the grid's
  * container, so a hidden tab hides it too.
  */
 export function DetailPanel({ open, data, onClose }: DetailPanelProps) {
-  const entries = detailEntries(data);
   return (
     <Drawer
       variant="persistent"
@@ -60,30 +96,7 @@ export function DetailPanel({ open, data, onClose }: DetailPanelProps) {
       <Accordion defaultExpanded disableGutters elevation={0} square>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>Result Details</AccordionSummary>
         <AccordionDetails sx={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
-          <Box
-            component="dl"
-            sx={{ display: 'grid', gridTemplateColumns: '250px auto', fontSize: '0.9rem', m: 0 }}
-          >
-            {entries.map(({ key, text }) => (
-              <Box key={key} sx={{ display: 'contents' }}>
-                <Box component="dt" sx={{ mt: '5px', fontWeight: 500, overflowWrap: 'anywhere' }}>
-                  {key}
-                </Box>
-                <Box
-                  component="dd"
-                  sx={{
-                    mt: '5px',
-                    m: 0,
-                    pl: '10px',
-                    overflowWrap: 'anywhere',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {text}
-                </Box>
-              </Box>
-            ))}
-          </Box>
+          <DetailFields data={data} />
         </AccordionDetails>
       </Accordion>
     </Drawer>

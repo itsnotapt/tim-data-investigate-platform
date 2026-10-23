@@ -1,3 +1,4 @@
+export { DetailFields } from './DetailPanel';
 export { ResultsGrid } from './ResultsGrid';
 export { TabResultsGrid } from './TabResultsGrid';
 export { buildColumnDefs, prepareRows } from './columns';

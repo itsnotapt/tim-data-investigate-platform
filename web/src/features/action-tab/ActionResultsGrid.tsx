@@ -170,8 +170,12 @@ export function ActionResultsGrid({
     keys: annotateKeys,
     dialog,
   } = useAnnotating({ labels, max, idParam, rowsById: index });
-  const history = useHistoryPanel({ labels, idParam });
-  const historyMenu = history.menu;
+  const {
+    menu: historyMenu,
+    keys: historyKeys,
+    onCellFocused,
+    panel: historyPanel,
+  } = useHistoryPanel({ labels, idParam });
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
@@ -184,7 +188,6 @@ export function ActionResultsGrid({
     [labelling, annotateMenu, historyMenu, getContextMenuItems],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
-  const historyKeys = history.keys;
   const onCellKeyDown = useCallback(
     (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
       if (!('column' in e)) return;
@@ -207,10 +210,10 @@ export function ActionResultsGrid({
         rowClassRules={rowClassRules}
         selectionSymbol={LabelSymbol}
         onCellKeyDown={onCellKeyDown}
-        onCellFocused={history.onCellFocused}
+        onCellFocused={onCellFocused}
         onGridReady={ready}
       />
-      {history.panel}
+      {historyPanel}
       {dialog}
     </Box>
   );

@@ -43,12 +43,16 @@ export interface HistoryMenuOptions {
   notify: (message: string) => void;
 }
 
+/** Why `row` has no history to show, else `null`. */
+const whyNoHistory = (row: LabelledRow, idParam: boolean) =>
+  whyUnlabellable(targetIds([row]), Infinity, idParam);
+
 /** History (H) for the right-clicked row; disabled, with the reason, for a row without an id. */
 export function buildHistoryMenu({ idParam, open }: HistoryMenuOptions): GetExtraContextMenuItems {
   return (params) => {
     const row = params.node?.data as LabelledRow | undefined;
     if (!row) return [];
-    const reason = whyUnlabellable(targetIds([row]), 1, idParam);
+    const reason = whyNoHistory(row, idParam);
     const items: ExtraMenuItems = [
       {
         name: 'History',
@@ -70,7 +74,7 @@ export function makeHistoryKeys({ idParam, open, notify }: HistoryMenuOptions) {
     const row = e.node.data;
     if (!row || e.api.getEditingCells().length > 0) return;
     key.preventDefault();
-    const reason = whyUnlabellable(targetIds([row]), 1, idParam);
+    const reason = whyNoHistory(row, idParam);
     if (reason !== null) return notify(reason);
     open(row);
   };

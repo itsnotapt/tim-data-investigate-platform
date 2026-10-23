@@ -131,7 +131,7 @@ describe('HistoryPanel', () => {
     await user.keyboard('{Control>}{Enter}{/Control}');
     await waitFor(() => expect(onCommented).toHaveBeenCalledWith([{ ...annotations, version: 5 }]));
     expect(patches).toEqual([{ ids: ['h1'], comment: 'same C2 as h2' }]);
-    expect(box).toHaveValue('');
+    await waitFor(() => expect(box).toHaveValue(''));
     await waitFor(() => expect(asked).toEqual(['h1', 'h1']));
   });
 
@@ -160,6 +160,29 @@ describe('HistoryPanel', () => {
     rerender(<HistoryPanel {...props} row={row('h2')} annotations={null} />);
     await waitFor(() => expect(asked).toEqual(['h1', 'h1', 'h2']));
     expect(screen.getByText('No label')).toBeInTheDocument();
+  });
+
+  it("starts afresh on another id: no half-typed comment, no earlier id's history", async () => {
+    let answer: (() => void) | null = null;
+    const { rerender, user } = renderPanel();
+    await screen.findByRole('list', { name: 'History' });
+    await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'about h1');
+    server.use(
+      http.get(
+        apiUrl('/api/annotations/history'),
+        () =>
+          new Promise<Response>((resolve) => {
+            answer = () => resolve(HttpResponse.json({ entries: [] }));
+          }),
+      ),
+    );
+    const props = { labels, onCommented: vi.fn(), onClose: vi.fn(), call };
+    rerender(<HistoryPanel {...props} row={row('h2')} annotations={null} />);
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveValue('');
+    expect(screen.queryByRole('list', { name: 'History' })).not.toBeInTheDocument();
+    await waitFor(() => expect(answer).not.toBeNull());
+    answer!();
+    expect(await screen.findByRole('list', { name: 'History' })).toBeEmptyDOMElement();
   });
 
   it('says a row without an id has no history, and still shows its fields', () => {

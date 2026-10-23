@@ -18,7 +18,7 @@ import {
   type InstanceLabel,
 } from '../../lib/api';
 import { formatUtcDate, formatUtcTime } from '../../lib/time-range';
-import { detailEntries } from '../grid/detailText';
+import { DetailFields } from '../grid';
 import { shownLabel, type LabelledRow } from '../labels';
 
 const HISTORY_PANEL_WIDTH = 480;
@@ -35,7 +35,7 @@ export interface HistoryPanelProps {
   call?: CallOptions;
 }
 
-const when = (at: string) => {
+const formatAt = (at: string) => {
   const d = new Date(at);
   return `${formatUtcDate(d)} ${formatUtcTime(d)} UTC`;
 };
@@ -53,7 +53,8 @@ function HistoryItems({
   entries: readonly HistoryEntry[];
   labels: readonly InstanceLabel[];
 }) {
-  const name = (key: string | null) => (key === null ? 'No label' : shownLabel(key, labels).name);
+  const labelName = (key: string | null) =>
+    key === null ? 'No label' : shownLabel(key, labels).name;
   return (
     <Box component="ul" aria-label="History" sx={{ listStyle: 'none', p: 0, m: 0 }}>
       {entries.map((entry, i) => {
@@ -61,7 +62,7 @@ function HistoryItems({
           return (
             <Box component="li" key={i} sx={{ mb: 1.5 }}>
               <Typography variant="caption" color="text.secondary" component="div">
-                {`${entry.author} · ${when(entry.at)}`}
+                {`${entry.author} · ${formatAt(entry.at)}`}
               </Typography>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                 {entry.text}
@@ -74,7 +75,7 @@ function HistoryItems({
         return (
           <Box component="li" key={i} sx={{ mb: 1.5 }}>
             <Typography variant="body2" color="text.secondary">
-              {`${name(before)} → ${name(entry.label)} · ${entry.by} · ${when(entry.at)}`}
+              {`${labelName(before)} → ${labelName(entry.label)} · ${entry.by} · ${formatAt(entry.at)}`}
             </Typography>
           </Box>
         );
@@ -84,9 +85,9 @@ function HistoryItems({
 }
 
 /**
- * The History side panel of the focused row: the `id`, its label with who and when, its tags, its
- * comment box (Ctrl+Enter adds), its history newest first, then the row's fields. Persistent and absolutely positioned in the grid's
- * container, like the detail panel.
+ * The History side panel of the focused row: the `id`, its label with who and when, its tags, a
+ * comment box (Ctrl+Enter adds), its history newest first, then the row's fields. Persistent and
+ * absolutely positioned in the grid's container, like the detail panel.
  */
 export function HistoryPanel({
   row,
@@ -101,10 +102,19 @@ export function HistoryPanel({
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Bumped after a comment from the panel, to read the history again.
-  const [read, setRead] = useState(0);
+  const [reloads, setReloads] = useState(0);
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Another id starts afresh, so neither a typed comment nor the last id's history carries over.
+  const [shownId, setShownId] = useState(id);
+  if (shownId !== id) {
+    setShownId(id);
+    setEntries(null);
+    setError(null);
+    setComment('');
+    setCommentError(null);
+  }
 
   useEffect(() => {
     if (id === null) return;
@@ -120,7 +130,7 @@ export function HistoryPanel({
     return () => {
       live = false;
     };
-  }, [id, version, read, call]);
+  }, [id, version, reloads, call]);
 
   const addComment = async () => {
     const text = comment.trim();
@@ -131,7 +141,7 @@ export function HistoryPanel({
       const { changes } = await changeAnnotations({ ids: [id], comment: text }, call);
       await onCommented(changes);
       setComment('');
-      setRead((n) => n + 1);
+      setReloads((n) => n + 1);
     } catch (e) {
       setCommentError(`Couldn't add the comment: ${reasonOf(e)}`);
     } finally {
@@ -187,7 +197,7 @@ export function HistoryPanel({
                 <>
                   <Typography variant="subtitle2">{shownLabel(label.key, labels).name}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {`${label.by} · ${when(label.at)}`}
+                    {`${label.by} · ${formatAt(label.at)}`}
                   </Typography>
                 </>
               ) : (
@@ -234,32 +244,7 @@ export function HistoryPanel({
         )}
         <Box component="section" aria-label="Fields" sx={{ mt: 2 }}>
           <Typography variant="subtitle2">Fields</Typography>
-          <Box
-            component="dl"
-            sx={{ display: 'grid', gridTemplateColumns: '160px auto', fontSize: '0.9rem', m: 0 }}
-          >
-            {detailEntries(row?.data as Record<string, unknown> | undefined).map(
-              ({ key, text }) => (
-                <Box key={key} sx={{ display: 'contents' }}>
-                  <Box component="dt" sx={{ mt: '5px', fontWeight: 500, overflowWrap: 'anywhere' }}>
-                    {key}
-                  </Box>
-                  <Box
-                    component="dd"
-                    sx={{
-                      m: 0,
-                      mt: '5px',
-                      pl: '10px',
-                      overflowWrap: 'anywhere',
-                      whiteSpace: 'pre-wrap',
-                    }}
-                  >
-                    {text}
-                  </Box>
-                </Box>
-              ),
-            )}
-          </Box>
+          <DetailFields data={row?.data as Record<string, unknown> | undefined} nameWidth={160} />
         </Box>
       </Box>
     </Drawer>

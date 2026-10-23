@@ -453,11 +453,14 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - It is disabled, with the reason as a tooltip, for a row without an `id`. The key H shows the reason in a toast.
   - It opens the History panel.
 - **The History panel.** A side panel (`HistoryPanel.tsx`, opened by `useHistoryPanel.tsx`) for one `id`. From the top it shows:
-  - the `id`, and its current label with who set it and when, and its tags;
-  - a comment box. Ctrl or Cmd+Enter or **Add comment** appends a comment to the `id`. Comments are append-only;
+  - the `id`;
+  - its current label, with who set it and when;
+  - its tags;
+  - a comment box;
   - the history, newest first: label changes as "old → new", and comments as a thread;
   - the row's fields.
-  - **Close history** closes it.
+- **Commenting from the panel.** Ctrl or Cmd+Enter, or **Add comment**, appends the comment to the `id`. Comments are append-only.
+- **Closing the panel.** **Close history** closes it.
 - **Following the row.** The panel follows the focused row (`onCellFocused` on `ResultsGrid`). It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it and it reads the history again (`GET /api/annotations/history`).
 - **The Annotate dialog.**
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.

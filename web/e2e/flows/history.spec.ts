@@ -95,11 +95,26 @@ test('H opens the History of the focused row, which follows focus and a teammate
   await expect(panel(page)).toBeHidden();
 });
 
-test('History is on the right-click menu', async ({ page, idPrefix }) => {
+const menuOption = (page: Page, text: string) => page.locator('.ag-menu-option', { hasText: text });
+
+test('History is on the right-click menu, and says why a row without an id has none', async ({
+  page,
+  idPrefix,
+}) => {
   const a = `${idPrefix}-a`;
-  await runJson(page, [{ Host: a }]);
+  const none = `${idPrefix}-none`;
+  await runJson(page, [{ Host: a }, { Other: none }]);
   await rowsWith(page, a).locator('.ag-cell[col-id="Host"]').click({ button: 'right' });
-  await page.locator('.ag-menu-option', { hasText: 'History' }).click();
+  await menuOption(page, 'History').click();
   await expect(panel(page).locator('code')).toHaveText(a);
   await expect(entries(page)).toHaveCount(0);
+  await panel(page).getByRole('button', { name: 'Close history' }).click();
+
+  await grid(page).getByText(none).click({ button: 'right' });
+  await expect(menuOption(page, 'History')).toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('Escape');
+  await grid(page).getByText(none).click();
+  await page.keyboard.press('h');
+  await expect(page.getByText('No id: set Id column and run again to annotate')).toBeVisible();
+  await expect(panel(page)).toBeHidden();
 });
