@@ -171,16 +171,14 @@ describe('changeBody', () => {
 });
 
 describe('suggestionGroups', () => {
-  it("groups the rows' tags, the analyst's recent tags and the most used, each tag once", () => {
+  it("groups the analyst's recent tags and the most used, each tag once", () => {
     expect(
       suggestionGroups('b', ['c2'], {
-        onRows: ['Beacon', 'c2', 'botnet'],
-        recent: ['beacon', 'botnet'],
-        mostUsed: ['bad', 'Beacon', 'banking'],
+        recent: ['beacon', 'Botnet', 'c2'],
+        mostUsed: ['bad', 'Botnet', 'banking'],
       }),
     ).toEqual([
-      { group: 'On these rows', tags: ['Beacon', 'botnet'] },
-      { group: 'Your recent tags', tags: ['beacon'] },
+      { group: 'Your recent tags', tags: ['beacon', 'Botnet'] },
       { group: 'Most used', tags: ['bad', 'banking'] },
     ]);
   });
@@ -188,8 +186,7 @@ describe('suggestionGroups', () => {
   it("leaves out the editor's tags and the groups with nothing left", () => {
     expect(
       suggestionGroups('', ['c2', 'tor'], {
-        onRows: ['c2'],
-        recent: ['tor'],
+        recent: ['tor', 'c2'],
         mostUsed: ['beacon'],
       }),
     ).toEqual([{ group: 'Most used', tags: ['beacon'] }]);

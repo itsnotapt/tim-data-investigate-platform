@@ -176,7 +176,7 @@ export function changeBody(ids: readonly string[], choice: DialogChoice): Annota
 }
 
 export interface SuggestionGroup {
-  group: 'On these rows' | 'Your recent tags' | 'Most used';
+  group: 'Your recent tags' | 'Most used';
   tags: string[];
 }
 
@@ -184,13 +184,13 @@ export interface SuggestionGroup {
 const PER_GROUP = 10;
 
 /**
- * The tag suggestions for `prefix`, ignoring case: the tags on the grid's rows, then the server's
- * `recent` and `mostUsed`. Each tag shows once, and tags in the editor (`taken`) not at all.
+ * The tag suggestions for `prefix`, ignoring case: the server's `recent`, then its `mostUsed`.
+ * Each tag shows once, and tags in the editor (`taken`) not at all.
  */
 export function suggestionGroups(
   prefix: string,
   taken: readonly string[],
-  sources: TagSuggestions & { onRows: readonly string[] },
+  sources: TagSuggestions,
 ): SuggestionGroup[] {
   const lower = prefix.trim().toLowerCase();
   const seen = new Set(taken);
@@ -205,7 +205,6 @@ export function suggestionGroups(
     return picked;
   };
   const groups: SuggestionGroup[] = [
-    { group: 'On these rows', tags: pick(sources.onRows) },
     { group: 'Your recent tags', tags: pick(sources.recent) },
     { group: 'Most used', tags: pick(sources.mostUsed) },
   ];

@@ -8,8 +8,8 @@ export interface AnnotateMenuOptions {
   idParam: boolean;
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
-  /** Opens the dialog for `rows` of the grid `api`. */
-  open: (mode: AnnotateMode, rows: LabelledRow[], api: GridApi<GridRowWithId>) => void;
+  /** Opens the dialog for `rows`. */
+  open: (mode: AnnotateMode, rows: LabelledRow[]) => void;
   notify: (message: string) => void;
 }
 
@@ -23,14 +23,13 @@ export function buildAnnotateMenu({
   open,
 }: AnnotateMenuOptions): GetExtraContextMenuItems {
   return (params) => {
-    const api = params.api as GridApi<GridRowWithId>;
-    const rows = targetRows(api, params.node);
+    const rows = targetRows(params.api as GridApi<GridRowWithId>, params.node);
     if (rows.length === 0) return [];
     const reason = whyUnlabellable(targetIds(rows), max, idParam);
     const state = { disabled: reason !== null, tooltip: reason ?? undefined };
     const items: ExtraMenuItems = [
-      { name: 'Annotate…', shortcut: 'T', ...state, action: () => open('annotate', rows, api) },
-      { name: 'Comment…', shortcut: 'C', ...state, action: () => open('comment', rows, api) },
+      { name: 'Annotate…', shortcut: 'T', ...state, action: () => open('annotate', rows) },
+      { name: 'Comment…', shortcut: 'C', ...state, action: () => open('comment', rows) },
     ];
     return items;
   };
@@ -53,6 +52,6 @@ export function makeAnnotateKeys({ idParam, max, open, notify }: AnnotateMenuOpt
     key.preventDefault();
     const reason = whyUnlabellable(targetIds(rows), max, idParam);
     if (reason !== null) return notify(reason);
-    open(mode, rows, e.api);
+    open(mode, rows);
   };
 }

@@ -372,7 +372,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - **The Annotate dialog.**
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
   - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
-  - **Suggestions.** From `GET /api/tags/suggestions`, in the groups "On these rows" (the tags in the grid), "Your recent tags" and "Most used".
+  - **Suggestions.** From `GET /api/tags/suggestions`, in the groups "Your recent tags" and "Most used".
   - **Comment.** A text field. It is added to every target.
   - **Save.** Sends one `PATCH /api/annotations`. Ctrl or Cmd+Enter saves. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).

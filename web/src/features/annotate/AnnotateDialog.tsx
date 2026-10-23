@@ -43,8 +43,6 @@ export interface AnnotateDialogProps {
   reach: Reach;
   /** The stored annotations of those of `targets` that have any. */
   current: readonly Annotations[];
-  /** The tags on the grid's rows: the "On these rows" suggestions. */
-  rowTags: readonly string[];
   labels: readonly InstanceLabel[];
   /** Called with what the change changed, before the dialog closes. */
   onSaved: (changes: Annotations[]) => void | Promise<void>;
@@ -132,7 +130,6 @@ export function AnnotateDialog({
   targets,
   reach,
   current,
-  rowTags,
   labels,
   onSaved,
   onClose,
@@ -156,9 +153,9 @@ export function AnnotateDialog({
       suggestionGroups(
         input,
         chips.map((c) => c.tag),
-        { ...suggested, onRows: rowTags },
+        suggested,
       ).flatMap(({ group, tags }) => tags.map((tag) => ({ group, tag }))),
-    [input, chips, suggested, rowTags],
+    [input, chips, suggested],
   );
 
   useEffect(() => {

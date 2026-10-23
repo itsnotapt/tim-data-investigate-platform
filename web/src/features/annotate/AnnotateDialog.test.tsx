@@ -56,7 +56,6 @@ function renderDialog(props: Partial<AnnotateDialogProps> = {}) {
       targets={['h1', 'h2', 'h3']}
       reach={{ rows: 4, ids: 3, otherRows: 2, withoutId: 1 }}
       current={[annotations('h1', ['c2', 'beacon'], 'malicious'), annotations('h2', ['c2'])]}
-      rowTags={['bad', 'beacon']}
       labels={labels}
       onSaved={onSaved}
       onClose={onClose}
@@ -135,7 +134,7 @@ describe('AnnotateDialog', () => {
     expect(patches).toEqual([{ ids: ['h1', 'h2', 'h3'], label: null }]);
   });
 
-  it("groups the suggestions: on these rows, the analyst's recent tags, then the most used", async () => {
+  it("groups the suggestions: the analyst's recent tags, then the most used", async () => {
     const { user } = renderDialog();
     await user.type(screen.getByRole('combobox', { name: 'Add tag' }), 'b');
     const listbox = await screen.findByRole('listbox');
@@ -145,11 +144,11 @@ describe('AnnotateDialog', () => {
         within(listbox)
           .getAllByRole('option')
           .map((o) => o.textContent),
-      ).toEqual(['bad', 'botnet', 'banking']),
+      ).toEqual(['botnet', 'banking']),
     );
-    expect(within(listbox).getByText('On these rows')).toBeInTheDocument();
     expect(within(listbox).getByText('Your recent tags')).toBeInTheDocument();
     expect(within(listbox).getByText('Most used')).toBeInTheDocument();
+    expect(within(listbox).queryByText('On these rows')).toBeNull();
     await user.click(within(listbox).getByRole('option', { name: 'botnet' }));
     expect(screen.getByRole('button', { name: 'botnet' })).toBeInTheDocument();
   });

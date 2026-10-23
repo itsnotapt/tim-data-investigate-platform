@@ -1,4 +1,4 @@
-import type { CellKeyDownEvent, GridApi } from 'ag-grid-community';
+import type { CellKeyDownEvent } from 'ag-grid-community';
 import { useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
@@ -34,21 +34,6 @@ interface OpenDialog {
   targets: string[];
   reach: Reach;
   current: Annotations[];
-  rowTags: string[];
-}
-
-/** The tags on the grid's rows, on the most rows first, ties in code-point order. */
-function tagsOnRows(api: GridApi<GridRowWithId>): string[] {
-  const counts = new Map<string, number>();
-  api.forEachNode((node) => {
-    const row: LabelledRow | undefined = node.data;
-    for (const tag of row?.annotations?.tags ?? []) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-  });
-  return [...counts]
-    .sort(([a, m], [b, n]) => n - m || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([tag]) => tag);
 }
 
 /**
@@ -63,7 +48,7 @@ export function useAnnotating({ labels, max, idParam, rowsById }: AnnotatingOpti
       max,
       idParam,
       notify: (message: string) => notify?.(message),
-      open: (mode: AnnotateMode, rows: LabelledRow[], grid: GridApi<GridRowWithId>) => {
+      open: (mode: AnnotateMode, rows: LabelledRow[]) => {
         const targets = targetIds(rows);
         void getAnnotationStore()
           .get(targets)
@@ -73,7 +58,6 @@ export function useAnnotating({ labels, max, idParam, rowsById }: AnnotatingOpti
               targets,
               reach: reachOf(rows, rowsById),
               current: [...found.values()],
-              rowTags: grid.isDestroyed() ? [] : tagsOnRows(grid),
             }),
           );
       },
