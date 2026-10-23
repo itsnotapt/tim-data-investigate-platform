@@ -40,12 +40,13 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs` and `annotations`:
+`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs`, `column_views` and `annotations`:
 
 - `TemplateStore`;
 - `PresetStore`, for presets and each analyst's hidden marks;
 - `RunStore`, for runs and their rows;
 - `QueryRunStore`, for Kusto query runs;
+- `ColumnViewStore`, for column views (`column_views`) and each analyst's hidden marks (`column_view_hidden`);
 - `AnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
 
 There are two implementations:
@@ -53,7 +54,7 @@ There are two implementations:
 - `PostgresStorage`: SQLAlchemy 2 async with asyncpg (ADR-0004);
 - an in-memory store (`TIM_DATABASE_URL=memory://`): development only, rejected in production.
 
-Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store` and `get_query_run_store`.
+Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store`, `get_query_run_store` and `get_column_view_store`.
 
 **Migrations (Alembic).** The schema lives in `migrations/`. `tim_api.storage.postgres.metadata` is the model definition.
 
@@ -122,11 +123,11 @@ The credential is `TIM_AUTH_CLIENT_SECRET`, else a client assertion re-read from
 
 Errors for endpoints to map:
 
-| Error | Answer |
-|---|---|
+| Error                                                    | Answer                 |
+| -------------------------------------------------------- | ---------------------- |
 | `OboAuthError` (`invalid_grant`, `interaction_required`) | 403 `consent-required` |
-| `OboUpstreamError` | 502 |
-| `OboUnavailableError` (auth disabled, or no token) | 503 |
+| `OboUpstreamError`                                       | 502                    |
+| `OboUnavailableError` (auth disabled, or no token)       | 503                    |
 
 With `TIM_AUTH_DISABLED=true`, the provider always raises `OboUnavailableError`. So Kusto calls need real auth, even in dev.
 
@@ -263,13 +264,13 @@ The thread feeds each row to `ResultBuilder` (`runs/results.py`), which handles 
 
 Outcomes:
 
-| Outcome | Status |
-|---|---|
-| `run` returns | `succeeded`, with `columns`, `rowCount`, and any `id` warnings in `details["warning"]` |
-| `tim_actions.RunError` or `ResultLimitError` | `error`, with its message |
-| Any other exception | `error` "The run failed unexpectedly". The traceback is logged with the trace id |
-| `TIM_RUN_TIMEOUT_SECONDS` after the slot | `timedOut` |
-| A cancel request | `cancelled` |
+| Outcome                                      | Status                                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `run` returns                                | `succeeded`, with `columns`, `rowCount`, and any `id` warnings in `details["warning"]` |
+| `tim_actions.RunError` or `ResultLimitError` | `error`, with its message                                                              |
+| Any other exception                          | `error` "The run failed unexpectedly". The traceback is logged with the trace id       |
+| `TIM_RUN_TIMEOUT_SECONDS` after the slot     | `timedOut`                                                                             |
+| A cancel request                             | `cancelled`                                                                            |
 
 A timeout and a cancel both:
 
@@ -312,13 +313,13 @@ There is no `Location` header. Clients poll `GET /api/kusto/query/{queryRunId}`,
 
 Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed:
 
-| Outcome | Status |
-|---|---|
-| Success | `completed` |
-| `KustoQueryError` | `error`, with the sanitised message |
-| `KustoResultLimitError` | `error` ("Result exceeds limit of ...") |
-| `TIM_RUN_TIMEOUT_SECONDS` exceeded (`asyncio.timeout`) | `timedOut`, with a `mainError` |
-| Any other exception | `error` "The query failed unexpectedly". The traceback is logged with the trace id |
+| Outcome                                                | Status                                                                             |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Success                                                | `completed`                                                                        |
+| `KustoQueryError`                                      | `error`, with the sanitised message                                                |
+| `KustoResultLimitError`                                | `error` ("Result exceeds limit of ...")                                            |
+| `TIM_RUN_TIMEOUT_SECONDS` exceeded (`asyncio.timeout`) | `timedOut`, with a `mainError`                                                     |
+| Any other exception                                    | `error` "The query failed unexpectedly". The traceback is logged with the trace id |
 
 Tasks and restarts:
 
@@ -335,14 +336,14 @@ Tests run the flow against memory and PostgreSQL (the `storage` fixture).
 
 ### Limits
 
-| Setting | Default | Behaviour when exceeded |
-|---|---|---|
-| `TIM_MAX_RESULT_ROWS` | 1 000 000 | capped at 100 000 here (`MAX_ROWS`, the lower wins): run ends `error`, `resultData: null`, `mainError` "Result exceeds limit of N rows". Never truncated. |
-| `TIM_MAX_RESULT_BYTES` | 512 MiB | capped at 64 MiB here (`MAX_BYTES`): same, "... N bytes" (size of the compact JSON of all rows) |
-| `TIM_RUN_TIMEOUT_SECONDS` | 600 | `timedOut` |
-| `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
-| `TIM_MAX_CONCURRENT_RUNS` | 16 | per process, shared with `/api/runs`; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
-| `TIM_MAX_REQUEST_BYTES` | 16777216 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
+| Setting                     | Default   | Behaviour when exceeded                                                                                                                                                            |
+| --------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIM_MAX_RESULT_ROWS`       | 1 000 000 | capped at 100 000 here (`MAX_ROWS`, the lower wins): run ends `error`, `resultData: null`, `mainError` "Result exceeds limit of N rows". Never truncated.                          |
+| `TIM_MAX_RESULT_BYTES`      | 512 MiB   | capped at 64 MiB here (`MAX_BYTES`): same, "... N bytes" (size of the compact JSON of all rows)                                                                                    |
+| `TIM_RUN_TIMEOUT_SECONDS`   | 600       | `timedOut`                                                                                                                                                                         |
+| `TIM_RUN_RETENTION_SECONDS` | 86 400    | run 404 after expiry                                                                                                                                                               |
+| `TIM_MAX_CONCURRENT_RUNS`   | 16        | per process, shared with `/api/runs`; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
+| `TIM_MAX_REQUEST_BYTES`     | 16777216  | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large`                                                                                                  |
 
 How the caps are checked:
 
@@ -406,17 +407,17 @@ It is safe to re-run.
 
 **`errors.py`:** every non-2xx is `application/problem+json`, with `type`, `title`, `status`, `detail`, `traceId` and `errors?`.
 
-| Handler | Answer |
-|---|---|
-| `HTTPException` | Its status, with headers kept, so `WWW-Authenticate` survives. Unknown statuses get `urn:tim:problem:http-<status>` |
-| `RequestValidationError` | 400, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Unparseable JSON gives `{"body": ["Malformed JSON"]}` |
-| `NotFoundError` | 404 |
-| `AlreadyExistsError` | 409 |
-| `StorageUnavailableError` | 503 |
-| `OboAuthError` | 403 `consent-required` (see [docs/api.md](../docs/api.md)) |
-| `OboUpstreamError` | 502 |
-| `OboUnavailableError` | 503 |
-| Any other exception | 500, with detail `Internal error`. The stack is logged with the traceId, never returned |
+| Handler                   | Answer                                                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `HTTPException`           | Its status, with headers kept, so `WWW-Authenticate` survives. Unknown statuses get `urn:tim:problem:http-<status>`                 |
+| `RequestValidationError`  | 400, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Unparseable JSON gives `{"body": ["Malformed JSON"]}` |
+| `NotFoundError`           | 404                                                                                                                                 |
+| `AlreadyExistsError`      | 409                                                                                                                                 |
+| `StorageUnavailableError` | 503                                                                                                                                 |
+| `OboAuthError`            | 403 `consent-required` (see [docs/api.md](../docs/api.md))                                                                          |
+| `OboUpstreamError`        | 502                                                                                                                                 |
+| `OboUnavailableError`     | 503                                                                                                                                 |
+| Any other exception       | 500, with detail `Internal error`. The stack is logged with the traceId, never returned                                             |
 
 Details are fixed strings. Exception messages are never echoed.
 

@@ -179,7 +179,7 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `queryOptionsDao`, `annotationsDao` and `annotationSyncDao`.
+- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `appliedViewsDao`, `queryOptionsDao`, `annotationsDao` and `annotationSyncDao`.
 - Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
@@ -271,7 +271,7 @@ Choosing the scheme:
 
 1. The instance: `useInstanceStore.load`.
 2. The templates: `useTemplatesStore.load`.
-3. The column views: `src/app/columnViewsState.ts`.
+3. The column views of template and Kusto tabs (`src/app/columnViewsState.ts`), then the analyst's applied column views (`loadAppliedViews`).
 4. The tabs: `useTabsStore.load`.
 5. `resumeActionRuns`, which picks up the runs the tabs were following.
 
@@ -371,18 +371,32 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, tagging and details;
   - `onGridReady` exposes the grid api;
   - `toolbarExtra` sits beside the quick filter.
-- Built-in features: a side bar with columns and filters, multi filters, row grouping with a `dcount` aggregation, and a status bar.
-  - The status bar shows execution time, CPU, memory in MB, and total, filtered and selected counts.
+- Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters, row grouping with a `dcount` aggregation, and a status bar.
+  - The status bar shows execution time, CPU, memory in MB, and total, filtered and selected counts. An action tab adds "View: name" after the execution stats.
+  - `ResultsGrid` takes `sideBar`, `statusPanels`, `context` and `onStateUpdated` for that. `onStateUpdated` is not called while the tab is hidden.
 
-### Column views (`src/features/column-views`)
+### Column views of template and Kusto tabs (`src/features/column-views`)
+
+Action tabs don't use these. They have the column views saved to the API, below.
 
 - `ColumnViewBar`: sits beside the quick filter. It has an autocomplete with a "Create column view" item, and Apply, Rename, Delete and Save icon buttons with dialogs.
 - Apply calls `applyColumnState({state, applyOrder: true})`. Save overwrites the view with the live state, and creating a view captures it.
 - `useColumnViewsStore`: a zustand store persisted through `columnViewsDao`. Its state updates after the write succeeds. `app/columnViewsState.ts` re-exports it for bootstrap.
 - The selected view belongs to one grid instance and is not persisted.
-- Per-tab column state: pass `stateKey`. `TabResultsGrid` uses the tab uuid. The state is kept in memory only, in `tabColumnState`.
+- Per-tab column state for template and Kusto tabs: pass `stateKey`. `TabResultsGrid` uses the tab uuid. The state is kept in memory only, in `tabColumnState`.
 - It is saved on AG Grid `stateUpdated`, when the tab is hidden, and on unmount. A `ResizeObserver` detects hiding: the container size drops to 0.
 - It is restored when the tab is shown again and when the grid is re-created.
+
+### Column views of action tabs (`src/features/action-column-views`)
+
+[architecture.md](../docs/architecture.md#column-views) describes the behaviour.
+
+- `columnViewState.ts`: `columnViewStateOf` takes the column and filter sections of a `GridState`. `fitColumnView` fits a column view to a result. `isModified` and `sameColumnView` compare states.
+- `useActionColumnView(uuid)`: `ActionResultsGrid` calls it. `start` puts the tab's state, the applied column view or the action default on the grid when it is ready. `keep` stores the grid's state in the tab's `gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
+- `ColumnViewsToolPanel` is the Views panel, with `SaveColumnViewDialog` and `ColumnViewMoreMenu`. `ColumnViewStatusPanel` is the status bar panel. `gridParts.ts` has the side bar and status panel definitions.
+- `ranking.ts`: `rankColumnViews` orders the list by how many of the tab's columns a column view matches.
+- `savedColumnViewsStore.ts`: the column views from `GET /api/columnViews` (client: `src/lib/api/columnViews.ts`). `appliedViewsStore.ts`: the applied column views, through `appliedViewsDao`.
+- `loadAppliedViews(analyst)`: bootstrap's loader. It drops the applied column views of presets that are gone.
 
 ### Detail panel
 
@@ -552,7 +566,7 @@ A pivot opens a template tab from a grid row; see [architecture.md](../docs/arch
 
 ## Export / Import (`src/features/export-import`)
 
-`ExportImportPage`, routed at `#/exportimport`, exports and imports only this app's tabs: `display_components` in the `tim` DB, as a JSON array. Row results, column views and query options are not included.
+`ExportImportPage`, routed at `#/exportimport`, exports and imports only this app's tabs: `display_components` in the `tim` DB, as a JSON array. Row results, column views, applied column views and query options are not included.
 
 - Export: flushes pending tab writes, fills the textarea and copies the text to the clipboard.
 - Import: disabled while the text is empty, is not JSON, or fails the zod `exportSchema`. The message shows under the field.

@@ -65,6 +65,7 @@ describe('useBootstrap', () => {
         'syncAnnotations',
       ]),
     );
+    expect(steps.loadColumnViews).toHaveBeenCalledWith('jo@example.com');
   });
 
   it('does not load anything while signed out', async () => {

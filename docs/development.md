@@ -229,6 +229,16 @@ These pins hold `web/package.json` back on purpose.
 | `overrides.dompurify` `^3.4.15`           | `monaco-editor` 0.55 depends on exactly `dompurify` 3.2.7, which `npm audit --omit=dev` flags (CI runs `npm audit`). The override installs a 3.4.x release instead.                               | The `monaco-editor` pin is lifted: `monaco-editor` 0.57 depends on `dompurify` 3.4.15, which passes `npm audit`. |
 | `@types/node` `^24`                       | Matches the Node 24 runtime (`engines.node`, `web/Dockerfile`), so Node APIs newer than 24 are a type error.                                                                                       | The runtime moves to a newer Node major. Move `engines.node` and the `web/Dockerfile` base image with it.         |
 
+## AG Grid upgrades
+
+Stored column views keep the `state.version` AG Grid reported and are never rewritten ([ADR-0022](adr/0022-column-views-store-grid-state.md)). On every AG Grid upgrade:
+
+- Read the release's state-migration notes. A stored column view goes through `setState`'s own migration, then the browser's fit step (`web/src/features/action-column-views/columnViewState.ts`).
+- Check the `getState` and `setState` behaviour the fit step relies on:
+  - `getState` leaves out a section that is empty;
+  - `setState` resets every section it isn't told to ignore.
+- Run the column views e2e flow: `npx playwright test e2e/flows/column-views.spec.ts` in `web/`.
+
 ## API types
 
 The SPA's API types are generated from the api's OpenAPI document. After you change a route, request or response model, run these in this order and commit all three outputs:
