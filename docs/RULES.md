@@ -11,7 +11,10 @@ Process rules for everyone working on TIM, human or agent.
 ## 6. Git
 
 - Commit, push or open a PR only when the user asks.
-- Never commit directly to `main`. Branch off `main` as `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `chore/<short-name>` or `refactor/<short-name>`.
+- Never commit directly to `main`. Branch off `main` as `<type>/<ticket>-<short-name>`, e.g. `feat/114-annotate-dialog`.
+  - `<type>` is `feat`, `fix`, `docs`, `chore` or `refactor`.
+  - `<ticket>` is the number of the issue the branch implements. Work without an issue leaves it out, e.g. `docs/worktree-naming`.
+  - A worktree for the branch sits in `.claude/worktrees/<ticket>-<short-name>`: the branch name without its type.
 - Use [Conventional Commits](https://www.conventionalcommits.org/), optionally scoped, e.g. `feat(web): …`.
 - Do not merge with failing or skipped tests unless the user agrees.
 - PRs into `main` are squash-merged: the PR title is the release commit and its first changelog entry. Mark a breaking change with `!` in the title, not with a footer.
