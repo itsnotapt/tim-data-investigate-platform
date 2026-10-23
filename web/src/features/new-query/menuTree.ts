@@ -131,8 +131,9 @@ function presetShown(preset: Preset, filter: NewMenuFilter): boolean {
 }
 
 /**
- * Actions and presets in one tree of folders, the actions first within each folder. Only All
- * lists actions. Search covers name, folders, action, owner and From columns.
+ * Query actions and presets in one tree of folders, the actions first within each folder. Only
+ * All lists actions; sinks, which run only on rows, are left out. Search covers name, folders,
+ * action, owner and From columns.
  */
 export function buildNewMenuTree(
   actions: readonly CatalogueAction[],
@@ -143,7 +144,9 @@ export function buildNewMenuTree(
   const actionEntries: MenuEntry<NewMenuEntry>[] =
     filter === 'all'
       ? actions
-          .filter((a) => matchesSearch([a.name, ...a.menuPath, a.key], search))
+          .filter(
+            (a) => a.kind === 'query' && matchesSearch([a.name, ...a.menuPath, a.key], search),
+          )
           .map((a) => ({
             key: `action:${a.key}`,
             label: a.name,

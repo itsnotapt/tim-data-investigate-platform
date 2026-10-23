@@ -7,20 +7,24 @@ export type RunStatus = components['schemas']['RunStatus'];
 export type RunColumn = components['schemas']['RunColumn'];
 export type RunRow = components['schemas']['RunRow'];
 export type RowsPage = components['schemas']['RowsPage'];
+export type SinkInput = components['schemas']['SinkInput'];
 
 const BASE = '/api/runs';
 const item = (runId: string) => `${BASE}/${encodeURIComponent(runId)}`;
 
-/** Starts a run of `action` with `params`; the run may already have ended. */
+/**
+ * Starts a run of `action` with `params`, and of a sink with the `input` it writes; the run may
+ * already have ended.
+ */
 export async function startRun(
   action: string,
   params: Record<string, unknown>,
-  { client = getApiClient(), ...rest }: CallOptions = {},
+  { client = getApiClient(), input, ...rest }: CallOptions & { input?: SinkInput } = {},
 ): Promise<Run> {
   const res = await client.request<Run>({
     method: 'POST',
     path: BASE,
-    body: { action, params },
+    body: input === undefined ? { action, params } : { action, params, input },
     ...rest,
   });
   return res.data;

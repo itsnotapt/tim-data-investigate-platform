@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from tim_actions import Action, Column, Connection, Hook, Param
+from tim_actions import Action, Column, Connection, Hook, Param, Sink
 from tim_actions.labels_file import Label
 
 from tim_api.actions.models import (
@@ -52,7 +52,22 @@ def _column(column: Column) -> CatalogueColumn:
     )
 
 
-def _action(action: Action) -> CatalogueAction:
+def _sink(sink: Sink) -> CatalogueAction:
+    return CatalogueAction(
+        key=sink.key,
+        kind="sink",
+        name=sink.name,
+        description=sink.description,
+        menu_path=sink.menu_path,
+        connections=list(sink.connections()),
+        params=[],
+        pivot=CataloguePivot(rows="rows", columns=[]),
+    )
+
+
+def _action(action: Action | Sink) -> CatalogueAction:
+    if isinstance(action, Sink):
+        return _sink(action)
     pivot = (
         None
         if action.pivot == "none"

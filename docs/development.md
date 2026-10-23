@@ -152,7 +152,7 @@ With `TIM_DEV_ACTIONS=true`, the api registers actions that need no connection, 
 - Validate a directory that uses them with `uv run tim-api check --dev-actions --actions <dir>`.
 - Print their schema with `uv run tim-api schema actions --dev-actions`.
 
-There are two actions:
+There are two actions and two action file types:
 
 - **`tim.dev_json` "JSON (development)"**: the run yields the rows the analyst pastes into its `rows` param, a JSON array of objects.
   - The optional `idColumn` param names the column that gives each row its `id`.
@@ -181,6 +181,12 @@ There are two actions:
     - { User: alice@example.com, CorrelationId: c-1 }
     - { User: bob@example.com, CorrelationId: c-2 }
   ```
+
+- **`dev_sink`**, an action file type for a sink ([architecture.md](architecture.md#sinks)). It has the common fields of a sink (`key`, `name`, `menu`, `description`), and these:
+  - `delay`: seconds to wait before the sink ends. Cancel or the timeout ends the run at once.
+  - `error`: ends the run in error with this message, after the delay.
+
+  Without `error` it discards the rows.
 
 `TIM_DEV_ACTIONS` also registers a connection type:
 

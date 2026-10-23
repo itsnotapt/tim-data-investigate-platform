@@ -12,8 +12,9 @@ export interface ActionPivotMenuInput {
   onPivot: (action: CatalogueAction) => void;
 }
 
-/** Whether every row has a column from each of the action's pivot column groups. */
+/** Whether `action` is a query action and every row has a column from each of its pivot column groups. */
 const pivotsFrom = (action: CatalogueAction, rows: readonly Record<string, unknown>[]) =>
+  action.kind === 'query' &&
   action.pivot !== null &&
   rows.every((row) => action.pivot!.columns.every((group) => group.some((c) => c in row)));
 
@@ -21,8 +22,8 @@ const count = (n: number) => n.toLocaleString('en');
 
 /**
  * The Pivot ▸ item of an action tab's context menu: Recent, the analyst's recent pivots by their
- * full menu path, then the actions by menu path. It lists the actions whose `pivot` columns the
- * rows have. A one-row action is disabled for several rows, and the whole item over
+ * full menu path, then the actions by menu path. It lists the query actions whose `pivot` columns
+ * the rows have. A one-row action is disabled for several rows, and the whole item over
  * `maxPivotRows`, each with the reason. Empty when no action pivots from the rows.
  */
 export function buildActionPivotMenu({

@@ -260,7 +260,8 @@ export interface paths {
         /**
          * Start Run
          * @description Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``
-         *     connection's token is got first, so OBO problems answer this request.
+         *     connection's token is got first, so OBO problems answer this request. A sink takes the
+         *     rows to write as ``input``, at most ``maxAnnotationIds`` of them.
          */
         post: operations["startRun"];
         delete?: never;
@@ -491,7 +492,10 @@ export interface components {
             /** Settags */
             setTags?: string[] | null;
         };
-        /** CatalogueAction */
+        /**
+         * CatalogueAction
+         * @description A query action or, as ``kind: "sink"``, a sink: no params, offered on any selected rows.
+         */
         CatalogueAction: {
             /** Columns */
             columns?: components["schemas"]["CatalogueColumn"][] | null;
@@ -503,9 +507,9 @@ export interface components {
             key: string;
             /**
              * Kind
-             * @constant
+             * @enum {string}
              */
-            kind: "query";
+            kind: "query" | "sink";
             /** Menupath */
             menuPath: string[];
             /** Name */
@@ -691,6 +695,16 @@ export interface components {
              * @constant
              */
             source: "param";
+        };
+        /** InputColumn */
+        InputColumn: {
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
         };
         /**
          * Instance
@@ -1218,9 +1232,10 @@ export interface components {
          * Run
          * @description A run without its rows. Server-produced only, never a request.
          *
-         *     ``params`` are the resolved params. ``details`` holds TIM's ``duration`` (seconds) and
-         *     ``rowCount`` first, then the action's own, in the order they were reported. ``columns`` and
-         *     ``rowCount`` are set once the run succeeds; ``error`` is a message safe to show.
+         *     ``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``
+         *     (seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the
+         *     action's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a
+         *     query action's run succeeds, never for a sink; ``error`` is a message safe to show.
          */
         Run: {
             action: components["schemas"]["RunAction"];
@@ -1321,12 +1336,26 @@ export interface components {
             };
         };
         /**
+         * SinkInput
+         * @description The rows a sink writes, each a row's ``data``, and their columns.
+         */
+        SinkInput: {
+            /** Columns */
+            columns: components["schemas"]["InputColumn"][];
+            /** Rows */
+            rows: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+        };
+        /**
          * StartRun
-         * @description Body of ``POST /api/runs``. The params are validated against the action's.
+         * @description Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is
+         *     for a sink, and only a sink.
          */
         StartRun: {
             /** Action */
             action: string;
+            input?: components["schemas"]["SinkInput"] | null;
             /** Params */
             params?: {
                 [key: string]: components["schemas"]["JsonValue"];

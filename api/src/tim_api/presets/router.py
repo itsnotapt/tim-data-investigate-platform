@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Path, Response, status
-from tim_actions import Action
+from tim_actions import Action, Sink
 
 from tim_api.auth import Principal, get_current_principal
 from tim_api.deps import get_preset_store
@@ -24,7 +24,7 @@ router = APIRouter(
 
 Store = Annotated[PresetStore, Depends(get_preset_store)]
 Caller = Annotated[Principal, Depends(get_current_principal)]
-Actions = Annotated[dict[str, Action], Depends(get_actions)]
+Actions = Annotated[dict[str, Action | Sink], Depends(get_actions)]
 PresetId = Annotated[UUID, Path(alias="presetId")]
 
 
@@ -34,12 +34,14 @@ def _now() -> datetime:
     return now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
-def _check(body: PresetFields, actions: dict[str, Action]) -> None:
-    """The preset's ``action`` must be in the catalogue, and each param input a param of it with
-    ``from_columns``. Values are checked when a run starts."""
+def _check(body: PresetFields, actions: dict[str, Action | Sink]) -> None:
+    """The preset's ``action`` must be a query action in the catalogue, and each param input a
+    param of it with ``from_columns``. Values are checked when a run starts."""
     action = actions.get(body.action)
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
+    if isinstance(action, Sink):
+        raise UnprocessableError({"action": ["A sink has no presets"]})
     params = {p.name: p for p in action.params}
     errors: dict[str, list[str]] = {}
     for index, item in enumerate(body.inputs):

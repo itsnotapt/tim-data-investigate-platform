@@ -30,7 +30,11 @@ const SESSIONS = action(
 const HOST = action('host', ['Hosts'], { rows: 'row', columns: [['Host']] }, 'Host details');
 const ANY = action('any', [], { rows: 'rows', columns: [] }, 'Any rows');
 const HIDDEN = action('hidden', [], null, 'Hidden');
-const ACTIONS = [SESSIONS, HOST, ANY, HIDDEN];
+const SINK: CatalogueAction = {
+  ...action('save', [], { rows: 'rows', columns: [] }),
+  kind: 'sink',
+};
+const ACTIONS = [SESSIONS, HOST, ANY, HIDDEN, SINK];
 
 /** The menu's items as text: folders with their children, disabled items with their tooltip. */
 function outline(items: readonly (MenuItemDef | string)[]): unknown[] {

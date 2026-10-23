@@ -20,7 +20,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | Trace id | Every response has `x-trace-id`. The server accepts a W3C `traceparent` or an `x-request-id` (`[A-Za-z0-9._-]`, up to 128 characters) and otherwise generates one. |
 | Headers | Responses carry `x-content-type-options: nosniff` and `cache-control: no-store`. |
 | CORS | Only for origins in `TIM_CORS_ALLOWED_ORIGINS`; the SPA is normally same-origin. |
-| Body size | Above `TIM_MAX_REQUEST_BYTES` (default 16 MiB) gives `413`. |
+| Body size | Above `TIM_MAX_REQUEST_BYTES` (default 64 MiB) gives `413`. |
 
 ## Endpoints
 
@@ -88,7 +88,7 @@ Every non-2xx response has this body:
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action (`errors.action`) or an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`) or an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -105,7 +105,7 @@ What the browser needs to know about this instance, built once at startup from t
 
 - `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, the labels file, and the rest of this body. It changes when any of them does, for example after a rolling update.
 - `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?}`:
-  - `kind` is `query`.
+  - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []` and `pivot: {rows: "rows", columns: []}`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
@@ -158,11 +158,17 @@ A run is one execution of an action by the server ([architecture.md](architectur
 
 ### POST /api/runs
 
-Body: `{"action": "<key>", "params": {...}}`.
+Body: `{"action": "<key>", "params": {...}, "input": {...}}`.
 
 - `params` maps param names to values as the browser sends them. It may be left out when the action takes none.
 - An unknown action or invalid params give `422` before a run exists, with every problem in `errors`.
 - A `connection` param must name a connection of its type.
+- `input` is for a sink only: `{"columns": [{"name", "type"}], "rows": [{"<column>": <value>}]}`. The sink writes the rows. Nothing is stored, so the run has no `columns` or `rowCount`.
+  - A query action with `input` gives `422` with `errors.input` ("Only a sink takes input"). A sink without it gives `422` with `errors.input` ("A sink needs the rows to write").
+  - More than `maxAnnotationIds` rows give `422` with `errors["input.rows"]`, and repeated column names `errors["input.columns"]`.
+  - A sink has no params, so any `params` are `Unknown param`.
+  - The input counts toward `TIM_MAX_REQUEST_BYTES`.
+  - `POST /api/actions/{key}/resolve` gives `404` for a sink.
 
 For example:
 
@@ -229,7 +235,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 | `startedAt` | datetime | |
 | `finishedAt` | datetime | Once the run has ended. |
 | `expiresAt` | datetime | |
-| `details` | object | Scalars: `duration` (seconds), `rowCount` when succeeded, then the action's own, in the order reported. A `warning` holds problems with the rows' `id`s, which never fail the run: an `id` column no row carries (`Id column CorrelationId not in results`), and rows whose `id` is over 512 characters, which get no `id` (`N row(s) have an id over 512 characters and get no id`). An action's own `warning` comes first, joined with `; `. |
+| `details` | object | Scalars: `duration` (seconds), `inputRowCount` for a sink, `rowCount` when a query action succeeded, then the action's own, in the order reported. A `warning` holds problems with the rows' `id`s, which never fail the run: an `id` column no row carries (`Id column CorrelationId not in results`), and rows whose `id` is over 512 characters, which get no `id` (`N row(s) have an id over 512 characters and get no id`). An action's own `warning` comes first, joined with `; `. |
 | `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan` or `json`. |
 | `rowCount` | integer | When succeeded. |
 | `error` | string | A message safe to show, when `error` or `timedOut`. |
@@ -249,7 +255,7 @@ Failure messages: the action's own message; `Result exceeds limit of N rows` or 
 | Run retention | 86,400 s | `TIM_RUN_RETENTION_SECONDS` |
 | Concurrent runs and query runs per process | 16 | `TIM_MAX_CONCURRENT_RUNS` |
 | Distinct `id`s in one annotations change | 10,000 | `TIM_MAX_ANNOTATION_IDS` |
-| Request body | 16 MiB | `TIM_MAX_REQUEST_BYTES` |
+| Request body | 64 MiB | `TIM_MAX_REQUEST_BYTES` |
 | Rows in a pivot | 100 | `TIM_MAX_PIVOT_ROWS` |
 
 A result over a row or size limit makes the run `error`; it is not truncated. A [query run](#kustoqueryrun) is capped at 100,000 rows and 64 MiB, or the two settings when they are lower; the other limits apply to it as they are.

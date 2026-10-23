@@ -26,7 +26,7 @@ client ── TLS proxy / Ingress ──> web (nginx :8080) ──/api/──> a
   - Its nginx serves the SPA, and proxies `/api/` to `BACKEND_URI` with the path unchanged.
   - The api serves all routes under `/api`.
   - A proxy or ingress in front of web must keep `/api` as it is, with no stripping or rewriting.
-- nginx allows request bodies up to 25 MB, and waits up to 620 s for the api (long Kusto runs). A proxy in front of web needs at least the same limits.
+- nginx allows request bodies up to 64 MB, and waits up to 620 s for the api (long Kusto runs). A proxy in front of web needs at least the same limits.
 - `web` is the only public port. The api and PostgreSQL stay on the internal network.
 - Schema migrations (`alembic upgrade head`, api image) run before the api starts or is upgraded. The api never migrates on its own.
 - Both containers run as non-root (api uid 10001, web uid 101), and drop all capabilities.
@@ -222,7 +222,7 @@ ingress:
   host: tim.example.com
   annotations:
     cert-manager.io/cluster-issuer: <issuer>
-    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    nginx.ingress.kubernetes.io/proxy-body-size: 64m
     nginx.ingress.kubernetes.io/proxy-read-timeout: "620"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "620"
 EOF
@@ -359,7 +359,7 @@ helm uninstall tim -n tim
 | `ingress.tls.enabled` / `secretName` | `true` / `<release>-tim-tls` | TLS Secret for `host` (e.g. from cert-manager) |
 | `postgresql.enabled` | `false` | In-cluster PostgreSQL; `postgresql.auth.*`, `persistence.*`, `resources` |
 
-Ingress controllers have their own body-size and timeout defaults: ingress-nginx has 1 MB and 60 s. Set them to at least 25 MB and 620 s, as in the install example.
+Ingress controllers have their own body-size and timeout defaults: ingress-nginx has 1 MB and 60 s. Set them to at least 64 MB and 620 s, as in the install example.
 
 ## Upgrades
 
