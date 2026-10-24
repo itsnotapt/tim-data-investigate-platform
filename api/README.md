@@ -293,6 +293,7 @@ Rows are in the `UNLOGGED` table `run_rows`. `GET /{runId}/rows` answers:
 Tests:
 
 - `tests/test_runs_api.py` drives the endpoints through `create_app(providers=...)`, with the scripted action types in `tests/scripted_actions.py`, against both stores.
+- The built-ins' action tests live in `api/tim-actions/tests`, on `tim_actions.testing` ([actions.md](../docs/actions.md#testing)).
 - `tests/test_run_kql.py` covers Run KQL. Its live test needs `TIM_TEST_KUSTO_CLUSTER` (see [development.md](../docs/development.md)).
 
 ## Query runs

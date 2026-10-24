@@ -85,6 +85,16 @@ def pivot_input_columns(action: Action) -> set[str]:
     return columns.union(*(param.from_columns for param in action.params))
 
 
+def pivot_refusal(action: Action, rows: int) -> str | None:
+    """Why ``action`` isn't offered on ``rows`` selected rows: it is no pivot, or takes one row
+    and several are selected. ``None`` when it is offered."""
+    if action.pivot == "none":
+        return "Not offered as a pivot"
+    if action.pivot == "row" and rows > 1:
+        return "Takes one row"
+    return None
+
+
 def resolve_pivot(
     action: Action, rows: Sequence[Mapping[str, Any]], cell: PivotCell | None = None
 ) -> Resolved:

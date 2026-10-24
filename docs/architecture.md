@@ -668,9 +668,10 @@ Database migrations are in `api/migrations` (Alembic).
 | `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
 | `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
-| `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`) |
+| `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`) |
 | `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
 | `builtin.py` | TIM's built-in provider |
+| `testing/` | `tim_actions.testing`: `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`, and `plugin.py`, the `pytest11` plugin with the `tim_analyst`, `tim_connections` and `tim_kusto` fixtures ([actions.md](actions.md#testing)) |
 
 ### Request flow and middleware
 
