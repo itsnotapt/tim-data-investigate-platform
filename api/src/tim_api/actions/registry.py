@@ -12,11 +12,10 @@ from pathlib import Path
 from pydantic import ValidationError
 from tim_actions import ENTRY_POINT_GROUP, Action, ActionType, Connection, Hook, Provider, Sink, dev
 from tim_actions.connections_file import load_connections_file
-from tim_actions.files import LoadedFiles, ReadFile, load_action_files
+from tim_actions.files import RESERVED_PREFIX, ReadFile, add_file_actions, load_action_files
 from tim_actions.labels_file import DEFAULT_LABELS, Label, load_labels_file
 
 BUILTIN_DISTRIBUTION = "tim-actions"
-RESERVED_PREFIX = "tim."
 
 
 class InstanceConfigError(RuntimeError):
@@ -130,26 +129,6 @@ def _add[T](
     return None
 
 
-def _add_file_actions(
-    actions: dict[str, tuple[Action | Sink, str]], loaded: LoadedFiles, builtin: bool
-) -> list[str]:
-    problems = list(loaded.problems)
-    for item in loaded.actions:
-        key = item.action.key
-        if key.startswith(RESERVED_PREFIX) and not builtin:
-            problems.append(
-                f"{item.location}: key: the {RESERVED_PREFIX} prefix is reserved for TIM's "
-                "built-ins"
-            )
-        elif key in actions:
-            problems.append(
-                f"{item.location}: key: duplicate action key {key}, also in {actions[key][1]}"
-            )
-        else:
-            actions[key] = (item.action, item.location)
-    return problems
-
-
 def _fixed_connection_problems(
     actions: Mapping[str, tuple[Action | Sink, str]], connections: Mapping[str, Connection]
 ) -> list[str]:
@@ -231,7 +210,7 @@ def build_registry(
     files: list[ReadFile] = []
     for directory, builtin in directories:
         from_files = load_action_files(directory, types)
-        problems.extend(_add_file_actions(actions, from_files, builtin))
+        problems.extend(add_file_actions(actions, from_files, builtin=builtin))
         files.extend(from_files.files)
 
     installed = {name: h for name, (h, _) in hooks.items()}
