@@ -21,7 +21,7 @@ from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError
 
 # Read before the autouse fixture in conftest.py clears TIM_* variables.
 LIVE_CLUSTER = os.environ.get("TIM_TEST_KUSTO_CLUSTER")
-LIVE_DATABASE = os.environ.get("TIM_TEST_KUSTO_QUERY_DATABASE", "Samples")
+LIVE_DATABASE = os.environ.get("TIM_TEST_KUSTO_QUERY_DATABASE", "Research")
 
 
 class Env:

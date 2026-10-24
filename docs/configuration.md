@@ -189,7 +189,7 @@ All numeric values must be greater than 0. See [ADR-0012](adr/0012-query-run-lim
 | Variable                    | Default               | Description                                                                                                                                         |
 | --------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TIM_CORS_ALLOWED_ORIGINS`  | empty                 | Allowed origins. With none, no CORS headers are sent (the web container proxies `/api`, so none are needed).                                        |
-| `TIM_MAX_REQUEST_BYTES`     | `16777216` (16 MiB)   | Largest accepted request body; larger requests get 413.                                                                                             |
+| `TIM_MAX_REQUEST_BYTES`     | `67108864` (64 MiB)   | Largest accepted request body, including the input of a sink; larger requests get 413.                                                              |
 | `TIM_MAX_RESULT_ROWS`       | `1000000`             | Row cap for a run's result. A query run (`/api/kusto/query`) is capped at 100,000 rows, or this when lower.                                         |
 | `TIM_MAX_RESULT_BYTES`      | `536870912` (512 MiB) | Size cap for a run's result, as compact JSON per row, summed. A query run is capped at 64 MiB, or this when lower.                                  |
 | `TIM_RUN_TIMEOUT_SECONDS`   | `600`                 | Execution time limit of a run or query run, counted once it has a concurrency slot.                                                                 |
@@ -198,7 +198,7 @@ All numeric values must be greater than 0. See [ADR-0012](adr/0012-query-run-lim
 | `TIM_MAX_CONCURRENT_RUNS`   | `16`                  | Runs and query runs executing at once per api process, together; further runs wait as `running` (query runs as `created`).                          |
 | `TIM_ROWS_PAGE_SIZE`        | `10000`               | Most rows per page of `GET /api/runs/{runId}/rows`.                                                                                                 |
 
-The web container's nginx allows request bodies up to 25 MB and waits up to 620 s for the api, so keep `TIM_RUN_TIMEOUT_SECONDS` at or below 600 unless `web/docker/nginx.conf.template` is changed.
+The web container's nginx allows request bodies up to 64 MB and waits up to 620 s for the api, so keep `TIM_RUN_TIMEOUT_SECONDS` at or below 600 unless `web/docker/nginx.conf.template` is changed.
 
 ### Variables outside `TIM_*`
 
@@ -214,7 +214,7 @@ The web container's nginx allows request bodies up to 25 MB and waits up to 620 
 | ------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | `TIM_TEST_DATABASE_URL`                                                        | `pytest`, Playwright | Postgres server for storage tests, and the e2e api's database, which Playwright empties at the start of each run; falls back to `pgserver`. |
 | `TIM_TEST_KUSTO_INGEST_URL`, `TIM_TEST_KUSTO_DATABASE`, `TIM_TEST_KUSTO_TABLE` | `pytest -m kusto` | Real ingest endpoint for the integration test (database default `Research`, table default `EventTag`). |
-| `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the live tests `test_run_kql_on_a_real_cluster` and `test_kql_query_binds_params_on_a_real_cluster` (database default `Samples`). It runs as the `AZURE_*` identity through `DefaultAzureCredential`. |
+| `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the live tests `test_run_kql_on_a_real_cluster` and `test_kql_query_binds_params_on_a_real_cluster` (database default `Research`). It runs as the `AZURE_*` identity through `DefaultAzureCredential`, or your Azure CLI login, see [development.md](development.md#live-kusto-tests). |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
 | `E2E_PORT`                                                                     | Playwright        | Vite's port for e2e runs. Default `5180`, a whole number from 1 to 65534. The api takes the next port. |
 | `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |

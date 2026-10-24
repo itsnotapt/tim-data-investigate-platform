@@ -11,7 +11,7 @@ Tags lived in Kusto, written by an ingestion client as the app identity and read
 - **What's kept.** Labels come from instance configuration (a labels file) and keep their history, and comments are append-only. Tags are free text and are purged when removed: tags keep no history.
 - **Tables.** `id_state`, `label_changes`, `tags`, `comments`, and `annotation_clock`, a single-row version counter.
 - **The change feed.** `GET /api/annotations/changes?since=V` returns the current state of each `id` changed after `V`. The version comes from `UPDATE annotation_clock SET version = version + 1 RETURNING version`, taken first in every annotation transaction. Its row lock serialises writers, so versions are gapless and in commit order. Browsers poll every 30 s, with one poller per browser elected through Web Locks, and keep annotations in their own IndexedDB store, never in the cached rows.
-- **Saved events become sinks**: actions that take the selected rows and write them somewhere. The annotation model has no snapshot of a row, and TIM ships no sinks.
+- **Saved events are sinks**: actions that take the selected rows and write them somewhere. The annotation model has no snapshot of a row, and TIM ships no sinks.
 
 Decided by the user. Related: [0004](0004-postgresql-persistence.md), [0017](0017-actions-from-providers.md), [architecture](../architecture.md), [api](../api.md).
 

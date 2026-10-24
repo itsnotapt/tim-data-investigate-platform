@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Request
-from tim_actions import Action
+from tim_actions import Action, Sink
 from tim_actions import PivotCell as ActionPivotCell
 from tim_actions import resolve_pivot as resolve_action_pivot
 
@@ -45,9 +45,9 @@ def resolve_pivot(
 ) -> PivotResolution:
     """A pivot into the action: its params resolved from the selected rows, and the required
     params left without a value. ``422`` when the action isn't offered on these rows."""
-    actions: dict[str, Action] = request.app.state.actions
+    actions: dict[str, Action | Sink] = request.app.state.actions
     action = actions.get(key)
-    if action is None:
+    if not isinstance(action, Action):  # unknown, or a sink, which has no params to resolve
         raise problem_exception(404, "Action not found")
     pivot = body.pivot
     refusal = _refusal(action, len(pivot.rows), settings.max_pivot_rows)

@@ -2,7 +2,7 @@
 
 import re
 
-from tim_actions import Action, QueryParameter, action_file_yaml
+from tim_actions import Action, QueryParameter, Sink, action_file_yaml
 
 from tim_api.presets.models import FixedInput, FixedQueryParameter, FromRowQueryParameter, Preset
 
@@ -17,10 +17,10 @@ def _key(name: str) -> str:
     return "-".join(re.findall(r"[a-z0-9]+", name.lower())) or "preset"
 
 
-def preset_action_file(preset: Preset, action: Action | None) -> str:
+def preset_action_file(preset: Preset, action: Action | Sink | None) -> str:
     """The action file of ``preset``, a preset of ``action``; raises ``NoActionFileError`` when
-    the action is gone, or it gives the preset none."""
-    if action is None:
+    the action is gone or is a sink, or it gives the preset none."""
+    if action is None or isinstance(action, Sink):
         raise NoActionFileError
     params = dict(preset.params)
     params.update({i.name: i.value for i in preset.inputs if isinstance(i, FixedInput)})

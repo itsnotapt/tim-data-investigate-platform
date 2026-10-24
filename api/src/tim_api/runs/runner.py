@@ -19,11 +19,12 @@ import logging
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
-from tim_actions import Action, Analyst, Column, DetailValue, Hook, RunError
+from tim_actions import Action, Analyst, Column, DetailValue, Hook, RunError, Sink
 
 from tim_api.config import Settings
 from tim_api.runs.connections import RunConnections
@@ -49,6 +50,14 @@ Clock = Callable[[], datetime]
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class RunInput:
+    """The rows a sink's run writes, and their columns."""
+
+    columns: Sequence[Column]
+    rows: Sequence[Mapping[str, Any]]
 
 
 class _Stopped(Exception):
@@ -139,8 +148,9 @@ class _ActiveRun:
         self,
         runner: Runner,
         run: Run,
-        action: Action,
+        action: Action | Sink,
         params: Mapping[str, Any],
+        run_input: RunInput | None,
         analyst: Analyst,
         connections: RunConnections,
         trace_id: str,
@@ -150,15 +160,17 @@ class _ActiveRun:
         self.run = run
         self._action = action
         self._params = params
+        self._input = run_input
         self._trace_id = trace_id
         self.cancel_requested = asyncio.Event()
         self.stopping = threading.Event()
         self._write_lock = asyncio.Lock()
         self._closed = False
         self._loop = asyncio.get_running_loop()
+        query = action if isinstance(action, Action) else None
         self.builder = ResultBuilder(
-            action.columns,
-            action.row_id(params),
+            query.columns if query else None,
+            query.row_id(params) if query else None,
             max_rows=settings.max_result_rows,
             max_bytes=settings.max_result_bytes,
         )
@@ -167,6 +179,10 @@ class _ActiveRun:
     # --- worker thread ----------------------------------------------------------------
 
     def _work(self) -> None:
+        if isinstance(self._action, Sink):
+            assert self._input is not None  # noqa: S101 - start_run gives every sink its input
+            self._action.run(self._input.columns, self._input.rows, self.ctx)
+            return
         rows: Iterable[Mapping[str, Any]] = self._action.run(self._params, self.ctx)
         iterator = iter(rows)
         try:
@@ -292,13 +308,16 @@ class _ActiveRun:
     async def _finish(self, status: RunStatus, started: float, *, error: str | None = None) -> Run:
         async with self._write_lock:
             self._closed = True
-        succeeded = status is RunStatus.SUCCEEDED
+        # Only a query action's succeeded run keeps rows; a sink's never does.
+        kept = status is RunStatus.SUCCEEDED and self._input is None
         details: dict[str, DetailValue] = {"duration": round(time.monotonic() - started, 3)}
-        if succeeded:
+        if self._input is not None:
+            details["inputRowCount"] = len(self._input.rows)
+        if kept:
             details["rowCount"] = self.builder.row_count
         own = {k: v for k, v in self.ctx.details.items() if k not in details}
         details.update(own)
-        if succeeded:
+        if kept:
             warnings = self.builder.warnings()
             if warnings:
                 details["warning"] = "; ".join(
@@ -312,8 +331,8 @@ class _ActiveRun:
                 finished_at=now,
                 expires_at=now + timedelta(seconds=self._runner.settings.run_retention_seconds),
                 details=details,
-                columns=self.builder.columns() if succeeded else None,
-                row_count=self.builder.row_count if succeeded else None,
+                columns=self.builder.columns() if kept else None,
+                row_count=self.builder.row_count if kept else None,
                 error=sanitise_nul(error) if error is not None else None,
             )
         except Exception:
@@ -348,15 +367,17 @@ class Runner:
 
     async def start(
         self,
-        action: Action,
+        action: Action | Sink,
         params: Mapping[str, Any],
         *,
+        run_input: RunInput | None = None,
         analyst: Analyst,
         owner: str,
         connections: RunConnections,
         trace_id: str,
     ) -> Run:
-        """Store the run, execute it, and return the run as it is after the race."""
+        """Store the run, execute it, and return the run as it is after the race. A sink's run
+        writes ``run_input``."""
         run = Run(
             run_id=uuid4(),
             status=RunStatus.RUNNING,
@@ -367,7 +388,9 @@ class Runner:
             expires_at=self._expires(),
         )
         await self.store.create(run)
-        active_run = _ActiveRun(self, run, action, params, analyst, connections, trace_id)
+        active_run = _ActiveRun(
+            self, run, action, params, run_input, analyst, connections, trace_id
+        )
         task = asyncio.create_task(active_run.execute(), name=f"tim-run-{run.run_id}")
         self._active[run.run_id] = (active_run, task)
         task.add_done_callback(lambda _t: self._active.pop(run.run_id, None))

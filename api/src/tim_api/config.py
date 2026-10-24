@@ -92,8 +92,9 @@ class Settings(BaseSettings):
 
     # --- HTTP --------------------------------------------------------------------------
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
-    # Hard cap on any request body; larger requests get 413 before parsing.
-    max_request_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
+    # Hard cap on any request body, such as a sink's input; larger requests get 413 before
+    # parsing.
+    max_request_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
 
     # --- run limits (ADR-0012) ----------------------------------------------------------
     # Caps on a run's result; /api/kusto/query also keeps its own lower caps.

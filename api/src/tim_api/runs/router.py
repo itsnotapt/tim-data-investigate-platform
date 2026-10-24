@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
-from tim_actions import Action, Analyst, ParamsError
+from tim_actions import Action, Analyst, Column, ParamsError, Sink, validate_params
 
 from tim_api.auth.dependencies import get_current_principal, get_obo_provider
 from tim_api.auth.obo import OboTokenProvider
@@ -19,7 +19,7 @@ from tim_api.observability import get_trace_id
 from tim_api.runs.connections import Connections, get_connections, run_connection_names
 from tim_api.runs.models import RowsPage, Run, RunStatus, StartRun
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
-from tim_api.runs.runner import Runner
+from tim_api.runs.runner import RunInput, Runner
 from tim_api.storage import AnnotationStore, RunStore
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -33,9 +33,30 @@ def get_runner(request: Request) -> Runner:
     return runner
 
 
-def get_actions(request: Request) -> dict[str, Action]:
-    actions: dict[str, Action] = request.app.state.actions
+def get_actions(request: Request) -> dict[str, Action | Sink]:
+    actions: dict[str, Action | Sink] = request.app.state.actions
     return actions
+
+
+def _run_input(action: Action | Sink, body: StartRun, max_rows: int) -> RunInput | None:
+    """A sink's input, as its ``run`` takes it, or ``None`` for a query action. Raises
+    ``UnprocessableError`` when the body's ``input`` doesn't suit the action."""
+    given = body.input
+    if not isinstance(action, Sink):
+        if given is not None:
+            raise UnprocessableError({"input": ["Only a sink takes input"]})
+        return None
+    if given is None:
+        raise UnprocessableError({"input": ["A sink needs the rows to write"]})
+    if len(given.rows) > max_rows:
+        raise UnprocessableError(
+            {"input.rows": [f"At most {max_rows:,} rows; {len(given.rows):,} given"]}
+        )
+    names = [column.name for column in given.columns]
+    if len(set(names)) != len(names):
+        raise UnprocessableError({"input.columns": ["Column names must be unique"]})
+    columns = [Column(name=column.name, type=column.type) for column in given.columns]
+    return RunInput(columns, given.rows)
 
 
 async def _owned_run(store: RunStore, run_id: UUID, principal: Principal) -> Run:
@@ -51,24 +72,31 @@ async def start_run(
     request: Request,
     response: Response,
     principal: Caller,
-    actions: Annotated[dict[str, Action], Depends(get_actions)],
+    actions: Annotated[dict[str, Action | Sink], Depends(get_actions)],
     runner: Annotated[Runner, Depends(get_runner)],
     connections: Annotated[Connections, Depends(get_connections)],
     obo: Annotated[OboTokenProvider, Depends(get_obo_provider)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Run:
     """Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``
-    connection's token is got first, so OBO problems answer this request."""
+    connection's token is got first, so OBO problems answer this request. A sink takes the
+    rows to write as ``input``, at most ``maxAnnotationIds`` of them."""
     action = actions.get(body.action)
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
+    run_input = _run_input(action, body, settings.max_annotation_ids)
     try:
-        params = action.check_params(body.params, connections=connections.types())
+        if isinstance(action, Sink):
+            params = validate_params((), body.params, connections=connections.types())
+        else:
+            params = action.check_params(body.params, connections=connections.types())
     except ParamsError as exc:
         raise UnprocessableError(exc.errors) from None
     run_connections = await connections.open(run_connection_names(action, params), principal, obo)
     run = await runner.start(
         action,
         params,
+        run_input=run_input,
         analyst=Analyst(name=principal.name, upn=principal.name),
         owner=principal.name,
         connections=run_connections,

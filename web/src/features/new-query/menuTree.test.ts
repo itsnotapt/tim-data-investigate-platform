@@ -196,6 +196,18 @@ describe('buildNewMenuTree', () => {
     // The action's name finds its presets too.
     expect(outline(build('sign-ins', 'mine'))).toEqual([{ 'Identity (1)': ['Alice bookmark'] }]);
   });
+
+  it('leaves out sinks, which run only on rows', () => {
+    const save: CatalogueAction = {
+      ...signIns,
+      key: 'dev-save',
+      kind: 'sink',
+      name: 'Save',
+      params: [],
+      pivot: { rows: 'rows', columns: [] },
+    };
+    expect(outline(buildNewMenuTree([hosts, save], [], { filter: 'all' }))).toEqual(['Hosts']);
+  });
 });
 
 describe('entryCaption', () => {

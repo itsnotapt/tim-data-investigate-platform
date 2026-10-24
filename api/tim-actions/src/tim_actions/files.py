@@ -30,7 +30,7 @@ from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
 
 from tim_actions._common import NonBlankStr
-from tim_actions.action import Action, ActionKey, Pivot
+from tim_actions.action import Action, ActionKey, ActionType, Pivot, Sink
 from tim_actions.columns import Column
 from tim_actions.params import Param
 
@@ -62,13 +62,8 @@ def sidecar_fields(model: type[BaseModel]) -> list[str]:
 _ColumnName = Annotated[str, Field(min_length=1)]
 
 
-class ActionDocument(BaseModel):
-    """The fields of every action in an action file, one YAML document each. An action type's
-    ``File`` model subclasses this and adds the type's own fields.
-
-    ``id`` is a column name, or a list of alternative columns where the first non-empty value
-    wins; leaving it out means the rows have no ``id``.
-    """
+class DocumentBase(BaseModel):
+    """The fields of every action in an action file, one YAML document each."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -77,26 +72,6 @@ class ActionDocument(BaseModel):
     name: NonBlankStr
     menu: str = ""
     description: NonBlankStr | None = None
-    pivot: Pivot
-    params: tuple[Param, ...] = ()
-    columns: tuple[Column, ...] | None = None
-    id: _ColumnName | Annotated[tuple[_ColumnName, ...], Field(min_length=1)] | None = None
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def _id(cls, value: Any) -> Any:
-        names = [value] if isinstance(value, str) else value
-        if value is None:
-            return value
-        if (
-            not isinstance(names, list)
-            or not names
-            or not all(isinstance(name, str) and name.strip() for name in names)
-        ):
-            raise ValueError(
-                "give a column name, or a list of column names where the first non-empty value wins"
-            )
-        return value
 
     @classmethod
     def __get_pydantic_json_schema__(
@@ -122,11 +97,46 @@ class ActionDocument(BaseModel):
         return json_schema
 
 
+class ActionDocument(DocumentBase):
+    """A query action in an action file. A query action type's ``File`` model subclasses this
+    and adds the type's own fields.
+
+    ``id`` is a column name, or a list of alternative columns where the first non-empty value
+    wins; leaving it out means the rows have no ``id``.
+    """
+
+    pivot: Pivot
+    params: tuple[Param, ...] = ()
+    columns: tuple[Column, ...] | None = None
+    id: _ColumnName | Annotated[tuple[_ColumnName, ...], Field(min_length=1)] | None = None
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _id(cls, value: Any) -> Any:
+        names = [value] if isinstance(value, str) else value
+        if value is None:
+            return value
+        if (
+            not isinstance(names, list)
+            or not names
+            or not all(isinstance(name, str) and name.strip() for name in names)
+        ):
+            raise ValueError(
+                "give a column name, or a list of column names where the first non-empty value wins"
+            )
+        return value
+
+
+class SinkDocument(DocumentBase):
+    """A sink in an action file. A sink type's ``File`` model subclasses this and adds the type's
+    own fields; a sink has no ``pivot``, ``params``, ``columns`` or ``id``."""
+
+
 @dataclass(frozen=True)
 class FileAction:
     """An action built from an action file; ``location`` is the ``<file>:<line>`` of its key."""
 
-    action: Action
+    action: Action | Sink
     location: str
 
 
@@ -287,7 +297,7 @@ def _sidecar_text(
 def _read_sidecars(
     doc: _Document,
     data: dict[str, Any],
-    model: type[ActionDocument],
+    model: type[DocumentBase],
     directory: Traversable,
     loaded: LoadedFiles,
 ) -> list[str]:
@@ -310,7 +320,7 @@ def _read_sidecars(
     return failed
 
 
-def _installed(action_types: Mapping[str, type[Action]]) -> str:
+def _installed(action_types: Mapping[str, ActionType]) -> str:
     return ", ".join(sorted(action_types)) or "none"
 
 
@@ -318,7 +328,7 @@ def _load_document(
     doc: _Document,
     data: Any,
     directory: Traversable,
-    action_types: Mapping[str, type[Action]],
+    action_types: Mapping[str, ActionType],
     loaded: LoadedFiles,
 ) -> FileAction | None:
     _duplicate_keys(doc.node, (), doc)
@@ -366,7 +376,7 @@ def _yaml_problem(path: str, exc: yaml.YAMLError) -> str:
 def _load_file(
     entry: Traversable,
     directory: Traversable,
-    action_types: Mapping[str, type[Action]],
+    action_types: Mapping[str, ActionType],
     loaded: LoadedFiles,
 ) -> None:
     path = str(entry)
@@ -406,7 +416,7 @@ def action_file_entries(directory: Traversable) -> list[Traversable]:
 
 
 def load_action_files(
-    directory: Traversable, action_types: Mapping[str, type[Action]]
+    directory: Traversable, action_types: Mapping[str, ActionType]
 ) -> LoadedFiles:
     """Load every action file in ``directory``. ``action_types`` are the file-capable action
     types, by ``type_name``. Each document is validated on its own, so one file can report
@@ -417,10 +427,10 @@ def load_action_files(
     return loaded
 
 
-def action_files_schema(action_types: Mapping[str, type[Action]]) -> dict[str, Any]:
+def action_files_schema(action_types: Mapping[str, ActionType]) -> dict[str, Any]:
     """A JSON Schema for one document of an action file, for ``yaml-language-server``."""
     header = {"$schema": JSON_SCHEMA_DIALECT, "title": "TIM action file"}
-    models: list[type[ActionDocument]] = [
+    models: list[type[DocumentBase]] = [
         create_model(
             name,
             __base__=action_type.File,

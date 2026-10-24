@@ -30,7 +30,10 @@ A named, saved arrangement of the results grid's columns, usable in any tab.
 ### Actions
 
 **Action**:
-A named operation an analyst runs, which takes params and returns rows.
+A named operation an analyst runs. A query action takes params and returns rows; a sink takes rows and writes them.
+
+**Sink**:
+An action that takes the rows an analyst selected and writes them somewhere, such as a ticket queue. It has no params and returns no rows.
 
 **Preset**:
 An action with some of its params fixed and the rest filled in by the analyst or from rows, saved by an analyst under a name and a menu folder. It is private to its owner or shared with everyone. An analyst can hide someone else's preset for themselves.

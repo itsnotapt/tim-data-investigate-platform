@@ -10,7 +10,7 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 
 from pydantic import ValidationError
-from tim_actions import ENTRY_POINT_GROUP, Action, Connection, Hook, Provider, dev
+from tim_actions import ENTRY_POINT_GROUP, Action, ActionType, Connection, Hook, Provider, Sink, dev
 from tim_actions.connections_file import load_connections_file
 from tim_actions.files import LoadedFiles, ReadFile, load_action_files
 from tim_actions.labels_file import DEFAULT_LABELS, Label, load_labels_file
@@ -48,8 +48,8 @@ class Registry:
     connection of its type.
     """
 
-    actions: dict[str, Action] = field(default_factory=dict)
-    action_types: dict[str, type[Action]] = field(default_factory=dict)
+    actions: dict[str, Action | Sink] = field(default_factory=dict)
+    action_types: dict[str, ActionType] = field(default_factory=dict)
     hooks: dict[str, type[Hook]] = field(default_factory=dict)
     connections: dict[str, Connection] = field(default_factory=dict)
     labels: tuple[Label, ...] = DEFAULT_LABELS
@@ -114,7 +114,7 @@ def load_providers(
     return loaded
 
 
-def _revalidated(action: Action) -> Action:
+def _revalidated(action: Action | Sink) -> Action | Sink:
     """The action validated again from its fields, which catches one built without
     validation (``model_construct``) or changed after it."""
     return type(action).model_validate(dict(action))
@@ -131,7 +131,7 @@ def _add[T](
 
 
 def _add_file_actions(
-    actions: dict[str, tuple[Action, str]], loaded: LoadedFiles, builtin: bool
+    actions: dict[str, tuple[Action | Sink, str]], loaded: LoadedFiles, builtin: bool
 ) -> list[str]:
     problems = list(loaded.problems)
     for item in loaded.actions:
@@ -151,7 +151,7 @@ def _add_file_actions(
 
 
 def _fixed_connection_problems(
-    actions: Mapping[str, tuple[Action, str]], connections: Mapping[str, Connection]
+    actions: Mapping[str, tuple[Action | Sink, str]], connections: Mapping[str, Connection]
 ) -> list[str]:
     """An action's fixed connection must be configured, and of the type the action expects."""
     problems: list[str] = []
@@ -168,9 +168,11 @@ def _fixed_connection_problems(
     return problems
 
 
-def _missing_choice(action: Action, connections: Mapping[str, Connection]) -> str | None:
+def _missing_choice(action: Action | Sink, connections: Mapping[str, Connection]) -> str | None:
     """Why ``action`` can't run on this instance: a connection param with no connection of its
     type, or ``None``."""
+    if isinstance(action, Sink):
+        return None
     types = {connection.type for connection in connections.values()}
     for param in action.params:
         if param.kind == "connection" and param.connection_type not in types:
@@ -193,8 +195,8 @@ def build_registry(
     ``actions_dir``, the connections file and the labels file, and index what they add.
     ``action_files=False`` loads no files, for what needs only the action types."""
     problems: list[str | None] = []
-    actions: dict[str, tuple[Action, str]] = {}
-    action_types: dict[str, tuple[type[Action], str]] = {}
+    actions: dict[str, tuple[Action | Sink, str]] = {}
+    action_types: dict[str, tuple[ActionType, str]] = {}
     hooks: dict[str, tuple[type[Hook], str]] = {}
 
     for item in loaded:
@@ -251,7 +253,7 @@ def build_registry(
     found = [problem for problem in problems if problem]
     if found:
         raise InstanceConfigError(found)
-    available: dict[str, Action] = {}
+    available: dict[str, Action | Sink] = {}
     left_out: list[str] = []
     for key, (action, _) in actions.items():
         reason = _missing_choice(action, connections)

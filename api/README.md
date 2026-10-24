@@ -342,7 +342,7 @@ Tests run the flow against memory and PostgreSQL (the `storage` fixture).
 | `TIM_RUN_TIMEOUT_SECONDS` | 600 | `timedOut` |
 | `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
 | `TIM_MAX_CONCURRENT_RUNS` | 16 | per process, shared with `/api/runs`; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
-| `TIM_MAX_REQUEST_BYTES` | 16777216 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
+| `TIM_MAX_REQUEST_BYTES` | 67108864 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
 
 How the caps are checked:
 
@@ -379,7 +379,7 @@ Ingest failures raise `TagIngestError` (502). SDK failures become `TagIngestErro
 
 Streaming gives read-your-writes. The tag tables need the streaming ingestion policy, which the table creation CLI below enables.
 
-An optional integration test runs with `pytest -m kusto`. Set `TIM_TEST_KUSTO_INGEST_URL`, and `TIM_TEST_KUSTO_DATABASE` and `TIM_TEST_KUSTO_TABLE`.
+An optional integration test runs with `pytest -m kusto`. Set `TIM_TEST_KUSTO_INGEST_URL`, and `TIM_TEST_KUSTO_DATABASE` and `TIM_TEST_KUSTO_TABLE`. See [development.md](../docs/development.md#live-kusto-tests) to run it locally.
 
 ## Tag table creation CLI
 

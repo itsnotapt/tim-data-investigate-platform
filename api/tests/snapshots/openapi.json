@@ -143,6 +143,7 @@
         "type": "object"
       },
       "CatalogueAction": {
+        "description": "A query action or, as ``kind: \"sink\"``, a sink: no params, offered on any selected rows.",
         "properties": {
           "actionFile": {
             "title": "Actionfile",
@@ -185,7 +186,10 @@
             "type": "string"
           },
           "kind": {
-            "const": "query",
+            "enum": [
+              "query",
+              "sink"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -760,6 +764,33 @@
           "fromColumns"
         ],
         "title": "FromRowQueryParameter",
+        "type": "object"
+      },
+      "InputColumn": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "datetime",
+              "timespan",
+              "json"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "InputColumn",
         "type": "object"
       },
       "Instance": {
@@ -2073,7 +2104,7 @@
         "type": "object"
       },
       "Run": {
-        "description": "A run without its rows. Server-produced only, never a request.\n\n``params`` are the resolved params. ``details`` holds TIM's ``duration`` (seconds) and\n``rowCount`` first, then the action's own, in the order they were reported. ``columns`` and\n``rowCount`` are set once the run succeeds; ``error`` is a message safe to show.",
+        "description": "A run without its rows. Server-produced only, never a request.\n\n``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``\n(seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the\naction's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a\nquery action's run succeeds, never for a sink; ``error`` is a message safe to show.",
         "properties": {
           "action": {
             "$ref": "#/components/schemas/RunAction"
@@ -2321,12 +2352,50 @@
         "title": "SchemaResponse",
         "type": "object"
       },
+      "SinkInput": {
+        "description": "The rows a sink writes, each a row's ``data``, and their columns.",
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/InputColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "title": "SinkInput",
+        "type": "object"
+      },
       "StartRun": {
-        "description": "Body of ``POST /api/runs``. The params are validated against the action's.",
+        "description": "Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is\nfor a sink, and only a sink.",
         "properties": {
           "action": {
             "title": "Action",
             "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SinkInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "params": {
             "additionalProperties": {
@@ -3757,7 +3826,7 @@
     },
     "/api/runs": {
       "post": {
-        "description": "Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``\nconnection's token is got first, so OBO problems answer this request.",
+        "description": "Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``\nconnection's token is got first, so OBO problems answer this request. A sink takes the\nrows to write as ``input``, at most ``maxAnnotationIds`` of them.",
         "operationId": "startRun",
         "requestBody": {
           "content": {

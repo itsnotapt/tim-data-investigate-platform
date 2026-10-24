@@ -44,7 +44,11 @@ const BY_RESULT: CatalogueAction = {
     },
   ],
 };
-const ACTIONS = [SESSIONS, HOST, ANY, HIDDEN, BY_RESULT];
+const SINK: CatalogueAction = {
+  ...action('save', [], { rows: 'rows', columns: [] }),
+  kind: 'sink',
+};
+const ACTIONS = [SESSIONS, HOST, ANY, HIDDEN, BY_RESULT, SINK];
 
 const preset = (
   presetId: string,

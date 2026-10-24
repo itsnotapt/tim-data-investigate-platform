@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from scripted_actions import Rows
+from scripted_actions import Recording, Rows
 from tim_actions import Column, Param, Provider
 
 
@@ -193,3 +193,27 @@ def test_the_instance_lists_its_connections_without_their_endpoints(
         ("parameters", "json"),
     ]
     assert run_kql["actionFile"] is True
+
+
+def test_a_sink_is_in_the_catalogue_on_any_rows_and_resolves_nothing(auth: AuthKit) -> None:
+    sink = Recording(key="acme.save_event", name="Save event", menu="Kusto / Events")
+    app = create_test_app(providers=[Provider(actions=[sink])])
+    auth.install(app)
+    with TestClient(app, headers=auth.headers()) as client:
+        actions = client.get("/api/instance").json()["actions"]
+        resolved = client.post(
+            "/api/actions/acme.save_event/resolve", json={"pivot": {"rows": [{"Host": "h-1"}]}}
+        )
+    assert actions == [
+        {
+            "key": "acme.save_event",
+            "kind": "sink",
+            "actionFile": False,
+            "name": "Save event",
+            "menuPath": ["Kusto", "Events"],
+            "connections": [],
+            "params": [],
+            "pivot": {"rows": "rows", "columns": []},
+        }
+    ]
+    assert resolved.status_code == 404
