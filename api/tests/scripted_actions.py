@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Annotated, Any, ClassVar
 
 from tim_actions import (
@@ -16,6 +16,7 @@ from tim_actions import (
     RunContext,
     RunError,
     Sidecar,
+    Sink,
     TokenFor,
 )
 
@@ -44,6 +45,24 @@ class Echo(Action):
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
         yield {**params, "analyst": ctx.analyst.upn}
+
+
+class Recording(Sink):
+    """Keeps what each run gave it in ``received``: the columns, the rows and the analyst.
+    Reports its ``details``, then fails with ``error`` when it has one."""
+
+    received: ClassVar[list[tuple[list[Column], list[dict[str, Any]], str]]] = []
+    details: tuple[tuple[str, DetailValue], ...] = ()
+    error: str | None = None
+
+    def run(
+        self, columns: Sequence[Column], rows: Sequence[Mapping[str, Any]], ctx: RunContext
+    ) -> None:
+        Recording.received.append((list(columns), [dict(row) for row in rows], ctx.analyst.upn))
+        for key, value in self.details:
+            ctx.detail(key, value)
+        if self.error is not None:
+            raise RunError(self.error)
 
 
 class CancellableHook(Hook):
@@ -78,6 +97,20 @@ class WaitUntilCancelled(Action):
         hook = ctx.hook(self.connection)
         assert isinstance(hook, CancellableHook)
         yield from self.rows
+        hook.cancelled.wait(30)
+
+
+class WaitingSink(Sink):
+    """Waits on its connection's hook until it is cancelled, giving up after 30 s."""
+
+    def connections(self) -> Mapping[str, str]:
+        return {"fake": "fake"}
+
+    def run(
+        self, columns: Sequence[Column], rows: Sequence[Mapping[str, Any]], ctx: RunContext
+    ) -> None:
+        hook = ctx.hook("fake")
+        assert isinstance(hook, CancellableHook)
         hook.cancelled.wait(30)
 
 

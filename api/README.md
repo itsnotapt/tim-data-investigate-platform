@@ -342,7 +342,7 @@ Tests run the flow against memory and PostgreSQL (the `storage` fixture).
 | `TIM_RUN_TIMEOUT_SECONDS` | 600 | `timedOut` |
 | `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
 | `TIM_MAX_CONCURRENT_RUNS` | 16 | per process, shared with `/api/runs`; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
-| `TIM_MAX_REQUEST_BYTES` | 16777216 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
+| `TIM_MAX_REQUEST_BYTES` | 67108864 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
 
 How the caps are checked:
 

@@ -259,7 +259,7 @@ ingress:
   # Public host name. Required when ingress.enabled.
   host: ""
   # Controller-specific settings. For ingress-nginx, match web's nginx limits:
-  #   nginx.ingress.kubernetes.io/proxy-body-size: 25m
+  #   nginx.ingress.kubernetes.io/proxy-body-size: 64m
   #   nginx.ingress.kubernetes.io/proxy-read-timeout: "620"
   #   nginx.ingress.kubernetes.io/proxy-send-timeout: "620"
   # For cert-manager: cert-manager.io/cluster-issuer: <issuer>

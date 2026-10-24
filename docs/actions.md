@@ -328,6 +328,35 @@ TIM validates each document against the `File` model, then builds the action wit
 - Override `from_file` when the action's fields differ from the file's.
 - The action type's docstring becomes the type's description in the schema.
 
+### Sinks
+
+A sink type subclasses `tim_actions.Sink` instead of `Action`. It writes the rows it is given and returns nothing. Its `File` model is a `SinkDocument`, which has only `type`, `key`, `name`, `menu` and `description`, plus the type's own fields.
+
+```python
+from tim_actions import Sink, SinkDocument
+
+
+class AcmeTicketsFile(SinkDocument):
+    queue: str
+
+
+class AcmeTickets(Sink):
+    """Writes the rows to an Acme ticket queue."""
+
+    type_name = "acme_tickets"
+    File = AcmeTicketsFile
+
+    queue: str
+
+    def run(self, columns, rows, ctx):
+        ...
+```
+
+- `columns` lists the names and types of the rows' columns. `rows` are the selected rows, every column of each.
+- Raise `RunError` to end the run in error with a message the analyst sees. Report facts with `ctx.detail`.
+- A sink has no `params`, `pivot`, `columns` or `id`. It is offered on any selected rows, in the Annotate dialog and the grid's context menu ([architecture.md](architecture.md#sinks)).
+- TIM ships no sinks.
+
 ### Pivots
 
 An action type can change how a pivot fills the params by overriding two methods of `Action`.

@@ -1,6 +1,6 @@
 """Development actions, which TIM registers only with ``TIM_DEV_ACTIONS`` (ADR-0011): rows an
-analyst pastes, an action file type that gives rows, delays and errors for e2e scenarios, and a
-connection type with a fixed editor schema."""
+analyst pastes, an action file type that gives rows, a sink type that discards them, delays and
+errors for e2e scenarios, and a connection type with a fixed editor schema."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, StrictInt, field_validator, model_validator
 
 from tim_actions._common import NonBlankStr
-from tim_actions.action import Action
+from tim_actions.action import Action, Sink
 from tim_actions.columns import Column
 from tim_actions.connections import Connection
-from tim_actions.files import ActionDocument
+from tim_actions.files import ActionDocument, SinkDocument
 from tim_actions.hooks import EditorSchema, Hook
 from tim_actions.params import Param
 from tim_actions.pivots import first_value
@@ -152,12 +152,40 @@ class DevRows(Action):
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
         for key, value in self.details.items():
             ctx.detail(key, value)
-        if self.delay:
-            until_deadline = (ctx.deadline - datetime.now(UTC)).total_seconds()
-            time.sleep(max(0, min(self.delay, until_deadline)))
+        _wait(self.delay, ctx)
         if self.error is not None:
             raise RunError(self.error)
         yield from (row for row in self._rows() if self._kept(row, params))
+
+
+def _wait(delay: float, ctx: RunContext) -> None:
+    """Sleep ``delay`` seconds, or until the run's deadline."""
+    if delay:
+        until_deadline = (ctx.deadline - datetime.now(UTC)).total_seconds()
+        time.sleep(max(0, min(delay, until_deadline)))
+
+
+class DevSinkFile(SinkDocument):
+    delay: Annotated[float, Field(ge=0, strict=True)] = 0
+    error: NonBlankStr | None = None
+
+
+class DevSink(Sink):
+    """``dev_sink``: waits ``delay`` seconds, then fails with ``error`` or discards the rows.
+    The wait ends at the delay or the run's deadline."""
+
+    type_name = "dev_sink"
+    File = DevSinkFile
+
+    delay: float = 0
+    error: str | None = None
+
+    def run(
+        self, columns: Sequence[Column], rows: Sequence[Mapping[str, Any]], ctx: RunContext
+    ) -> None:
+        _wait(self.delay, ctx)
+        if self.error is not None:
+            raise RunError(self.error)
 
 
 class DevKqlConnection(Connection):
@@ -206,4 +234,4 @@ class DevKqlHook(Hook):
 
 def provider() -> Provider:
     """The development actions, action types and connection type."""
-    return Provider(actions=[DEV_JSON], action_types=[DevRows], hooks=[DevKqlHook])
+    return Provider(actions=[DEV_JSON], action_types=[DevRows, DevSink], hooks=[DevKqlHook])

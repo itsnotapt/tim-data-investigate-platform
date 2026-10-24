@@ -92,7 +92,7 @@ server {
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header Connection "";
 
-        client_max_body_size 25m;
+        client_max_body_size 64m;
         # Runs can take up to TIM_RUN_TIMEOUT_SECONDS (default 600).
         proxy_read_timeout 620s;
         proxy_send_timeout 620s;

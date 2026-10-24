@@ -409,6 +409,22 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - It checks that `action` is in the catalogue and that each input is a param of it with `from_columns`.
 - `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
 
+### Sinks in the browser
+
+`web/src/features/sinks/` runs sinks on selected rows without opening a tab.
+
+- **Input.** The full selected rows (every column) come from the tab's IndexedDB copy, with the run's columns as `{name, type}`. So a sink runs on rows of an expired run too.
+- **Polling.** The run is polled in the background: every second for ten polls, then every 3 s.
+- **Result.** It ends in a toast: "<Sink name>: N rows", or the error with **Retry**, which resends the snapshot kept in memory.
+  - There is no Retry for a `413` ("Too much to send; select fewer rows"), a `422`, or a run the browser lost track of.
+- **After a reload.** Pending runs are kept in localStorage `tim-pending-sink-runs`. Their result shows once, without Retry.
+- **Last sink.** localStorage `tim-last-sink` holds the last sink run.
+- **Where it is offered.**
+  - The Annotate dialog's "After tagging, run…" picker, for **Annotate…** only: **None** or one sink, preselecting the last used. The button reads "Save and run <name>". The `PATCH` goes first and the sink starts only after it succeeds; a failed sink rolls nothing back.
+  - The grid's context menu, under the sink's menu path after **Pivot**.
+  - Both are disabled over `maxAnnotationIds` rows, with the reason ("At most 10,000 rows; 23,412 selected").
+  - Sinks are not in the New menu or in **Pivot**. With no sinks installed, the picker and menu items are hidden.
+
 ### Annotations in the browser
 
 `web/src/lib/annotations/` keeps the annotations of every `id` the browser has seen, apart from any tab's rows ([ADR-0020](adr/0020-annotations-in-postgres.md)).
@@ -600,8 +616,8 @@ Then the route runs. Its dependencies resolve the caller (`get_current_principal
 
 Actions come from providers ([ADR-0017](adr/0017-actions-from-providers.md)):
 
-- An **action type** is a Python subclass of `tim_actions.Action` that implements `run`.
-- An **action** is a configured instance of one, with a `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`.
+- An **action type** is a Python subclass of `tim_actions.Action` (a query action, which yields rows) or `tim_actions.Sink` ([Sinks](#sinks)) that implements `run`.
+- An **action** is a configured instance of one, with a `key`, `name`, `menu` and `description`. A query action also has `params`, `pivot`, `columns` and `id`.
 - A **provider** is a callable that a package exposes in the `tim.actions` entry-point group. It returns `Provider(actions, action_types, hooks)`.
 
 TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.
@@ -898,6 +914,31 @@ Housekeeping, for both:
   - It deletes ten runs at a time, so each delete of their rows stays short. Then it deletes the expired query runs.
   - Expired runs already read as `404` before they are deleted.
 
+### Sinks
+
+A **sink** is an action that takes rows and writes them somewhere, such as a ticket queue ([GLOSSARY.md](../GLOSSARY.md)).
+
+- A sink type subclasses `tim_actions.Sink`, a sibling of `Action` on `ActionBase`. It implements `run(columns, rows, ctx)`, which writes the rows and returns nothing.
+- A file-capable sink type's `File` model is a `SinkDocument`: `type`, `key`, `name`, `menu` and `description`, with the type's own fields.
+- A sink has no params, `pivot`, `columns` or `id`.
+- TIM ships no sinks. `dev_sink` (development only) discards the rows after its `delay`, or fails with its `error`.
+- In the catalogue a sink has `kind: "sink"`, `params: []` and `pivot: {rows: "rows", columns: []}`.
+
+`POST /api/runs` takes the rows to write as `input`: `{columns: [{name, type}], rows: [{...}]}`.
+
+- A query action with `input` gives `422` (`input`: "Only a sink takes input"). A sink without it gives `422` ("A sink needs the rows to write").
+- At most `maxAnnotationIds` rows are accepted (`input.rows`), and column names must be unique (`input.columns`).
+- The size of the input is limited by `TIM_MAX_REQUEST_BYTES`.
+- A sink's params must be empty.
+
+The run follows the lifecycle above, with these differences:
+
+- The worker thread calls `Sink.run(columns, rows, ctx)` and no rows are stored.
+- The succeeded run has no `columns` or `rowCount`, and its `params` are `{}`.
+- `details` holds `duration`, then `inputRowCount`, then the sink's own `ctx.detail` values.
+- Timeout and cancel work as for any run, through the sink's hooks.
+- `POST /api/actions/{key}/resolve` gives `404` for a sink, and a preset of a sink gives `422` (`action`: "A sink has no presets").
+
 ### Templates
 
 Templates are stored in PostgreSQL (`query_templates`), shared by all users. The model is `QueryTemplate` in `templates/models.py`:
@@ -1047,8 +1088,8 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
 - **Connections run as the user** (OBO). Only tag ingestion and table creation use the app identity.
 - **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's auth stub throws in a production build.
 - **Request bodies are capped:**
-  - `TIM_MAX_REQUEST_BYTES` on the API (default 16 MiB, `413`);
-  - `client_max_body_size 25m` on nginx;
+  - `TIM_MAX_REQUEST_BYTES` on the API (default 64 MiB, `413`);
+  - `client_max_body_size 64m` on nginx;
   - tagged-event batches to 1000 items, and each `eventAsJson` to 1,000,000 bytes serialised;
   - queries to 100,000 characters.
 - **API responses** carry `x-content-type-options: nosniff` and `cache-control: no-store`.
