@@ -1,5 +1,6 @@
 {
-    "web": "1.7.0",
-    "api": "4.0.0",
-    "deploy/helm/tim": "1.0.1"
+    "web": "1.8.0",
+    "api": "4.1.0",
+    "deploy/helm/tim": "1.1.0",
+    "api/tim-actions": "0.1.0"
 }
