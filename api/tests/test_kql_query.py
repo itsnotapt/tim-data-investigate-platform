@@ -86,41 +86,11 @@ async def test_the_params_reach_kusto_as_typed_query_parameters(
     }
 
 
-async def test_an_optional_param_without_a_value_leaves_the_kql_default(
-    client: httpx.AsyncClient, kusto: FakeKusto
-) -> None:
-    await start(client, "acme.storms", **STORMS_PARAMS, limit=None)
-    assert "limit" not in sent_parameters(kusto)
-
-
-async def test_an_optional_param_with_a_value_is_sent(
-    client: httpx.AsyncClient, kusto: FakeKusto
-) -> None:
-    await start(client, "acme.storms", **STORMS_PARAMS, limit=10)
-    assert sent_parameters(kusto)["limit"] == "10"
-
-
-async def test_inline_kql_without_params_is_sent_as_written(
-    client: httpx.AsyncClient, kusto: FakeKusto
-) -> None:
-    run = await start(client, "acme.storm_count")
-    assert run["status"] == "succeeded", run.get("error")
-    [(_, kql, _)] = kusto.queries
-    assert kql == "StormEvents | count\n"
-    assert sent_parameters(kusto) == {}
-
-
 async def test_the_action_pivots_on_its_from_columns(client: httpx.AsyncClient) -> None:
     actions = (await client.get("/api/instance")).json()["actions"]
     [storms] = [action for action in actions if action["key"] == "acme.storms"]
     assert storms["connections"] == ["security"]
     assert storms["pivot"] == {"rows": "rows", "columns": [["State"]]}
-
-
-async def test_each_row_gets_its_id_from_the_id_column(client: httpx.AsyncClient) -> None:
-    run = await start(client, "acme.storms", **STORMS_PARAMS)
-    rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-    assert [row["id"] for row in rows] == ["61032", "60904"]
 
 
 LIVE_ACTION = """\

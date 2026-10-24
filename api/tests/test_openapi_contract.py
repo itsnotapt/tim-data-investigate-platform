@@ -84,6 +84,13 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
         {"204"},
         {"401", "404", "422", "500"},
     ),
+    (
+        "get",
+        "/api/presets/{presetId}/actionFile",
+        "getPresetActionFile",
+        {"200"},
+        {"401", "404", "409", "422", "500"},
+    ),
     ("get", "/api/columnViews", "listColumnViews", {"200"}, {"401", "500"}),
     ("post", "/api/columnViews", "createColumnView", {"201"}, {"400", "401", "422", "500"}),
     (

@@ -93,12 +93,20 @@ beforeEach(async () => {
         {
           key: 'dev-sign-ins',
           kind: 'query',
+          actionFile: false,
           name: 'Sign-ins',
           menuPath: [],
           connections: [],
           params: [
             { name: 'users', title: 'Users', kind: 'string', required: false, many: true },
             { name: 'query', title: 'Query', kind: 'kql', required: false, many: false },
+            {
+              name: 'parameters',
+              title: 'Query parameters',
+              kind: 'json',
+              required: false,
+              many: false,
+            },
           ],
           pivot: null,
         },
@@ -327,6 +335,25 @@ describe('runActionTab', () => {
     );
     await runActionTab('a', { store, sleep });
     expect(tab().state).toMatchObject({ error: null, paramErrors: { query: 'Not valid KQL' } });
+  });
+
+  it('marks a refused query parameter on its pill', async () => {
+    store.getState().updateParams('a', {
+      params: { parameters: [{ name: 'Since', type: 'datetime', value: 'yesterday' }] },
+    });
+    server.use(
+      http.post(apiUrl('/api/runs'), () =>
+        problemResponse(422, {
+          type: 'urn:tim:problem:validation',
+          errors: { 'params.parameters.Since': ['Must be an ISO 8601 datetime'] },
+        }),
+      ),
+    );
+    await runActionTab('a', { store, sleep });
+    expect(tab().state).toMatchObject({
+      error: null,
+      paramErrors: { 'parameters.Since': 'Must be an ISO 8601 datetime' },
+    });
   });
 
   it('shows a refused param the tab does not show as why the run could not start', async () => {

@@ -11,6 +11,7 @@ const action = (
 ): CatalogueAction => ({
   key,
   kind: 'query',
+  actionFile: false,
   name,
   menuPath,
   connections: [],

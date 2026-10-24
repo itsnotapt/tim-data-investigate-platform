@@ -192,8 +192,18 @@ The built-in provider adds the `kql_query` action type and the **Run KQL** actio
 | `database` | The database to query. The tab suggests the chosen connection's `databases`. |
 | `kql` | The query, written in the tab's Query editor, scoped by the `connection` and `database` params. |
 | `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
+| `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-kql). |
 
 The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
+
+#### Query parameters of Run KQL
+
+`parameters` is a list of `{name, type, value}`. The `type` is `string`, `long`, `real`, `bool`, `datetime`, `timespan` or `dynamic`.
+
+- TIM puts `declare query_parameters(Name:type, ...);` and a newline before the KQL, and sends the values as Kusto query parameters. The KQL uses the names as it would any query parameter.
+- A bad value answers `422` with `errors["params.parameters.<name>"]`, such as "Must be an ISO 8601 datetime", "Required" or, for a `long`, "Must be a whole number".
+- A structural problem answers `422` with `errors["params.parameters"]`: a bad name, a bad type, a duplicate name or a value that is not a list.
+- A [preset](../GLOSSARY.md) of Run KQL can have query parameters as inputs, and be copied as an action file: [GET /api/presets/{presetId}/actionFile](api.md#get-apipresetspresetidactionfile).
 
 ### `kql_query`
 
@@ -328,6 +338,24 @@ TIM validates each document against the `File` model, then builds the action wit
 - Override `from_file` when the action's fields differ from the file's.
 - The action type's docstring becomes the type's description in the schema.
 
+### Checking params
+
+`Action.check_params(values, *, connections=None)` validates the values of a run when it starts and returns them converted, by param name. It raises `ParamsError`.
+
+- The default is `tim_actions.validate_params`.
+- Override it to check more, such as the entries of a `json` param. Run KQL does so for `parameters`.
+
+### Presets as action files
+
+An action type can say how a preset of its actions becomes an action file by overriding `Action.preset_file(*, key, name, menu, params, query_parameters)`.
+
+- It returns an `ActionDocument`, or `None`, the default, when a preset of the action has no action file.
+  - `RunKql.preset_file` returns `None` for a preset that lacks a connection, database or query.
+  - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
+- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries.
+- `Action.has_preset_file` is whether the type overrides it. It becomes `actionFile` in the catalogue.
+- `tim_actions.action_file_yaml(document)` writes the document as the YAML of an action file.
+
 ### Sinks
 
 A sink type subclasses `tim_actions.Sink` instead of `Action`. It writes the rows it is given and returns nothing. Its `File` model is a `SinkDocument`, which has only `type`, `key`, `name`, `menu` and `description`, plus the type's own fields.
@@ -369,6 +397,78 @@ An action type can change how a pivot fills the params by overriding two methods
   - The default takes each param's value from its `from_columns`.
 - **Columns seen.** `resolve()` sees only the columns of `pivot_columns()` and every param's `from_columns`.
 
+## Testing
+
+`tim_actions.testing` runs actions, sinks, pivots and action files as TIM does, without a server, a database or credentials. It is for provider authors' tests.
+
+- **`run_action(action, params, connections=, analyst=, timeout=)`** runs an action and returns a `RunResult`.
+  - It validates `params` as wire values, like TIM, and raises `ParamsError` for ones TIM would refuse.
+  - `RunResult.rows` are the rows as yielded.
+  - `RunResult.ids` are each row's `id` in the text form TIM stores, or `None` for none. An `id` over 512 characters is `None`.
+  - `RunResult.columns` are the declared columns only. TIM adds the undeclared columns of the rows after them.
+  - `RunResult.details` are the run details. As in TIM, an `id` column missing from the results, or an `id` that is too long, adds to the `warning` detail.
+  - A connection the action didn't declare is refused.
+  - A row that isn't a mapping, or a bad run detail, raises `TypeError`.
+- **`run_sink(sink, rows, columns=, connections=, analyst=, timeout=)`** runs a sink and returns a `SinkResult` with its `details`. Without `columns`, each key of the rows is a `string` column.
+- **`resolve_pivot(action, rows, cell=None)`** resolves a pivot into an action as TIM's resolve endpoint does. It raises `PivotRefused` when the action has pivot `none`, or pivot `row` and several rows are selected. It doesn't check the instance's limit on selected rows.
+- **`load_actions(directory, action_types)`** loads the action files in `directory` with `action_types` installed, and returns the actions by key.
+  - It checks what startup checks in the files, duplicate keys and the reserved `tim.` prefix included. It checks no connections.
+  - It raises `ActionFilesError`, whose `problems` name each file, line and field.
+- **`Connections`** holds the connections a run reaches.
+  - `add(connection, hook=None)` adds a connection, answered by `hook`, a `Hook` class.
+  - `answer(connection_type, hook)` sets the hook for connections of that type added without one.
+  - Hooks are built with `token_for`, which returns `token for <scope>` unless `Connections(token_for=...)` gives another.
+
+There is no hook conformance suite.
+
+### Fixtures
+
+The package registers a `pytest11` plugin, so the fixtures need no import.
+
+- **`tim_analyst`** is the analyst a run gets by default. Pass another as `analyst=` to `run_action` or `run_sink`.
+- **`tim_connections`** is an empty `Connections`. Override it in `conftest.py` to add connections every test has.
+- **`tim_kusto`** is a fake of the Kusto hook, and needs the `kusto` extra. It answers the Kusto connections added to `tim_connections` without a hook.
+  - `respond(rows, columns=, details=)` queues an answer, and `fail(message)` or `fail(exception)` queues a failure. A message ends the run with it.
+  - `calls` lists each query as `KustoCall(connection, database, kql, parameters)`.
+  - A query with no answer queued fails the test, and so does reaching a Kusto cluster, as the editor schema does.
+
+```python
+from tim_actions.kusto import KqlQuery, KustoConnection
+from tim_actions.testing import Connections, load_actions, run_action
+from tim_actions.testing.kusto import FakeKusto, KustoCall
+
+SECURITY = KustoConnection(
+    name="security", title="Security", type="kusto", auth="obo",
+    cluster="https://help.kusto.windows.net",
+)
+STORMS = """\
+type: kql_query
+key: acme.storms
+name: Storms
+pivot: rows
+connection: security
+database: Samples
+kql: StormEvents | where State in (states)
+id: EventId
+params: [{name: states, kind: string, many: true, from_columns: [State]}]
+"""
+
+
+def test_the_params_reach_kusto(tmp_path, tim_kusto: FakeKusto, tim_connections: Connections):
+    (tmp_path / "storms.yaml").write_text(STORMS)
+    action = load_actions(tmp_path, [KqlQuery])["acme.storms"]
+    tim_connections.add(SECURITY)
+    tim_kusto.respond([{"EventId": 61032, "State": "TEXAS"}])
+    result = run_action(action, {"states": ["TEXAS"]}, connections=tim_connections)
+    assert tim_kusto.calls == [
+        KustoCall(
+            "security", "Samples", "StormEvents | where State in (states)",
+            {"states": 'dynamic(["TEXAS"])'},
+        )
+    ]
+    assert result.ids == ["61032"]
+```
+
 ## Providers
 
 A provider lists its file-capable action types in `Provider(action_types=[...])`, and can ship action files as package data in `Provider(action_files=...)`, a directory read like `TIM_ACTIONS_DIR`:
@@ -385,4 +485,4 @@ def provider() -> Provider:
 
 The files must be in the package's wheel, as `acme_tim/actions/*.yaml`. A provider's files can name any installed action type, not only its own.
 
-Depend on `tim-actions` as `>=1,<2`. An instance installs the provider in a derived image ([Building and deploying](#building-and-deploying)).
+Depend on `tim-actions` as `>=1,<2`. Test the provider with [`tim_actions.testing`](#testing). An instance installs the provider in a derived image ([Building and deploying](#building-and-deploying)).

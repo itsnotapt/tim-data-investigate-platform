@@ -56,6 +56,7 @@ Commands are in [docs/development.md](docs/development.md).
 - A change ships with tests for the behaviour it adds or alters.
 - Tests drive behaviour through public interfaces: HTTP endpoints, a module's exports, what a component renders.
 - Tests replace only systems outside the repo: Kusto, Entra ID, tag ingestion, the clock.
+  - Tests of actions and sinks replace those systems at the seams `Hook` (a fake hook such as `tim_kusto`) and `token_for` (the token a hook gets), with `tim_actions.testing`.
 - A bug fix starts with a test that fails on the bug, written at a seam where the bug occurs. When no such seam exists, the PR says so.
 - Every API endpoint has a happy-path test and a test for its main error case.
 - After `findBy*`, assert anything an effect does inside `waitFor`. `findBy*` returns once the element is in the DOM, which can be before its effects run.

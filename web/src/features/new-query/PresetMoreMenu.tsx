@@ -22,11 +22,14 @@ export interface PresetMoreMenuProps {
   onVisibility: (visibility: Preset['visibility']) => void;
   onDelete: () => void;
   onHidden: (hidden: boolean) => void;
+  /** Only for a preset of an action whose presets are action files. */
+  onCopyActionFile?: () => void;
 }
 
 /**
  * A preset's ⋯ menu. The owner edits, shares or makes private and deletes it; anyone else hides
- * or unhides it for themselves. Anyone opens or duplicates it.
+ * or unhides it for themselves. Anyone opens or duplicates it, and copies it as an action file
+ * when its action has them.
  */
 export function PresetMoreMenu({
   preset,
@@ -38,6 +41,7 @@ export function PresetMoreMenu({
   onVisibility,
   onDelete,
   onHidden,
+  onCopyActionFile,
 }: PresetMoreMenuProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -76,6 +80,7 @@ export function PresetMoreMenu({
           item('Open', onOpen, !canOpen),
           ...(owned ? [item('Edit…', onEdit, !canOpen)] : []),
           item('Duplicate', onDuplicate),
+          ...(onCopyActionFile ? [item('Copy as action file', onCopyActionFile)] : []),
           ...(owned
             ? [
                 item(shared ? 'Make private' : 'Share with everyone', () =>

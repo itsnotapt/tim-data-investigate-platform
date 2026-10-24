@@ -18,6 +18,10 @@ The interface TIM providers build against, released on its own semver (`tim-acti
   - A file-capable action type sets `type_name`, and a `File` model subclassing `ActionDocument`, so YAML action files can configure its actions.
   - `Action.from_file` builds the action from the validated file.
   - A `str` field annotated `Sidecar()` can be read from a file next to the action file instead (`<field>_file:`).
+- `tim_actions.testing`: runs actions, sinks, pivots and action files as TIM does, for provider authors' tests.
+  - `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`.
+  - A `pytest11` plugin adds the fixtures `tim_analyst`, `tim_connections` and `tim_kusto` (the last needs the `kusto` extra).
+  - Guide: [actions.md](../../docs/actions.md#testing).
 - `Provider(actions, action_types, hooks, action_files)`: what a package adds; `action_files` is a directory of action files in the package's data. Expose a callable returning one in the `tim.actions` entry-point group:
 
   ```toml

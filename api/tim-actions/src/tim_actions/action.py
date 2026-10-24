@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Self
 
 from pydantic import BaseModel, StringConstraints, field_validator
 
 from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
-from tim_actions.params import Param
+from tim_actions.params import Param, validate_params
 from tim_actions.pivots import PivotContext, Resolved, resolve_from_columns
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext
@@ -22,6 +23,20 @@ ActionKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_.-]+$")]
 """Lowercase letters, digits, ``_``, ``-`` and ``.``; the ``tim.`` prefix is TIM's own."""
 
 Pivot = Literal["row", "rows", "none"]
+
+QueryParameterType = Literal["string", "long", "real", "bool", "datetime", "timespan", "dynamic"]
+
+
+@dataclass(frozen=True)
+class QueryParameter:
+    """A query parameter of a preset: a name in its query, declared with ``type`` (``string``,
+    ``long``, ``real``, ``bool``, ``datetime``, ``timespan`` or ``dynamic``). It is fixed to
+    ``value``, or with ``from_columns`` filled from the rows; no columns asks the analyst."""
+
+    name: str
+    type: QueryParameterType
+    value: Any = None
+    from_columns: tuple[str, ...] | None = None
 
 
 class ActionBase(BaseModel, ABC):
@@ -110,6 +125,41 @@ class Action(ActionBase):
             raise ValueError("give a column name, or leave id out")
         return value
 
+    def check_params(
+        self, values: Mapping[str, Any], *, connections: Mapping[str, str] | None = None
+    ) -> dict[str, Any]:
+        """Validate ``values`` when a run starts and return them converted, keyed by param name;
+        raises ``ParamsError``. The default checks each value against its param
+        (``validate_params``); override it to check more, such as the entries of a ``json``
+        param."""
+        return validate_params(self.params, values, connections=connections)
+
+    def preset_file(
+        self,
+        *,
+        key: str,
+        name: str,
+        menu: str,
+        params: Mapping[str, Any],
+        query_parameters: Sequence[QueryParameter],
+    ) -> ActionDocument | None:
+        """The action file document of an action that runs what a preset of this action runs:
+        ``params`` are the preset's fixed values, ``query_parameters`` its query parameters.
+        ``None`` when the preset has none; by default no preset of this action has one."""
+        return None
+
+    @property
+    def has_preset_file(self) -> bool:
+        """Whether a preset of this action has an action file: its type overrides
+        ``preset_file``."""
+        return type(self).preset_file is not Action.preset_file
+
+    @property
+    def takes_query_parameters(self) -> bool:
+        """Whether the action takes query parameters: it has a ``json`` param named
+        ``parameters``."""
+        return any(p.name == "parameters" and p.kind == "json" for p in self.params)
+
     def pivot_columns(self) -> list[list[str]]:
         """The context menu's filter: a row needs one column from each group. Each
         required param's ``from_columns`` is a group."""
@@ -154,6 +204,19 @@ class Sink(ActionBase):
         """Write ``rows``, whose columns are ``columns``. Runs synchronously, in a worker thread.
         Raise ``RunError`` to end the run in error with a message the analyst sees; any other
         exception ends it with a generic message."""
+
+
+def run_connection_names(action: Action | Sink, params: Mapping[str, Any]) -> frozenset[str]:
+    """The connections a run uses: the action's fixed ones and its connection params' values."""
+    names = set(action.connections())
+    if isinstance(action, Sink):
+        return frozenset(names)
+    names.update(
+        str(params[p.name])
+        for p in action.params
+        if p.kind == "connection" and params.get(p.name) is not None
+    )
+    return frozenset(names)
 
 
 ActionType = type[Action] | type[Sink]

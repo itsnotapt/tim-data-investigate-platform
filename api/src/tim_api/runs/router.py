@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from tim_actions import Action, Analyst, Column, ParamsError, Sink, validate_params
+from tim_actions.action import run_connection_names
 
 from tim_api.auth.dependencies import get_current_principal, get_obo_provider
 from tim_api.auth.obo import OboTokenProvider
@@ -16,7 +17,7 @@ from tim_api.config import Settings, get_settings
 from tim_api.deps import get_annotation_store, get_run_store
 from tim_api.errors import UnprocessableError, problem_exception
 from tim_api.observability import get_trace_id
-from tim_api.runs.connections import Connections, get_connections, run_connection_names
+from tim_api.runs.connections import Connections, get_connections
 from tim_api.runs.models import RowsPage, Run, RunStatus, StartRun
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.runs.runner import RunInput, Runner
@@ -85,9 +86,11 @@ async def start_run(
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
     run_input = _run_input(action, body, settings.max_annotation_ids)
-    declared = () if isinstance(action, Sink) else action.params
     try:
-        params = validate_params(declared, body.params, connections=connections.types())
+        if isinstance(action, Sink):
+            params = validate_params((), body.params, connections=connections.types())
+        else:
+            params = action.check_params(body.params, connections=connections.types())
     except ParamsError as exc:
         raise UnprocessableError(exc.errors) from None
     run_connections = await connections.open(run_connection_names(action, params), principal, obo)

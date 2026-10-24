@@ -205,6 +205,7 @@ describe('AnnotateDialog', () => {
 const sink = (key: string, name: string): CatalogueAction => ({
   key,
   kind: 'sink',
+  actionFile: false,
   name,
   menuPath: [],
   connections: [],

@@ -4,33 +4,55 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
+from tim_actions import QueryParameterType
 
 from tim_api.models_common import ApiModel, NonBlankStr, UtcDatetime
 
 Visibility = Literal["private", "shared"]
-InputSource = Literal["param"]
 
 
 class FixedInput(ApiModel):
-    """An input whose value is saved with the preset. Its type is the param's."""
+    """A param input whose value is saved with the preset. Its type is the param's."""
 
     name: NonBlankStr
-    source: InputSource
+    source: Literal["param"]
     fixed: Literal[True]
     value: Any
 
 
 class FromRowInput(ApiModel):
-    """An input filled from the first of ``fromColumns`` the rows have. With no columns, the
+    """A param input filled from the first of ``fromColumns`` the rows have. With no columns, the
     form asks the analyst for it."""
 
     name: NonBlankStr
-    source: InputSource
+    source: Literal["param"]
     fixed: Literal[False]
     from_columns: list[NonBlankStr]
 
 
-PresetInput = FixedInput | FromRowInput
+class FixedQueryParameter(ApiModel):
+    """A query parameter whose value is saved with the preset: a name in the query, declared
+    with ``type``."""
+
+    name: NonBlankStr
+    source: Literal["queryParameter"]
+    type: QueryParameterType
+    fixed: Literal[True]
+    value: Any
+
+
+class FromRowQueryParameter(ApiModel):
+    """A query parameter filled from the first of ``fromColumns`` the rows have; a ``dynamic`` one
+    takes every distinct value. With no columns, the form asks the analyst for it."""
+
+    name: NonBlankStr
+    source: Literal["queryParameter"]
+    type: QueryParameterType
+    fixed: Literal[False]
+    from_columns: list[NonBlankStr]
+
+
+PresetInput = FixedInput | FromRowInput | FixedQueryParameter | FromRowQueryParameter
 
 
 class PresetFields(ApiModel):

@@ -12,6 +12,7 @@ import {
 import { rowResultsDao } from '../../lib/storage';
 import { useInstanceStore } from '../instance';
 import { useTabsStore, type ParamErrors, type TabsStore } from '../tabs';
+import { pills } from './queryParameters';
 import { runRowsStore } from './runRows';
 
 const FAST_POLL_MS = 1000;
@@ -83,13 +84,14 @@ function reasonOf(e: unknown): string {
 const PARAM_KEY = /^params\.(.+)$/;
 
 /**
- * Why a run of `action` could not start: the reasons of each invalid param the tab shows, in a
- * pill or the editor (`params.<name>`), and a message for any other reason, or `null` when there
- * is none.
+ * Why a run of `action` with `values` could not start: the reasons of each invalid param the tab
+ * shows, in a pill or the editor (`params.<name>`, a query parameter's `params.parameters.<name>`),
+ * and a message for any other reason, or `null` when there is none.
  */
 function startErrors(
   e: unknown,
   action: string,
+  values: Record<string, unknown>,
 ): { paramErrors: ParamErrors | null; message: string | null } {
   if (!isApiError(e) || !e.errors || Object.keys(e.errors).length === 0) {
     return { paramErrors: null, message: `Couldn't start: ${reasonOf(e)}` };
@@ -97,7 +99,7 @@ function startErrors(
   const params = useInstanceStore
     .getState()
     .instance?.actions.find((a) => a.key === action)?.params;
-  const shown = new Set(params?.map((p) => p.name));
+  const shown = new Set(pills(params ?? [], values).params.map((p) => p.name));
   const paramErrors: ParamErrors = {};
   const others: string[] = [];
   for (const [key, reasons] of Object.entries(e.errors)) {
@@ -207,7 +209,7 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
   } catch (e) {
     if (signal.aborted) return;
     following.delete(uuid);
-    const { paramErrors, message } = startErrors(e, tab.params.action);
+    const { paramErrors, message } = startErrors(e, tab.params.action, tab.params.params);
     store.getState().updateState(uuid, {
       isExecuting: false,
       error: message === null ? null : { message },

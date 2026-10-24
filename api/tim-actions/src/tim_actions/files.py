@@ -35,6 +35,8 @@ from tim_actions.columns import Column
 from tim_actions.params import Param
 
 ACTION_FILE_SUFFIXES = (".yaml", ".yml")
+RESERVED_PREFIX = "tim."
+"""The key prefix of TIM's built-in actions."""
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 
@@ -427,6 +429,29 @@ def load_action_files(
     return loaded
 
 
+def add_file_actions(
+    actions: dict[str, tuple[Action | Sink, str]], loaded: LoadedFiles, *, builtin: bool
+) -> list[str]:
+    """Add the actions ``loaded`` gave to ``actions``, keyed with where each comes from, and
+    return the problems: ``loaded``'s own, then each key that is taken or, unless ``builtin``,
+    has the reserved prefix."""
+    problems = list(loaded.problems)
+    for item in loaded.actions:
+        key = item.action.key
+        if key.startswith(RESERVED_PREFIX) and not builtin:
+            problems.append(
+                f"{item.location}: key: the {RESERVED_PREFIX} prefix is reserved for TIM's "
+                "built-ins"
+            )
+        elif key in actions:
+            problems.append(
+                f"{item.location}: key: duplicate action key {key}, also in {actions[key][1]}"
+            )
+        else:
+            actions[key] = (item.action, item.location)
+    return problems
+
+
 def action_files_schema(action_types: Mapping[str, ActionType]) -> dict[str, Any]:
     """A JSON Schema for one document of an action file, for ``yaml-language-server``."""
     header = {"$schema": JSON_SCHEMA_DIALECT, "title": "TIM action file"}
@@ -449,3 +474,47 @@ def action_files_schema(action_types: Mapping[str, ActionType]) -> dict[str, Any
     )
     schema: dict[str, Any] = TypeAdapter(shape).json_schema()
     return {**header, **{k: v for k, v in schema.items() if k != "title"}}
+
+
+class _Dumper(yaml.SafeDumper):
+    """Writes text of several lines as a ``|`` block."""
+
+
+def _str(dumper: yaml.SafeDumper, value: str) -> yaml.ScalarNode:
+    style = "|" if "\n" in value else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
+
+
+_Dumper.add_representer(str, _str)
+
+# The wire form of each optional field of a param at its default.
+_PARAM_DEFAULTS: dict[str, Any] = {
+    key: value
+    for key, value in TypeAdapter(Param).dump_python(Param("name", "string"), mode="json").items()
+    if key not in ("name", "kind", "title")
+}
+
+
+def _param_fields(param: dict[str, Any]) -> dict[str, Any]:
+    """A param's wire fields, without those at their default or a title that is its name."""
+    return {
+        key: value
+        for key, value in param.items()
+        if not (key in _PARAM_DEFAULTS and value == _PARAM_DEFAULTS[key])
+        and not (key == "title" and value == param["name"])
+    }
+
+
+def action_file_yaml(document: ActionDocument) -> str:
+    """``document`` as the YAML of an action file: fields left at their defaults are left out,
+    as is a param's title that is its name, and ``params`` and ``columns`` come last."""
+    fields = document.model_dump(mode="json", exclude_defaults=True, exclude={"params", "columns"})
+    params = [
+        _param_fields(param)
+        for param in document.model_dump(mode="json", include={"params"})["params"]
+    ]
+    if params:
+        fields["params"] = params
+    if document.columns is not None:
+        fields["columns"] = document.model_dump(mode="json", exclude_defaults=True)["columns"]
+    return yaml.dump(fields, Dumper=_Dumper, sort_keys=False, allow_unicode=True)

@@ -49,6 +49,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | PATCH | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404, 422 | Apply a JSON Patch (RFC 6902). |
 | DELETE | `/api/templates/queries/{uuid}` | 204 | 401, 404, 422 | Soft delete (idempotent). |
 | GET | `/api/presets` | 200 | 401 | List your presets and the shared ones. |
+| GET | `/api/presets/{presetId}/actionFile` | 200 | 401, 404, 409, 422 | A preset as an action file, in YAML. |
 | POST | `/api/presets` | 201 | 400, 401, 422 | Create a preset. |
 | PUT | `/api/presets/{presetId}` | 200 | 400, 401, 403, 404, 422 | Replace a preset (owner only). |
 | DELETE | `/api/presets/{presetId}` | 204 | 401, 403, 404, 422 | Delete a preset for good (owner only). |
@@ -93,9 +94,10 @@ Every non-2xx response has this body:
 | 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. An unknown preset or column view, or someone else's private one. |
 | 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
+| 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`) or an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -111,13 +113,14 @@ What the browser needs to know about this instance, built once at startup from t
 ```
 
 - `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, the labels file, and the rest of this body. It changes when any of them does, for example after a rolling update.
-- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?}`:
-  - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []` and `pivot: {rows: "rows", columns: []}`.
+- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, actionFile}`:
+  - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []`, `pivot: {rows: "rows", columns: []}` and `actionFile: false`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the result columns the action declares ([actions.md](actions.md#columns)); it is left out when the action declares none.
+  - `actionFile` is whether a preset of the action can be copied as an action file ([GET /api/presets/{presetId}/actionFile](#get-apipresetspresetidactionfile)).
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql`). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
 - `limits`: `{maxResultRows, maxResultBytes, maxPivotRows, rowsPageSize, runTimeoutSeconds, maxAnnotationIds, annotationPollSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_MAX_PIVOT_ROWS`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_ANNOTATION_IDS` and `TIM_ANNOTATION_POLL_SECONDS`.
@@ -518,8 +521,21 @@ Returns an array of `Preset`: the caller's own presets and the shared ones, olde
 - Errors:
   - `404` for an unknown preset, or someone else's private one.
   - `403` for a `PUT` or `DELETE` on a preset the caller does not own.
-  - `422` for an `action` that is not in the catalogue (`errors.action`), or an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`).
-- Param values are not checked here. They are validated when a run starts.
+  - `422` for an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter input on an action that takes no query parameters (`errors["inputs.<i>.source"]`), a query parameter name that is not a Kusto identifier, or a name used by two inputs (`errors["inputs.<i>.name"]`).
+- Param and query parameter values are not checked here. They are validated when a run starts.
+
+### GET /api/presets/{presetId}/actionFile
+
+Returns the preset as an action file ([actions.md](actions.md#action-files)): the YAML of an action that runs what the preset runs, as `application/yaml`. An operator adds it to the instance's action files, and `tim-api check` accepts it.
+
+- Only presets of Run KQL have one, as a `kql_query` action. `409` with the slug `no-action-file` for the others.
+  - A Run KQL preset that lacks a connection, database or query answers it too. The problem message is "This preset has no action file".
+- `404` for an unknown preset, or someone else's private one.
+- The file is built from the preset:
+  - `key` is a slug of the preset's name, and `menu` is its `menuPath` joined with `/`.
+  - `pivot` is `rows` when the preset has From row query parameters and every one of them has columns, as a preset is a pivot. Otherwise it is `none`.
+  - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from `idColumn`.
+  - Each query parameter is a param of the file. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`.
 
 ### PUT, DELETE /api/presets/{presetId}/hidden
 
@@ -547,12 +563,13 @@ Returns an array of `Preset`: the caller's own presets and the shared ones, olde
 
 ### PresetInput
 
-An input names a param of the preset's action that declares `from_columns`, and takes its type from that param. The boolean `fixed` tells the two shapes apart: a fixed input and a From row input ([GLOSSARY.md](../GLOSSARY.md)).
+An input is a param of the preset's action that declares `from_columns` (`source: "param"`), taking its type from that param, or a query parameter (`source: "queryParameter"`). The boolean `fixed` tells a fixed input from a From row input ([GLOSSARY.md](../GLOSSARY.md)).
 
 | Field | Type | Rules |
 |---|---|---|
-| `name` | string | The param's name. Not blank. |
-| `source` | `param` | |
+| `name` | string | The param's name, or the query parameter's: a Kusto identifier, starting with a letter or `_`, unique among the inputs. |
+| `source` | `param` \| `queryParameter` | A query parameter is allowed only on an action that takes them: one with a `json` param named `parameters`, as Run KQL has. |
+| `type` | `string` \| `long` \| `real` \| `bool` \| `datetime` \| `timespan` \| `dynamic` | Query parameter only: the type it is declared with. |
 | `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
 | `value` | JSON | Fixed only: the value saved with the preset. |
 | `fromColumns` | string[] | From row only: the columns to read, in order. The input takes the first one the rows have. With none, the form asks for the value. |

@@ -47,6 +47,19 @@ export async function deletePreset(
   await client.request({ method: 'DELETE', path: item(presetId), ...rest });
 }
 
+/** A preset as an action file, in YAML; only for an action whose catalogue entry has `actionFile`. */
+export async function getPresetActionFile(
+  presetId: string,
+  { client = getApiClient(), ...rest }: CallOptions = {},
+): Promise<string> {
+  const res = await client.request<string>({
+    path: `${item(presetId)}/actionFile`,
+    accept: 'application/yaml',
+    ...rest,
+  });
+  return res.data;
+}
+
 /** Hides or unhides a preset for the analyst only. */
 export async function setPresetHidden(
   presetId: string,

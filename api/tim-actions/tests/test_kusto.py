@@ -1,8 +1,9 @@
-"""Kusto as TIM runs it: Run KQL and the ``KustoHook`` against a fake SDK client, the URL and value
-rules the hook shares with the API, and the literals query parameters are sent as."""
+"""Kusto as TIM runs it: Run KQL against ``tim_kusto``, the ``KustoHook`` against a fake SDK
+client, the URL and value rules the hook shares with the API, and the literals query parameters
+are sent as."""
 
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -11,16 +12,7 @@ import pytest
 from azure.kusto.data import ClientRequestProperties
 from azure.kusto.data import exceptions as kusto_exc
 
-from tim_actions import (
-    Analyst,
-    Column,
-    DetailValue,
-    Hook,
-    Param,
-    ParamKind,
-    RunError,
-    validate_params,
-)
+from tim_actions import Column, Hook, Param, ParamKind, RunError, validate_params
 from tim_actions.kusto import (
     RUN_KQL,
     KustoConnection,
@@ -31,6 +23,8 @@ from tim_actions.kusto import (
     query_parameters,
     serialise_value,
 )
+from tim_actions.testing import Connections, RunResult, run_action
+from tim_actions.testing.kusto import FakeKusto, KustoCall
 
 CLUSTER = "https://help.kusto.windows.net"
 CONNECTION = KustoConnection(
@@ -53,7 +47,7 @@ STATS = table(
 )
 
 
-class FakeKusto:
+class FakeSdkClient:
     """The SDK client: answers with ``tables`` or raises ``error``; with ``hold``, a query waits
     for a ``.cancel query`` naming it."""
 
@@ -67,7 +61,7 @@ class FakeKusto:
         self.querying = threading.Event()
         self.cancelled = threading.Event()
 
-    def __call__(self, cluster: str, token: str) -> "FakeKusto":
+    def __call__(self, cluster: str, token: str) -> "FakeSdkClient":
         self.clients.append((cluster, token))
         return self
 
@@ -91,33 +85,14 @@ class FakeKusto:
         pass
 
 
-class Context:
-    def __init__(self, hook: Hook) -> None:
-        self._hook = hook
-        self.deadline = datetime.now(UTC) + timedelta(seconds=30)
-        self.analyst = Analyst("Alice", "alice@example.com")
-        self.details: dict[str, DetailValue] = {}
-        self.columns: list[Column] = []
-
-    def hook(self, connection: str) -> Hook:
-        assert connection == "security"
-        return self._hook
-
-    def detail(self, key: str, value: DetailValue) -> None:
-        self.details[key] = value
-
-    def declare_columns(self, columns: Sequence[Column]) -> None:
-        self.columns.extend(columns)
-
-
 class OtherHook(Hook):
     def cancel(self) -> None:
         pass
 
 
 @pytest.fixture
-def kusto(monkeypatch: pytest.MonkeyPatch) -> FakeKusto:
-    fake = FakeKusto()
+def sdk(monkeypatch: pytest.MonkeyPatch) -> FakeSdkClient:
+    fake = FakeSdkClient()
     monkeypatch.setattr(KustoHook, "client_factory", staticmethod(fake))
     return fake
 
@@ -126,18 +101,43 @@ def hook() -> KustoHook:
     return KustoHook(CONNECTION, lambda scope: f"token for {scope}")
 
 
-def run_kql(ctx: Context, values: Mapping[str, Any]) -> list[tuple[Any, Any]]:
-    params = validate_params(
-        RUN_KQL.params,
-        {"connection": "security", "database": "Samples", "kql": "T", **values},
-        connections={"security": "kusto"},
-    )
-    row_id = RUN_KQL.row_id(params)
-    return [(row_id(row) if row_id else None, dict(row)) for row in RUN_KQL.run(params, ctx)]
+def run_kql(connections: Connections, values: Mapping[str, Any]) -> RunResult:
+    params = {"connection": "security", "database": "Samples", "kql": "T", **values}
+    return run_action(RUN_KQL, params, connections=connections)
 
 
-def test_run_kql_queries_as_the_analyst_and_reports_columns_and_metrics(kusto: FakeKusto) -> None:
-    kusto.tables = [
+def test_run_kql_runs_the_query_and_reports_kustos_columns_and_metrics(
+    tim_kusto: FakeKusto, tim_connections: Connections
+) -> None:
+    tim_connections.add(CONNECTION)
+    columns = [Column("Id", "number"), Column("Who", "string")]
+    tim_kusto.respond([{"Id": 7, "Who": "a"}], columns=columns, details={"executionTime": 0.25})
+    result = run_kql(tim_connections, {"kql": "T | take 1", "idColumn": "Id"})
+    assert (result.rows, result.ids) == ([{"Id": 7, "Who": "a"}], ["7"])
+    assert result.columns == columns
+    assert result.details == {"executionTime": 0.25}
+    assert tim_kusto.calls == [KustoCall("security", "Samples", "T | take 1", {})]
+
+
+def test_without_an_id_column_the_rows_have_no_id(
+    tim_kusto: FakeKusto, tim_connections: Connections
+) -> None:
+    tim_connections.add(CONNECTION)
+    tim_kusto.respond([{"Id": 7}])
+    assert run_kql(tim_connections, {}).ids == [None]
+
+
+def test_run_kql_refuses_a_connection_of_another_type() -> None:
+    connections = Connections()
+    connections.add(CONNECTION, OtherHook)
+    with pytest.raises(RunError, match="security is not a Kusto connection"):
+        run_kql(connections, {})
+
+
+def test_the_hook_queries_as_the_analyst_and_gives_columns_rows_and_metrics(
+    sdk: FakeSdkClient,
+) -> None:
+    sdk.tables = [
         table(
             "PrimaryResult",
             [("Id", "long"), ("At", "datetime"), ("Extra", "dynamic"), ("Who", "guid")],
@@ -145,39 +145,35 @@ def test_run_kql_queries_as_the_analyst_and_reports_columns_and_metrics(kusto: F
         ),
         STATS,
     ]
-    ctx = Context(hook())
-    assert run_kql(ctx, {"kql": "T | take 1", "idColumn": "Id"}) == [
-        (7, {"Id": 7, "At": "2026-01-02T03:04:05.1Z", "Extra": {"a": 1}, "Who": "0f8fad5b"})
+    deadline = datetime.now(UTC) + timedelta(seconds=30)
+    result = hook().query("Samples", "T | take 1", deadline=deadline, parameters={"n": "1"})
+    assert result.rows == [
+        {"Id": 7, "At": "2026-01-02T03:04:05.1Z", "Extra": {"a": 1}, "Who": "0f8fad5b"}
     ]
-    assert [(c.name, c.type) for c in ctx.columns] == [
-        ("Id", "number"),
-        ("At", "datetime"),
-        ("Extra", "json"),
-        ("Who", "string"),
-    ]
-    assert ctx.details == {"executionTime": 0.25, "extentsTotal": 3}
-    assert kusto.clients == [(CLUSTER, f"token for {CLUSTER}/.default")]
-    [(database, kql, properties)] = kusto.queries
+    assert result.columns == (
+        Column("Id", "number"),
+        Column("At", "datetime"),
+        Column("Extra", "json"),
+        Column("Who", "string"),
+    )
+    assert result.details == {"executionTime": 0.25, "extentsTotal": 3}
+    assert sdk.clients == [(CLUSTER, f"token for {CLUSTER}/.default")]
+    [(database, kql, properties)] = sdk.queries
     assert (database, kql) == ("Samples", "T | take 1")
     assert properties.client_request_id.startswith("TIM.RunKql;")
+    assert properties.has_parameter("n")
     timeout: Any = properties.get_option(ClientRequestProperties.request_timeout_option_name, None)
     assert timedelta(seconds=25) < timeout <= timedelta(seconds=30)
 
 
-def test_a_kusto_error_ends_the_run_with_its_message(kusto: FakeKusto) -> None:
-    kusto.error = kusto_exc.KustoServiceError("Semantic error: no T\n   at Kusto.Engine.Run()")
+def test_a_kusto_error_raises_a_run_error_with_its_message(sdk: FakeSdkClient) -> None:
+    sdk.error = kusto_exc.KustoServiceError("Semantic error: no T\n   at Kusto.Engine.Run()")
     with pytest.raises(RunError, match=r"^Semantic error: no T$"):
-        run_kql(Context(hook()), {})
+        hook().query("Samples", "T", deadline=datetime.now(UTC) + timedelta(seconds=30))
 
 
-def test_run_kql_refuses_a_connection_of_another_type() -> None:
-    other = Context(OtherHook(CONNECTION, lambda scope: "token"))
-    with pytest.raises(RunError, match="security is not a Kusto connection"):
-        run_kql(other, {})
-
-
-def test_cancel_cancels_the_running_query_and_refuses_new_ones(kusto: FakeKusto) -> None:
-    kusto.hold = True
+def test_cancel_cancels_the_running_query_and_refuses_new_ones(sdk: FakeSdkClient) -> None:
+    sdk.hold = True
     running = hook()
     errors: list[Exception] = []
 
@@ -189,19 +185,19 @@ def test_cancel_cancels_the_running_query_and_refuses_new_ones(kusto: FakeKusto)
 
     worker = threading.Thread(target=query)
     worker.start()
-    assert kusto.querying.wait(5)
+    assert sdk.querying.wait(5)
     running.cancel()
     worker.join(5)
-    [(_, _, properties)] = kusto.queries
-    assert kusto.commands == [("Samples", f'.cancel query "{properties.client_request_id}"')]
+    [(_, _, properties)] = sdk.queries
+    assert sdk.commands == [("Samples", f'.cancel query "{properties.client_request_id}"')]
     assert len(errors) == 1
     with pytest.raises(RunError, match="cancelled"):
         running.query("Samples", "T", deadline=datetime.now(UTC))
 
 
-def test_cancel_with_nothing_running_sends_nothing(kusto: FakeKusto) -> None:
+def test_cancel_with_nothing_running_sends_nothing(sdk: FakeSdkClient) -> None:
     hook().cancel()
-    assert kusto.clients == []
+    assert sdk.clients == []
 
 
 @pytest.mark.parametrize(

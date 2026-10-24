@@ -304,6 +304,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/presets/{presetId}/actionFile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Action File
+         * @description The YAML of an action that runs what the preset runs, for an operator to add to the
+         *     instance's action files.
+         */
+        get: operations["getPresetActionFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/presets/{presetId}/hidden": {
         parameters: {
             query?: never;
@@ -579,6 +600,8 @@ export interface components {
          * @description A query action or, as ``kind: "sink"``, a sink: no params, offered on any selected rows.
          */
         CatalogueAction: {
+            /** Actionfile */
+            actionFile: boolean;
             /** Columns */
             columns?: components["schemas"]["CatalogueColumn"][] | null;
             /** Connections */
@@ -810,7 +833,7 @@ export interface components {
         };
         /**
          * FixedInput
-         * @description An input whose value is saved with the preset. Its type is the param's.
+         * @description A param input whose value is saved with the preset. Its type is the param's.
          */
         FixedInput: {
             /**
@@ -829,8 +852,34 @@ export interface components {
             value: unknown;
         };
         /**
+         * FixedQueryParameter
+         * @description A query parameter whose value is saved with the preset: a name in the query, declared
+         *     with ``type``.
+         */
+        FixedQueryParameter: {
+            /**
+             * Fixed
+             * @constant
+             */
+            fixed: true;
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "queryParameter";
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "long" | "real" | "bool" | "datetime" | "timespan" | "dynamic";
+            /** Value */
+            value: unknown;
+        };
+        /**
          * FromRowInput
-         * @description An input filled from the first of ``fromColumns`` the rows have. With no columns, the
+         * @description A param input filled from the first of ``fromColumns`` the rows have. With no columns, the
          *     form asks the analyst for it.
          */
         FromRowInput: {
@@ -848,6 +897,32 @@ export interface components {
              * @constant
              */
             source: "param";
+        };
+        /**
+         * FromRowQueryParameter
+         * @description A query parameter filled from the first of ``fromColumns`` the rows have; a ``dynamic`` one
+         *     takes every distinct value. With no columns, the form asks the analyst for it.
+         */
+        FromRowQueryParameter: {
+            /**
+             * Fixed
+             * @constant
+             */
+            fixed: false;
+            /** Fromcolumns */
+            fromColumns: string[];
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "queryParameter";
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "long" | "real" | "bool" | "datetime" | "timespan" | "dynamic";
         };
         /** InputColumn */
         InputColumn: {
@@ -1128,7 +1203,7 @@ export interface components {
             /** Hidden */
             hidden: boolean;
             /** Inputs */
-            inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"])[];
+            inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"] | components["schemas"]["FixedQueryParameter"] | components["schemas"]["FromRowQueryParameter"])[];
             /** Menupath */
             menuPath?: string[];
             /** Name */
@@ -1163,7 +1238,7 @@ export interface components {
             /** Action */
             action: string;
             /** Inputs */
-            inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"])[];
+            inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"] | components["schemas"]["FixedQueryParameter"] | components["schemas"]["FromRowQueryParameter"])[];
             /** Menupath */
             menuPath?: string[];
             /** Name */
@@ -2865,6 +2940,75 @@ export interface operations {
             };
         };
     };
+    getPresetActionFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                presetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/yaml": string;
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     hidePreset: {
         parameters: {
             query?: never;
@@ -3242,7 +3386,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`). */
+            /** @description Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3634,7 +3778,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`). */
+            /** @description Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`). */
             409: {
                 headers: {
                     [name: string]: unknown;
