@@ -86,9 +86,11 @@ async def start_run(
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
     run_input = _run_input(action, body, settings.max_annotation_ids)
-    declared = () if isinstance(action, Sink) else action.params
     try:
-        params = validate_params(declared, body.params, connections=connections.types())
+        if isinstance(action, Sink):
+            params = validate_params((), body.params, connections=connections.types())
+        else:
+            params = action.check_params(body.params, connections=connections.types())
     except ParamsError as exc:
         raise UnprocessableError(exc.errors) from None
     run_connections = await connections.open(run_connection_names(action, params), principal, obo)

@@ -13,6 +13,7 @@ const server = setupMswServer();
 const SIGN_INS: CatalogueAction = {
   key: 'sign-ins',
   kind: 'query',
+  actionFile: false,
   name: 'Sign-ins',
   menuPath: ['Identity'],
   connections: [],
@@ -225,5 +226,44 @@ describe('pivotIntoAction', () => {
     expect(store.getState().tabs[uuid]?.state.pivotMissing).toEqual({ users: null });
     expect(run).not.toHaveBeenCalled();
     expect(notified.map((n) => n.message)).toEqual(['Opened Failures of users: needs Users']);
+  });
+
+  it('names a query parameter a preset pivot misses by its name', () => {
+    const { store, parent, run, notified, goTo } = setup();
+    const runKql: CatalogueAction = {
+      ...SIGN_INS,
+      key: 'tim.run_kql',
+      name: 'Run KQL',
+      params: [
+        { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
+        {
+          name: 'parameters',
+          title: 'Query parameters',
+          kind: 'json',
+          required: false,
+          many: false,
+        },
+      ],
+      pivot: null,
+    };
+
+    pivotIntoPreset({
+      preset: { ...FAILURES, name: 'Sign-ins by user', action: 'tim.run_kql' },
+      action: runKql,
+      resolved: {
+        params: {
+          kql: 'SigninLogs | where UserPrincipalName == Upn',
+          parameters: [{ name: 'Upn', type: 'string', value: null }],
+        },
+        missing: { 'parameters.Upn': null },
+      },
+      parentUuid: parent,
+      store,
+      run,
+      goTo,
+      notify: (o) => notified.push(typeof o === 'string' ? { message: o } : o),
+    });
+
+    expect(notified.map((n) => n.message)).toEqual(['Opened Sign-ins by user: needs Upn']);
   });
 });

@@ -3,6 +3,7 @@ import { presetPivot } from './presetPivot';
 
 const SIGN_INS: CatalogueAction = {
   key: 'sign-ins',
+  actionFile: false,
   kind: 'query',
   name: 'Sign-ins',
   menuPath: ['Identity'],
@@ -37,6 +38,20 @@ const SIGN_INS: CatalogueAction = {
   pivot: null,
 };
 const CONNECTIONS = [{ name: 'kusto-dev', type: 'kusto' }] as InstanceConnection[];
+
+const RUN_KQL: CatalogueAction = {
+  key: 'tim.run_kql',
+  actionFile: true,
+  kind: 'query',
+  name: 'Run KQL',
+  menuPath: [],
+  connections: [],
+  params: [
+    { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
+    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+  ],
+  pivot: null,
+};
 
 const preset = (inputs: Preset['inputs'], params: Preset['params'] = {}): Preset => ({
   presetId: 'p-1',
@@ -147,5 +162,67 @@ describe('presetPivot', () => {
       { name: 'result', source: 'param', fixed: false, fromColumns: ['constructor'] },
     ]);
     expect(pivot(odd, [{ Result: 'Failure' }])).toBeNull();
+  });
+
+  describe('with query parameters', () => {
+    const signIns = preset(
+      [
+        {
+          name: 'Upn',
+          source: 'queryParameter',
+          type: 'string',
+          fixed: false,
+          fromColumns: ['UserPrincipalName', 'Upn'],
+        },
+        {
+          name: 'Since',
+          source: 'queryParameter',
+          type: 'datetime',
+          fixed: true,
+          value: '2026-10-01T00:00:00Z',
+        },
+        {
+          name: 'Hosts',
+          source: 'queryParameter',
+          type: 'dynamic',
+          fixed: false,
+          fromColumns: ['Host'],
+        },
+      ],
+      { kql: 'SigninLogs | where UserPrincipalName == Upn and Host in (Hosts)' },
+    );
+    const kqlPivot = (rows: Record<string, unknown>[]) =>
+      presetPivot({ ...signIns, action: 'tim.run_kql' }, RUN_KQL, rows, CONNECTIONS);
+
+    it('fills each From row query parameter: a dynamic one with the distinct values, any other with the value the rows agree on', () => {
+      const rows = [
+        { UserPrincipalName: 'alice@example.com', Host: 'web-1' },
+        { Upn: 'alice@example.com', Host: 'web-2' },
+        { UserPrincipalName: 'alice@example.com', Host: 'web-1' },
+      ];
+      expect(kqlPivot(rows)).toEqual({
+        params: {
+          kql: 'SigninLogs | where UserPrincipalName == Upn and Host in (Hosts)',
+          parameters: [
+            { name: 'Upn', type: 'string', value: 'alice@example.com' },
+            { name: 'Since', type: 'datetime', value: '2026-10-01T00:00:00Z' },
+            { name: 'Hosts', type: 'dynamic', value: ['web-1', 'web-2'] },
+          ],
+        },
+        missing: {},
+      });
+    });
+
+    it('is disabled when the rows disagree on a query parameter, and waits for one no row has a value for', () => {
+      expect(
+        kqlPivot([
+          { Upn: 'alice@example.com', Host: 'web-1' },
+          { Upn: 'bob@example.com', Host: 'web-1' },
+        ]),
+      ).toEqual({ disabled: 'The 2 selected rows have different Upn values' });
+      expect(kqlPivot([{ Upn: '', Host: 'web-1' }])).toMatchObject({
+        missing: { 'parameters.Upn': null },
+      });
+    });
   });
 });

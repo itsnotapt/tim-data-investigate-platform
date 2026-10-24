@@ -6,6 +6,7 @@ import { buildSinkMenu } from './sinkMenu';
 const sink = (key: string, name: string, menuPath: string[]): CatalogueAction => ({
   key,
   kind: 'sink',
+  actionFile: false,
   name,
   menuPath,
   connections: [],

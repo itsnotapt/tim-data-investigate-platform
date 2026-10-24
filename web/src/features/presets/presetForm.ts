@@ -6,12 +6,31 @@ import type {
   PresetInput,
 } from '../../lib/api';
 import { isUnset, paramText } from '../action-tab/paramValues';
+import {
+  isParametersParam,
+  parseValue,
+  queryParameters,
+  valueText,
+  type QueryParameterType,
+} from '../action-tab/queryParameters';
+import { declareStatement, kqlNames, nameError } from './queryParameterNames';
 
 /** How one param that rows can fill is saved: its value fixed, or read from the clicked row. */
 export interface InputMode {
   fixed: boolean;
   /** From row only: the columns to read, in order; none asks for the value when opened. */
   columns: string[];
+}
+
+/** One query parameter the Save… dialog declares, as typed. */
+export interface QueryParameterForm {
+  name: string;
+  type: QueryParameterType;
+  fixed: boolean;
+  /** Fixed only: the value. */
+  value: string;
+  /** From row only: the columns to read, in order, separated by commas; none asks when opened. */
+  columns: string;
 }
 
 /** What the Save… dialog edits. */
@@ -22,6 +41,8 @@ export interface PresetForm {
   visibility: Preset['visibility'];
   /** By param name, for each param of the action with `fromColumns`. */
   modes: Record<string, InputMode>;
+  /** For an action that takes query parameters, in the order they're declared. */
+  queryParameters: QueryParameterForm[];
 }
 
 /** The params of `action` that rows can fill: those with `fromColumns`. */
@@ -30,8 +51,8 @@ export const rowParams = (action: CatalogueAction): CatalogueParam[] =>
 
 /**
  * The form for saving `params` of `action`. From an existing preset, its name, folder and inputs;
- * otherwise each set value is fixed and each unset one is read from all its columns. A copy of
- * someone else's preset starts private.
+ * otherwise each set value is fixed and each unset one is read from all its columns, or for a
+ * query parameter asked for when opened. A copy of someone else's preset starts private.
  */
 export function initialForm(
   action: CatalogueAction,
@@ -52,10 +73,75 @@ export function initialForm(
     folder: (source?.menuPath ?? action.menuPath).join(' / '),
     visibility: source?.owned ? source.visibility : 'private',
     modes,
+    queryParameters: queryParameters(params.parameters).map((entry) => {
+      const input = inputs.get(entry.name);
+      const fixed = input?.source === 'queryParameter' ? input.fixed : !isUnset(entry.value);
+      return {
+        name: entry.name,
+        type: entry.type,
+        fixed,
+        value: valueText(entry.type, entry.value),
+        columns:
+          input?.source === 'queryParameter' && !input.fixed ? input.fromColumns.join(', ') : '',
+      };
+    }),
   };
 }
 
-/** The preset the form saves: unset values are left out, and From row inputs keep no value. */
+/** What's wrong with a query parameter of the form, by field; empty when nothing is. */
+export function queryParameterErrors(
+  form: PresetForm,
+  index: number,
+): { name?: string; value?: string } {
+  const qp = form.queryParameters[index];
+  if (!qp) return {};
+  const taken = form.queryParameters.slice(0, index).some((other) => other.name === qp.name);
+  const parsed = qp.fixed ? parseValue(qp.type, qp.value) : {};
+  return {
+    name: nameError(qp.name) ?? (taken ? 'Already a query parameter' : undefined),
+    value:
+      parsed.error ??
+      (qp.fixed && parsed.value === undefined ? 'Needs a value, or read it From row' : undefined),
+  };
+}
+
+/** Whether the form can be saved: it has a name, and no query parameter has an error. */
+export const canSave = (form: PresetForm): boolean =>
+  form.name.trim() !== '' &&
+  form.queryParameters.every((_, i) =>
+    Object.values(queryParameterErrors(form, i)).every((e) => !e),
+  );
+
+/** The names in the action's query that no query parameter of the form has yet. */
+export function suggestedNames(
+  action: CatalogueAction,
+  params: Record<string, unknown>,
+  form: PresetForm,
+): string[] {
+  const kql = action.params.find((p) => p.kind === 'kql');
+  const text = kql && typeof params[kql.name] === 'string' ? (params[kql.name] as string) : '';
+  const taken = new Set(form.queryParameters.map((qp) => qp.name));
+  return kqlNames(text).filter((name) => !taken.has(name));
+}
+
+const columnList = (columns: string): string[] =>
+  columns
+    .split(',')
+    .map((c) => c.trim())
+    .filter((c) => c !== '');
+
+/** The query parameter inputs the form saves. */
+const queryParameterInputs = (form: PresetForm): PresetInput[] =>
+  form.queryParameters.map(({ name, type, fixed, value, columns }) =>
+    fixed
+      ? { name, source: 'queryParameter', type, fixed, value: parseValue(type, value).value }
+      : { name, source: 'queryParameter', type, fixed, fromColumns: columnList(columns) },
+  );
+
+/**
+ * The preset the form saves: unset values are left out, From row inputs keep no value, and query
+ * parameters are inputs in place of the `parameters` param.
+ */
 export function formFields(
   action: CatalogueAction,
   params: Record<string, unknown>,
@@ -66,7 +152,9 @@ export function formFields(
   for (const p of action.params) {
     const mode = form.modes[p.name];
     const value = params[p.name];
-    if (mode && !mode.fixed) {
+    if (isParametersParam(p)) {
+      inputs.push(...queryParameterInputs(form));
+    } else if (mode && !mode.fixed) {
       inputs.push({ name: p.name, source: 'param', fixed: false, fromColumns: mode.columns });
     } else if (isUnset(value)) {
       continue;
@@ -89,25 +177,43 @@ export function formFields(
   };
 }
 
+/** The types whose Kusto literals wrap the value in the type's name. */
+const WRAPPED = new Set<QueryParameterType>(['datetime', 'timespan', 'dynamic']);
+
+/** A fixed query parameter as Kusto receives it, or its type when it has no value yet. */
+function literalText({ type, value }: QueryParameterForm): string {
+  const parsed = parseValue(type, value).value;
+  if (parsed === undefined) return `<${type}>`;
+  const text = valueText(type, parsed);
+  return WRAPPED.has(type) ? `${type}(${text})` : text;
+}
+
+/** What a From row input reads: the columns of the clicked row, or none to ask when opened. */
+const fromRowText = (columns: readonly string[]): string =>
+  columns.length > 0 ? `<${columns.join(' or ')} of the clicked row>` : 'asked for when opened';
+
 /**
  * One line per param of the action: its value, the columns of the clicked row it reads, or when
- * it is unset the placeholder for its type.
+ * it is unset the placeholder for its type. Query parameters are declared before the query, and
+ * have a line each in place of the `parameters` param's.
  */
 export function previewLines(
   action: CatalogueAction,
   params: Record<string, unknown>,
   form: PresetForm,
 ): string[] {
+  const declared = form.queryParameters;
   return action.params.flatMap((p) => {
     const mode = form.modes[p.name];
-    if (mode && !mode.fixed) {
-      const read =
-        mode.columns.length > 0
-          ? `<${mode.columns.join(' or ')} of the clicked row>`
-          : 'asked for when opened';
-      return [`${p.title} = ${read}`];
+    if (isParametersParam(p)) {
+      return declared.map((qp) =>
+        qp.fixed
+          ? `${qp.name} = ${literalText(qp)}`
+          : `${qp.name} = ${fromRowText(columnList(qp.columns))}`,
+      );
     }
-    return [`${p.title} = ${valueOrType(p, params[p.name])}`];
+    const line = `${p.title} = ${mode && !mode.fixed ? fromRowText(mode.columns) : valueOrType(p, params[p.name])}`;
+    return p.kind === 'kql' && declared.length > 0 ? [declareStatement(declared), line] : [line];
   });
 }
 
