@@ -1,66 +1,43 @@
-"""The development actions, run as TIM runs them: params validated, then ``run`` with a context."""
+"""The development actions, run and loaded with ``tim_actions.testing``."""
 
-from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime, timedelta
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from tim_actions import (
-    Action,
-    Analyst,
-    Column,
-    DetailValue,
-    Hook,
-    RunError,
-    Sink,
-    dev,
-    validate_params,
-)
-from tim_actions.files import load_action_files
-
-
-class Context:
-    """A run's context, recording what the action reports."""
-
-    def __init__(self) -> None:
-        self.details: dict[str, DetailValue] = {}
-        self.deadline = datetime.now(UTC) + timedelta(seconds=10)
-        self.analyst = Analyst("Alice", "alice@example.com")
-
-    def hook(self, connection: str) -> Hook:
-        raise ValueError(connection)
-
-    def detail(self, key: str, value: DetailValue) -> None:
-        self.details[key] = value
-
-    def declare_columns(self, columns: Sequence[Column]) -> None:
-        pass
+from tim_actions import Action, RunError, Sink, dev
+from tim_actions.testing import ActionFilesError, load_actions, run_action, run_sink
 
 
 def run(action: Action, values: Mapping[str, Any] | None = None) -> list[tuple[Any, Any]]:
     """Each row with its ``id``."""
-    params = validate_params(action.params, values or {})
-    row_id = action.row_id(params)
-    return [(row_id(row) if row_id else None, dict(row)) for row in action.run(params, Context())]
+    result = run_action(action, values)
+    return list(zip(result.ids, result.rows, strict=True))
 
 
-def load(tmp_path: Path, text: str) -> Action:
+def load(tmp_path: Path, text: str) -> Action | Sink:
     (tmp_path / "dev.yaml").write_text(text)
-    loaded = load_action_files(tmp_path, {"dev_rows": dev.DevRows})
-    assert loaded.problems == []
-    [item] = loaded.actions
-    assert isinstance(item.action, Action)
-    return item.action
+    [action] = load_actions(tmp_path, [dev.DevRows, dev.DevSink]).values()
+    return action
+
+
+def load_rows(tmp_path: Path, text: str) -> Action:
+    action = load(tmp_path, text)
+    assert isinstance(action, Action)
+    return action
+
+
+def load_sink(tmp_path: Path, text: str) -> Sink:
+    sink = load(tmp_path, text)
+    assert isinstance(sink, Sink)
+    return sink
 
 
 def problems(tmp_path: Path, text: str) -> list[str]:
-    (tmp_path / "dev.yaml").write_text(text)
-    return [
-        problem.removeprefix(f"{tmp_path / 'dev.yaml'}:")
-        for problem in load_action_files(tmp_path, {"dev_rows": dev.DevRows}).problems
-    ]
+    with pytest.raises(ActionFilesError) as raised:
+        load(tmp_path, text)
+    return [problem.removeprefix(f"{tmp_path / 'dev.yaml'}:") for problem in raised.value.problems]
 
 
 def test_the_provider_has_dev_json_and_the_dev_rows_and_dev_sink_types() -> None:
@@ -81,7 +58,7 @@ def test_dev_json_yields_the_pasted_rows_with_ids_from_its_id_column() -> None:
 
 
 def test_dev_rows_generates_a_value_per_declared_column(tmp_path: Path) -> None:
-    action = load(
+    action = load_rows(
         tmp_path,
         "type: dev_rows\nkey: g\nname: G\npivot: none\ngenerate: 2\nid: Host\ncolumns:\n"
         "  - {name: Host, type: string}\n  - {name: Bytes, type: number}\n"
@@ -102,7 +79,7 @@ def test_dev_rows_generates_a_value_per_declared_column(tmp_path: Path) -> None:
 
 
 def test_dev_rows_params_with_from_columns_filter_the_rows(tmp_path: Path) -> None:
-    action = load(
+    action = load_rows(
         tmp_path,
         "type: dev_rows\nkey: f\nname: F\npivot: rows\nparams:\n"
         "  - {name: user, kind: string, required: false, from_columns: [User, Upn]}\n"
@@ -115,16 +92,22 @@ def test_dev_rows_params_with_from_columns_filter_the_rows(tmp_path: Path) -> No
     assert len(run(action)) == 3
 
 
-def test_dev_rows_reports_details_waits_and_fails(tmp_path: Path) -> None:
-    action = load(
+def test_dev_rows_reports_details(tmp_path: Path) -> None:
+    action = load_rows(
+        tmp_path,
+        "type: dev_rows\nkey: d\nname: D\npivot: none\ndetails: {cluster: dev}\nrows: [{n: 1}]\n",
+    )
+    assert run_action(action).details == {"cluster": "dev"}
+
+
+def test_dev_rows_waits_and_fails(tmp_path: Path) -> None:
+    action = load_rows(
         tmp_path,
         "type: dev_rows\nkey: e\nname: E\npivot: none\ndelay: 0.01\nerror: Unavailable\n"
-        "details: {cluster: dev}\nrows: [{n: 1}]\n",
+        "rows: [{n: 1}]\n",
     )
-    ctx = Context()
     with pytest.raises(RunError, match=r"^Unavailable$"):
-        list(action.run({}, ctx))
-    assert ctx.details == {"cluster": "dev"}
+        run_action(action)
 
 
 @pytest.mark.parametrize(
@@ -147,7 +130,7 @@ def test_dev_rows_files_are_validated(tmp_path: Path, fields: str, problem: str)
 
 
 def test_dev_rows_filters_never_match_a_boolean_with_a_number(tmp_path: Path) -> None:
-    action = load(
+    action = load_rows(
         tmp_path,
         "type: dev_rows\nkey: b\nname: B\npivot: rows\nparams:\n"
         "  - {name: count, kind: number, required: false, from_columns: [Value]}\n"
@@ -158,30 +141,19 @@ def test_dev_rows_filters_never_match_a_boolean_with_a_number(tmp_path: Path) ->
     assert [row for _, row in run(action, {"flag": True})] == [{"Value": True}]
 
 
-def load_sink(tmp_path: Path, text: str) -> Sink:
-    (tmp_path / "sink.yaml").write_text(text)
-    loaded = load_action_files(tmp_path, {"dev_sink": dev.DevSink})
-    assert loaded.problems == []
-    [item] = loaded.actions
-    assert isinstance(item.action, Sink)
-    return item.action
-
-
 def test_dev_sink_takes_the_rows_and_discards_them(tmp_path: Path) -> None:
     sink = load_sink(tmp_path, "type: dev_sink\nkey: s\nname: Save\nmenu: Dev / Sinks\n")
     assert sink.menu_path == ["Dev", "Sinks"]
-    columns = [Column(name="Host", type="string")]
-    assert sink.run(columns, [{"Host": "h-1"}], Context()) is None
+    assert run_sink(sink, [{"Host": "h-1"}]).details == {}
 
 
 def test_dev_sink_waits_then_fails(tmp_path: Path) -> None:
     sink = load_sink(tmp_path, "type: dev_sink\nkey: s\nname: S\ndelay: 0.01\nerror: Refused\n")
     with pytest.raises(RunError, match=r"^Refused$"):
-        sink.run([], [{"n": 1}], Context())
+        run_sink(sink, [{"n": 1}])
 
 
 @pytest.mark.parametrize("field", ["pivot: rows", "params: []", "id: Host", "columns: []"])
 def test_a_sink_file_has_no_query_fields(tmp_path: Path, field: str) -> None:
-    (tmp_path / "sink.yaml").write_text(f"type: dev_sink\nkey: s\nname: S\n{field}\n")
-    [problem] = load_action_files(tmp_path, {"dev_sink": dev.DevSink}).problems
+    [problem] = problems(tmp_path, f"type: dev_sink\nkey: s\nname: S\n{field}\n")
     assert problem.endswith("Extra inputs are not permitted")

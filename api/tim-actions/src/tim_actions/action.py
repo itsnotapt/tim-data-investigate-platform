@@ -156,5 +156,18 @@ class Sink(ActionBase):
         exception ends it with a generic message."""
 
 
+def run_connection_names(action: Action | Sink, params: Mapping[str, Any]) -> frozenset[str]:
+    """The connections a run uses: the action's fixed ones and its connection params' values."""
+    names = set(action.connections())
+    if isinstance(action, Sink):
+        return frozenset(names)
+    names.update(
+        str(params[p.name])
+        for p in action.params
+        if p.kind == "connection" and params.get(p.name) is not None
+    )
+    return frozenset(names)
+
+
 ActionType = type[Action] | type[Sink]
 """A query action type or a sink type."""

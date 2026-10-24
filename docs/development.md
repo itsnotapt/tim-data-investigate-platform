@@ -225,7 +225,7 @@ To use them with the main loop, uncomment `TIM_DEV_ACTIONS` and `TIM_ACTIONS_DIR
 | Member | Directory | What it is |
 |---|---|---|
 | `tim-api` | `api/` | The API |
-| `tim-actions` | `api/tim-actions/` | The interface providers build against: `Action`, `Param`, `Column`, `Provider`, `Hook`, param validation, and TIM's built-in provider |
+| `tim-actions` | `api/tim-actions/` | The interface providers build against: `Action`, `Param`, `Column`, `Provider`, `Hook`, param validation, `tim_actions.testing` and its pytest plugin, and TIM's built-in provider |
 
 They share one `api/uv.lock` and one `api/.venv`.
 
