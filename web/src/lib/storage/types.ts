@@ -2,6 +2,7 @@
  * Entities persisted in the browser (IndexedDB database `tim`).
  */
 
+import type { GridState } from 'ag-grid-community';
 import type { Run, RunColumn } from '../api/runs';
 import type { TimeRange } from '../time-range';
 
@@ -47,6 +48,22 @@ export interface DisplayComponentState {
    * Cleared when a run starts.
    */
   pivotMissing?: Record<string, string | null> | null;
+  /**
+   * Action tabs only: the column and filter sections of the tab's grid state, as the analyst last
+   * left them, in the shape of a column view's state.
+   */
+  gridState?: GridState | null;
+  /** Action tabs only: the column view the tab started from or last picked. */
+  columnView?: TabColumnView | null;
+}
+
+/** The column view an action tab started from or last picked, and its state at that point. */
+export interface TabColumnView {
+  /** `null` for the action default. */
+  viewId: string | null;
+  name: string;
+  /** The tab's grid state just after the view was put on it, to tell whether it's modified. */
+  baseline: GridState;
 }
 
 /** Custom Kusto query params. */
@@ -107,13 +124,27 @@ export type DisplayComponent =
  */
 export type RowResult = Record<string, unknown>;
 
-/** Global named AG Grid column state. */
+/** Global named AG Grid column state, for template and Kusto tabs. */
 export interface ColumnView {
   /** Key (store `column_views`). */
   uuid: string;
   name: string;
   /** Raw AG Grid `getColumnState()` output. */
   columnState: unknown[];
+}
+
+/**
+ * The column view an analyst applied for new tabs from a preset or action, in this browser. Key
+ * (store `applied_views`) = `[analyst, scope]`.
+ */
+export interface AppliedView {
+  /** The analyst's user principal name. */
+  analyst: string;
+  /** `preset:<presetId>` or `action:<key>`. */
+  scope: string;
+  viewId: string;
+  /** The view's name when it was applied, for the warning if it's gone. */
+  name: string;
 }
 
 /** Per-template options, keyed by template uuid. Other keys are allowed. */

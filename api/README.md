@@ -40,12 +40,13 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs` and `annotations`:
+`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs`, `column_views` and `annotations`:
 
 - `TemplateStore`;
 - `PresetStore`, for presets and each analyst's hidden marks;
 - `RunStore`, for runs and their rows;
 - `QueryRunStore`, for Kusto query runs;
+- `ColumnViewStore`, for column views (`column_views`) and each analyst's hidden marks (`column_view_hidden`);
 - `AnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
 
 There are two implementations:
@@ -53,7 +54,7 @@ There are two implementations:
 - `PostgresStorage`: SQLAlchemy 2 async with asyncpg (ADR-0004);
 - an in-memory store (`TIM_DATABASE_URL=memory://`): development only, rejected in production.
 
-Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store` and `get_query_run_store`.
+Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store`, `get_query_run_store` and `get_column_view_store`.
 
 **Migrations (Alembic).** The schema lives in `migrations/`. `tim_api.storage.postgres.metadata` is the model definition.
 

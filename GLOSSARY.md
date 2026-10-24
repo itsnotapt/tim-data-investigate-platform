@@ -25,7 +25,11 @@ A tab that runs a snapshot of a query template with the analyst's params. Later 
 A tab that runs an action with the analyst's param values and shows the rows of its run. It keeps those values as they are, so a later change to the action does not change them.
 
 **Column view**:
-A named, saved arrangement of the results grid's columns, usable in any tab.
+A named, saved set of the grid's columns and filters, private to its owner or shared with everyone.
+_Avoid_: view, layout
+
+**Applied view**:
+The column view an analyst has chosen for a preset or action. New tabs opened from it start with this view.
 
 ### Actions
 
@@ -34,6 +38,9 @@ A named operation an analyst runs. A query action takes params and returns rows;
 
 **Sink**:
 An action that takes the rows an analyst selected and writes them somewhere, such as a ticket queue. It has no params and returns no rows.
+
+**Action default**:
+The columns an action declares. A tab starts with them when there's no applied view.
 
 **Preset**:
 An action with some of its params fixed and the rest filled in by the analyst or from rows, saved by an analyst under a name and a menu folder. It is private to its owner or shared with everyone. An analyst can hide someone else's preset for themselves.

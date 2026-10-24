@@ -3,7 +3,7 @@ import { render, waitFor } from '@testing-library/react';
 import type { ColumnState, GridApi } from 'ag-grid-community';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
-import { tabColumnState } from '../column-views';
+import { useTabsStore } from '../tabs';
 import { ActionResultsGrid } from './ActionResultsGrid';
 
 const declared: CatalogueColumn[] = [
@@ -91,7 +91,7 @@ async function gridOf(uuid: string) {
 const stateOf = (api: GridApi, colId: string): ColumnState | undefined =>
   api.getColumnState().find((c) => c.colId === colId);
 
-beforeEach(() => tabColumnState.clear());
+beforeEach(() => useTabsStore.reset());
 
 describe('ActionResultsGrid', () => {
   it('applies the declared columns as initial settings', async () => {
@@ -109,13 +109,25 @@ describe('ActionResultsGrid', () => {
     expect(api.getCellValue({ rowNode: node!, colKey: 'row' })).toBe('second');
   });
 
-  it('lets restored tab state win over the declared settings', async () => {
-    tabColumnState.set('restored', [
-      { colId: 'Raw', hide: false },
-      { colId: 'Timestamp', width: 90, pinned: null, sort: null },
-    ]);
-    const api = await gridOf('restored');
-    expect(stateOf(api, 'Raw')).toMatchObject({ hide: false });
+  it("puts the tab's own grid state over the declared settings", async () => {
+    const uuid = useTabsStore.getState().createTab({
+      componentName: 'ActionResult',
+      parentUuid: null,
+      title: 'Sign-ins',
+      params: { action: 'dev.sign_ins', params: {} },
+    });
+    useTabsStore.getState().updateState(uuid, {
+      gridState: {
+        partialColumnState: true,
+        columnOrder: { orderedColIds: ['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes'] },
+        columnVisibility: { hiddenColIds: [] },
+        columnPinning: { leftColIds: [], rightColIds: [] },
+        columnSizing: { columnSizingModel: [{ colId: 'Timestamp', width: 90 }] },
+        sort: { sortModel: [] },
+      },
+    });
+    const api = await gridOf(uuid);
+    await waitFor(() => expect(stateOf(api, 'Raw')).toMatchObject({ hide: false }));
     expect(stateOf(api, 'Timestamp')).toMatchObject({ width: 90, pinned: null, sort: null });
   });
 

@@ -12,7 +12,7 @@ An investigation is a tree of tabs. Each pivot creates a child tab.
 |---|---|---|
 | Web | `web/` | React SPA served by nginx |
 | API | `api/` | Python 3.12, FastAPI |
-| Persistence | PostgreSQL | templates, presets, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
+| Persistence | PostgreSQL | templates, presets, column views, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Related docs:
 
@@ -60,7 +60,7 @@ Related docs:
 
 Key points:
 
-- Investigation state (tabs, cached result rows, column views) lives only in the browser. The API never receives it.
+- Investigation state (tabs, cached result rows, the column views applied per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
 - Templates are rendered to KQL in the browser. The API receives the final KQL text.
 - Queries run on the API. It exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run. The SPA polls the query run.
 - Tag data is written through the API, as the app identity. It is read back with KQL, inside the user's own queries.
@@ -84,7 +84,7 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `tagging`, `share`, `export-import` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share`, `export-import` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
@@ -99,7 +99,7 @@ Key points:
 
 Features import `lib/*` and `components/*`. Between features:
 
-- **Public `index.ts`:** nine features have one: `new-query`, `presets`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid` and `column-views`. Most imports between features go through it.
+- **Public `index.ts`:** ten features have one: `new-query`, `presets`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid`, `column-views` and `action-column-views`. Most imports between features go through it.
 - **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery`, `share/shareLink` and `grid/rowUpdates`.
 - **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. Code loaded at startup imports `lib/kql-templates/params` directly. Those `index.ts` files pull in AG Grid and Handlebars (see [Bundle](#bundle)).
 - **Lazy pages:** `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs`, `share` and `export-import` directly.
@@ -138,7 +138,9 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - Each tab stores a snapshot of its template, so later template edits do not change existing tabs.
 - **`templatesStore`** caches the template list from the API, plus local query options.
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
-- **`columnViewsStore`** holds column views.
+- **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
+- **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it after the templates.
+- **`columnViewsStore`** holds the column views of template and Kusto tabs, in IndexedDB `column_views`. Action tabs don't use it.
 - **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
   - Bootstrap loads it before the templates.
   - A refetch on every window focus replaces it only when its `version` differs. So a rolling update shows up without a reload.
@@ -159,6 +161,8 @@ Besides the common fields, an action tab's state holds:
 | `resultsRunId` | The run whose rows are stored |
 | `resultColumns` | That run's columns |
 | `resultsStartedAt` | When that run started |
+| `gridState` | The column and filter sections of the tab's grid, as the analyst last left them |
+| `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the action default), and the grid state just after it was put on |
 
 ### Data flow: run, poll, pivot, tag
 
@@ -210,13 +214,14 @@ One run is followed per tab. Starting another run stops following the previous o
 
 ### IndexedDB
 
-Database `tim` (version 2):
+Database `tim` (version 3):
 
 | Store | Key | Value |
 |---|---|---|
 | `display_components` | `componentUuid` | Tab: name (`KustoQueryResult`, `TemplateQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
 | `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
-| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state) |
+| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by template and Kusto tabs only |
+| `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>` |
 | `query_options` | template uuid (out-of-line) | `{hide?, ...}` |
 | `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
@@ -264,7 +269,7 @@ A From row input that is still unset waits to be filled in, as after an [action 
 
 The action tab has a header, a pills bar and inner tabs.
 
-**Header:** the action's menu path · the action, and the tab's title, with **Save…** and **Clone** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus.
+**Header:** the action's menu path · the action, and the tab's title, with **Save…** and **Clone** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [applied column view](#column-views), not the original's columns.
 
 **Pills bar:** one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
@@ -283,6 +288,7 @@ The action tab has a header, a pills bar and inner tabs.
   | `json` | JSON text |
 
   A many-valued `datetime` or `timespan` param uses chips like any other.
+
 - **Run** sits at the right of the bar. While the run is going, it is replaced by a spinner with the elapsed time (from the run's `startedAt`) and **Cancel**.
   - Cancel is disabled until the run has an id.
   - The tab says "Cancelling…" until the run ends.
@@ -408,6 +414,67 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - The server assigns `presetId`, `owner` (from the token) and the timestamps.
 - It checks that `action` is in the catalogue and that each input is a param of it with `from_columns`.
 - `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
+
+### Column views
+
+A column view is a named, saved set of the results grid's columns and filters ([GLOSSARY.md](../GLOSSARY.md)). Action tabs use it. Its stored shape is in [api.md](api.md#columnview); the decision is [ADR-0022](adr/0022-column-views-store-grid-state.md).
+
+- It is private to its owner, or shared with everyone.
+- Others read a shared column view but do not change it. They apply it, hide it for themselves, or save their own copy.
+- Names are not unique. Last write wins.
+- Template and Kusto tabs keep their own column views, in the browser (`features/column-views`).
+
+**What's stored.** `state` is a partial AG Grid `GridState` (`features/action-column-views/columnViewState.ts`).
+
+- It holds the sections `columnOrder`, `columnSizing`, `columnVisibility`, `columnPinning`, `columnHeaderName` (without AG Grid's own `ag-Grid-*` columns), `userColumns`, `sort`, `rowGroup`, `aggregation`, `pivot` and `filter`, with `partialColumnState: true`.
+- Every section is filled, and empty when the grid has nothing set. So applying a column view clears what it doesn't have.
+- `state.version` is what AG Grid reported when it was saved. Nothing rewrites a stored column view.
+- The server checks only that `state` is a JSON object. The browser decides its keys.
+- `savedFrom` is the action, and the preset when there is one, of the tab it was saved from. It is fixed at creation.
+
+**Fitting.** A column view is fitted to the result's columns before it is applied (`fitColumnView`).
+
+- Column ids the result doesn't have are dropped from every section.
+- Columns the column view doesn't know are appended to the order, with the result's action default hidden, pinned and width.
+- The column view's calculated columns are kept. The tab's own are not.
+
+**Three layers.** A tab's grid is built from these, each over the one before:
+
+1. **Action default.** The action's declared `columns:` as AG Grid `initial*` settings, or the columns inferred from the rows.
+2. **The applied column view,** or the tab's own state when it has one.
+3. **The tab's own changes.** The tab keeps the grid's column and filter sections in its `gridState`, in IndexedDB, as they change.
+
+When the grid is ready, it resets to the action default (`resetColumnState()`). It then applies the first of these that exists: the tab's `gridState`, the column view applied for the tab's preset or action, or the action default. The state goes on with `setState()`, leaving alone the sections the column view doesn't have.
+
+**Views panel.** The grid's side bar of an action tab has a Views panel beside Columns and Filters.
+
+- **Header:** "name (applied) • modified". "Modified" shows when the tab's grid differs from the baseline it started with.
+- **Save…** opens the Save column view dialog: Name and **Share with everyone**. When you own the tab's column view, it offers **Update "name"** or **Save as new**; otherwise **Save**.
+- **Apply** makes the tab's column view the applied one. It is disabled while the tab is modified, when it is already applied, or when the column view is gone. For the action default, it clears the applied column view.
+- **Revert** puts the tab's column view back as it was picked.
+- **New tabs start with "name"** shows the applied column view, with × to go back to the action default.
+- **Hidden** switch: includes the column views the analyst hid.
+- **List:** Action default; the column views saved from this preset (on a tab without a preset, from this action); then **Other views**, ranked "N of M columns match" and left out when none match. TIM's `tim:` columns and AG Grid's own don't count.
+- **⋯** per column view: Hide or Unhide, and for the owner Delete….
+- Picking a column view puts it on the tab, and replaces the tab's filters.
+- The column views are refetched each time the panel opens.
+
+The status bar has a panel "View: name (applied) • modified".
+
+**Applied column views.** An analyst applies a column view for a preset or an action, and new tabs opened from it start with it.
+
+- It is kept per analyst and per browser, in IndexedDB `applied_views`. It does not follow the analyst to another browser.
+- Open tabs don't change.
+- A preset never falls back to its action's applied column view.
+- A tab with no `gridState` of its own, such as a clone, starts with the applied column view.
+- When the applied column view is gone, the tab starts with the action default and warns: "Column view "name" is gone, so the tab starts with the action default." The entry is then removed.
+- Bootstrap loads the applied column views for the signed-in analyst, and drops the entries of presets that are gone.
+
+**Storage.** The API stores column views in `column_views`, and each analyst's hidden marks in `column_view_hidden` ([Persistence](#persistence)). The rules mirror presets.
+
+- `GET /api/columnViews` returns the caller's column views and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
+- The server assigns `viewId`, `owner` (from the token) and the timestamps.
+- `404` for an unknown column view or someone else's private one. `403` for a change by someone who does not own it.
 
 ### Sinks in the browser
 
@@ -560,7 +627,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its template, preset, run, query-run and annotation stores |
+| `deps.py` | FastAPI dependencies returning the storage and its template, preset, column-view, run, query-run and annotation stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
@@ -573,6 +640,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
 | `templates/` | Template routes and models |
 | `presets/` | `/api/presets` routes (`router.py`) and models |
+| `column_views/` | `/api/columnViews` routes (`router.py`) and models |
 | `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
 | `storage/` | Storage interfaces, PostgreSQL and in-memory implementations, retention loop |
 | `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export |
@@ -846,6 +914,7 @@ A run:
    - builds the columns.
 
    Rows are written to `run_rows` in batches of 1,000 rows or 8 MiB.
+
 4. **Answer.** The request waits up to about 1 second for the task. It answers `200` with the ended run, else `202` with the `running` run.
 5. **End.** The task ends the run, refreshes `expiresAt` and writes its final state:
    - `succeeded`, with `columns` and `rowCount`;
@@ -854,6 +923,7 @@ A run:
    - `cancelled`.
 
    Only a succeeded run keeps its rows. The store deletes those of any other outcome when it writes the final state.
+
 6. **Timeout or cancel.** The thread stops writing rows, and `Hook.cancel()` is called on each of the run's hooks from another thread.
    - The run ends once every `Hook.cancel()` has returned or the thread has exited, or after 10 seconds.
    - A thread that never returns is left behind as a daemon.
@@ -1041,7 +1111,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 
 ### Persistence
 
-`storage/` defines `TemplateStore`, `PresetStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
+`storage/` defines `TemplateStore`, `PresetStore`, `ColumnViewStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
 
 - `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`).
 - In development only, `memory://` selects an in-memory store. Production refuses it.
@@ -1052,6 +1122,8 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `query_templates` | `uuid` | Editable fields, `path`/`params`/`fields`/`columns` as JSONB, `is_deleted`, `updated`, `created_by`, `updated_by`; index on `(updated, uuid)` |
 | `presets` | `preset_id` | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)` |
 | `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
+| `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
+| `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
 | `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
 | `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
