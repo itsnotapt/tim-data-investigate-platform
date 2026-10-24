@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CatalogueAction, Preset, PresetFields } from '../../lib/api';
 import { newTestStore } from '../../test/tabsTestUtils';
 import { createPresetsStore } from '../presets';
@@ -10,6 +11,7 @@ import { NewQueryMenu } from './NewQueryMenu';
 const signIns: CatalogueAction = {
   key: 'dev-sign-ins',
   kind: 'query',
+  actionFile: false,
   name: 'Sign-ins',
   menuPath: ['Identity'],
   connections: [],
@@ -111,20 +113,23 @@ function fakeApi() {
         find(id).hidden = hidden;
         return Promise.resolve();
       },
+      actionFile: (id: string) => Promise.resolve(`type: kql_query\nname: ${find(id).name}\n`),
     },
   };
 }
 
-function setup() {
+function setup({ actions = [signIns] }: { actions?: CatalogueAction[] } = {}) {
   const tabs = newTestStore();
   const { api, calls, saved } = fakeApi();
   const presets = createPresetsStore({ api });
   render(
-    <MemoryRouter>
-      <NewQueryMenu templates={[]} actions={[signIns]} store={tabs} presetsStore={presets}>
-        New
-      </NewQueryMenu>
-    </MemoryRouter>,
+    <SnackbarHost>
+      <MemoryRouter>
+        <NewQueryMenu templates={[]} actions={actions} store={tabs} presetsStore={presets}>
+          New
+        </NewQueryMenu>
+      </MemoryRouter>
+    </SnackbarHost>,
   );
   return { tabs, calls, saved };
 }
@@ -189,6 +194,17 @@ describe('NewQueryMenu presets', () => {
       .getAllByRole('menuitem')
       .map((i) => i.textContent);
     expect(items).toEqual(['Open', 'Duplicate', 'Hide']);
+  });
+
+  it('copies a preset of an action with action files as one', async () => {
+    const user = userEvent.setup();
+    setup({ actions: [{ ...signIns, actionFile: true }] });
+    await openFolder();
+    await user.click(more('Bob asks'));
+    await user.click(screen.getByRole('menuitem', { name: 'Copy as action file' }));
+
+    expect(await screen.findByText('Copied "Bob asks" as an action file')).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe('type: kql_query\nname: Bob asks\n');
   });
 
   it('hides a preset for you, and shows it under Hidden to unhide', async () => {

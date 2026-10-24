@@ -98,22 +98,22 @@ def test_client_supplied_identity_ignored(client: TestClient, fake: FakeTagInges
 
 
 @pytest.mark.parametrize("path", ["savedEvents", "tags", "comments"])
-def test_empty_array_400(client: TestClient, fake: FakeTagIngestClient, path: str) -> None:
+def test_empty_array_422(client: TestClient, fake: FakeTagIngestClient, path: str) -> None:
     r = client.post(f"/api/taggedevents/{path}", json=[])
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert r.headers["content-type"].startswith("application/problem+json")
     assert fake.calls == []
 
 
-def test_too_many_items_400(client: TestClient, fake: FakeTagIngestClient) -> None:
+def test_too_many_items_422(client: TestClient, fake: FakeTagIngestClient) -> None:
     r = client.post("/api/taggedevents/tags", json=[{"eventId": "e", "tag": "t"}] * 1001)
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert fake.calls == []
 
 
 def test_all_or_nothing_invalid_item(client: TestClient, fake: FakeTagIngestClient) -> None:
     r = client.post("/api/taggedevents/tags", json=[{"eventId": "e", "tag": "t"}, {"eventId": "e"}])
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert "1.tag" in r.json()["errors"]
     assert fake.calls == []
 

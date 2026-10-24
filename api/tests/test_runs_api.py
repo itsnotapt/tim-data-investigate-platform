@@ -337,7 +337,8 @@ async def test_rows_come_in_pages_of_at_most_the_page_size(
             "annotationVersion": 0,
         }
         backwards = await env.rows(run["runId"], startRow=10, endRow=5)
-        assert backwards.status_code == 400
+        assert backwards.status_code == 422
+        assert list(backwards.json()["errors"]) == ["endRow"]
 
 
 async def test_a_run_with_no_rows_has_an_empty_first_page(storage: Storage, auth: AuthKit) -> None:

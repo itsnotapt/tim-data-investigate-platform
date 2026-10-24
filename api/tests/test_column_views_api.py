@@ -157,8 +157,8 @@ def test_the_state_must_be_a_json_object(auth: AuthKit) -> None:
         )
         listed = client.get("/api/columnViews").json()
 
-    assert as_list.status_code == 400
-    assert missing.status_code == 400
+    assert as_list.status_code == 422
+    assert missing.status_code == 422
     assert listed == []
 
 

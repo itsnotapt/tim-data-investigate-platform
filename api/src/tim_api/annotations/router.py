@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from tim_api.actions.models import Instance
 from tim_api.annotations.models import (
     AnnotationChangesPage,
+    AnnotationHistory,
+    AnnotationId,
     AnnotationsChange,
     ChangedAnnotations,
     TagSuggestions,
@@ -121,6 +123,14 @@ async def annotation_changes(
     page = await store.changes(since, CHANGES_PAGE_SIZE)
     last = page.changes[-1].version if page.changes else since
     return AnnotationChangesPage(changes=page.changes, next=last, has_more=page.has_more)
+
+
+@router.get("/history", response_model=AnnotationHistory)
+async def annotation_history(
+    principal: Caller, store: Store, id: Annotated[AnnotationId, Query()]
+) -> AnnotationHistory:
+    """The history of ``id``, newest first."""
+    return AnnotationHistory(entries=await store.history(id))
 
 
 @tags_router.get("/suggestions", response_model=TagSuggestions)

@@ -1,5 +1,6 @@
 import type { CatalogueAction, InstanceConnection, Preset } from '../../lib/api';
 import { initialParams, isUnset } from '../action-tab/paramValues';
+import { pillName, queryParameters, setPill } from '../action-tab/queryParameters';
 import { presetValues } from './openPreset';
 
 /** A preset resolved from the rows: the tab's params, and the params it still waits for. */
@@ -33,10 +34,11 @@ function distinct(values: readonly unknown[]): unknown[] {
 /**
  * Pivots from `rows` with `preset` of `action`, resolved in the browser. The preset pivots when
  * it has From row inputs, each with columns that every row has one of; otherwise `null`. Each
- * input takes the first non-empty of its columns in each row. A many-valued param takes the
- * distinct values, a single-valued one the value the rows agree on: when they disagree, the
- * pivot is disabled with the reason. A required param still unset is missing, as when the server
- * resolves a pivot into the action.
+ * input takes the first non-empty of its columns in each row. A many-valued param or a `dynamic`
+ * query parameter takes the distinct values, any other input the value the rows agree on: when
+ * they disagree, the pivot is disabled with the reason. A required param still unset is missing,
+ * as when the server resolves a pivot into the action, and so is a query parameter without a
+ * value, by its pill's name.
  */
 export function presetPivot(
   preset: Preset,
@@ -53,24 +55,28 @@ export function presetPivot(
         rows.every((row) => i.fromColumns.some((c) => Object.hasOwn(row, c))),
     );
   if (!pivots) return null;
-  const params = { ...initialParams(action, connections), ...presetValues(preset) };
+  let params = { ...initialParams(action, connections), ...presetValues(preset) };
   for (const input of fromRow) {
     const values = distinct(
       rows.map((row) => firstValue(row, input.fromColumns)).filter((v) => v !== undefined),
     );
     const param = action.params.find((p) => p.name === input.name);
+    const many = input.source === 'queryParameter' ? input.type === 'dynamic' : param?.many;
     if (values.length === 0) continue;
-    if (param?.many) {
-      params[input.name] = values;
-    } else if (values.length === 1) {
-      params[input.name] = values[0];
-    } else {
+    if (!many && values.length > 1) {
       const title = param?.title ?? input.name;
       return { disabled: `The ${rows.length} selected rows have different ${title} values` };
     }
+    const value = many ? values : values[0];
+    if (input.source === 'queryParameter') params = setPill(params, pillName(input.name), value);
+    else params[input.name] = value;
   }
-  const missing = Object.fromEntries(
-    action.params.flatMap((p) => (p.required && isUnset(params[p.name]) ? [[p.name, null]] : [])),
-  );
+  const unset = [
+    ...action.params.flatMap((p) => (p.required && isUnset(params[p.name]) ? [p.name] : [])),
+    ...queryParameters(params.parameters).flatMap((e) =>
+      e.value === null ? [pillName(e.name)] : [],
+    ),
+  ];
+  const missing = Object.fromEntries(unset.map((name) => [name, null] as const));
   return { params, missing };
 }

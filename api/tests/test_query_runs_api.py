@@ -232,15 +232,15 @@ async def test_expired_run_is_404(env: Env, storage: Storage) -> None:
     assert (await env.client.get(f"/api/kusto/query/{run_id}")).status_code == 404
 
 
-async def test_malformed_uuid_is_400(env: Env) -> None:
+async def test_malformed_uuid_is_422(env: Env) -> None:
     r = await env.client.get("/api/kusto/query/not-a-guid")
-    assert r.status_code == 400
+    assert r.status_code == 422
 
 
-async def test_start_after_end_is_400(env: Env) -> None:
+async def test_start_after_end_is_422(env: Env) -> None:
     body = {**BODY, "startTime": "2026-03-14T00:00:00Z", "endTime": "2026-03-13T00:00:00Z"}
     r = await env.client.post("/api/kusto/query", json=body)
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert env.obo.calls == []
 
 
@@ -251,9 +251,13 @@ async def test_bad_cluster_is_400_before_token(env: Env) -> None:
     assert env.kusto.calls == []
 
 
-async def test_nul_in_query_is_400(env: Env) -> None:
+async def test_nul_in_query_or_database_is_422(env: Env) -> None:
     r = await env.client.post("/api/kusto/query", json={**BODY, "query": "T\u0000"})
-    assert r.status_code == 400
+    assert r.status_code == 422
+    assert list(r.json()["errors"]) == ["query"]
+    r = await env.client.post("/api/kusto/query", json={**BODY, "database": "D\u0000"})
+    assert list(r.json()["errors"]) == ["database"]
+    assert env.obo.calls == []
 
 
 async def test_obo_failure_is_synchronous_403(env: Env, storage: Storage) -> None:

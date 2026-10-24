@@ -28,6 +28,7 @@ import { useEditorSchema, type SchemaHandler } from './editorSchema';
 import { applyEditorSchema } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
 import { PillsBar } from './PillsBar';
+import { pills, setPill, takesQueryParameters, withPresetQueryParameters } from './queryParameters';
 import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
 import { durationText, outcomeText } from './runText';
@@ -179,15 +180,14 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     ? `the run from ${datetimeText(state.resultsStartedAt)}`
     : 'the previous run';
   const edited = state.runParams != null && !sameParams(state.runParams, params.params);
-  const needed = stillMissing(state.pivotMissing, params.params);
+  // Query parameters have a pill each in place of the `parameters` param's.
+  const pillsBar = pills(action?.params ?? [], params.params);
+  const needed = stillMissing(state.pivotMissing, pillsBar.values);
   const neededReasons = needed.flatMap((name) => state.pivotMissing?.[name] ?? []);
 
   const setParam = (name: string, value: unknown) => {
-    const next = { ...params.params };
-    if (value === undefined) delete next[name];
-    else next[name] = value;
     const tabs = useTabsStore.getState();
-    tabs.updateParams(uuid, { params: next });
+    tabs.updateParams(uuid, { params: setPill(params.params, name, value) });
     if (state.paramErrors?.[name] !== undefined) {
       const paramErrors = { ...state.paramErrors };
       delete paramErrors[name];
@@ -214,7 +214,12 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     setSaving(error ? { error } : { source: presets.find((p) => p.presetId === presetId) });
   };
   const saved = (preset: Preset) => {
-    useTabsStore.getState().updateParams(uuid, { presetId: preset.presetId });
+    // The query parameters declared in Save… are the tab's from now on.
+    const declared =
+      action && takesQueryParameters(action)
+        ? { params: withPresetQueryParameters(params.params, preset.inputs ?? []) }
+        : {};
+    useTabsStore.getState().updateParams(uuid, { presetId: preset.presetId, ...declared });
     useTabsStore.getState().updateTitle(uuid, preset.name);
   };
 
@@ -341,8 +346,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       )}
 
       <PillsBar
-        params={action?.params ?? []}
-        values={params.params}
+        params={pillsBar.params}
+        values={pillsBar.values}
         connections={connections}
         onChange={setParam}
         errors={state.paramErrors}
@@ -353,7 +358,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
 
       {needed.length > 0 && !state.isExecuting && (
         <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
-          <div>Fill in {paramTitles(action, needed)} to run this pivot</div>
+          <div>Fill in {paramTitles(pillsBar.params, needed)} to run this pivot</div>
           {neededReasons.map((reason) => (
             <div key={reason}>{reason}</div>
           ))}

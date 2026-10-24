@@ -86,9 +86,11 @@ async def start_run(
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
     run_input = _run_input(action, body, settings.max_annotation_ids)
-    declared = () if isinstance(action, Sink) else action.params
     try:
-        params = validate_params(declared, body.params, connections=connections.types())
+        if isinstance(action, Sink):
+            params = validate_params((), body.params, connections=connections.types())
+        else:
+            params = action.check_params(body.params, connections=connections.types())
     except ParamsError as exc:
         raise UnprocessableError(exc.errors) from None
     run_connections = await connections.open(run_connection_names(action, params), principal, obo)
@@ -144,7 +146,7 @@ async def get_rows(
     last = start_row + settings.rows_page_size
     end = last if end_row is None else min(end_row, last)
     if end < start_row:
-        raise problem_exception(400, "endRow must not be less than startRow")
+        raise UnprocessableError({"endRow": ["endRow must not be less than startRow"]})
     rows = await store.rows(run_id, start_row, end)
     row_count = run.row_count or 0
     if not rows and row_count > 0 and not await store.has_rows(run_id):

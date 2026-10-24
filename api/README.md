@@ -197,7 +197,7 @@ Rules:
 - **Request and response models are separate:** `QueryTemplateCreate` (POST), `QueryTemplateReplace` (PUT) and `QueryTemplate` (stored and returned; it also validates PATCH results).
   - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `createdBy`, `updatedBy`, `updated`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
 - **Datetimes:** input without an offset is UTC, and offsets are converted. Output is `...Z`, with milliseconds only when the value has a sub-second part.
-- **Validation error locs** use Python attribute names when a value is missing and defaulted: `QueryField.from` appears as `from_`. The error handler (400 problem envelope) must map it back to `from`.
+- **Validation error locs** use Python attribute names when a value is missing and defaulted: `QueryField.from` appears as `from_`. The error handler (422 problem envelope) must map it back to `from`.
 - **Batch types** (`SavedEventBatch`, ...) enforce 1 to 1000 items.
 - **Cluster policy** is not in the models. It lives in `kusto/validation.py`: `validate_cluster_url`, which raises `InvalidClusterError`.
   - https only;
@@ -244,7 +244,7 @@ Errors:
 `POST`:
 
 1. looks the action up in `app.state.actions`. An unknown action gives 422, keyed `action`;
-2. validates the params with `tim_actions.validate_params`. An invalid param gives 422, keyed `params.<name>`, before a run exists;
+2. validates the params with the action's `check_params` (by default `tim_actions.validate_params`). An invalid param gives 422, keyed `params.<name>`, before a run exists;
 3. calls `Runner.start` (`runs/runner.py`), which stores the run as `running` and starts a tracked asyncio task;
 4. waits 1 s (`RACE_SECONDS`): 200 with the ended run, else 202.
 
@@ -300,8 +300,8 @@ Tests:
 
 `POST /api/kusto/query`:
 
-1. validates the cluster: 400, before any token use;
-2. validates the body: `startTime <= endTime`, and NUL in `query` or `database` is 400;
+1. validates the cluster: 400 `cluster-not-allowed`, before any token use;
+2. validates the body: `startTime <= endTime`, and NUL in `query` or `database` is 422;
 3. gets the OBO token synchronously, so 401, 403, 502 and 503 are real HTTP errors;
 4. stores the run as `created`. The owner is the token name, and a client `requestedBy` is ignored. `expiresAt` is now + `TIM_RUN_RETENTION_SECONDS`;
 5. starts a tracked asyncio task (`query_runs/runner.py`, `RunManager`);
@@ -309,7 +309,7 @@ Tests:
 
 There is no `Location` header. Clients poll `GET /api/kusto/query/{queryRunId}`, which returns 202 while `created` and 200 once terminal.
 
-- A malformed guid is 400.
+- A malformed guid is 422.
 - An unknown, expired or foreign run is 404 (`get_for_owner`).
 
 Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed:
@@ -411,7 +411,7 @@ It is safe to re-run.
 | Handler | Answer |
 |---|---|
 | `HTTPException` | Its status, with headers kept, so `WWW-Authenticate` survives. Unknown statuses get `urn:tim:problem:http-<status>` |
-| `RequestValidationError` | 400, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Unparseable JSON gives `{"body": ["Malformed JSON"]}` |
+| `RequestValidationError` | 422 `validation`, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Malformed JSON (a `json_invalid` error) gives 400 `bad-request` with `{"body": ["Malformed JSON"]}` |
 | `NotFoundError` | 404 |
 | `AlreadyExistsError` | 409 |
 | `StorageUnavailableError` | 503 |
@@ -435,10 +435,11 @@ Details are fixed strings. Exception messages are never echoed.
 
 ## Preset endpoints
 
-`presets/router.py` implements `/api/presets`: list, POST 201, PUT (whole replace), DELETE 204, and PUT and DELETE `/{presetId}/hidden`. [api.md](../docs/api.md#presets) has the rules.
+`presets/router.py` implements `/api/presets`: list, POST 201, PUT (whole replace), DELETE 204, PUT and DELETE `/{presetId}/hidden`, and GET `/{presetId}/actionFile`. [api.md](../docs/api.md#presets) has the rules.
 
 - The server assigns `presetId` and the timestamps (truncated to milliseconds), and takes `owner` from the principal.
-- `_check` requires `action` in the catalogue, and each input to be a param of it with `from_columns`. Failures are `422` with `errors` keys `action` and `inputs.<i>.name`.
+- `_check` requires `action` in the catalogue, each param input to be a param of it with `from_columns`, and each query parameter input to be on an action that takes them (`Action.takes_query_parameters`), with a unique name that matches `PARAM_NAME`. Failures are `422` with `errors` keys `action`, `inputs.<i>.name` and `inputs.<i>.source`.
+- `presets/action_file.py` builds the actionFile response with the action's `preset_file`. `NoActionFileError` is `409` `no-action-file`; it also answers a Run KQL preset without a connection, database or query, for which `RunKql.preset_file` returns `None`. The file pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 - `_visible` answers `404` for an unknown preset or someone else's private one. `_owned` adds `403` for a change by a non-owner.
 
 ## Template endpoints

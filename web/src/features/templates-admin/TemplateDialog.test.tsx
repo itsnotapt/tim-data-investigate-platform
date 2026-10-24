@@ -114,7 +114,7 @@ describe('TemplateDialog', () => {
   it('shows the problem detail from the API', async () => {
     server.use(
       http.put(apiUrl('/api/templates/queries/:uuid'), () =>
-        problemResponse(400, { detail: 'Validation failed', errors: { name: ['is bad'] } }),
+        problemResponse(422, { detail: 'Validation failed', errors: { name: ['is bad'] } }),
       ),
     );
     const { user, onSaved } = setup(existing);
@@ -142,7 +142,7 @@ describe('TemplateDialog', () => {
   it('shows the problem detail when creating fails', async () => {
     server.use(
       http.post(apiUrl('/api/templates/queries'), () =>
-        problemResponse(400, { detail: 'Validation failed', errors: { name: ['is bad'] } }),
+        problemResponse(422, { detail: 'Validation failed', errors: { name: ['is bad'] } }),
       ),
     );
     const { user, onSaved } = setup(null);

@@ -129,9 +129,9 @@ def test_unhandled_error_is_sanitised_and_logged(
     assert SECRET_TEXT in str(error_records[0].exc_info[1])
 
 
-def test_validation_body_is_400_with_camel_case_paths(client: TestClient) -> None:
+def test_validation_body_is_422_with_camel_case_paths(client: TestClient) -> None:
     response = client.post("/t/body", json={"items": [{"queryType": 1}], "name": None})
-    body = _check_envelope(response, 400, "validation")
+    body = _check_envelope(response, 422, "validation")
     errors = body["errors"]
     assert "items.0.from" in errors  # from_ mapped back to `from`
     assert "items.0.queryType" in errors
@@ -140,13 +140,17 @@ def test_validation_body_is_400_with_camel_case_paths(client: TestClient) -> Non
     assert all(isinstance(v, list) and v for v in errors.values())
 
 
-def test_validation_query_and_malformed_json(client: TestClient) -> None:
-    body = _check_envelope(client.get("/t/query", params={"n": "x"}), 400, "validation")
+def test_an_invalid_query_is_422_validation(client: TestClient) -> None:
+    body = _check_envelope(client.get("/t/query", params={"n": "x"}), 422, "validation")
     assert list(body["errors"]) == ["n"]
+
+
+def test_malformed_json_is_400_bad_request(client: TestClient) -> None:
     response = client.post(
         "/t/body", content=b"{not json", headers={"content-type": "application/json"}
     )
-    body = _check_envelope(response, 400, "validation")
+    body = _check_envelope(response, 400, "bad-request")
+    assert body["title"] == "Bad request"
     assert body["errors"] == {"body": ["Malformed JSON"]}
 
 
@@ -237,7 +241,7 @@ def test_request_log_line_and_no_authorization_logged(
         for r in caplog.records
         if r.name == "tim_api"
     )
-    assert "POST /t/body -> 400" in text
+    assert "POST /t/body -> 422" in text
     assert "traceId=" in text
     assert "ms" in text
     for leaked in ("eyJsecret", "Bearer", "qs-secret", "body-secret", "cookie-secret"):

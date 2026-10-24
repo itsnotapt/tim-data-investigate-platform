@@ -43,6 +43,7 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
             "connections": [],
             "params": [],
             "pivot": None,
+            "actionFile": False,
         },
         {
             "key": "acme.sign_ins",
@@ -69,6 +70,7 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
                 },
             ],
             "pivot": {"rows": "rows", "columns": [["UserPrincipalName", "Upn"]]},
+            "actionFile": False,
             "columns": [
                 {
                     "name": "Timestamp",

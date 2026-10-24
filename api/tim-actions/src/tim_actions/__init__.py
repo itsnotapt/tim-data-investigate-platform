@@ -1,9 +1,18 @@
 """The interface TIM providers build against."""
 
-from tim_actions.action import Action, ActionBase, ActionKey, ActionType, Pivot, Sink
+from tim_actions.action import (
+    Action,
+    ActionBase,
+    ActionKey,
+    ActionType,
+    Pivot,
+    QueryParameter,
+    QueryParameterType,
+    Sink,
+)
 from tim_actions.columns import TIM_COLUMNS, Column, ColumnType
 from tim_actions.connections import Auth, Connection, ConnectionName
-from tim_actions.files import ActionDocument, Sidecar, SinkDocument
+from tim_actions.files import ActionDocument, Sidecar, SinkDocument, action_file_yaml
 from tim_actions.hooks import EditorSchema, Hook, TokenFor
 from tim_actions.params import Param, ParamKind, ParamsError, validate_params
 from tim_actions.pivots import PivotCell, PivotContext, Resolved, resolve_pivot
@@ -36,6 +45,8 @@ __all__ = [
     "PivotCell",
     "PivotContext",
     "Provider",
+    "QueryParameter",
+    "QueryParameterType",
     "Resolved",
     "RowId",
     "RunContext",
@@ -44,6 +55,7 @@ __all__ = [
     "Sink",
     "SinkDocument",
     "TokenFor",
+    "action_file_yaml",
     "resolve_pivot",
     "validate_params",
 ]

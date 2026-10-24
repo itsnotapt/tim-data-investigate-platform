@@ -22,6 +22,8 @@ interface ApiRequest extends RequestOptions {
   path: string;
   query?: Record<string, string | boolean | undefined | null>;
   body?: unknown;
+  /** A media type to ask for and read the body of as text, rather than JSON. */
+  accept?: string;
 }
 
 interface ApiResponse<T> {
@@ -31,7 +33,10 @@ interface ApiResponse<T> {
 }
 
 export interface ApiClient {
-  /** Resolves on 2xx (204 gives `data: undefined`); rejects with `ApiError` otherwise. */
+  /**
+   * Resolves on 2xx (204 gives `data: undefined`, and `accept` the body as text); rejects with
+   * `ApiError` otherwise.
+   */
   request<T = unknown>(req: ApiRequest): Promise<ApiResponse<T>>;
 }
 
@@ -86,7 +91,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
-      Accept: 'application/json, application/problem+json',
+      Accept: `${req.accept ?? 'application/json'}, application/problem+json`,
     };
     if (req.body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -137,6 +142,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
       const traceId = res.headers.get('x-trace-id') ?? undefined;
       if (res.status === 204) return { status: 204, data: undefined as T, traceId };
+      if (req.accept !== undefined)
+        return { status: res.status, data: (await res.text()) as T, traceId };
       try {
         return { status: res.status, data: (await res.json()) as T, traceId };
       } catch (e) {

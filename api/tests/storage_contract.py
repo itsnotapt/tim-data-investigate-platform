@@ -16,7 +16,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from tim_api.annotations.models import Annotations, Comment, LabelState
+from tim_api.annotations.models import (
+    Annotations,
+    Comment,
+    CommentEntry,
+    LabelEntry,
+    LabelState,
+)
 from tim_api.column_views.models import ColumnViewFields, StoredColumnView
 from tim_api.presets.models import PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
@@ -976,6 +982,29 @@ class AnnotationContract:
         )
         assert [len(a.comments) for a in again.changes] == [2]
         assert again.version == 3
+
+    async def test_the_history_is_the_label_changes_and_comments_newest_first(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+        await store.change(["a"], AnnotationEdit(comment="first look"), by="alice", at=T0)
+        await store.change(
+            ["a", "b"],
+            AnnotationEdit(set_label=True, label="malicious", comment="beacons"),
+            by="bob",
+            at=_minutes(1),
+        )
+        await store.change(["a"], AnnotationEdit(add_tags=frozenset({"c2"})), by="bob", at=T0)
+        await store.change(["a"], label("malicious"), by="carol", at=_minutes(2))
+        await store.change(["a"], label(None), by="alice", at=_minutes(3))
+        assert await store.history("a") == [
+            LabelEntry(kind="label", label=None, by="alice", at=_minutes(3)),
+            LabelEntry(kind="label", label="malicious", by="bob", at=_minutes(1)),
+            CommentEntry(kind="comment", author="bob", at=_minutes(1), text="beacons"),
+            CommentEntry(kind="comment", author="alice", at=T0, text="first look"),
+        ]
+        assert [e.kind for e in await store.history("b")] == ["label", "comment"]
+        assert await store.history("never-changed") == []
 
     async def test_tag_suggestions_are_the_analyst_s_recent_tags_then_the_most_used(
         self, storage: Storage

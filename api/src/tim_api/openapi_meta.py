@@ -4,9 +4,9 @@ Applied as a post-processing step so the published spec (``/api/openapi.json`` a
 ``web/src/lib/api/openapi.json``) carries:
 
 * stable ``operationId`` values (they become the function names of the generated web client);
-* the documented problem-details responses (FastAPI's default ``422`` is replaced by ``400``,
-  because request validation failures are rendered as ``400 validation``; ``422`` is documented
-  only where the endpoint checks values itself, such as a run's params);
+* the documented problem-details responses. FastAPI's default ``422`` becomes ``422 validation``,
+  on every operation whose params or body it validates; ``400`` is on every operation with a
+  JSON body, which can be unparseable;
 * the Bearer security scheme on every authenticated operation.
 
 Only the documentation changes here; runtime behaviour is untouched.
@@ -24,11 +24,14 @@ from tim_api.errors import PROBLEM_CONTENT_TYPE, ProblemDetails
 BEARER = "bearerAuth"
 
 _DESCRIPTIONS = {
-    400: "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`).",
+    400: "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`).",
     401: "Missing, invalid or expired token (`unauthorized`).",
     403: "Consent required or Kusto denied the user (`consent-required` / `forbidden`).",
     404: "Not found (`not-found`).",
-    409: "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`).",
+    409: (
+        "Already exists, the run has not succeeded, or the preset has no action file "
+        "(`conflict` / `run-not-succeeded` / `no-action-file`)."
+    ),
     410: "The run's results are no longer available (`results-gone`).",
     422: "Invalid values, keyed by field such as `params.<name>` (`validation`).",
     500: "Unhandled error (`internal`).",
@@ -37,46 +40,48 @@ _DESCRIPTIONS = {
 }
 
 # (method, path) -> (operationId, documented error statuses besides 401/500, which every
-# authenticated operation gets).
+# authenticated operation gets, and 400/422, which come from the operation's params and body).
 _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("get", "/api/healthChecks/liveness"): ("liveness", ()),
     ("get", "/api/healthChecks/readiness"): ("readiness", (503,)),
     ("get", "/api/instance"): ("getInstance", ()),
-    ("post", "/api/actions/{key}/resolve"): ("resolvePivot", (400, 404, 422)),
+    ("post", "/api/actions/{key}/resolve"): ("resolvePivot", (404,)),
     # The connection's obo token is got first, hence 403/502/503; 502 also when the hook fails.
-    ("post", "/api/connections/{name}/schema"): ("getEditorSchema", (400, 403, 404, 502, 503)),
-    ("post", "/api/kusto/schema"): ("getSchema", (400, 403, 502)),
+    ("post", "/api/connections/{name}/schema"): ("getEditorSchema", (403, 404, 502, 503)),
+    ("post", "/api/kusto/schema"): ("getSchema", (403, 502)),
     # Token exchange failures happen before the run exists, hence 403/502/503 here.
-    ("post", "/api/kusto/query"): ("runQuery", (400, 403, 502, 503)),
-    ("get", "/api/kusto/query/{queryRunId}"): ("getQueryRun", (400, 404)),
+    ("post", "/api/kusto/query"): ("runQuery", (403, 502, 503)),
+    ("get", "/api/kusto/query/{queryRunId}"): ("getQueryRun", (404,)),
     # Each obo connection's token is got before the run exists, hence 403/502/503 here.
-    ("post", "/api/runs"): ("startRun", (400, 403, 422, 502, 503)),
-    ("get", "/api/runs/{runId}"): ("getRun", (400, 404)),
-    ("post", "/api/runs/{runId}/cancel"): ("cancelRun", (400, 404)),
-    ("get", "/api/runs/{runId}/rows"): ("getRunRows", (400, 404, 409, 410)),
+    ("post", "/api/runs"): ("startRun", (403, 502, 503)),
+    ("get", "/api/runs/{runId}"): ("getRun", (404,)),
+    ("post", "/api/runs/{runId}/cancel"): ("cancelRun", (404,)),
+    ("get", "/api/runs/{runId}/rows"): ("getRunRows", (404, 409, 410)),
     ("get", "/api/presets"): ("listPresets", ()),
-    ("post", "/api/presets"): ("createPreset", (400, 422)),
-    ("put", "/api/presets/{presetId}"): ("replacePreset", (400, 403, 404, 422)),
-    ("delete", "/api/presets/{presetId}"): ("deletePreset", (400, 403, 404)),
-    ("put", "/api/presets/{presetId}/hidden"): ("hidePreset", (400, 404)),
-    ("delete", "/api/presets/{presetId}/hidden"): ("unhidePreset", (400, 404)),
+    ("post", "/api/presets"): ("createPreset", ()),
+    ("put", "/api/presets/{presetId}"): ("replacePreset", (403, 404)),
+    ("delete", "/api/presets/{presetId}"): ("deletePreset", (403, 404)),
+    ("put", "/api/presets/{presetId}/hidden"): ("hidePreset", (404,)),
+    ("delete", "/api/presets/{presetId}/hidden"): ("unhidePreset", (404,)),
+    ("get", "/api/presets/{presetId}/actionFile"): ("getPresetActionFile", (404, 409)),
     ("get", "/api/columnViews"): ("listColumnViews", ()),
-    ("post", "/api/columnViews"): ("createColumnView", (400,)),
-    ("put", "/api/columnViews/{viewId}"): ("replaceColumnView", (400, 403, 404)),
-    ("delete", "/api/columnViews/{viewId}"): ("deleteColumnView", (400, 403, 404)),
-    ("put", "/api/columnViews/{viewId}/hidden"): ("hideColumnView", (400, 404)),
-    ("delete", "/api/columnViews/{viewId}/hidden"): ("unhideColumnView", (400, 404)),
-    ("get", "/api/templates/queries"): ("listTemplates", (400,)),
-    ("get", "/api/templates/queries/{uuid}"): ("getTemplate", (400, 404)),
-    ("post", "/api/templates/queries"): ("createTemplate", (400, 409)),
-    ("put", "/api/templates/queries/{uuid}"): ("replaceTemplate", (400, 404)),
-    ("patch", "/api/templates/queries/{uuid}"): ("patchTemplate", (400, 404)),
-    ("delete", "/api/templates/queries/{uuid}"): ("deleteTemplate", (400, 404)),
-    ("post", "/api/taggedevents/savedEvents"): ("saveEvents", (400, 502)),
-    ("post", "/api/taggedevents/tags"): ("tagEvents", (400, 502)),
-    ("post", "/api/taggedevents/comments"): ("commentEvents", (400, 502)),
-    ("patch", "/api/annotations"): ("changeAnnotations", (400, 422)),
-    ("get", "/api/annotations/changes"): ("getAnnotationChanges", (400,)),
+    ("post", "/api/columnViews"): ("createColumnView", ()),
+    ("put", "/api/columnViews/{viewId}"): ("replaceColumnView", (403, 404)),
+    ("delete", "/api/columnViews/{viewId}"): ("deleteColumnView", (403, 404)),
+    ("put", "/api/columnViews/{viewId}/hidden"): ("hideColumnView", (404,)),
+    ("delete", "/api/columnViews/{viewId}/hidden"): ("unhideColumnView", (404,)),
+    ("get", "/api/templates/queries"): ("listTemplates", ()),
+    ("get", "/api/templates/queries/{uuid}"): ("getTemplate", (404,)),
+    ("post", "/api/templates/queries"): ("createTemplate", (409,)),
+    ("put", "/api/templates/queries/{uuid}"): ("replaceTemplate", (404,)),
+    ("patch", "/api/templates/queries/{uuid}"): ("patchTemplate", (404,)),
+    ("delete", "/api/templates/queries/{uuid}"): ("deleteTemplate", (404,)),
+    ("post", "/api/taggedevents/savedEvents"): ("saveEvents", (502,)),
+    ("post", "/api/taggedevents/tags"): ("tagEvents", (502,)),
+    ("post", "/api/taggedevents/comments"): ("commentEvents", (502,)),
+    ("patch", "/api/annotations"): ("changeAnnotations", ()),
+    ("get", "/api/annotations/changes"): ("getAnnotationChanges", ()),
+    ("get", "/api/annotations/history"): ("getAnnotationHistory", ()),
     ("get", "/api/tags/suggestions"): ("getTagSuggestions", ()),
 }
 _PUBLIC = {"liveness", "readiness"}
@@ -117,8 +122,11 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
             operation_id, errors = _OPERATIONS[(method, path)]
             operation["operationId"] = operation_id
             responses: dict[str, Any] = operation["responses"]
-            responses.pop("422", None)
             statuses = set(errors)
+            if responses.pop("422", None) is not None:
+                statuses.add(422)
+            if "requestBody" in operation:
+                statuses.add(400)
             if operation_id not in _PUBLIC:
                 statuses |= {401, 500}
                 operation["security"] = [{BEARER: []}]

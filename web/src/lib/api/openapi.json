@@ -28,6 +28,37 @@
         "title": "AnnotationChangesPage",
         "type": "object"
       },
+      "AnnotationHistory": {
+        "description": "``GET /api/annotations/history``: an id's label changes and comments, newest first.",
+        "properties": {
+          "entries": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "comment": "#/components/schemas/CommentEntry",
+                  "label": "#/components/schemas/LabelEntry"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/LabelEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/CommentEntry"
+                }
+              ]
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "AnnotationHistory",
+        "type": "object"
+      },
       "Annotations": {
         "description": "An id's annotations, as of ``version``: the version of the change that last touched it.",
         "properties": {
@@ -145,6 +176,10 @@
       "CatalogueAction": {
         "description": "A query action or, as ``kind: \"sink\"``, a sink: no params, offered on any selected rows.",
         "properties": {
+          "actionFile": {
+            "title": "Actionfile",
+            "type": "boolean"
+          },
           "columns": {
             "anyOf": [
               {
@@ -225,7 +260,8 @@
           "menuPath",
           "connections",
           "params",
-          "pivot"
+          "pivot",
+          "actionFile"
         ],
         "title": "CatalogueAction",
         "type": "object"
@@ -609,6 +645,36 @@
         "title": "Comment",
         "type": "object"
       },
+      "CommentEntry": {
+        "description": "A comment in an id's history.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "kind": {
+            "const": "comment",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "author",
+          "at",
+          "text"
+        ],
+        "title": "CommentEntry",
+        "type": "object"
+      },
       "EditorSchemaRequest": {
         "description": "Body of ``POST /api/connections/{name}/schema``: the values of the editor param's\n``schemaFrom`` params, by name, without its connection param.",
         "properties": {
@@ -699,7 +765,7 @@
         "type": "object"
       },
       "FixedInput": {
-        "description": "An input whose value is saved with the preset. Its type is the param's.",
+        "description": "A param input whose value is saved with the preset. Its type is the param's.",
         "properties": {
           "fixed": {
             "const": true,
@@ -728,8 +794,52 @@
         "title": "FixedInput",
         "type": "object"
       },
+      "FixedQueryParameter": {
+        "description": "A query parameter whose value is saved with the preset: a name in the query, declared\nwith ``type``.",
+        "properties": {
+          "fixed": {
+            "const": true,
+            "title": "Fixed",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "const": "queryParameter",
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "long",
+              "real",
+              "bool",
+              "datetime",
+              "timespan",
+              "dynamic"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "type",
+          "fixed",
+          "value"
+        ],
+        "title": "FixedQueryParameter",
+        "type": "object"
+      },
       "FromRowInput": {
-        "description": "An input filled from the first of ``fromColumns`` the rows have. With no columns, the\nform asks the analyst for it.",
+        "description": "A param input filled from the first of ``fromColumns`` the rows have. With no columns, the\nform asks the analyst for it.",
         "properties": {
           "fixed": {
             "const": false,
@@ -760,6 +870,54 @@
           "fromColumns"
         ],
         "title": "FromRowInput",
+        "type": "object"
+      },
+      "FromRowQueryParameter": {
+        "description": "A query parameter filled from the first of ``fromColumns`` the rows have; a ``dynamic`` one\ntakes every distinct value. With no columns, the form asks the analyst for it.",
+        "properties": {
+          "fixed": {
+            "const": false,
+            "title": "Fixed",
+            "type": "boolean"
+          },
+          "fromColumns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fromcolumns",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "const": "queryParameter",
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "long",
+              "real",
+              "bool",
+              "datetime",
+              "timespan",
+              "dynamic"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source",
+          "type",
+          "fixed",
+          "fromColumns"
+        ],
+        "title": "FromRowQueryParameter",
         "type": "object"
       },
       "InputColumn": {
@@ -1183,6 +1341,43 @@
         "title": "KustoQueryStats",
         "type": "object"
       },
+      "LabelEntry": {
+        "description": "A label change in an id's history: the label it set, ``null`` when it cleared it.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "kind": {
+            "const": "label",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "by",
+          "at"
+        ],
+        "title": "LabelEntry",
+        "type": "object"
+      },
       "LabelState": {
         "description": "An id's label: its key, who set it and when.",
         "properties": {
@@ -1284,7 +1479,7 @@
         "type": "object"
       },
       "PatchOperation": {
-        "description": "One RFC 6902 operation. `move` and `copy` are rejected by the literal (400).",
+        "description": "One RFC 6902 operation. `move` and `copy` are rejected by the literal (422).",
         "properties": {
           "op": {
             "enum": [
@@ -1416,6 +1611,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/FromRowInput"
+                },
+                {
+                  "$ref": "#/components/schemas/FixedQueryParameter"
+                },
+                {
+                  "$ref": "#/components/schemas/FromRowQueryParameter"
                 }
               ]
             },
@@ -1493,6 +1694,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/FromRowInput"
+                },
+                {
+                  "$ref": "#/components/schemas/FixedQueryParameter"
+                },
+                {
+                  "$ref": "#/components/schemas/FromRowQueryParameter"
                 }
               ]
             },
@@ -2537,7 +2744,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -2632,7 +2839,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -2711,7 +2918,7 @@
             },
             "description": "Successful Response"
           },
-          "400": {
+          "401": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2719,7 +2926,75 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Annotation Changes",
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
+    "/api/annotations/history": {
+      "get": {
+        "description": "The history of ``id``, newest first.",
+        "operationId": "getAnnotationHistory",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 512,
+              "minLength": 1,
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
           },
           "401": {
             "content": {
@@ -2739,6 +3014,16 @@
               }
             }
           },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -2755,7 +3040,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "Annotation Changes",
+        "summary": "Annotation History",
         "tags": [
           "annotations"
         ]
@@ -2849,7 +3134,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -2868,6 +3153,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -2910,16 +3205,6 @@
           "204": {
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -2957,6 +3242,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3022,7 +3317,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -3061,6 +3356,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3103,16 +3408,6 @@
           "204": {
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -3140,6 +3435,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3180,16 +3485,6 @@
           "204": {
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -3217,6 +3512,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3287,7 +3592,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -3326,6 +3631,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3498,7 +3813,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -3527,6 +3842,16 @@
               }
             },
             "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3596,16 +3921,6 @@
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -3633,6 +3948,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3688,7 +4013,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -3717,6 +4042,16 @@
               }
             },
             "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -3838,7 +4173,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -3909,16 +4244,6 @@
           "204": {
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -3956,6 +4281,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4021,7 +4356,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -4093,9 +4428,10 @@
         ]
       }
     },
-    "/api/presets/{presetId}/hidden": {
-      "delete": {
-        "operationId": "unhidePreset",
+    "/api/presets/{presetId}/actionFile": {
+      "get": {
+        "description": "The YAML of an action that runs what the preset runs, for an operator to add to the\ninstance's action files.",
+        "operationId": "getPresetActionFile",
         "parameters": [
           {
             "in": "path",
@@ -4109,18 +4445,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "400": {
+          "200": {
             "content": {
-              "application/problem+json": {
+              "application/yaml": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "type": "string"
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Successful Response"
           },
           "401": {
             "content": {
@@ -4149,6 +4482,105 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get Action File",
+        "tags": [
+          "presets"
+        ]
+      }
+    },
+    "/api/presets/{presetId}/hidden": {
+      "delete": {
+        "operationId": "unhidePreset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "presetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Presetid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4189,16 +4621,6 @@
           "204": {
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -4226,6 +4648,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4292,7 +4724,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -4400,16 +4832,6 @@
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -4437,6 +4859,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4487,16 +4919,6 @@
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -4524,6 +4946,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4602,16 +5034,6 @@
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -4648,7 +5070,7 @@
                 }
               }
             },
-            "description": "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`)."
+            "description": "Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`)."
           },
           "410": {
             "content": {
@@ -4659,6 +5081,16 @@
               }
             },
             "description": "The run's results are no longer available (`results-gone`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4713,7 +5145,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -4732,6 +5164,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4796,7 +5238,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -4815,6 +5257,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4879,7 +5331,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -4898,6 +5350,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -4976,6 +5438,16 @@
               }
             }
           },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -5045,16 +5517,6 @@
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -5072,6 +5534,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -5133,7 +5605,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -5161,7 +5633,17 @@
                 }
               }
             },
-            "description": "Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`)."
+            "description": "Already exists, the run has not succeeded, or the preset has no action file (`conflict` / `run-not-succeeded` / `no-action-file`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -5204,16 +5686,6 @@
           "204": {
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -5241,6 +5713,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -5288,16 +5770,6 @@
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
-          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -5325,6 +5797,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -5395,7 +5877,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -5424,6 +5906,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {
@@ -5489,7 +5981,7 @@
                 }
               }
             },
-            "description": "Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`)."
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
           },
           "401": {
             "content": {
@@ -5518,6 +6010,16 @@
               }
             },
             "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
           },
           "500": {
             "content": {

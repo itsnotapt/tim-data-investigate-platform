@@ -20,76 +20,156 @@ REGEN = "uv run python -m tim_api.openapi_export"
 
 # (method, path, operationId, success statuses, documented error statuses).
 CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
-    ("get", "/api/instance", "getInstance", {"200"}, {"401"}),
-    ("post", "/api/actions/{key}/resolve", "resolvePivot", {"200"}, {"400", "401", "404", "422"}),
+    ("get", "/api/instance", "getInstance", {"200"}, {"401", "500"}),
+    (
+        "post",
+        "/api/actions/{key}/resolve",
+        "resolvePivot",
+        {"200"},
+        {"400", "401", "404", "422", "500"},
+    ),
     (
         "post",
         "/api/connections/{name}/schema",
         "getEditorSchema",
-        {"200"},
-        {"400", "401", "403", "404", "502", "503"},
+        {"200", "204"},
+        {"400", "401", "403", "404", "422", "500", "502", "503"},
     ),
-    ("post", "/api/kusto/schema", "getSchema", {"200"}, {"400", "401", "403", "502"}),
-    ("post", "/api/kusto/query", "runQuery", {"200", "202"}, {"400", "401"}),
-    ("get", "/api/kusto/query/{queryRunId}", "getQueryRun", {"200"}, {"400", "401", "404"}),
-    ("post", "/api/runs", "startRun", {"200", "202"}, {"400", "401", "422"}),
-    ("get", "/api/runs/{runId}", "getRun", {"200"}, {"400", "401", "404"}),
-    ("post", "/api/runs/{runId}/cancel", "cancelRun", {"200"}, {"400", "401", "404"}),
+    ("post", "/api/kusto/schema", "getSchema", {"200"}, {"400", "401", "403", "422", "500", "502"}),
+    (
+        "post",
+        "/api/kusto/query",
+        "runQuery",
+        {"200", "202"},
+        {"400", "401", "403", "422", "500", "502", "503"},
+    ),
+    ("get", "/api/kusto/query/{queryRunId}", "getQueryRun", {"200"}, {"401", "404", "422", "500"}),
+    (
+        "post",
+        "/api/runs",
+        "startRun",
+        {"200", "202"},
+        {"400", "401", "403", "422", "500", "502", "503"},
+    ),
+    ("get", "/api/runs/{runId}", "getRun", {"200"}, {"401", "404", "422", "500"}),
+    ("post", "/api/runs/{runId}/cancel", "cancelRun", {"200"}, {"401", "404", "422", "500"}),
     (
         "get",
         "/api/runs/{runId}/rows",
         "getRunRows",
         {"200"},
-        {"400", "401", "404", "409", "410"},
+        {"401", "404", "409", "410", "422", "500"},
     ),
-    ("get", "/api/presets", "listPresets", {"200"}, {"401"}),
-    ("post", "/api/presets", "createPreset", {"201"}, {"400", "401", "422"}),
+    ("get", "/api/presets", "listPresets", {"200"}, {"401", "500"}),
+    ("post", "/api/presets", "createPreset", {"201"}, {"400", "401", "422", "500"}),
     (
         "put",
         "/api/presets/{presetId}",
         "replacePreset",
         {"200"},
-        {"400", "401", "403", "404", "422"},
+        {"400", "401", "403", "404", "422", "500"},
     ),
-    ("delete", "/api/presets/{presetId}", "deletePreset", {"204"}, {"400", "401", "403", "404"}),
-    ("put", "/api/presets/{presetId}/hidden", "hidePreset", {"204"}, {"400", "401", "404"}),
-    ("delete", "/api/presets/{presetId}/hidden", "unhidePreset", {"204"}, {"400", "401", "404"}),
-    ("get", "/api/columnViews", "listColumnViews", {"200"}, {"401"}),
-    ("post", "/api/columnViews", "createColumnView", {"201"}, {"400", "401"}),
+    (
+        "delete",
+        "/api/presets/{presetId}",
+        "deletePreset",
+        {"204"},
+        {"401", "403", "404", "422", "500"},
+    ),
+    ("put", "/api/presets/{presetId}/hidden", "hidePreset", {"204"}, {"401", "404", "422", "500"}),
+    (
+        "delete",
+        "/api/presets/{presetId}/hidden",
+        "unhidePreset",
+        {"204"},
+        {"401", "404", "422", "500"},
+    ),
+    (
+        "get",
+        "/api/presets/{presetId}/actionFile",
+        "getPresetActionFile",
+        {"200"},
+        {"401", "404", "409", "422", "500"},
+    ),
+    ("get", "/api/columnViews", "listColumnViews", {"200"}, {"401", "500"}),
+    ("post", "/api/columnViews", "createColumnView", {"201"}, {"400", "401", "422", "500"}),
     (
         "put",
         "/api/columnViews/{viewId}",
         "replaceColumnView",
         {"200"},
-        {"400", "401", "403", "404"},
+        {"400", "401", "403", "404", "422", "500"},
     ),
     (
         "delete",
         "/api/columnViews/{viewId}",
         "deleteColumnView",
         {"204"},
-        {"400", "401", "403", "404"},
+        {"401", "403", "404", "422", "500"},
     ),
-    ("put", "/api/columnViews/{viewId}/hidden", "hideColumnView", {"204"}, {"400", "401", "404"}),
+    (
+        "put",
+        "/api/columnViews/{viewId}/hidden",
+        "hideColumnView",
+        {"204"},
+        {"401", "404", "422", "500"},
+    ),
     (
         "delete",
         "/api/columnViews/{viewId}/hidden",
         "unhideColumnView",
         {"204"},
-        {"400", "401", "404"},
+        {"401", "404", "422", "500"},
     ),
-    ("get", "/api/templates/queries", "listTemplates", {"200"}, {"400", "401"}),
-    ("get", "/api/templates/queries/{uuid}", "getTemplate", {"200"}, {"400", "401", "404"}),
-    ("post", "/api/templates/queries", "createTemplate", {"201"}, {"400", "401", "409"}),
-    ("put", "/api/templates/queries/{uuid}", "replaceTemplate", {"200"}, {"400", "401", "404"}),
-    ("patch", "/api/templates/queries/{uuid}", "patchTemplate", {"200"}, {"400", "401", "404"}),
-    ("delete", "/api/templates/queries/{uuid}", "deleteTemplate", {"204"}, {"400", "401", "404"}),
-    ("post", "/api/taggedevents/savedEvents", "saveEvents", {"204"}, {"400", "401", "502"}),
-    ("post", "/api/taggedevents/tags", "tagEvents", {"204"}, {"400", "401", "502"}),
-    ("post", "/api/taggedevents/comments", "commentEvents", {"204"}, {"400", "401", "502"}),
-    ("patch", "/api/annotations", "changeAnnotations", {"200"}, {"400", "401", "422"}),
-    ("get", "/api/annotations/changes", "getAnnotationChanges", {"200"}, {"400", "401"}),
-    ("get", "/api/tags/suggestions", "getTagSuggestions", {"200"}, {"401"}),
+    ("get", "/api/templates/queries", "listTemplates", {"200"}, {"401", "422", "500"}),
+    ("get", "/api/templates/queries/{uuid}", "getTemplate", {"200"}, {"401", "404", "422", "500"}),
+    (
+        "post",
+        "/api/templates/queries",
+        "createTemplate",
+        {"201"},
+        {"400", "401", "409", "422", "500"},
+    ),
+    (
+        "put",
+        "/api/templates/queries/{uuid}",
+        "replaceTemplate",
+        {"200"},
+        {"400", "401", "404", "422", "500"},
+    ),
+    (
+        "patch",
+        "/api/templates/queries/{uuid}",
+        "patchTemplate",
+        {"200"},
+        {"400", "401", "404", "422", "500"},
+    ),
+    (
+        "delete",
+        "/api/templates/queries/{uuid}",
+        "deleteTemplate",
+        {"204"},
+        {"401", "404", "422", "500"},
+    ),
+    (
+        "post",
+        "/api/taggedevents/savedEvents",
+        "saveEvents",
+        {"204"},
+        {"400", "401", "422", "500", "502"},
+    ),
+    ("post", "/api/taggedevents/tags", "tagEvents", {"204"}, {"400", "401", "422", "500", "502"}),
+    (
+        "post",
+        "/api/taggedevents/comments",
+        "commentEvents",
+        {"204"},
+        {"400", "401", "422", "500", "502"},
+    ),
+    ("patch", "/api/annotations", "changeAnnotations", {"200"}, {"400", "401", "422", "500"}),
+    ("get", "/api/annotations/changes", "getAnnotationChanges", {"200"}, {"401", "422", "500"}),
+    ("get", "/api/annotations/history", "getAnnotationHistory", {"200"}, {"401", "422", "500"}),
+    ("get", "/api/tags/suggestions", "getTagSuggestions", {"200"}, {"401", "422", "500"}),
     ("get", "/api/healthChecks/liveness", "liveness", {"204"}, set()),
     ("get", "/api/healthChecks/readiness", "readiness", {"204"}, {"503"}),
 ]
@@ -136,9 +216,7 @@ def test_contract_operation(
     assert operation["operationId"] == operation_id
     statuses = set(operation["responses"])
     assert success <= statuses
-    assert errors <= statuses
-    if "422" not in errors:  # FastAPI's default 422 goes: unparseable bodies are 400
-        assert "422" not in statuses
+    assert statuses - success == errors
     for status in errors:
         content = operation["responses"][status]["content"]
         ref = content["application/problem+json"]["schema"]["$ref"]
@@ -196,6 +274,9 @@ def test_request_and_response_schemas(spec: dict[str, Any]) -> None:
     assert ok_schema("/api/annotations", "patch", "200")["$ref"].endswith("/ChangedAnnotations")
     assert ok_schema("/api/annotations/changes", "get", "200")["$ref"].endswith(
         "/AnnotationChangesPage"
+    )
+    assert ok_schema("/api/annotations/history", "get", "200")["$ref"].endswith(
+        "/AnnotationHistory"
     )
     assert ok_schema("/api/tags/suggestions", "get", "200")["$ref"].endswith("/TagSuggestions")
 

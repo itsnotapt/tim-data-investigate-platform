@@ -99,6 +99,7 @@ describe('buildTemplateMenuTree', () => {
 const signIns: CatalogueAction = {
   key: 'dev-sign-ins',
   kind: 'query',
+  actionFile: false,
   name: 'Sign-ins',
   menuPath: ['Identity'],
   connections: [],

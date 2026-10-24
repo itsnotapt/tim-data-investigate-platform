@@ -255,6 +255,7 @@ The New menu opens from the **New** button. It lists, in order:
   - For the owner: **Edit…** (the Save dialog on the preset, starting from the preset's own params and fixed values, not the action's defaults), **Share with everyone** or **Make private**, and **Delete…**, which asks to confirm.
   - For anyone else: **Hide** or **Unhide**, for that analyst only.
 - A preset whose action is not in the catalogue cannot be opened or edited.
+- **Copy as action file**, when the action's `actionFile` is true: copies the preset's YAML ([api.md](api.md#get-apipresetspresetidactionfile)) to the clipboard.
 - The presets are refetched each time the menu opens, so presets others shared since show up.
 
 Choosing an action creates a root action tab and gives it focus. The tab is titled with the action's name, and its params are the params' defaults. It does not run.
@@ -265,7 +266,7 @@ Opening a preset creates a root action tab in the same way, titled with the pres
 - then the preset's `params`;
 - then the preset's fixed values.
 
-A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
+A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
 
 The action tab has a header, a pills bar and inner tabs.
 
@@ -382,37 +383,42 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - Open tabs keep their snapshot. A tab opened from a preset holds plain params like any other tab.
 - Last write wins.
 
-**Inputs.** An input names one param of the preset's action that declares `from_columns` (`source: "param"`).
+**Inputs.** An input is one param of the preset's action that declares `from_columns` (`source: "param"`), or a query parameter (`source: "queryParameter"`).
 
 - A **fixed input** has a `value`, which is saved with the preset.
 - A **From row input** has `fromColumns`: it takes the value from the first of these columns that the rows have. With no columns, the tab asks the analyst for it.
 - A preset with every input fixed is a bookmark.
+- A **query parameter** input has a name and a `type`, and is fixed or From row like a param. It is allowed only on an action with a `json` param named `parameters`, which is Run KQL. The preset's `parameters` value is built from these inputs.
 - Values are validated when a run starts, not when the preset is saved.
 
 **Preset pivots.** A preset can pivot when it has From row inputs and each has columns. The grid's [Pivot ▸ menu](#action-pivots) offers it when every target row has one of each input's columns.
 
 - Each input takes the first non-empty column of its `fromColumns` in each row: the first match wins.
-- A many-valued param takes the distinct values of the rows.
-- A single-valued param takes the value the rows agree on. When they differ, the menu item is disabled with the tooltip "The N selected rows have different {Title} values".
-- A required param left unset is missing, as when the server resolves a pivot. The child tab sets `pivotMissing` and waits.
+- A many-valued param, or a `dynamic` query parameter, takes the distinct values of the rows.
+- Any other input takes the value the rows agree on. When they differ, the menu item is disabled with the tooltip "The N selected rows have different {Title} values". A query parameter's title is its name.
+- A query parameter's value goes in its `parameters` entry.
+- A required param left unset is missing, as when the server resolves a pivot, and so is a query parameter left without a value, by its pill's name (`parameters.<name>`). The child tab sets `pivotMissing` and waits.
 - The other params come from the action's defaults and the preset's fixed values, as when [opening a preset](#the-tab-and-new-menu).
 
 **Save….** The action tab header opens the Save dialog (`SavePresetDialog`).
 
 - Name, menu folder (folders separated by `/`) and **Share with everyone**.
 - For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
+- A **Query parameters** section, on an action that takes them. Add a parameter: its name is suggested from the names in the query. Pick its type, then **Fixed** with a value, or **From row** with columns.
 - A preview of what the action receives, one line for every param of the action.
   - A From row input shows as `<column of the clicked row>`.
+  - For query parameters it shows the `declare query_parameters` line before the query, and a line per query parameter.
+  - A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
   - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
-- After saving, the tab takes the preset's name and `presetId`.
+- After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
 - On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
 
 **Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
 
 - `GET /api/presets` returns the caller's presets and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
 - The server assigns `presetId`, `owner` (from the token) and the timestamps.
-- It checks that `action` is in the catalogue and that each input is a param of it with `from_columns`.
+- It checks that `action` is in the catalogue, that each param input is a param of it with `from_columns`, and that query parameter inputs are on an action that takes them, with unique names that are Kusto identifiers.
 - `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
 
 ### Column views
@@ -548,6 +554,19 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Annotate…** (T) opens the Annotate dialog. It saves the label, the tags and a comment as one change.
   - **Comment…** (C) opens the same dialog with the comment only.
   - They are disabled, with the reason as a tooltip, in the same cases as **Label ▸** (see Targets).
+- **History.** The menu has **History** (H) after **Annotate…** and **Comment…**. It acts on the clicked or focused row only.
+  - It is disabled, with the reason as a tooltip, for a row without an `id`. The key H shows the reason in a toast.
+  - It opens the History panel.
+- **The History panel.** A side panel (`HistoryPanel.tsx`, opened by `useHistoryPanel.tsx`) for one `id`. From the top it shows:
+  - the `id`;
+  - its current label, with who set it and when;
+  - its tags;
+  - a comment box;
+  - the history, newest first: label changes as "old → new", and comments as a thread;
+  - the row's fields.
+- **Commenting from the panel.** Ctrl or Cmd+Enter, or **Add comment**, appends the comment to the `id`. Comments are append-only.
+- **Closing the panel.** **Close history** closes it.
+- **Following the row.** The panel follows the focused row (`onCellFocused` on `ResultsGrid`). It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it and it reads the history again (`GET /api/annotations/history`).
 - **The Annotate dialog.**
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
   - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
@@ -555,7 +574,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Comment.** A text field. It is added to every target.
   - **Save.** Sends one `PATCH /api/annotations`. Ctrl or Cmd+Enter saves. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
-- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
+- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. H opens History on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
 - **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
   - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";
@@ -888,7 +907,10 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `connection`: a Kusto connection;
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
-- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`.
+- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
+- `parameters`, optional, `json`: the query parameters, `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params` checks the entries and answers `params.parameters.<name>` or `params.parameters`.
+
+A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 
 **`kql_query`** (`KqlQuery`, with `KqlQueryFile` as its file model) is a file-capable action type with the fields `connection`, `database` and `kql`. In files, `kql` can be a `kql_file` sidecar.
 
@@ -920,7 +942,7 @@ Both follow [ADR-0012](adr/0012-query-run-limits-and-lifecycle.md). They share o
 
 A run:
 
-1. **Start.** `POST /api/runs` looks up the action and validates the params with `tim_actions.validate_params`. A `422` comes before a run exists. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`, and starts a tracked asyncio task.
+1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`, and starts a tracked asyncio task.
 2. **Execute.** The task waits for a concurrency slot, still `running`. Then it runs the action's synchronous `run(params, ctx)` in its own daemon thread.
    - `ctx` gives `analyst`, `deadline` (when the timeout ends), `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
    - `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value. It gives one hook per connection per run.
@@ -1059,14 +1081,15 @@ The routes, under `/api/presets`:
 - **`PUT /{presetId}`** replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept.
 - **`DELETE /{presetId}`** deletes it for good, with every hidden mark on it. Only the owner can.
 - **`PUT` and `DELETE /{presetId}/hidden`** hide and unhide it for the caller only.
+- **`GET /{presetId}/actionFile`** returns the preset as an action file in YAML (`presets/action_file.py`). It asks the action's `preset_file`; `409` `no-action-file` when the action has none, or when a Run KQL preset lacks a connection, database or query.
 
 Rules:
 
 - `404` for an unknown preset, or someone else's private one.
 - `403` for a `PUT` or `DELETE` by anyone but the owner.
-- `422` for an `action` that is not in the catalogue (`errors.action`), or an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`).
+- `422` for an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter on an action that takes none (`errors["inputs.<i>.source"]`), or a query parameter name that is not a Kusto identifier or is used twice.
 - Param values are not checked here. They are validated when a run starts.
-- Inputs are told apart by the boolean `fixed`, not by an OpenAPI discriminator.
+- Inputs are told apart by `source` and the boolean `fixed`, not by an OpenAPI discriminator.
 
 ### Tagged events
 
@@ -1117,6 +1140,13 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - A page ends after a whole version, so it holds at least 1,000 `id`s unless the feed ends there, and more when its last change touches more.
 - `next` is the version of the page's last change, and the `since` for the next request. `hasMore` says whether more follow.
 - Because versions are gapless and in commit order, a reader that has read up to `V` never misses a lower version that commits later.
+
+**History.** `GET /api/annotations/history?id=` reads `label_changes` and `comments` for the `id` and merges them, newest first.
+
+- Within one version, the label change comes before the comment.
+- Tags are not in it, and it has no paging.
+- An `id` that was never changed gives `entries: []`.
+- The memory store keeps a history list per `id`.
 
 **Tag suggestions.** `GET /api/tags/suggestions?prefix=` reads `tags`, matching the prefix ignoring case.
 

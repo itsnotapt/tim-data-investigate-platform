@@ -115,18 +115,26 @@ def test_unusable_result_is_502(client: TestClient, kusto: FakeKusto, rows: list
 
 @pytest.mark.parametrize(
     "cluster",
-    ["http://c1.westeurope.kusto.windows.net", "https://c1.kusto.windows.net.evil.com", ""],
+    ["http://c1.westeurope.kusto.windows.net", "https://c1.kusto.windows.net.evil.com"],
 )
-def test_bad_cluster_400_before_token(
+def test_disallowed_cluster_400_before_token(
     client: TestClient, obo: FakeObo, kusto: FakeKusto, cluster: str
 ) -> None:
     r = post(client, cluster)
     assert r.status_code == 400
     assert obo.calls == []
     assert kusto.calls == []
-    if cluster:
-        assert r.json()["type"] == "urn:tim:problem:cluster-not-allowed"
-        assert "cluster" in r.json()["errors"]
+    assert r.json()["type"] == "urn:tim:problem:cluster-not-allowed"
+    assert "cluster" in r.json()["errors"]
+
+
+def test_empty_cluster_422_before_token(client: TestClient, obo: FakeObo, kusto: FakeKusto) -> None:
+    r = post(client, "")
+    assert r.status_code == 422
+    assert obo.calls == []
+    assert kusto.calls == []
+    assert r.json()["type"] == "urn:tim:problem:validation"
+    assert "cluster" in r.json()["errors"]
 
 
 def test_unauthenticated_401(obo: FakeObo, kusto: FakeKusto) -> None:
@@ -152,6 +160,6 @@ def test_kusto_forbidden_403(client: TestClient, kusto: FakeKusto) -> None:
     assert r.json()["type"] == "urn:tim:problem:forbidden"
 
 
-def test_missing_database_400(client: TestClient) -> None:
+def test_missing_database_422(client: TestClient) -> None:
     r = client.post("/api/kusto/schema", json={"cluster": CLUSTER})
-    assert r.status_code == 400
+    assert r.status_code == 422
