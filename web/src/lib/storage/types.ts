@@ -55,6 +55,12 @@ export interface DisplayComponentState {
   gridState?: GridState | null;
   /** Action tabs only: the column view the tab started from or last picked. */
   columnView?: TabColumnView | null;
+  /**
+   * Action tabs only: the row a share link named, focused with its History open once the run's
+   * rows show. Cleared then, and also when the run ends without success, when the stored rows
+   * lack that row, or when a new run of the tab starts.
+   */
+  linkedRow?: number | null;
 }
 
 /** The column view an action tab started from or last picked, and its state at that point. */

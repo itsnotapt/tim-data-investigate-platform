@@ -135,9 +135,6 @@ The page where query templates are created, edited and deleted.
 **Query options**:
 An analyst's own settings for a query template, such as hiding it from the menus.
 
-**Share link**:
-A link that opens a query template with given params, and optionally runs it.
-
 ### Running actions
 
 **Run**:
@@ -146,6 +143,9 @@ _Avoid_: action run, job, execution
 
 **Run details**:
 The key-value facts a run reports, such as its duration, row count or a warning.
+
+**Share link**:
+A link to a run, or to one row of it, that any signed-in analyst holding it can open to see the run's rows.
 
 **Query run**:
 One execution of a Kusto tab's or template tab's KQL by the server on behalf of the analyst who started it. It ends completed, failed with an error, or timed out.

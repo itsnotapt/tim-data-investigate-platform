@@ -28,7 +28,6 @@ test('template results, edit mode, template tree, new draft', async ({ page }) =
   await tree.getByText(/Storm events in TEXAS/).click();
   await page.mouse.move(900, 500);
   await expect(page.getByRole('button', { name: /^convert$/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /share link/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /^edit$/i })).toBeVisible();
   await expect(gridCell(page, 1, 'State')).toHaveText('KANSAS');
   await shot(page, '28-template-query-results');

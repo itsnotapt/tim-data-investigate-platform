@@ -23,6 +23,8 @@ export interface HistoryPanelState {
   onCellFocused: (e: CellFocusedEvent<GridRowWithId>) => void;
   /** The open panel, if any, to render in the grid's container. */
   panel: ReactNode;
+  /** Opens the panel on `row`. */
+  open: (row: LabelledRow) => void;
 }
 
 /**
@@ -57,16 +59,13 @@ export function useHistoryPanel({ labels, idParam }: HistoryPanelOptions): Histo
     };
   }, [id]);
 
+  const openOn = useCallback((target: LabelledRow) => {
+    setRow(target);
+    setOpen(true);
+  }, []);
   const options = useMemo(
-    () => ({
-      idParam,
-      notify: (message: string) => notify?.(message),
-      open: (target: LabelledRow) => {
-        setRow(target);
-        setOpen(true);
-      },
-    }),
-    [idParam, notify],
+    () => ({ idParam, notify: (message: string) => notify?.(message), open: openOn }),
+    [idParam, notify, openOn],
   );
   const menu = useMemo(() => buildHistoryMenu(options), [options]);
   const keys = useMemo(() => makeHistoryKeys(options), [options]);
@@ -92,5 +91,5 @@ export function useHistoryPanel({ labels, idParam }: HistoryPanelOptions): Histo
       onClose={() => setOpen(false)}
     />
   );
-  return { menu, keys, onCellFocused, panel };
+  return { menu, keys, onCellFocused, panel, open: openOn };
 }

@@ -48,9 +48,14 @@ function abortSleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Stops the tab executing and shows `message` as its error. */
+/** Stops the tab executing and shows `message` as its error; a linked row is dropped. */
 function showError(store: TabsStore, uuid: string, message: string): void {
-  store.getState().updateState(uuid, { isExecuting: false, cancelling: false, error: { message } });
+  store.getState().updateState(uuid, {
+    isExecuting: false,
+    cancelling: false,
+    error: { message },
+    linkedRow: null,
+  });
 }
 
 /** The tab each run is followed for; a new run of the tab stops following the old one. */
@@ -135,7 +140,8 @@ async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<Ru
 
 /**
  * Follows the tab's run until it ends, then stores its rows in `row_results`. Polls every second
- * for ten seconds, then every three. Never rejects.
+ * for ten seconds, then every three. A linked row the stored rows don't have is dropped. Never
+ * rejects.
  */
 async function followRun(
   uuid: string,
@@ -163,6 +169,7 @@ async function followRun(
     if (signal.aborted) return;
     await rowResultsDao.put(uuid, rows);
     runRowsStore.getState().finish(uuid, run.runId);
+    const linkedRow = store.getState().tabs[uuid]?.state.linkedRow ?? null;
     store.getState().updateState(uuid, {
       isExecuting: false,
       cancelling: false,
@@ -171,6 +178,8 @@ async function followRun(
       resultsRunId: run.runId,
       resultColumns: run.columns ?? null,
       resultsStartedAt: run.startedAt,
+      // A linked row the run doesn't have is never shown.
+      linkedRow: rows.some((r) => r.row === linkedRow) ? linkedRow : null,
     });
     store.getState().markUnvisited(uuid);
     store.getState().triggerRowData(uuid);
@@ -202,6 +211,7 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
     error: null,
     paramErrors: null,
     run: null,
+    linkedRow: null,
   });
   let run: Run;
   try {
@@ -277,4 +287,26 @@ export async function resumeActionRuns(options: ActionRunOptions = {}): Promise<
     return [followRun(tab.componentUuid, run, follow(tab.componentUuid), options)];
   });
   await Promise.all(pending);
+}
+
+/**
+ * Opens `run` in a new root action tab, as a share link does: the tab holds the run's action and
+ * params, and `linkedRow` when the link names a row. Starts no run; follows `run` until its rows
+ * are stored. Returns the tab's uuid.
+ */
+export function openRunTab(
+  run: Run,
+  linkedRow: number | null,
+  options: ActionRunOptions = {},
+): string {
+  const store = options.store ?? useTabsStore;
+  const uuid = store.getState().createTab({
+    componentName: 'ActionResult',
+    parentUuid: null,
+    title: run.action.name,
+    params: { action: run.action.key, params: run.params },
+    state: { run, runParams: run.params, isExecuting: true, linkedRow },
+  });
+  void followRun(uuid, run, follow(uuid), options);
+  return uuid;
 }

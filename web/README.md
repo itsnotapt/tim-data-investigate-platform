@@ -66,7 +66,6 @@ Each test gets a fresh browser context, so IndexedDB starts empty.
   - It emulates the OS scheme with `page.emulateMedia`.
   - It reaches the config error page by serving a `/config.js` without `auth`.
   - The colour contrast sweep walks several screens on one page through hash routes.
-  - The sweep's Export / Import step comes last, so the snackbar fading out never overlaps an axe run.
   - The rest of the suite runs light, because Playwright emulates a light OS.
 
 ## Layout
@@ -82,7 +81,7 @@ The source has four parts:
 
 ## Routes (hash)
 
-`#/`, `#/queries` (Query Manager), `#/view/:uuid` (tab), `#/share/:uuid`, `#/exportimport`.
+`#/`, `#/queries` (Query Manager), `#/view/:uuid` (tab), `#/runs/:runId` (a share link to a run).
 
 ## Runtime config
 
@@ -232,7 +231,7 @@ Tests use the shared MSW server.
 
 - `lib/uuid`: `generateUuid`, which wraps `crypto.randomUUID`.
 - `lib/isEmpty`: tells whether a value, array or object is empty.
-- `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are Query Manager, a TIM link, Help (Wiki Page and Report a bug, from config, in a new tab), Settings (Appearance, Export / Import) and Account (Sign in, Sign out).
+- `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are Query Manager, a TIM link, Help (Wiki Page and Report a bug, from config, in a new tab), Settings (Appearance) and Account (Sign in, Sign out).
 - `app/AuthGate`: wraps the routes. Signed out shows "You must sign-in first.", loading shows progress, and an error shows its message with Retry.
 - `SideTree`: rendered inside `AuthGate`. The main content is offset by `SIDE_TREE_COLLAPSED_WIDTH`. A failed "Reload templates" shows a snackbar.
 - `components/SnackbarHost` and `useNotify()`: show one message at a time, first in first out.
@@ -483,8 +482,8 @@ Edge cases:
 
 `TemplateQueryTab` is registered for `TemplateQueryResult`. Edit mode is the persisted `state.editQuery`, and edits live in a local draft.
 
-- Toolbar: the New menu, Run Query, Clone, Convert (with a confirm dialog), Edit and Share Link. While editing it shows Save & Run, Save and Cancel.
-- Actions: run, clone, convert and share call the `onRun`, `onClone`, `onConvert` and `onShare` props. Their defaults are in `useTemplateTabActions.ts`.
+- Toolbar: the New menu, Run Query, Clone, Convert (with a confirm dialog) and Edit. While editing it shows Save & Run, Save and Cancel.
+- Actions: run, clone and convert call the `onRun`, `onClone` and `onConvert` props. Their defaults are in `useTemplateTabActions.ts`.
 - `runTemplateQuery.ts`: `runTemplateQuery` renders cluster, database and query with kql-templates.
   - It runs them through `runTabQuery` in `kusto-query/runPipeline.ts`, the pipeline `runKustoQuery` also uses, with no time range.
   - A render error is stored as the tab's error.
@@ -511,7 +510,7 @@ Form pieces:
 The tab that runs an action. How it behaves is in [architecture.md](../docs/architecture.md#the-tab-and-new-menu); this is where the code is.
 
 - `ActionTab.tsx`: the tab, registered for `ActionResult`.
-  - It has a header with Save… and Clone, and a pills bar with Run, or the running spinner with Cancel.
+  - It has a header with Save…, Clone and Copy link, and a pills bar with Run, or the running spinner with Cancel.
   - Its inner tabs are "Query" (for a `kql` or `sql` param), "Results · N" and "Run · duration".
   - It picks the inner tab, and shows the previous results during a run.
   - It finds its action in `useInstanceStore` by `params.action`. The param values are plain values, in `params.params`.
@@ -528,8 +527,11 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A 422's `params.<name>` error goes to the tab's `paramErrors` when the action declares that param. Otherwise it goes into the "Couldn't start: …" message, as `name: reason`.
   - `cancelActionTab` cancels a run, with `cancelRun` from `lib/api/runs.ts`.
   - `resumeActionRuns` picks runs up again after a reload.
+  - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Share links.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
-- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. `StoredActionResultsGrid` reads `row_results` instead, after a reload.
+- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
+  - Given `linkedRow`, it focuses that row and opens its History once the row has arrived, then calls `onLinkedRowShown`.
+- `StoredActionResultsGrid` (same file) reads `row_results` instead, after a reload.
 - `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.
   - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.
   - Schemas are cached per connection and scope. A failure is not cached.
@@ -568,27 +570,17 @@ A pivot opens a template tab from a grid row; see [architecture.md](../docs/arch
 - Save errors: show `ApiError.detail` plus field errors, network failures included.
 - Tests: both components take optional `client` and `store` props. Tests mock `components/CodeEditor` with `testUtils.fakeCodeEditorModule`.
 
-## Export / Import (`src/features/export-import`)
+## Share links (`src/features/share-links`)
 
-`ExportImportPage`, routed at `#/exportimport`, exports and imports only this app's tabs: `display_components` in the `tim` DB, as a JSON array. Row results, column views, applied column views and query options are not included.
+A share link opens a run; see the glossary entry for Share link.
 
-- Export: flushes pending tab writes, fills the textarea and copies the text to the clipboard.
-- Import: disabled while the text is empty, is not JSON, or fails the zod `exportSchema`. The message shows under the field.
-- Import writes the tabs, then calls `useTabsStore.load()`, so the tabs show in the tree at once.
-  - A tab with the same uuid is overwritten.
-  - `isExecuting` is reset.
-  - `displayComponentIndex` is rebased after the existing tabs.
-
-## Share (`src/features/share`)
-
-A share link opens a template tab with given params; see the glossary entry for Share link.
-
-- `buildShareUrl(templateUuid, inParams)`: makes `<origin><path>#/share/<uuid>?p=<base64url of UTF-8 JSON>&execute=0`. `decodeShareParams` reads the same format.
-- Share Link button: `useShareTemplateQuery` copies the URL and shows "Shared link has been saved to the clipboard.".
-- `ShareQueryPage`: routed at `#/share/:uuid`, after bootstrap so the templates are loaded. It shows "This query was not found.", "Parameters are missing." or "Parameters are invalid." when the link is bad.
-- Otherwise `sanitizeShareParams` keeps declared params only, over the defaults, and converts a string `match`. The page creates a root `TemplateQueryResult` titled with `buildSummary` and navigates to it.
-- `execute=1`: runs the tab at once, unless required data is missing. Then it opens in edit mode.
-- `execute=0`: always opens in edit mode.
+- `shareLink(runId, row?)`: makes `<origin><path>#/runs/<runId>`, with `?row=<n>` for a row. `rowParam` reads the `row` value, or `null` unless it is a row number.
+- `copyShareLink(runId, row, notify)`: copies the link and says "Copied a link to this result" or "Copied a link to this row". A failed copy says "Couldn't copy the link".
+- The action tab's header Copy link button is disabled before the tab has a run. The row context menu's Copy link is its last group of items.
+- `ShareLinkPage`: routed at `#/runs/:runId`. It waits until the tabs are loaded. It reads the run with `getRun`, and a succeeded run with rows also its first rows page.
+  - A `404` or `410` shows only "This result is no longer available".
+  - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<uuid>`.
+  - For an action the instance doesn't know, the rows still show and Run is disabled.
 
 ## Tagging (`src/features/tagging`)
 

@@ -112,9 +112,6 @@ function SettingsMenu() {
           <ListItemText primary="Appearance" />
           <ChevronRightIcon fontSize="small" sx={{ ml: 3, color: 'text.secondary' }} />
         </MenuItem>
-        <MenuItem component={RouterLink} to="/exportimport" onClick={closeAll}>
-          Export / Import
-        </MenuItem>
       </Menu>
       <Menu
         anchorEl={themeAnchor}

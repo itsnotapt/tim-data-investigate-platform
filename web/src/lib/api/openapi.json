@@ -4808,6 +4808,7 @@
     },
     "/api/runs/{runId}": {
       "get": {
+        "description": "Any analyst holding the ``runId`` can read the run; only its owner can cancel it.",
         "operationId": "getRun",
         "parameters": [
           {

@@ -31,9 +31,9 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
 | POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
-| GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run. |
-| POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (idempotent). |
-| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations. |
+| GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run (any signed-in analyst with the `runId`). |
+| POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (owner only; idempotent). |
+| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations (any signed-in analyst with the `runId`). |
 | PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and comments of `id`s. |
 | GET | `/api/annotations/changes` | 200 | 401, 422 | The change feed: the `id`s changed after a version. |
 | GET | `/api/annotations/history` | 200 | 401, 422 | The history of an `id`: its label changes and comments, newest first. |
@@ -91,7 +91,7 @@ Every non-2xx response has this body:
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
 | 403 | `forbidden` | Kusto denied the user access to the cluster or database. Or a change to a preset or column view the caller does not own. |
-| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. An unknown preset or column view, or someone else's private one. |
+| 404 | `not-found` | Unknown template or action, or a run that is unknown or expired, a cancel of someone else's run, or a query run that is unknown, expired or owned by someone else. An unknown preset or column view, or someone else's private one. |
 | 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
@@ -164,7 +164,7 @@ Errors:
 
 ## Runs
 
-A run is one execution of an action by the server ([architecture.md](architecture.md#runs-and-rows)). Only its owner can read or cancel it.
+A run is one execution of an action by the server ([architecture.md](architecture.md#runs-and-rows)). Any signed-in analyst who holds its `runId` can read it and its rows. Only its owner can cancel it.
 
 ### POST /api/runs
 
@@ -210,11 +210,11 @@ Otherwise the response is the [Run](#run):
 
 ### GET /api/runs/{runId}
 
-Returns the run with `200`, whatever its status. Poll it until `status` is no longer `running`.
+Returns the run with `200`, whatever its status. Poll it until `status` is no longer `running`. `404` means the run is unknown or expired.
 
 ### POST /api/runs/{runId}/cancel
 
-Cancels a `running` run and returns it with `200`. The run turns `cancelled` once the action's connections have stopped, which may be after the response; poll for it. A run that has already ended comes back unchanged. Any replica can take the request.
+Only the owner can cancel; anyone else gets the same `404` as for an unknown run. Cancels a `running` run and returns it with `200`. The run turns `cancelled` once the action's connections have stopped, which may be after the response; poll for it. A run that has already ended comes back unchanged. Any replica can take the request.
 
 ### GET /api/runs/{runId}/rows
 

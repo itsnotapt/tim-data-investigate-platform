@@ -1,10 +1,11 @@
 import 'fake-indexeddb/auto';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
 import { load } from 'js-yaml';
-import { act } from 'react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
+import { SnackbarHost } from '../../components/SnackbarHost';
 import { useTabsStore } from '../tabs';
 import { ActionResultsGrid } from './ActionResultsGrid';
 
@@ -258,5 +259,73 @@ describe('ActionResultsGrid', () => {
     grid.rerender([{ row: 0, id: 'c-9', data: { User: 'dave' } }]);
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
     expect(api.getCellValue({ rowNode: api.getRowNode('0')!, colKey: 'User' })).toBe('dave');
+  });
+
+  it('focuses the linked row and opens its History once the row has arrived', async () => {
+    const shown = vi.fn();
+    let api: GridApi | undefined;
+    const grid = (r: readonly RunRow[]) => (
+      <ActionResultsGrid
+        uuid="linked"
+        action="dev.sign_ins"
+        rows={r}
+        declaredColumns={declared}
+        runColumns={columns}
+        height={400}
+        linkedRow={1}
+        onLinkedRowShown={shown}
+        onGridReady={(e) => (api = e.api)}
+      />
+    );
+    const { rerender } = render(grid(rows.slice(0, 1)));
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBeGreaterThan(0));
+    expect(screen.queryByRole('complementary', { name: 'History' })).not.toBeInTheDocument();
+    expect(shown).not.toHaveBeenCalled();
+
+    rerender(grid(rows));
+    const history = await screen.findByRole('complementary', { name: 'History' });
+    expect(within(history).getByText('c-1')).toBeInTheDocument();
+    await waitFor(() => {
+      const focused = api!.getFocusedCell();
+      expect(focused).not.toBeNull();
+      expect(api!.getDisplayedRowAtIndex(focused!.rowIndex)?.id).toBe('1');
+    });
+    expect(shown).toHaveBeenCalledTimes(1);
+  });
+
+  it("copies a link to the right-clicked row from the row's menu", async () => {
+    userEvent.setup(); // a clipboard to read back
+    let api: GridApi | undefined;
+    render(
+      <SnackbarHost>
+        <ActionResultsGrid
+          uuid="link"
+          action="dev.sign_ins"
+          runId="r1"
+          rows={rows}
+          runColumns={columns}
+          height={400}
+          onGridReady={(e) => (api = e.api)}
+        />
+      </SnackbarHost>,
+    );
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(2));
+    const items = (
+      api!.getGridOption('getContextMenuItems') as (p: unknown) => (string | MenuItemDef)[]
+    )({ api, node: api!.getRowNode('1'), column: api!.getColumn('User') });
+    const names = items.map((i) => (typeof i === 'string' ? i : i.name));
+    expect(names.slice(-5)).toEqual([
+      'Copy link',
+      'separator',
+      'copy',
+      'copyWithHeaders',
+      'export',
+    ]);
+    const copyLink = items.find(
+      (i): i is MenuItemDef => typeof i === 'object' && i.name === 'Copy link',
+    );
+    act(() => (copyLink!.action as () => void)());
+    expect(await screen.findByText('Copied a link to this row')).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe('http://localhost:3000/#/runs/r1?row=1');
   });
 });

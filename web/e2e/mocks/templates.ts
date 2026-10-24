@@ -6,15 +6,28 @@ import { templates as baseTemplates, type MockTemplate } from './data';
 
 export const STORM_UUID = '11111111-1111-1111-1111-111111111111';
 
-/** Share-link payload: base64url of the UTF-8 JSON params. */
-export const shareParams = (params: object): string =>
-  Buffer.from(JSON.stringify(params), 'utf8').toString('base64url');
-
-/** Opens the storm template through a share link with execute=1. */
-export async function openRunTemplateTab(page: Page, state = 'TEXAS'): Promise<void> {
-  await page.goto(`/#/share/${STORM_UUID}?p=${shareParams({ State: state })}&execute=1`);
-  await expect(page.locator('.ag-row').first()).toBeVisible();
+/**
+ * Opens the storm template from the New query menu, in edit mode, with `state` and the summary
+ * for it filled in.
+ */
+export async function openTemplateTab(page: Page, state = 'TEXAS'): Promise<void> {
+  await page.goto('/');
+  await page.getByRole('button', { name: /get started/i }).click();
+  await page.getByRole('textbox', { name: 'Search queries' }).fill('storm');
+  await page
+    .getByRole('menu')
+    .getByRole('button', { name: 'Storm events for state', exact: true })
+    .click();
+  await page.getByRole('textbox', { name: 'State' }).fill(state);
+  await page.getByRole('textbox', { name: 'Summary' }).fill(`Storm events in ${state}`);
   await expect(page).toHaveURL(/#\/view\//);
+}
+
+/** Opens the storm template from the New query menu and runs it for `state`. */
+export async function openRunTemplateTab(page: Page, state = 'TEXAS'): Promise<void> {
+  await openTemplateTab(page, state);
+  await page.getByRole('button', { name: 'Save & Run' }).click();
+  await expect(page.locator('.ag-row').first()).toBeVisible();
 }
 
 // ---- Query Manager: a small stateful template store behind /api/templates/queries ----

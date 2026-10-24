@@ -235,17 +235,25 @@ async def test_cancelling_a_finished_run_returns_it_unchanged(
         assert cancelled.json() == run
 
 
-async def test_only_the_owner_can_read_or_cancel_a_run(storage: Storage, auth: AuthKit) -> None:
+async def test_any_analyst_holding_the_run_id_can_read_it(storage: Storage, auth: AuthKit) -> None:
     async with open_env(storage, auth, [SIGN_INS]) as env:
         run = (await env.start("acme.sign_ins")).json()
         env.as_user(BOB, "oid-b")
-        for response in (
-            await env.client.get(f"/api/runs/{run['runId']}"),
-            await env.client.post(f"/api/runs/{run['runId']}/cancel"),
-            await env.rows(run["runId"]),
-        ):
-            assert response.status_code == 404
-            assert response.json()["detail"] == "Run not found"
+        read = await env.client.get(f"/api/runs/{run['runId']}")
+        assert read.status_code == 200
+        assert read.json() == run
+        rows = await env.rows(run["runId"])
+        assert rows.status_code == 200
+        assert [r["data"]["User"] for r in rows.json()["rows"]] == ["alice", "bob", "carol"]
+
+
+async def test_only_the_owner_can_cancel_a_run(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth, [SIGN_INS]) as env:
+        run = (await env.start("acme.sign_ins")).json()
+        env.as_user(BOB, "oid-b")
+        response = await env.client.post(f"/api/runs/{run['runId']}/cancel")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Run not found"
 
 
 async def test_a_run_over_the_timeout_ends_timed_out_without_rows(
