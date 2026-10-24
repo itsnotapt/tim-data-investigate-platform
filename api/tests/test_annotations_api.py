@@ -169,12 +169,12 @@ async def test_an_invalid_change_is_a_422(
         ),
     ],
 )
-async def test_a_malformed_change_is_a_400(
+async def test_a_change_with_bad_ids_is_a_422(
     storage: Storage, auth: AuthKit, body: dict[str, Any], errors: dict[str, list[str]]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.patch(body)
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert response.json()["errors"] == errors
 
 
@@ -294,12 +294,12 @@ async def test_the_feed_gives_each_id_changed_after_since_as_it_now_is(
 
 
 @pytest.mark.parametrize("params", [{}, {"since": -1}, {"since": "latest"}])
-async def test_a_feed_request_without_a_version_to_start_after_is_a_400(
+async def test_a_feed_request_without_a_version_to_start_after_is_a_422(
     storage: Storage, auth: AuthKit, params: dict[str, Any]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.client.get("/api/annotations/changes", params=params)
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert list(response.json()["errors"]) == ["since"]
 
 
@@ -423,12 +423,12 @@ async def test_an_id_with_special_characters_round_trips_through_the_query_strin
 
 
 @pytest.mark.parametrize("params", [{}, {"id": ""}, {"id": "x" * 513}])
-async def test_a_history_request_without_a_valid_id_is_a_400(
+async def test_a_history_request_without_a_valid_id_is_a_422(
     storage: Storage, auth: AuthKit, params: dict[str, Any]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.client.get("/api/annotations/history", params=params)
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert list(response.json()["errors"]) == ["id"]
 
 

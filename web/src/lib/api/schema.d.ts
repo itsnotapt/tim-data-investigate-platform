@@ -924,7 +924,7 @@ export interface components {
         };
         /**
          * PatchOperation
-         * @description One RFC 6902 operation. `move` and `copy` are rejected by the literal (400).
+         * @description One RFC 6902 operation. `move` and `copy` are rejected by the literal (422).
          */
         PatchOperation: {
             /**
@@ -1438,7 +1438,7 @@ export interface operations {
                     "application/json": components["schemas"]["PivotResolution"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1509,7 +1509,7 @@ export interface operations {
                     "application/json": components["schemas"]["ChangedAnnotations"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1569,20 +1569,20 @@ export interface operations {
                     "application/json": components["schemas"]["AnnotationChangesPage"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
                 headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1620,20 +1620,20 @@ export interface operations {
                     "application/json": components["schemas"]["AnnotationHistory"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
                 headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1682,7 +1682,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1713,6 +1713,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1865,7 +1874,7 @@ export interface operations {
                     "application/json": components["schemas"]["KustoQueryRun"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1887,6 +1896,15 @@ export interface operations {
             };
             /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1943,15 +1961,6 @@ export interface operations {
                     "application/json": components["schemas"]["KustoQueryRun"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -1965,6 +1974,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2005,7 +2023,7 @@ export interface operations {
                     "application/json": components["schemas"]["SchemaResponse"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2027,6 +2045,15 @@ export interface operations {
             };
             /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2116,7 +2143,7 @@ export interface operations {
                     "application/json": components["schemas"]["Preset"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2180,7 +2207,7 @@ export interface operations {
                     "application/json": components["schemas"]["Preset"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2256,15 +2283,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -2287,6 +2305,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2323,15 +2350,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -2345,6 +2363,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2381,15 +2408,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -2403,6 +2421,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2452,7 +2479,7 @@ export interface operations {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2539,15 +2566,6 @@ export interface operations {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -2561,6 +2579,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2599,15 +2626,6 @@ export interface operations {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -2621,6 +2639,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2662,15 +2689,6 @@ export interface operations {
                     "application/json": components["schemas"]["RowsPage"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -2709,6 +2727,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unhandled error (`internal`). */
             500: {
                 headers: {
@@ -2740,7 +2767,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2754,6 +2781,15 @@ export interface operations {
                 headers: {
                     /** @description `Bearer` */
                     "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
@@ -2800,7 +2836,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2814,6 +2850,15 @@ export interface operations {
                 headers: {
                     /** @description `Bearer` */
                     "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
@@ -2860,7 +2905,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2874,6 +2919,15 @@ export interface operations {
                 headers: {
                     /** @description `Bearer` */
                     "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
@@ -2931,6 +2985,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unhandled error (`internal`). */
             500: {
                 headers: {
@@ -2963,20 +3026,20 @@ export interface operations {
                     "application/json": components["schemas"]["QueryTemplate"][];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
                 headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3018,7 +3081,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueryTemplate"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3040,6 +3103,15 @@ export interface operations {
             };
             /** @description Already exists, or the run has not succeeded (`conflict` / `run-not-succeeded`). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3078,15 +3150,6 @@ export interface operations {
                     "application/json": components["schemas"]["QueryTemplate"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -3100,6 +3163,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3142,7 +3214,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueryTemplate"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3164,6 +3236,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3200,15 +3281,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Missing, invalid or expired token (`unauthorized`). */
             401: {
                 headers: {
@@ -3222,6 +3294,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3264,7 +3345,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueryTemplate"];
                 };
             };
-            /** @description Validation failed, or the cluster is not allowed (`validation` / `cluster-not-allowed`). */
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3286,6 +3367,15 @@ export interface operations {
             };
             /** @description Not found (`not-found`). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

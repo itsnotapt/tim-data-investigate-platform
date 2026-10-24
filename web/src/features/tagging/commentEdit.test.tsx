@@ -118,7 +118,7 @@ describe('commentEdit', () => {
   it('on failure leaves the row unchanged and shows an error snackbar', async () => {
     server.use(
       http.post(apiUrl('/api/taggedevents/comments'), () =>
-        problemResponse(400, { title: 'validation', detail: 'comment too long' }),
+        problemResponse(422, { title: 'validation', detail: 'comment too long' }),
       ),
     );
     const notify = vi.fn();

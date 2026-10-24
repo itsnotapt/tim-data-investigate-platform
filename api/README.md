@@ -196,7 +196,7 @@ Rules:
 - **Request and response models are separate:** `QueryTemplateCreate` (POST), `QueryTemplateReplace` (PUT) and `QueryTemplate` (stored and returned; it also validates PATCH results).
   - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `createdBy`, `updatedBy`, `updated`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
 - **Datetimes:** input without an offset is UTC, and offsets are converted. Output is `...Z`, with milliseconds only when the value has a sub-second part.
-- **Validation error locs** use Python attribute names when a value is missing and defaulted: `QueryField.from` appears as `from_`. The error handler (400 problem envelope) must map it back to `from`.
+- **Validation error locs** use Python attribute names when a value is missing and defaulted: `QueryField.from` appears as `from_`. The error handler (422 problem envelope) must map it back to `from`.
 - **Batch types** (`SavedEventBatch`, ...) enforce 1 to 1000 items.
 - **Cluster policy** is not in the models. It lives in `kusto/validation.py`: `validate_cluster_url`, which raises `InvalidClusterError`.
   - https only;
@@ -298,8 +298,8 @@ Tests:
 
 `POST /api/kusto/query`:
 
-1. validates the cluster: 400, before any token use;
-2. validates the body: `startTime <= endTime`, and NUL in `query` or `database` is 400;
+1. validates the cluster: 400 `cluster-not-allowed`, before any token use;
+2. validates the body: `startTime <= endTime`, and NUL in `query` or `database` is 422;
 3. gets the OBO token synchronously, so 401, 403, 502 and 503 are real HTTP errors;
 4. stores the run as `created`. The owner is the token name, and a client `requestedBy` is ignored. `expiresAt` is now + `TIM_RUN_RETENTION_SECONDS`;
 5. starts a tracked asyncio task (`query_runs/runner.py`, `RunManager`);
@@ -307,7 +307,7 @@ Tests:
 
 There is no `Location` header. Clients poll `GET /api/kusto/query/{queryRunId}`, which returns 202 while `created` and 200 once terminal.
 
-- A malformed guid is 400.
+- A malformed guid is 422.
 - An unknown, expired or foreign run is 404 (`get_for_owner`).
 
 Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed:
@@ -409,7 +409,7 @@ It is safe to re-run.
 | Handler | Answer |
 |---|---|
 | `HTTPException` | Its status, with headers kept, so `WWW-Authenticate` survives. Unknown statuses get `urn:tim:problem:http-<status>` |
-| `RequestValidationError` | 400, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Unparseable JSON gives `{"body": ["Malformed JSON"]}` |
+| `RequestValidationError` | 422 `validation`, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Malformed JSON (a `json_invalid` error) gives 400 `bad-request` with `{"body": ["Malformed JSON"]}` |
 | `NotFoundError` | 404 |
 | `AlreadyExistsError` | 409 |
 | `StorageUnavailableError` | 503 |

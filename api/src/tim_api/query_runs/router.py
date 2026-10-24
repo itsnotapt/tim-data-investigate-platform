@@ -14,7 +14,7 @@ from tim_api.auth.obo import OboTokenProvider
 from tim_api.auth.principal import Principal
 from tim_api.config import Settings, get_settings
 from tim_api.deps import get_query_run_store
-from tim_api.errors import problem_exception
+from tim_api.errors import UnprocessableError, problem_exception
 from tim_api.kusto.query_client import KustoQueryClient, get_kusto_client
 from tim_api.kusto.validation import validate_cluster_url
 from tim_api.observability import get_trace_id
@@ -55,9 +55,14 @@ async def start_query(
     slots: Annotated[asyncio.Semaphore, Depends(get_run_slots)],
 ) -> KustoQueryRun:
     cluster = validate_cluster_url(body.cluster, settings)  # before any token use
-    if "\x00" in body.query or "\x00" in body.database:
-        # PostgreSQL text cannot hold NUL; such a query is never meaningful.
-        raise problem_exception(400, "query and database must not contain NUL characters")
+    # PostgreSQL text cannot hold NUL; such a query is never meaningful.
+    with_nul = {
+        name: ["Must not contain NUL characters"]
+        for name, value in (("query", body.query), ("database", body.database))
+        if "\x00" in value
+    }
+    if with_nul:
+        raise UnprocessableError(with_nul)
     # Auth errors (401/403/502/503) surface synchronously, before a run exists.
     token = await obo.get_token(principal, cluster)
     manager = RunManager(

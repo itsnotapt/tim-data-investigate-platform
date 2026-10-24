@@ -32,7 +32,7 @@ logger = logging.getLogger("tim_api")
 PROBLEM_CONTENT_TYPE = "application/problem+json"
 
 _TYPES: dict[int, tuple[str, str]] = {
-    400: ("validation", "Validation failed"),
+    400: ("bad-request", "Bad request"),
     401: ("unauthorized", "Unauthorized"),
     403: ("forbidden", "Forbidden"),
     404: ("not-found", "Not found"),
@@ -151,9 +151,10 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     async def validation_error(request: Request, exc: Exception) -> JSONResponse:
         assert isinstance(exc, RequestValidationError)  # noqa: S101
-        return problem_response(
-            request, 400, "One or more fields are invalid", errors=validation_errors(exc)
-        )
+        errors = validation_errors(exc)
+        if any(e["type"] == "json_invalid" for e in exc.errors()):
+            return problem_response(request, 400, "The body is not valid JSON", errors=errors)
+        return problem_response(request, 422, "One or more fields are invalid", errors=errors)
 
     def fixed(
         status_code: int,

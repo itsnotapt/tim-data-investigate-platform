@@ -37,7 +37,7 @@ PROTECTED_PATHS = ("/uuid", "/createdBy", "/updatedBy", "/updated")
 
 
 class PatchOperation(ApiModel):
-    """One RFC 6902 operation. `move` and `copy` are rejected by the literal (400)."""
+    """One RFC 6902 operation. `move` and `copy` are rejected by the literal (422)."""
 
     op: Literal["add", "replace", "remove", "test"]
     path: str
@@ -51,7 +51,7 @@ def _now() -> datetime:
 
 
 def _invalid(*errors: tuple[tuple[str, ...], str]) -> RequestValidationError:
-    """A 400 in the standard `errors` envelope; locations use the JSON names."""
+    """A 422 in the standard `errors` envelope; locations use the JSON names."""
     return RequestValidationError(
         [
             {"type": "value_error", "loc": ("body", *loc), "msg": msg, "input": None}
