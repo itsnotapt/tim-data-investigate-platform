@@ -39,7 +39,7 @@ Commands are in [docs/development.md](docs/development.md).
 - Every HTTP call to the API goes through the client in `web/src/lib/api/`.
 - Only `web/src/lib/auth/` imports MSAL; the rest of the app uses that module.
 - A default export is allowed only for a page loaded lazily in `web/src/app/lazyPages.ts`; everything else uses named exports.
-- Unit and component tests sit next to the code as `*.test.ts` or `*.test.tsx`. A user flow gets a Playwright spec in `web/e2e/flows/`.
+- Unit and component tests sit next to the code as `*.test.ts` or `*.test.tsx`. A user flow gets a Playwright spec in `web/e2e/flows/`. Each layer has one `@smoke` flow: the mocked app and the real api. Tag another flow `@smoke` only for a layer that has none. The other flows run on `main` and on release PRs.
 
 ## Backend (`api/`)
 
