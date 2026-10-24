@@ -116,7 +116,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `connections` names the fixed connections the action uses.
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
-  - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the result columns the action declares ([actions.md](actions.md#columns)); it is left out when the action declares none.
+  - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql`). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
 - `limits`: `{maxResultRows, maxResultBytes, maxPivotRows, rowsPageSize, runTimeoutSeconds, maxAnnotationIds, annotationPollSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_MAX_PIVOT_ROWS`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_ANNOTATION_IDS` and `TIM_ANNOTATION_POLL_SECONDS`.
@@ -242,7 +242,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 | `finishedAt` | datetime | Once the run has ended. |
 | `expiresAt` | datetime | |
 | `details` | object | Scalars: `duration` (seconds), `inputRowCount` for a sink, `rowCount` when a query action succeeded, then the action's own, in the order reported. A `warning` holds problems with the rows' `id`s, which never fail the run: an `id` column no row carries (`Id column CorrelationId not in results`), and rows whose `id` is over 512 characters, which get no `id` (`N row(s) have an id over 512 characters and get no id`). An action's own `warning` comes first, joined with `; `. |
-| `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan` or `json`. |
+| `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first, without TIM's own `tim:` columns, and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan` or `json`. |
 | `rowCount` | integer | When succeeded. |
 | `error` | string | A message safe to show, when `error` or `timedOut`. |
 

@@ -69,6 +69,30 @@ columns:
     )
 
 
+def test_a_tim_column_names_one_of_tims_own_columns_and_is_not_calculated(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "users.yaml").write_text(
+        """
+type: query
+key: users
+name: Users
+pivot: none
+query: Users
+columns:
+  - {name: "tim:label", type: string, hidden: false, width: 120}
+  - {name: "tim:colour", type: string}
+  - {name: "tim:tags", type: json, calculated: "[Bytes]"}
+"""
+    )
+    file = tmp_path / "users.yaml"
+    assert load_action_files(tmp_path, TYPES).problems == [
+        f"{file}:9: columns[1].name: TIM's own columns are tim:label, tim:tags, tim:commentText"
+        " and tim:comments",
+        f"{file}:10: columns[2].calculated: TIM's own columns can't be calculated",
+    ]
+
+
 def test_an_empty_document_is_skipped(tmp_path: Path) -> None:
     (tmp_path / "users.yaml").write_text(
         "# comments only\n---\ntype: query\nkey: users\nname: Users\npivot: none\nquery: U\n---\n"

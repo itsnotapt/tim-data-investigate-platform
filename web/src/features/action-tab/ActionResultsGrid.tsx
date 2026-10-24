@@ -1,14 +1,22 @@
 import type {
   CellKeyDownEvent,
   FullWidthCellKeyDownEvent,
+  GetMainMenuItems,
   GridApi,
   GridReadyEvent,
+  GridState,
 } from 'ag-grid-community';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
-import { ACTION_SIDE_BAR, ACTION_STATUS_PANELS, useActionColumnView } from '../action-column-views';
+import {
+  ACTION_SIDE_BAR,
+  ACTION_STATUS_PANELS,
+  actionFileColumns,
+  copyColumnSettingsItem,
+  useActionColumnView,
+} from '../action-column-views';
 import { annotationColumnDefs, useAnnotating } from '../annotate';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
@@ -99,13 +107,15 @@ export function ActionResultsGrid({
       false,
   );
   const notifyContext = useContext(NotifyContext);
+  const own = useMemo(() => [...annotationColumnDefs(), labelColumnDef(labels)], [labels]);
   const columnDefs = useMemo(
-    () => [
-      ...buildActionColumnDefs(declaredColumns, runColumns),
-      ...annotationColumnDefs(),
-      labelColumnDef(labels),
-    ],
-    [declaredColumns, runColumns, labels],
+    () => buildActionColumnDefs(declaredColumns, runColumns, own),
+    [declaredColumns, runColumns, own],
+  );
+  /** The `columns:` block of the grid's `state`, for the Action file panel and Copy column settings. */
+  const actionFile = useCallback(
+    (state: GridState) => actionFileColumns({ state, declared: declaredColumns, runColumns, own }),
+    [declaredColumns, runColumns, own],
   );
   // The grid is given `given` as its row data; rows that continue them go in by transaction, so a
   // page doesn't make the grid take every row again.
@@ -155,7 +165,7 @@ export function ActionResultsGrid({
     [index],
   );
   const { start, keep, columnViews } = useActionColumnView(uuid);
-  const context = useMemo(() => ({ columnViews }), [columnViews]);
+  const context = useMemo(() => ({ columnViews, actionFile }), [columnViews, actionFile]);
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
       api.current = e.api;
@@ -194,14 +204,27 @@ export function ActionResultsGrid({
     },
     [sinks, max],
   );
+  const copySettingsItem = useCallback(
+    (api: GridApi) => copyColumnSettingsItem(() => actionFile(api.getState()), notifyContext),
+    [actionFile, notifyContext],
+  );
+  const copyColumnSettingsMenu = useCallback<GetExtraContextMenuItems>(
+    (params) => [copySettingsItem(params.api)],
+    [copySettingsItem],
+  );
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
       annotateMenu,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
+      copyColumnSettingsMenu,
     ],
-    [labelling, annotateMenu, getContextMenuItems, sinkMenu],
+    [labelling, annotateMenu, getContextMenuItems, sinkMenu, copyColumnSettingsMenu],
+  );
+  const getMainMenuItems = useCallback<GetMainMenuItems<GridRowWithId>>(
+    (params) => [...params.defaultItems, 'separator', copySettingsItem(params.api)],
+    [copySettingsItem],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(
@@ -226,6 +249,7 @@ export function ActionResultsGrid({
         columnId={ROW_ID}
         columnDefs={columnDefs}
         getContextMenuItems={menu}
+        getMainMenuItems={getMainMenuItems}
         rowClassRules={rowClassRules}
         selectionSymbol={LabelSymbol}
         onCellKeyDown={onCellKeyDown}

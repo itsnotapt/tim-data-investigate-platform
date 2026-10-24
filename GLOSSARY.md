@@ -42,6 +42,9 @@ An action that takes the rows an analyst selected and writes them somewhere, suc
 **Action default**:
 The columns an action declares. A tab starts with them when there's no applied view.
 
+**Action file panel**:
+The panel in an action tab's side bar that shows the tab's column layout as an action file's `columns:` block, with Copy. Pasted into the action file, it becomes the action default.
+
 **Preset**:
 An action with some of its params fixed and the rest filled in by the analyst or from rows, saved by an analyst under a name and a menu folder. It is private to its owner or shared with everyone. An analyst can hide someone else's preset for themselves.
 _Avoid_: saved action, favourite

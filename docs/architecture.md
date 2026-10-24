@@ -446,7 +446,7 @@ A column view is a named, saved set of the results grid's columns and filters ([
 
 When the grid is ready, it resets to the action default (`resetColumnState()`). It then applies the first of these that exists: the tab's `gridState`, the column view applied for the tab's preset or action, or the action default. The state goes on with `setState()`, leaving alone the sections the column view doesn't have.
 
-**Views panel.** The grid's side bar of an action tab has a Views panel beside Columns and Filters.
+**Views panel.** The grid's side bar of an action tab has a Views panel beside Columns and Filters (and the [Action file panel](#action-file-panel)).
 
 - **Header:** "name (applied) • modified". "Modified" shows when the tab's grid differs from the baseline it started with.
 - **Save…** opens the Save column view dialog: Name and **Share with everyone**. When you own the tab's column view, it offers **Update "name"** or **Save as new**; otherwise **Save**.
@@ -475,6 +475,22 @@ The status bar has a panel "View: name (applied) • modified".
 - `GET /api/columnViews` returns the caller's column views and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
 - The server assigns `viewId`, `owner` (from the token) and the timestamps.
 - `404` for an unknown column view or someone else's private one. `403` for a change by someone who does not own it.
+
+### Action file panel
+
+The Action file panel exports an action tab's column layout as the `columns:` block of an action file ([actions.md](actions.md#columns)), so a layout the analyst built can become the action default.
+
+- **Where.** The Action file panel is in the action tab's side bar, beside Columns, Filters and Views. It shows the live `columns:` block, kept up to date as the columns change, with **Copy**.
+- **Copy column settings (action file).** The same block is in the right-click menu, in its own group after the sinks and above Copy, and in the column menu after AG Grid's items.
+- **Generated in the browser** from the tab's grid state (`web/src/features/action-column-views/actionFileColumns.ts`).
+  - Each column is in grid order, which is AG Grid's column order, so a pinned column keeps its place.
+  - An entry has `name`, `type`, `title` (when the header isn't the name), `hidden`, `width` (when not the default: 200, or TIM's own for its columns), `pinned`, `sort`, `group` and `calculated`.
+  - It includes the calculated columns the analyst made. Their type is the dialog's type, else `string`.
+  - TIM's own `tim:` columns are in it only when they differ from TIM's settings or sit before a result column.
+  - Filters are left out.
+- **Limits.**
+  - `columns:` has no sort or group index, so several sorts or groups follow the order of the block.
+  - TIM's own columns left out after the last result column keep TIM's order, even when the analyst reordered them.
 
 ### Sinks in the browser
 
@@ -521,7 +537,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - Every row with the same `id` shows it, in any tab.
 - **The Label column.** Column `tim:label` holds the label's name. It is hidden until the analyst shows it, and it has a set filter and can be grouped.
 - **Comments column.** Column `tim:comments` is shown. It has a comment icon and the count, and the latest comment, with its author, as the tooltip.
-- **Hidden columns.** The analyst can show two more.
+- **Hidden columns.** The analyst can show two more. A declared `tim:` column in the action's `columns:` sets up any of TIM's four columns, including whether it starts hidden ([Actions](actions.md#columns)).
   - **Tags** (`tim:tags`) holds the row's tags. Its set filter lists each tag once, plus "(no tags)", and it can be grouped.
   - **Comment text** (`tim:commentText`) holds the text of the row's comments, and has a text filter.
 - **Label ▸.** The right-click menu has a **Label** submenu for the selected rows, or for the clicked row when none is selected.

@@ -13,7 +13,7 @@ from pydantic import Field, StrictInt, field_validator, model_validator
 
 from tim_actions._common import NonBlankStr
 from tim_actions.action import Action, Sink
-from tim_actions.columns import Column
+from tim_actions.columns import TIM_COLUMNS, Column
 from tim_actions.connections import Connection
 from tim_actions.files import ActionDocument, SinkDocument
 from tim_actions.hooks import EditorSchema, Hook
@@ -103,7 +103,8 @@ class DevRowsFile(ActionDocument):
 class DevRows(Action):
     """``dev_rows``: reports its ``details`` and waits ``delay`` seconds, then fails with
     ``error`` or yields its ``rows``. ``generate`` rows are numbered from 1, each with a value
-    made from the row number for every declared column, or only ``n`` without ``columns``.
+    made from the row number for every declared column but TIM's own, or only ``n`` without
+    ``columns``.
 
     Only the rows that match every param with ``from_columns`` and a value are yielded.
 
@@ -147,7 +148,11 @@ class DevRows(Action):
             if self.columns is None:
                 yield {"n": n}
             else:
-                yield {column.name: _generated(column, n) for column in self.columns}
+                yield {
+                    column.name: _generated(column, n)
+                    for column in self.columns
+                    if column.name not in TIM_COLUMNS
+                }
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
         for key, value in self.details.items():

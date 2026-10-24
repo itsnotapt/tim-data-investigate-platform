@@ -180,7 +180,7 @@ There are two actions and two action file types:
   | Field | What it does |
   |---|---|
   | `rows` | The rows the run yields |
-  | `generate: <n>` | Yields `n` rows instead, numbered from 1. Each declared column gets a value made from the row number (`Host-2`, `2`, `true`, `2026-01-01T00:02:00Z`, `PT2S`, `{"n": 2}` by type). Without `columns`, each row is `{n}`. Give `rows` or `generate`, not both |
+  | `generate: <n>` | Yields `n` rows instead, numbered from 1. Each declared column but TIM's own `tim:` columns gets a value made from the row number (`Host-2`, `2`, `true`, `2026-01-01T00:02:00Z`, `PT2S`, `{"n": 2}` by type). Without `columns`, each row is `{n}`. Give `rows` or `generate`, not both |
   | `params` with `from_columns` | Filter the rows. A param with a value keeps the rows whose first non-empty `from_columns` value equals it, or is one of its values for `many`. Only `string`, `number` and `boolean` params filter |
   | `delay` | Seconds to wait before the rows. Cancel or the timeout ends the run at once. Its worker thread still sleeps until the delay or the timeout |
   | `error` | Ends the run in error with this message, after the delay |

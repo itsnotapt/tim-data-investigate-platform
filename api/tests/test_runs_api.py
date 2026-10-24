@@ -590,6 +590,21 @@ async def test_columns_are_declared_first_then_inferred_in_first_seen_order(
         ]
 
 
+async def test_a_declared_tim_column_is_not_one_of_the_runs_columns(
+    storage: Storage, auth: AuthKit
+) -> None:
+    action = Rows(
+        key="acme.tim",
+        name="TIM columns",
+        pivot="none",
+        columns=(Column("tim:label", "string", hidden=False), Column("Host", "string")),
+        rows=({"Host": "h1"},),
+    )
+    async with open_env(storage, auth, [action]) as env:
+        run = (await env.start("acme.tim")).json()
+        assert run["columns"] == [{"name": "Host", "type": "string", "declared": True}]
+
+
 async def test_nul_characters_become_replacement_characters(
     storage: Storage, auth: AuthKit
 ) -> None:
