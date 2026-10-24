@@ -527,7 +527,7 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A 422's `params.<name>` error goes to the tab's `paramErrors` when the action declares that param. Otherwise it goes into the "Couldn't start: …" message, as `name: reason`.
   - `cancelActionTab` cancels a run, with `cancelRun` from `lib/api/runs.ts`.
   - `resumeActionRuns` picks runs up again after a reload.
-  - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Run links.
+  - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Share links.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
 - `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
   - Given `linkedRow`, it focuses that row and opens its History once the row has arrived, then calls `onLinkedRowShown`.
@@ -570,14 +570,14 @@ A pivot opens a template tab from a grid row; see [architecture.md](../docs/arch
 - Save errors: show `ApiError.detail` plus field errors, network failures included.
 - Tests: both components take optional `client` and `store` props. Tests mock `components/CodeEditor` with `testUtils.fakeCodeEditorModule`.
 
-## Run links (`src/features/run-links`)
+## Share links (`src/features/share-links`)
 
 A share link opens a run; see the glossary entry for Share link.
 
-- `runLink(runId, row?)`: makes `<origin><path>#/runs/<runId>`, with `?row=<n>` for a row. `linkedRow` reads the `row` value, or `null` unless it is a row number.
-- `copyRunLink(runId, row, notify)`: copies the link and says "Copied a link to this result" or "Copied a link to this row". A failed copy says "Couldn't copy the link".
+- `shareLink(runId, row?)`: makes `<origin><path>#/runs/<runId>`, with `?row=<n>` for a row. `rowParam` reads the `row` value, or `null` unless it is a row number.
+- `copyShareLink(runId, row, notify)`: copies the link and says "Copied a link to this result" or "Copied a link to this row". A failed copy says "Couldn't copy the link".
 - The action tab's header Copy link button is disabled before the tab has a run. The row context menu's Copy link is its last group of items.
-- `RunLinkPage`: routed at `#/runs/:runId`. It waits until the tabs are loaded. It reads the run with `getRun`, and a succeeded run with rows also its first rows page.
+- `ShareLinkPage`: routed at `#/runs/:runId`. It waits until the tabs are loaded. It reads the run with `getRun`, and a succeeded run with rows also its first rows page.
   - A `404` or `410` shows only "This result is no longer available".
   - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<uuid>`.
   - For an action the instance doesn't know, the rows still show and Run is disabled.

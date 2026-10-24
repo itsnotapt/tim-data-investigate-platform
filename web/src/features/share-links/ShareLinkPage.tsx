@@ -6,7 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { getRun, getRunRows, isApiError, isResultsGone, type Run } from '../../lib/api';
 import { openRunTab } from '../action-tab';
 import { useTabsStore } from '../tabs';
-import { linkedRow } from './runLink';
+import { rowParam } from './shareLink';
 
 const GONE = 'This result is no longer available';
 
@@ -26,14 +26,14 @@ async function readRun(runId: string): Promise<Run | null> {
  * `#/runs/:runId?row=<n>`, a share link: opens the run in an ordinary tab, with the row it names
  * focused and its History open, and runs nothing. A run that is gone shows only that.
  */
-export default function RunLinkPage() {
+export default function ShareLinkPage() {
   const { runId = '' } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const loaded = useTabsStore((s) => s.loaded);
   const [error, setError] = useState<string | null>(null);
   const handled = useRef<string | null>(null);
-  const row = linkedRow(search.get('row'));
+  const row = rowParam(search.get('row'));
 
   useEffect(() => {
     if (!loaded) return;

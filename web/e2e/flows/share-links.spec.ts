@@ -104,7 +104,7 @@ test('a link to an unknown or expired run shows only that it is gone', async ({ 
   await expect(page.getByRole('tab')).toHaveCount(0);
 });
 
-test('old share and export/import links land like unknown routes', async ({ page }) => {
+test('a #/share or #/exportimport URL lands like an unknown route', async ({ page }) => {
   for (const old of [
     '/#/share/11111111-1111-1111-1111-111111111111?p=e30&execute=1',
     '/#/exportimport',

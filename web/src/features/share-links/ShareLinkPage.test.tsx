@@ -8,7 +8,7 @@ import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { useTabsStore } from '../tabs/tabStore';
-import RunLinkPage from './RunLinkPage';
+import ShareLinkPage from './ShareLinkPage';
 
 const server = setupMswServer();
 const RUN_ID = '5b0c5d0e-1f7e-4a8e-9d55-2f1c2f3a4b5c';
@@ -44,7 +44,7 @@ function renderAt(url: string) {
   return render(
     <MemoryRouter initialEntries={[url]}>
       <Routes>
-        <Route path="runs/:runId" element={<RunLinkPage />} />
+        <Route path="runs/:runId" element={<ShareLinkPage />} />
         <Route path="view/:uuid" element={<Loc />} />
       </Routes>
     </MemoryRouter>,
@@ -71,7 +71,7 @@ beforeEach(() => {
 });
 afterEach(resetTestApp);
 
-describe('RunLinkPage', () => {
+describe('ShareLinkPage', () => {
   it("opens an ordinary tab holding the run, with the run's params and the linked row", async () => {
     server.use(
       http.get(apiUrl(`/api/runs/${RUN_ID}`), () => HttpResponse.json(run)),
@@ -147,6 +147,19 @@ describe('RunLinkPage', () => {
 
     expect(await screen.findByText('This result is no longer available')).toBeInTheDocument();
     expect(screen.queryByTestId('loc')).not.toBeInTheDocument();
+    expect(useTabsStore.getState().tabs).toEqual({});
+  });
+
+  it('says why a run it could not read was not opened', async () => {
+    server.use(
+      http.get(apiUrl(`/api/runs/${RUN_ID}`), () =>
+        problemResponse(500, { type: 'urn:tim:problem:internal', title: 'Internal error' }),
+      ),
+    );
+    renderAt(`/runs/${RUN_ID}`);
+
+    expect(await screen.findByText(/^Couldn't open the result: /)).toBeInTheDocument();
+    expect(screen.queryByText('This result is no longer available')).not.toBeInTheDocument();
     expect(useTabsStore.getState().tabs).toEqual({});
   });
 });

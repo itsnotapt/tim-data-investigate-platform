@@ -36,7 +36,7 @@ import {
   type LabelMenuOptions,
   type RowsById,
 } from '../labels';
-import { copyRunLink } from '../run-links';
+import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 
@@ -252,7 +252,7 @@ export function ActionResultsGrid({
           name: 'Copy link',
           disabled: typeof row !== 'number',
           action: () => {
-            if (typeof row === 'number') void copyRunLink(runId, row, notifyContext);
+            if (typeof row === 'number') void copyShareLink(runId, row, notifyContext);
           },
         },
       ];

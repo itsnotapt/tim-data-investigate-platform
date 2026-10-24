@@ -396,6 +396,7 @@ describe('runActionTab', () => {
       run: makeRun({ status: 'error' }),
       error: { message: 'Failed' },
       paramErrors: { users: 'Required' },
+      linkedRow: 1,
     });
     let release = () => {};
     const started = new Promise<void>((resolve) => (release = resolve));
@@ -411,6 +412,7 @@ describe('runActionTab', () => {
       error: null,
       paramErrors: null,
       run: null,
+      linkedRow: null,
     });
     release();
     await running;
@@ -571,6 +573,26 @@ describe('resumeActionRuns', () => {
     await resumeActionRuns({ store, sleep });
     expect(store.getState().tabs['b']!.state.isExecuting).toBe(false);
     expect(store.getState().tabs['c']!.state.isExecuting).toBe(false);
+  });
+
+  it.each([
+    [1, 1],
+    [7, null],
+  ])('keeps a linked row %i only when the stored rows have it', async (linkedRow, kept) => {
+    createActionTab('b', { isExecuting: true, run: succeeded(3), linkedRow });
+    server.use(rowsHandler());
+    await resumeActionRuns({ store, sleep });
+    expect(store.getState().tabs['b']!.state).toMatchObject({ rowCount: 3, linkedRow: kept });
+  });
+
+  it('drops the linked row of a run that ends without rows', async () => {
+    createActionTab('b', { isExecuting: true, run: makeRun(), linkedRow: 1 });
+    server.use(pollHandler(makeRun({ status: 'error', error: 'Failed' })));
+    await resumeActionRuns({ store, sleep });
+    expect(store.getState().tabs['b']!.state).toMatchObject({
+      error: { message: 'Failed' },
+      linkedRow: null,
+    });
   });
 
   it('says so when the run being picked up has expired', async () => {

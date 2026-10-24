@@ -57,7 +57,8 @@ export interface DisplayComponentState {
   columnView?: TabColumnView | null;
   /**
    * Action tabs only: the row a share link named, focused with its History open once the run's
-   * rows show. Cleared then.
+   * rows show. Cleared then, and also when the run ends without success, when the stored rows
+   * lack that row, or when a new run of the tab starts.
    */
   linkedRow?: number | null;
 }

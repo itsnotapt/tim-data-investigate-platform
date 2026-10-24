@@ -19,7 +19,7 @@ import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
 import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
-import { copyRunLink } from '../run-links';
+import { copyShareLink } from '../share-links';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
 import { useTemplatesStore } from '../templates';
@@ -347,7 +347,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           size="small"
           startIcon={<LinkIcon />}
           disabled={linkRunId === null}
-          onClick={() => linkRunId !== null && void copyRunLink(linkRunId, null, notify)}
+          onClick={() => linkRunId !== null && void copyShareLink(linkRunId, null, notify)}
           sx={{ flexShrink: 0 }}
         >
           Copy link

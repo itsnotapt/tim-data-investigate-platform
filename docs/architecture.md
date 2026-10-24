@@ -84,7 +84,7 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `run-links` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share-links` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
@@ -102,7 +102,7 @@ Features import `lib/*` and `components/*`. Between features:
 - **Public `index.ts`:** ten features have one: `new-query`, `presets`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid`, `column-views` and `action-column-views`. Most imports between features go through it.
 - **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery` and `grid/rowUpdates`.
 - **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. Code loaded at startup imports `lib/kql-templates/params` directly. Those `index.ts` files pull in AG Grid and Handlebars (see [Bundle](#bundle)).
-- **Lazy pages:** `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs` and `run-links` directly.
+- **Lazy pages:** `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs` and `share-links` directly.
 
 ### Routes
 
@@ -113,7 +113,7 @@ Routes are hash routes. Unknown hashes redirect to `#/`. Pages are lazy-loaded.
 | `#/` | Welcome |
 | `#/queries` | Query Manager (template administration) |
 | `#/view/:uuid` | A tab of any kind: Kusto, template or action (`uuid` is the tab's component uuid) |
-| `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row's ordinal). It opens an action tab holding the run and replaces the URL with `#/view/<uuid>` ([Run links](#run-links)) |
+| `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row's ordinal). It opens an action tab holding the run and replaces the URL with `#/view/<uuid>` ([Share links](#share-links)) |
 
 ### Bundle
 
@@ -209,15 +209,15 @@ An action tab runs differently:
    - A `404` on the run shows "The run is no longer available; run again".
    - A `410` on the rows (results gone) shows "Results are no longer available; run again".
 
-### Run links
+### Share links
 
-A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. The code is in `web/src/features/run-links/`.
+A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. The code is in `web/src/features/share-links/`.
 
 - **Copy link.** The action tab's header button copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
-- **Open.** `RunLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
+- **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
   - A `404` (unknown or expired run) or a `410` (results gone) shows only "This result is no longer available".
   - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<uuid>`. A run still going is followed, and the tab fills in when it ends.
-  - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens its History panel, and `linkedRow` is cleared.
+  - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens its History panel, and `linkedRow` is cleared. It is also cleared when the run ends without success, when the stored rows don't have that row, and when a new run of the tab starts.
 - **Run.** Run starts a new run as the recipient, with the tab's params. For an action the instance does not know, the rows still show and Run is disabled.
 
 One run is followed per tab. Starting another run stops following the previous one.
@@ -280,7 +280,7 @@ A From row query parameter is left unset too. A From row input that is still uns
 
 The action tab has a header, a pills bar and inner tabs.
 
-**Header:** the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#run-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [applied column view](#column-views), not the original's columns.
+**Header:** the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [applied column view](#column-views), not the original's columns.
 
 **Pills bar:** one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
