@@ -1,5 +1,7 @@
 import { useColumnViewsState } from '../app/columnViewsState';
+import { useAppliedViewsStore } from '../features/action-column-views';
 import { useInstanceStore } from '../features/instance';
+import { usePresetsStore } from '../features/presets';
 import { useTabsStore } from '../features/tabs';
 import { useTemplatesStore } from '../features/templates';
 
@@ -24,5 +26,7 @@ export function stubBootstrap(): void {
   });
   useTemplatesStore.setState({ loaded: true });
   useColumnViewsState.setState({ load: () => Promise.resolve() });
+  useAppliedViewsStore.setState({ load: () => Promise.resolve() });
+  usePresetsStore.setState({ refresh: () => Promise.resolve() });
   useTabsStore.setState({ load: () => Promise.resolve(useTabsStore.setState({ loaded: true })) });
 }

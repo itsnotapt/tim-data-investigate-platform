@@ -8,6 +8,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
+import { ACTION_SIDE_BAR, ACTION_STATUS_PANELS, useActionColumnView } from '../action-column-views';
 import { annotationColumnDefs, useAnnotating } from '../annotate';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
@@ -45,6 +46,11 @@ export type ActionResultsGridProps = Omit<
   | 'columnId'
   | 'columnDefs'
   | 'stateKey'
+  | 'columnViews'
+  | 'sideBar'
+  | 'statusPanels'
+  | 'context'
+  | 'onStateUpdated'
   | 'rowClassRules'
   | 'selectionSymbol'
   | 'onCellKeyDown'
@@ -72,6 +78,8 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
  * text columns, Label ▸, Annotate…, Comment… and their keys, and the sinks, which take the rows.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
+ * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
+ * side bar, with the view's name in the status bar.
  */
 export function ActionResultsGrid({
   uuid,
@@ -146,13 +154,16 @@ export function ActionResultsGrid({
       }),
     [index],
   );
+  const { start, keep, columnViews } = useActionColumnView(uuid);
+  const context = useMemo(() => ({ columnViews }), [columnViews]);
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
       api.current = e.api;
+      void start(e.api);
       void showStoredAnnotations();
       onGridReady?.(e);
     },
-    [onGridReady, showStoredAnnotations],
+    [onGridReady, showStoredAnnotations, start],
   );
   const labelling = useMemo<LabelMenuOptions>(
     () => ({
@@ -206,7 +217,11 @@ export function ActionResultsGrid({
     <>
       <ResultsGrid
         {...rest}
-        stateKey={uuid}
+        columnViews={false}
+        sideBar={ACTION_SIDE_BAR}
+        statusPanels={ACTION_STATUS_PANELS}
+        context={context}
+        onStateUpdated={keep}
         rows={given}
         columnId={ROW_ID}
         columnDefs={columnDefs}

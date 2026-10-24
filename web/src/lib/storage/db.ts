@@ -1,10 +1,10 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Annotations } from '../api/annotations';
-import type { ColumnView, DisplayComponent, QueryOption, RowResult } from './types';
+import type { AppliedView, ColumnView, DisplayComponent, QueryOption, RowResult } from './types';
 
 /** The app's IndexedDB database. */
 const TIM_DB_NAME = 'tim';
-const TIM_DB_VERSION = 2;
+const TIM_DB_VERSION = 3;
 
 export const STORE = {
   displayComponents: 'display_components',
@@ -13,6 +13,7 @@ export const STORE = {
   queryOptions: 'query_options',
   annotations: 'annotations',
   annotationSync: 'annotation_sync',
+  appliedViews: 'applied_views',
 } as const;
 
 interface TimDbSchema extends DBSchema {
@@ -29,6 +30,8 @@ interface TimDbSchema extends DBSchema {
   annotations: { key: string; value: Annotations };
   /** Key = `cursor`; out-of-line key, value is the change feed version read up to. */
   annotation_sync: { key: string; value: number };
+  /** Key = `[analyst, scope]`. */
+  applied_views: { key: [string, string]; value: AppliedView; indexes: { analyst: string } };
 }
 
 export type TimDb = IDBPDatabase<TimDbSchema>;
@@ -50,6 +53,12 @@ export function openTimDb(): Promise<TimDb> {
         if (oldVersion < 2) {
           db.createObjectStore(STORE.annotations, { keyPath: 'id' });
           db.createObjectStore(STORE.annotationSync);
+        }
+        if (oldVersion < 3) {
+          const applied = db.createObjectStore(STORE.appliedViews, {
+            keyPath: ['analyst', 'scope'],
+          });
+          applied.createIndex('analyst', 'analyst');
         }
       },
       terminated() {

@@ -19,10 +19,10 @@ import type { GridRowWithId } from './columns';
 import { rowClassRules } from './rowClasses';
 
 /** Side bar (screens 17, 18): Columns and Filters tool panels. */
-const SIDE_BAR: SideBarDef['toolPanels'] & string[] = ['columns', 'filters'];
+export const SIDE_BAR: SideBarDef['toolPanels'] & string[] = ['columns', 'filters'];
 
 /** Screen 15: execution stats on the left, then total / filtered / selected counts. */
-const STATUS_PANELS: StatusPanelDef[] = [
+export const STATUS_PANELS: StatusPanelDef[] = [
   { statusPanel: ExecutionStatusPanel, align: 'left' },
   { statusPanel: 'agTotalRowCountComponent' },
   { statusPanel: 'agFilteredRowCountComponent' },

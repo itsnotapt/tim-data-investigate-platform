@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { openDB } from 'idb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  appliedViewsDao,
   columnViewsDao,
   displayComponentsDao,
   openTimDb,
@@ -37,13 +38,14 @@ afterEach(async () => {
 });
 
 describe('openTimDb', () => {
-  it('creates database "tim" v2 with the six stores', async () => {
+  it('creates database "tim" v3 with the seven stores', async () => {
     const db = await openTimDb();
     expect(db.name).toBe('tim');
-    expect(db.version).toBe(2);
+    expect(db.version).toBe(3);
     expect([...db.objectStoreNames].sort()).toEqual([
       'annotation_sync',
       'annotations',
+      'applied_views',
       'column_views',
       'display_components',
       'query_options',
@@ -64,8 +66,29 @@ describe('openTimDb', () => {
     v1.close();
 
     const db = await openTimDb();
-    expect(db.version).toBe(2);
+    expect(db.version).toBe(3);
     expect(db.objectStoreNames).toContain('annotations');
+    expect(db.objectStoreNames).toContain('applied_views');
+    expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
+  });
+
+  it('upgrades a v2 database, keeping its data', async () => {
+    const v2 = await openDB('tim', 2, {
+      upgrade(db) {
+        db.createObjectStore('display_components', { keyPath: 'componentUuid' });
+        db.createObjectStore('row_results');
+        db.createObjectStore('column_views', { keyPath: 'uuid' });
+        db.createObjectStore('query_options');
+        db.createObjectStore('annotations', { keyPath: 'id' });
+        db.createObjectStore('annotation_sync');
+      },
+    });
+    await v2.put('row_results', [{ row: 0 }], 'tab-1');
+    v2.close();
+
+    const db = await openTimDb();
+    expect(db.version).toBe(3);
+    expect(db.objectStoreNames).toContain('applied_views');
     expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
@@ -160,6 +183,32 @@ describe('columnViewsDao', () => {
 
     await columnViewsDao.delete('2');
     expect((await columnViewsDao.list()).map((v) => v.uuid)).toEqual(['1']);
+  });
+});
+
+describe('appliedViewsDao', () => {
+  const applied = (analyst: string, scope: string, name = 'Triage') => ({
+    analyst,
+    scope,
+    viewId: `${analyst}-${scope}`,
+    name,
+  });
+
+  it("lists one analyst's entries, replaces by scope and deletes", async () => {
+    await appliedViewsDao.put(applied('alice', 'action:sign-ins'));
+    await appliedViewsDao.put(applied('alice', 'preset:p1'));
+    await appliedViewsDao.put(applied('bob', 'action:sign-ins'));
+    await appliedViewsDao.put(applied('alice', 'action:sign-ins', 'Renamed'));
+
+    const alices = await appliedViewsDao.list('alice');
+    expect(alices.map((a) => [a.scope, a.name]).sort()).toEqual([
+      ['action:sign-ins', 'Renamed'],
+      ['preset:p1', 'Triage'],
+    ]);
+
+    await appliedViewsDao.delete('alice', 'preset:p1');
+    expect((await appliedViewsDao.list('alice')).map((a) => a.scope)).toEqual(['action:sign-ins']);
+    expect(await appliedViewsDao.list('bob')).toEqual([applied('bob', 'action:sign-ins')]);
   });
 });
 

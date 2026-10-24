@@ -71,6 +71,7 @@ describe('useBootstrap', () => {
         'syncAnnotations',
       ]),
     );
+    expect(steps.loadColumnViews).toHaveBeenCalledWith('jo@example.com');
   });
 
   it("picks the sink runs up again, toasting how they ended in the app's snackbar", async () => {

@@ -54,6 +54,12 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | DELETE | `/api/presets/{presetId}` | 204 | 400, 401, 403, 404 | Delete a preset for good (owner only). |
 | PUT | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Hide a preset for yourself (idempotent). |
 | DELETE | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Unhide a preset for yourself (idempotent). |
+| GET | `/api/columnViews` | 200 | 401 | List your column views and the shared ones. |
+| POST | `/api/columnViews` | 201 | 400, 401 | Create a column view. |
+| PUT | `/api/columnViews/{viewId}` | 200 | 400, 401, 403, 404 | Replace a column view (owner only). |
+| DELETE | `/api/columnViews/{viewId}` | 204 | 400, 401, 403, 404 | Delete a column view for good (owner only). |
+| PUT | `/api/columnViews/{viewId}/hidden` | 204 | 400, 401, 404 | Hide a column view for yourself (idempotent). |
+| DELETE | `/api/columnViews/{viewId}/hidden` | 204 | 400, 401, 404 | Unhide a column view for yourself (idempotent). |
 | POST | `/api/taggedevents/savedEvents` | 204 | 400, 401, 502 | Save events (rows) to `SavedEvent`. |
 | POST | `/api/taggedevents/tags` | 204 | 400, 401, 502 | Add or remove tags in `EventTag`. |
 | POST | `/api/taggedevents/comments` | 204 | 400, 401, 502 | Add or remove comments in `EventComment`. |
@@ -79,12 +85,12 @@ Every non-2xx response has this body:
 
 | Status | `type` slug | Cause |
 |---|---|---|
-| 400 | `validation` | Invalid body, query or path; malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`. |
+| 400 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`. |
 | 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
-| 403 | `forbidden` | Kusto denied the user access to the cluster or database. Or a change to a preset the caller does not own. |
-| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. An unknown preset, or someone else's private one. |
+| 403 | `forbidden` | Kusto denied the user access to the cluster or database. Or a change to a preset or column view the caller does not own. |
+| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. An unknown preset or column view, or someone else's private one. |
 | 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
@@ -541,6 +547,48 @@ An input is a param of the preset's action that declares `from_columns` (`source
 | `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
 | `value` | JSON | Fixed only: the value saved with the preset. |
 | `fromColumns` | string[] | From row only: the columns to read, in order. The input takes the first one the rows have. With none, the form asks for the value. |
+
+## Column views
+
+Base path `/api/columnViews`. A column view is a named, saved set of the results grid's columns and filters ([GLOSSARY.md](../GLOSSARY.md)). It is private to its owner, or shared with everyone. The routes mirror [presets](#presets).
+
+### GET /api/columnViews
+
+Returns an array of `ColumnView`: the caller's own column views and the shared ones, oldest first (`createdAt`, then `viewId`). `owned` is whether the caller owns it, and `hidden` whether they hid it.
+
+### POST, PUT, DELETE
+
+- `POST` body is `NewColumnView`: the `ColumnViewFields` and `savedFrom`. The server assigns `viewId`, `owner` (from the token), `createdAt` and `updatedAt`. It returns `201` with the `ColumnView`.
+- `PUT` body is `ColumnViewFields`. It replaces the whole column view. Only the owner can. `owner`, `savedFrom` and `createdAt` are kept. Last write wins.
+- `DELETE` deletes the column view for good, with every analyst's hidden mark on it. Only the owner can. `204`.
+- Errors:
+  - `404` for an unknown column view, or someone else's private one.
+  - `403` for a `PUT` or `DELETE` on a column view the caller does not own.
+  - `400` for a missing or blank `name`, or a `state` that is not a JSON object.
+- Names are not unique.
+- The server does not look inside `state` ([ADR-0022](adr/0022-column-views-store-grid-state.md)).
+
+### PUT, DELETE /api/columnViews/{viewId}/hidden
+
+- `PUT` hides the column view for the caller only, and `DELETE` unhides it. Both are idempotent and return `204`.
+- Any column view the caller can see can be hidden, their own included.
+- `404` for an unknown column view, or someone else's private one.
+
+### ColumnView
+
+`ColumnViewFields` has the writable fields below. `NewColumnView` adds `savedFrom`. `ColumnView` adds the server-set ones.
+
+| Field | Type | Rules |
+|---|---|---|
+| `viewId` | uuid | Server-set. |
+| `name` | string | Not blank. |
+| `owner` | string | Server-set, from the token. |
+| `visibility` | `private` \| `shared` | Default `private`. |
+| `owned` | boolean | Server-set: whether the caller owns it. |
+| `hidden` | boolean | Server-set: whether the caller hid it. |
+| `savedFrom` | `{action, presetId?}` | The action, and the preset when there is one, of the tab it was saved from. Set by `POST`, then fixed. `action` is not blank. |
+| `state` | object | A partial AG Grid `GridState`: `columnOrder`, `columnSizing`, `columnVisibility`, `columnPinning`, `columnHeaderName`, `userColumns`, `sort`, `rowGroup`, `aggregation`, `pivot` and `filter`, with `partialColumnState: true` and the AG Grid `version`. Its keys are the browser's to decide. |
+| `createdAt`, `updatedAt` | datetime | Server-set. |
 
 ## Tagged events
 

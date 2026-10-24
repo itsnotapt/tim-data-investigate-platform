@@ -20,6 +20,7 @@ from typing import Any
 from uuid import UUID
 
 from tim_api.annotations.models import Annotations, TagSuggestions
+from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
@@ -203,6 +204,39 @@ class PresetStore(ABC):
         when the preset is missing."""
 
 
+class ColumnViewStore(ABC):
+    @abstractmethod
+    async def list(self, viewer: str) -> list[ColumnView]:
+        """The views ``viewer`` owns and those shared, ordered by ``created_at`` then
+        ``view_id``, each with whether ``viewer`` owns and hid it."""
+
+    @abstractmethod
+    async def get(self, view_id: UUID, viewer: str) -> ColumnView | None:
+        """The view, whoever owns it, with whether ``viewer`` owns and hid it; ``None`` when
+        unknown."""
+
+    @abstractmethod
+    async def create(self, view: StoredColumnView) -> None:
+        """Insert. Raises ``AlreadyExistsError`` if the ``view_id`` exists."""
+
+    @abstractmethod
+    async def replace(
+        self, view_id: UUID, fields: ColumnViewFields, *, updated_at: datetime
+    ) -> None:
+        """Overwrite the owner's fields; ``owner``, ``saved_from`` and ``created_at`` are kept.
+        Raises ``NotFoundError`` when missing."""
+
+    @abstractmethod
+    async def delete(self, view_id: UUID) -> None:
+        """Delete the view and every analyst's hidden mark on it. Raises ``NotFoundError``
+        when missing."""
+
+    @abstractmethod
+    async def set_hidden(self, view_id: UUID, analyst: str, hidden: bool) -> None:
+        """Hide or unhide the view for ``analyst``; idempotent. Raises ``NotFoundError`` when
+        the view is missing."""
+
+
 @dataclass(frozen=True)
 class AnnotationEdit:
     """What one change does to every id it names.
@@ -289,6 +323,7 @@ class Storage(ABC):
     query_runs: QueryRunStore
     runs: RunStore
     presets: PresetStore
+    column_views: ColumnViewStore
     annotations: AnnotationStore
 
     @abstractmethod

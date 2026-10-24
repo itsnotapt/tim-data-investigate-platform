@@ -1,6 +1,13 @@
 import type { Annotations } from '../api/annotations';
 import { openTimDb, STORE } from './db';
-import type { ColumnView, DisplayComponent, QueryOption, QueryOptions, RowResult } from './types';
+import type {
+  AppliedView,
+  ColumnView,
+  DisplayComponent,
+  QueryOption,
+  QueryOptions,
+  RowResult,
+} from './types';
 
 export const displayComponentsDao = {
   async getAll(): Promise<DisplayComponent[]> {
@@ -62,6 +69,19 @@ export const columnViewsDao = {
   },
   async delete(uuid: string): Promise<void> {
     await (await openTimDb()).delete(STORE.columnViews, uuid);
+  },
+};
+
+export const appliedViewsDao = {
+  /** The analyst's applied views, in any order. */
+  async list(analyst: string): Promise<AppliedView[]> {
+    return (await openTimDb()).getAllFromIndex(STORE.appliedViews, 'analyst', analyst);
+  },
+  async put(applied: AppliedView): Promise<void> {
+    await (await openTimDb()).put(STORE.appliedViews, applied);
+  },
+  async delete(analyst: string, scope: string): Promise<void> {
+    await (await openTimDb()).delete(STORE.appliedViews, [analyst, scope]);
   },
 };
 

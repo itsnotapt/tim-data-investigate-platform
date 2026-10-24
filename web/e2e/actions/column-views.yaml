@@ -1,0 +1,31 @@
+# Column views: a narrow and a wide result sharing columns, to fit a view saved on one to the other.
+type: dev_rows
+key: dev-hosts-narrow
+name: Hosts by user
+menu: Development / Column views
+description: Hosts and their users
+pivot: rows
+id: Host
+columns:
+  - { name: Host, type: string }
+  - { name: User, type: string }
+rows:
+  - { Host: web-1, User: alice@example.com }
+  - { Host: web-2, User: bob@example.com }
+---
+type: dev_rows
+key: dev-hosts-wide
+name: Host sign-ins
+menu: Development / Column views
+description: Results, hosts, users and regions
+pivot: rows
+id: Host
+columns:
+  - { name: Result, type: string }
+  - { name: Host, type: string }
+  - { name: User, type: string }
+  - { name: Region, type: string, hidden: true }
+rows:
+  - { Host: web-1, User: alice@example.com, Result: Success, Region: eu }
+  - { Host: web-2, User: bob@example.com, Result: Failure, Region: us }
+  - { Host: web-3, User: carol@example.com, Result: Success, Region: eu }

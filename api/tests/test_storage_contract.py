@@ -5,6 +5,7 @@ The parametrised ``storage`` fixture lives in ``conftest.py``.
 
 from storage_contract import (
     AnnotationContract,
+    ColumnViewContract,
     HealthContract,
     PresetContract,
     QueryRunContract,
@@ -26,6 +27,10 @@ class TestRunStore(RunContract):
 
 
 class TestPresetStore(PresetContract):
+    pass
+
+
+class TestColumnViewStore(ColumnViewContract):
     pass
 
 
