@@ -380,7 +380,7 @@ Ingest failures raise `TagIngestError` (502). SDK failures become `TagIngestErro
 
 Streaming gives read-your-writes. The tag tables need the streaming ingestion policy, which the table creation CLI below enables.
 
-An optional integration test runs with `pytest -m kusto`. Set `TIM_TEST_KUSTO_INGEST_URL`, and `TIM_TEST_KUSTO_DATABASE` and `TIM_TEST_KUSTO_TABLE`.
+An optional integration test runs with `pytest -m kusto`. Set `TIM_TEST_KUSTO_INGEST_URL`, and `TIM_TEST_KUSTO_DATABASE` and `TIM_TEST_KUSTO_TABLE`. See [development.md](../docs/development.md#live-kusto-tests) to run it locally.
 
 ## Tag table creation CLI
 
