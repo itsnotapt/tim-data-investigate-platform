@@ -1,3 +1,4 @@
+import Box from '@mui/material/Box';
 import type {
   CellKeyDownEvent,
   FullWidthCellKeyDownEvent,
@@ -9,7 +10,7 @@ import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
 import { ACTION_SIDE_BAR, ACTION_STATUS_PANELS, useActionColumnView } from '../action-column-views';
-import { annotationColumnDefs, useAnnotating } from '../annotate';
+import { annotationColumnDefs, useAnnotating, useHistoryPanel } from '../annotate';
 import { prepareRows, type GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -54,6 +55,7 @@ export type ActionResultsGridProps = Omit<
   | 'rowClassRules'
   | 'selectionSymbol'
   | 'onCellKeyDown'
+  | 'onCellFocused'
 > & {
   uuid: string;
   /** The action the rows came from. */
@@ -64,7 +66,7 @@ export type ActionResultsGridProps = Omit<
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
   runColumns?: readonly RunColumn[] | null;
-  /** More context menu items, after Label ▸, Annotate…, Comment… and Show details, before the sinks. */
+  /** More context menu items, after Label ▸, Show details, Annotate…, Comment… and History, before the sinks. */
   getContextMenuItems?: GetExtraContextMenuItems;
 };
 
@@ -75,7 +77,8 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
  * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
- * text columns, Label ▸, Annotate…, Comment… and their keys, and the sinks, which take the rows.
+ * text columns, Label ▸, Annotate…, Comment…, History and their keys, the History panel, and the
+ * sinks, which take the rows.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
@@ -194,14 +197,23 @@ export function ActionResultsGrid({
     },
     [sinks, max],
   );
+  const {
+    menu: historyMenu,
+    keys: historyKeys,
+    onCellFocused,
+    panel: historyPanel,
+  } = useHistoryPanel({ labels, idParam });
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
-      annotateMenu,
+      ((params) => [
+        ...annotateMenu(params),
+        ...historyMenu(params),
+      ]) satisfies GetExtraContextMenuItems,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
     ],
-    [labelling, annotateMenu, getContextMenuItems, sinkMenu],
+    [labelling, annotateMenu, historyMenu, getContextMenuItems, sinkMenu],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(
@@ -209,12 +221,13 @@ export function ActionResultsGrid({
       if (!('column' in e)) return;
       labelKeys(e);
       annotateKeys(e);
+      historyKeys(e);
     },
-    [labelKeys, annotateKeys],
+    [labelKeys, annotateKeys, historyKeys],
   );
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
-    <>
+    <Box sx={{ position: 'relative', overflow: 'hidden' }}>
       <ResultsGrid
         {...rest}
         columnViews={false}
@@ -229,10 +242,12 @@ export function ActionResultsGrid({
         rowClassRules={rowClassRules}
         selectionSymbol={LabelSymbol}
         onCellKeyDown={onCellKeyDown}
+        onCellFocused={onCellFocused}
         onGridReady={ready}
       />
+      {historyPanel}
       {dialog}
-    </>
+    </Box>
   );
 }
 

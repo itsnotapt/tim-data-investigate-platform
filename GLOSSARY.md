@@ -172,7 +172,11 @@ _Avoid_: verdict, classification
 A free-text string of 1 to 100 characters on an `id`'s annotations. An `id` has each tag once, and every analyst sees it. A tag is added or removed, and a removed tag is deleted.
 
 **Comment**:
-A note on an `id`'s annotations, with its author and time. An `id` can have many. A comment is kept for good.
+A note on an `id`'s annotations, with its author and time. An `id` can have many. Comments are append-only.
+
+**History**:
+The record of an `id`'s label changes and comments, each with who made it and when. Tags are not in it.
+_Avoid_: audit log, activity
 
 ### Tagging
 

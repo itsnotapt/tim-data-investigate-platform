@@ -12,7 +12,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from tim_api.annotations.models import Annotations, Comment, LabelState, TagSuggestions
+from tim_api.annotations.models import (
+    Annotations,
+    Comment,
+    CommentEntry,
+    HistoryEntry,
+    LabelEntry,
+    LabelState,
+    TagSuggestions,
+)
 from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
@@ -430,6 +438,8 @@ class MemoryAnnotationStore(AnnotationStore):
         self._state: dict[str, Annotations] = {}
         # Who added each id's tags, and when: (id, tag) -> (by, at).
         self._tags_added: dict[tuple[str, str], tuple[str, datetime]] = {}
+        # Each id's label changes and comments, oldest first.
+        self._history: dict[str, list[HistoryEntry]] = {}
         self._version = 0
         self._lock = asyncio.Lock()
 
@@ -472,6 +482,14 @@ class MemoryAnnotationStore(AnnotationStore):
                     del self._tags_added[annotations.id, tag]
                 for tag in annotations.tags:
                     self._tags_added.setdefault((annotations.id, tag), (by, at))
+                # The comment first, so that newest first the label change comes first.
+                history = self._history.setdefault(annotations.id, [])
+                if edit.comment is not None:
+                    history.append(
+                        CommentEntry(kind="comment", author=by, at=at, text=edit.comment)
+                    )
+                if annotations.label != (before.label if before else None):
+                    history.append(LabelEntry(kind="label", label=edit.label, by=by, at=at))
                 self._state[annotations.id] = annotations
             return AnnotationsChanged(changes=copy.deepcopy(changed), version=version)
 
@@ -492,6 +510,10 @@ class MemoryAnnotationStore(AnnotationStore):
             else:
                 page = after
             return AnnotationChanges(changes=copy.deepcopy(page), has_more=len(page) < len(after))
+
+    async def history(self, id: str) -> list[HistoryEntry]:
+        async with self._lock:
+            return copy.deepcopy(self._history.get(id, [])[::-1])
 
     async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:
         async with self._lock:

@@ -69,16 +69,16 @@ def test_duplicate_409(client: TestClient) -> None:
 
 def test_create_invalid_and_deleted_flag(client: TestClient) -> None:
     r = client.post(BASE, json=body(queryType="query"))
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert "fields" in r.json()["errors"]
     r = client.post(BASE, json=body(isDeleted=True))
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert "isDeleted" in r.json()["errors"]
 
 
 def test_get_missing_and_malformed(client: TestClient) -> None:
     assert client.get(f"{BASE}/{U1}").status_code == 404
-    assert client.get(f"{BASE}/nope").status_code == 400
+    assert client.get(f"{BASE}/nope").status_code == 422
 
 
 def test_list_filtering(client: TestClient) -> None:
@@ -93,8 +93,8 @@ def test_list_filtering(client: TestClient) -> None:
     assert client.get(BASE, params=params).json() == []  # strict
     params["since"] = "2000-01-01T00:00:00Z"
     assert len(client.get(BASE, params=params).json()) == 2
-    assert client.get(BASE, params={"since": "garbage"}).status_code == 400
-    assert client.get(BASE, params={"includeDeleted": "maybe"}).status_code == 400
+    assert client.get(BASE, params={"since": "garbage"}).status_code == 422
+    assert client.get(BASE, params={"includeDeleted": "maybe"}).status_code == 422
 
 
 def test_put(client: TestClient) -> None:
@@ -112,17 +112,17 @@ def test_put_missing_404(client: TestClient) -> None:
     assert client.get(f"{BASE}/{U1}").status_code == 404
 
 
-def test_put_uuid_mismatch_400(client: TestClient) -> None:
+def test_put_uuid_mismatch_422(client: TestClient) -> None:
     client.post(BASE, json=body())
     r = client.put(f"{BASE}/{U1}", json=body(U2))
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert r.json()["errors"] == {"uuid": ["UUIDs don't match"]}
 
 
 def test_put_invalid_has_field_errors(client: TestClient) -> None:
     client.post(BASE, json=body())
     r = client.put(f"{BASE}/{U1}", json=body(name=" ", fields={"a": {"type": "multiple"}}))
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert r.headers["content-type"].startswith("application/problem+json")
     errors = r.json()["errors"]
     assert "name" in errors
@@ -157,14 +157,14 @@ def test_patch_fields_and_audit(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "path", ["/uuid", "/createdBy", "/updatedBy", "/updated", "/uuid/x", "name"]
 )
-def test_patch_protected_path_400(client: TestClient, path: str) -> None:
+def test_patch_protected_path_422(client: TestClient, path: str) -> None:
     client.post(BASE, json=body())
     r = patch(client, [{"op": "replace", "path": path, "value": "x"}])
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert "errors" in r.json()
 
 
-def test_patch_invalid_patch_400(client: TestClient) -> None:
+def test_patch_invalid_patch_422(client: TestClient) -> None:
     client.post(BASE, json=body())
     for ops in (
         [],
@@ -176,17 +176,17 @@ def test_patch_invalid_patch_400(client: TestClient) -> None:
         {"op": "replace"},
     ):
         r = patch(client, ops)
-        assert r.status_code == 400, ops
+        assert r.status_code == 422, ops
         assert r.json()["type"] == "urn:tim:problem:validation"
 
 
-def test_patch_invalid_result_400(client: TestClient) -> None:
+def test_patch_invalid_result_422(client: TestClient) -> None:
     client.post(BASE, json=body())
     r = patch(client, [{"op": "replace", "path": "/queryType", "value": "query"}])
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert "fields" in r.json()["errors"]
     r = patch(client, [{"op": "replace", "path": "/name", "value": ""}])
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert "name" in r.json()["errors"]
     # nothing was persisted
     assert client.get(f"{BASE}/{U1}").json()["name"] == "Sign-ins"

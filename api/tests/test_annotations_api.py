@@ -44,6 +44,12 @@ class Env:
         body: dict[str, Any] = response.json()
         return body
 
+    async def history(self, id: str) -> list[dict[str, Any]]:
+        response = await self.client.get("/api/annotations/history", params={"id": id})
+        assert response.status_code == 200, response.text
+        entries: list[dict[str, Any]] = response.json()["entries"]
+        return entries
+
 
 @asynccontextmanager
 async def open_env(
@@ -163,12 +169,12 @@ async def test_an_invalid_change_is_a_422(
         ),
     ],
 )
-async def test_a_malformed_change_is_a_400(
+async def test_a_change_with_bad_ids_is_a_422(
     storage: Storage, auth: AuthKit, body: dict[str, Any], errors: dict[str, list[str]]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.patch(body)
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert response.json()["errors"] == errors
 
 
@@ -288,12 +294,12 @@ async def test_the_feed_gives_each_id_changed_after_since_as_it_now_is(
 
 
 @pytest.mark.parametrize("params", [{}, {"since": -1}, {"since": "latest"}])
-async def test_a_feed_request_without_a_version_to_start_after_is_a_400(
+async def test_a_feed_request_without_a_version_to_start_after_is_a_422(
     storage: Storage, auth: AuthKit, params: dict[str, Any]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.client.get("/api/annotations/changes", params=params)
-    assert response.status_code == 400
+    assert response.status_code == 422
     assert list(response.json()["errors"]) == ["since"]
 
 
@@ -358,12 +364,81 @@ async def test_the_rows_carry_their_ids_annotations(storage: Storage, auth: Auth
     assert label_of(page["annotations"]["c-1"]) == ("c-1", "malicious", ALICE)
 
 
+async def test_the_history_gives_an_id_s_label_changes_newest_first(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.label(["c-1"], "malicious")
+        env.as_user(BOB, "oid-b")
+        await env.label(["c-1", "c-2"], "benign")
+        await env.label(["c-1"], None)
+        await env.patch({"ids": ["c-1"], "addTags": ["c2"]})
+        entries = await env.history("c-1")
+    assert [(e["kind"], e["label"], e["by"]) for e in entries] == [
+        ("label", None, BOB),
+        ("label", "benign", BOB),
+        ("label", "malicious", ALICE),
+    ]
+    assert set(entries[0]) == {"kind", "label", "by", "at"}
+    datetime.fromisoformat(entries[0]["at"])
+
+
+async def test_the_history_threads_comments_with_label_changes_newest_first(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "comment": "first look"})
+        env.as_user(BOB, "oid-b")
+        await env.patch({"ids": ["c-1"], "label": "malicious", "comment": "beacons every 60s"})
+        await env.patch({"ids": ["c-1", "c-2"], "comment": "same C2 as c-2"})
+        entries = await env.history("c-1")
+    assert [
+        (e["kind"], e["author"], e["text"]) if e["kind"] == "comment" else (e["kind"], e["label"])
+        for e in entries
+    ] == [
+        ("comment", BOB, "same C2 as c-2"),
+        ("label", "malicious"),
+        ("comment", BOB, "beacons every 60s"),
+        ("comment", ALICE, "first look"),
+    ]
+    assert set(entries[0]) == {"kind", "author", "at", "text"}
+    datetime.fromisoformat(entries[0]["at"])
+
+
+async def test_an_id_never_changed_has_no_history(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth) as env:
+        await env.label(["c-1"], "benign")
+        entries = await env.history("c-2")
+    assert entries == []
+
+
+async def test_an_id_with_special_characters_round_trips_through_the_query_string(
+    storage: Storage, auth: AuthKit
+) -> None:
+    id = "a&id=b #1 %20+/?é"
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": [id, "a"], "label": "benign", "comment": "odd one"})
+        entries = await env.history(id)
+    assert [e["kind"] for e in entries] == ["label", "comment"]
+
+
+@pytest.mark.parametrize("params", [{}, {"id": ""}, {"id": "x" * 513}])
+async def test_a_history_request_without_a_valid_id_is_a_422(
+    storage: Storage, auth: AuthKit, params: dict[str, Any]
+) -> None:
+    async with open_env(storage, auth) as env:
+        response = await env.client.get("/api/annotations/history", params=params)
+    assert response.status_code == 422
+    assert list(response.json()["errors"]) == ["id"]
+
+
 async def test_annotations_need_a_signed_in_analyst(storage: Storage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         env.client.headers.pop("Authorization")
         patched = await env.patch({"ids": ["a"], "label": "benign"})
         feed = await env.client.get("/api/annotations/changes", params={"since": 0})
-    assert (patched.status_code, feed.status_code) == (401, 401)
+        history = await env.client.get("/api/annotations/history", params={"id": "a"})
+    assert (patched.status_code, feed.status_code, history.status_code) == (401, 401, 401)
 
 
 async def test_suggestions_are_the_caller_s_recent_tags_then_the_most_used(

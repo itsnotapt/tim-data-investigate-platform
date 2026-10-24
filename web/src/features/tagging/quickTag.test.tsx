@@ -84,7 +84,7 @@ describe('quickTag', () => {
   it('a failed save stops before comments: "Saving events failed: ..."', async () => {
     server.use(
       http.post(apiUrl('/api/taggedevents/savedEvents'), () =>
-        problemResponse(400, { title: 'validation', detail: 'eventId is blank' }),
+        problemResponse(422, { title: 'validation', detail: 'eventId is blank' }),
       ),
       record('/api/taggedevents/comments'),
     );

@@ -281,4 +281,4 @@ def test_query_parameter_inputs_need_an_action_that_takes_them_and_unique_names(
             ]
         },
     )
-    assert bad_type.status_code == 400
+    assert bad_type.status_code == 422

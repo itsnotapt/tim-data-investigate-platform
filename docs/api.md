@@ -31,40 +31,41 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
 | POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
-| GET | `/api/runs/{runId}` | 200 | 400, 401, 404 | Read a run. |
-| POST | `/api/runs/{runId}/cancel` | 200 | 400, 401, 404 | Cancel a run (idempotent). |
-| GET | `/api/runs/{runId}/rows` | 200 | 400, 401, 404, 409, 410 | Read a page of a run's rows, with their annotations. |
+| GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run. |
+| POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (idempotent). |
+| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations. |
 | PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and comments of `id`s. |
-| GET | `/api/annotations/changes` | 200 | 400, 401 | The change feed: the `id`s changed after a version. |
-| GET | `/api/tags/suggestions` | 200 | 401 | Tags that start with a prefix: the caller's recent ones, then the most used. |
-| POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 502, 503 | The editor schema of a connection, from its connection type's hook. |
-| POST | `/api/kusto/schema` | 200 | 400, 401, 403, 502, 503 | `.show schema as json` for a cluster database. |
-| POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 502, 503 | Start a query run. |
-| GET | `/api/kusto/query/{queryRunId}` | 200 or 202 | 400, 401, 404 | Read a query run. |
-| GET | `/api/templates/queries` | 200 | 400, 401 | List templates. |
-| GET | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404 | Get one template (soft-deleted included). |
-| POST | `/api/templates/queries` | 201 | 400, 401, 409 | Create a template. `Location: /api/templates/queries/{uuid}`. |
-| PUT | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404 | Replace the editable fields. |
-| PATCH | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404 | Apply a JSON Patch (RFC 6902). |
-| DELETE | `/api/templates/queries/{uuid}` | 204 | 400, 401, 404 | Soft delete (idempotent). |
-| GET | `/api/presets` | 200 | 400, 401 | List your presets and the shared ones. |
-| GET | `/api/presets/{presetId}/actionFile` | 200 | 400, 401, 404, 409 | A preset as an action file, in YAML. |
+| GET | `/api/annotations/changes` | 200 | 401, 422 | The change feed: the `id`s changed after a version. |
+| GET | `/api/annotations/history` | 200 | 401, 422 | The history of an `id`: its label changes and comments, newest first. |
+| GET | `/api/tags/suggestions` | 200 | 401, 422 | Tags that start with a prefix: the caller's recent ones, then the most used. |
+| POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 422, 502, 503 | The editor schema of a connection, from its connection type's hook. |
+| POST | `/api/kusto/schema` | 200 | 400, 401, 403, 422, 502 | `.show schema as json` for a cluster database. |
+| POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a query run. |
+| GET | `/api/kusto/query/{queryRunId}` | 200 or 202 | 401, 404, 422 | Read a query run. |
+| GET | `/api/templates/queries` | 200 | 401, 422 | List templates. |
+| GET | `/api/templates/queries/{uuid}` | 200 | 401, 404, 422 | Get one template (soft-deleted included). |
+| POST | `/api/templates/queries` | 201 | 400, 401, 409, 422 | Create a template. `Location: /api/templates/queries/{uuid}`. |
+| PUT | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404, 422 | Replace the editable fields. |
+| PATCH | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404, 422 | Apply a JSON Patch (RFC 6902). |
+| DELETE | `/api/templates/queries/{uuid}` | 204 | 401, 404, 422 | Soft delete (idempotent). |
+| GET | `/api/presets` | 200 | 401 | List your presets and the shared ones. |
+| GET | `/api/presets/{presetId}/actionFile` | 200 | 401, 404, 409, 422 | A preset as an action file, in YAML. |
 | POST | `/api/presets` | 201 | 400, 401, 422 | Create a preset. |
 | PUT | `/api/presets/{presetId}` | 200 | 400, 401, 403, 404, 422 | Replace a preset (owner only). |
-| DELETE | `/api/presets/{presetId}` | 204 | 400, 401, 403, 404 | Delete a preset for good (owner only). |
-| PUT | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Hide a preset for yourself (idempotent). |
-| DELETE | `/api/presets/{presetId}/hidden` | 204 | 400, 401, 404 | Unhide a preset for yourself (idempotent). |
+| DELETE | `/api/presets/{presetId}` | 204 | 401, 403, 404, 422 | Delete a preset for good (owner only). |
+| PUT | `/api/presets/{presetId}/hidden` | 204 | 401, 404, 422 | Hide a preset for yourself (idempotent). |
+| DELETE | `/api/presets/{presetId}/hidden` | 204 | 401, 404, 422 | Unhide a preset for yourself (idempotent). |
 | GET | `/api/columnViews` | 200 | 401 | List your column views and the shared ones. |
-| POST | `/api/columnViews` | 201 | 400, 401 | Create a column view. |
-| PUT | `/api/columnViews/{viewId}` | 200 | 400, 401, 403, 404 | Replace a column view (owner only). |
-| DELETE | `/api/columnViews/{viewId}` | 204 | 400, 401, 403, 404 | Delete a column view for good (owner only). |
-| PUT | `/api/columnViews/{viewId}/hidden` | 204 | 400, 401, 404 | Hide a column view for yourself (idempotent). |
-| DELETE | `/api/columnViews/{viewId}/hidden` | 204 | 400, 401, 404 | Unhide a column view for yourself (idempotent). |
-| POST | `/api/taggedevents/savedEvents` | 204 | 400, 401, 502 | Save events (rows) to `SavedEvent`. |
-| POST | `/api/taggedevents/tags` | 204 | 400, 401, 502 | Add or remove tags in `EventTag`. |
-| POST | `/api/taggedevents/comments` | 204 | 400, 401, 502 | Add or remove comments in `EventComment`. |
+| POST | `/api/columnViews` | 201 | 400, 401, 422 | Create a column view. |
+| PUT | `/api/columnViews/{viewId}` | 200 | 400, 401, 403, 404, 422 | Replace a column view (owner only). |
+| DELETE | `/api/columnViews/{viewId}` | 204 | 401, 403, 404, 422 | Delete a column view for good (owner only). |
+| PUT | `/api/columnViews/{viewId}/hidden` | 204 | 401, 404, 422 | Hide a column view for yourself (idempotent). |
+| DELETE | `/api/columnViews/{viewId}/hidden` | 204 | 401, 404, 422 | Unhide a column view for yourself (idempotent). |
+| POST | `/api/taggedevents/savedEvents` | 204 | 400, 401, 422, 502 | Save events (rows) to `SavedEvent`. |
+| POST | `/api/taggedevents/tags` | 204 | 400, 401, 422, 502 | Add or remove tags in `EventTag`. |
+| POST | `/api/taggedevents/comments` | 204 | 400, 401, 422, 502 | Add or remove comments in `EventComment`. |
 
-Every authenticated route can also return `500`. A malformed path parameter (for example a non-UUID) is a `400` validation error.
+Every authenticated route can also return `500`. A malformed path parameter (for example a non-UUID) is a `422` validation error.
 
 ## Errors
 
@@ -74,7 +75,7 @@ Every non-2xx response has this body:
 {
   "type": "urn:tim:problem:validation",
   "title": "Validation failed",
-  "status": 400,
+  "status": 422,
   "detail": "One or more fields are invalid",
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
   "errors": { "database": ["must not be blank"] }
@@ -85,7 +86,7 @@ Every non-2xx response has this body:
 
 | Status | `type` slug | Cause |
 |---|---|---|
-| 400 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); malformed JSON; NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`. |
+| 400 | `bad-request` | Malformed JSON (`errors.body`). |
 | 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
 | 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
@@ -96,7 +97,7 @@ Every non-2xx response has this body:
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -326,7 +327,7 @@ The answer is `200`:
 
 Problems:
 
-- `400 validation` for a body that isn't valid: no `ids`, an `id` over 512 characters.
+- `422 validation` for a body that isn't valid: no `ids`, an `id` over 512 characters.
 - `422 validation`, with `errors` keyed by field:
 
   | `errors` key | Cause |
@@ -352,6 +353,31 @@ The change feed. Query: `since`, a version from `0`, required.
 - `next` is the version of the page's last change, or `since` for an empty page. Ask again with `since=<next>` while `hasMore` is `true`.
 - An `id` whose annotations were all removed is in the feed, with `label: null`.
 - Versions are gapless and in commit order.
+
+### GET /api/annotations/history
+
+The history of one `id`. Query: `id`, required, 1 to 512 characters.
+
+```json
+{
+  "entries": [
+    { "kind": "comment", "author": "sam@example.com", "at": "2026-10-21T09:31:40Z", "text": "Seen on two hosts." },
+    { "kind": "label", "label": "malicious", "by": "alex@example.com", "at": "2026-10-21T09:30:12Z" }
+  ]
+}
+```
+
+- `entries` has the label changes and comments of the `id`, newest first. There is no paging.
+- A label entry has the `label` key it set, or `null` when the change cleared it, with who (`by`) and when (`at`).
+- A comment entry has its `author`, `at` and `text`.
+- Within one change, the label entry comes before the comment.
+- Tags are not in the history.
+- An `id` that was never changed answers `200` with `entries: []`.
+
+Problems:
+
+- `422 validation` with `errors.id` for a missing, empty or over-512-character `id`.
+- `401` without a signed-in analyst.
 
 ### GET /api/tags/suggestions
 
@@ -453,11 +479,11 @@ Query parameters: `since` (datetime; only templates with `updated` strictly afte
 ### POST, PUT, PATCH, DELETE
 
 - `POST` body is `QueryTemplateCreate`: the editable fields plus `uuid` (client-generated); `isDeleted` must be absent or `false`. `409` if the `uuid` exists. The server sets `createdBy`, `updatedBy` and `updated`.
-- `PUT` body is `QueryTemplateReplace`: the editable fields plus `uuid`, which must equal the path (else `400`). Never creates (`404` if missing). `createdBy` and `isDeleted` are preserved.
+- `PUT` body is `QueryTemplateReplace`: the editable fields plus `uuid`, which must equal the path (else `422`). Never creates (`404` if missing). `createdBy` and `isDeleted` are preserved.
 - `PATCH` body is a non-empty JSON array of `{ "op", "path", "value" }`.
   - `op` is one of `add`, `replace`, `remove`, `test`. `move` and `copy` are rejected.
   - The patch is applied to the stored template's JSON. The result must be a valid `QueryTemplate`.
-  - Patching `/uuid`, `/createdBy`, `/updatedBy`, `/updated` (or children) is `400`.
+  - Patching `/uuid`, `/createdBy`, `/updatedBy`, `/updated` (or children) is `422`.
   - `/isDeleted` is allowed, so `[{"op":"replace","path":"/isDeleted","value":false}]` restores a deleted template.
 - `DELETE` sets `isDeleted` and is idempotent. Soft-deleted templates stay readable by `GET /{uuid}`.
 
@@ -564,7 +590,7 @@ Returns an array of `ColumnView`: the caller's own column views and the shared o
 - Errors:
   - `404` for an unknown column view, or someone else's private one.
   - `403` for a `PUT` or `DELETE` on a column view the caller does not own.
-  - `400` for a missing or blank `name`, or a `state` that is not a JSON object.
+  - `422` for a missing or blank `name`, or a `state` that is not a JSON object.
 - Names are not unique.
 - The server does not look inside `state` ([ADR-0022](adr/0022-column-views-store-grid-state.md)).
 
@@ -595,7 +621,7 @@ Returns an array of `ColumnView`: the caller's own column views and the shared o
 Tag rows are ingested into the tag cluster ([Kusto tables](architecture.md#kusto-tables)) with the app identity.
 
 - The server sets `createdBy` (from the token) and `dateTimeUtc` (server clock) on every row.
-- Each body is a JSON array of 1 to 1000 items. Any invalid item fails the whole request with `400`.
+- Each body is a JSON array of 1 to 1000 items. Any invalid item fails the whole request with `422`.
 - Success is `204`. An ingestion failure is `502`.
 
 | Route | Item fields |

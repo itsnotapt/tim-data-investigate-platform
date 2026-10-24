@@ -3,6 +3,8 @@ import { commentsColumnDef, commentTextColumnDef, tagsColumnDef } from './annota
 
 export { useAnnotating } from './useAnnotating';
 export type { Annotating, AnnotatingOptions } from './useAnnotating';
+export { useHistoryPanel } from './useHistoryPanel';
+export type { HistoryPanelOptions, HistoryPanelState } from './useHistoryPanel';
 export type { AnnotateMode } from './annotateLogic';
 export {
   COMMENT_TEXT_COLUMN_ID,

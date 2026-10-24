@@ -39,7 +39,7 @@ def test_chunked_body_over_limit_is_413(client: TestClient) -> None:
 
 def test_body_under_limit_is_processed(client: TestClient) -> None:
     response = client.post("/api/taggedevents/tags", json=[])
-    assert response.status_code == 400  # validation (empty batch), not 413
+    assert response.status_code == 422  # validation (empty batch), not 413
 
 
 def test_security_headers_on_every_response(client: TestClient) -> None:

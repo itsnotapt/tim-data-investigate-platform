@@ -94,7 +94,7 @@ describe('error mapping', () => {
   it('maps a problem body to ApiError with traceId and errors', async () => {
     server.use(
       http.post(apiUrl('/api/templates/queries'), () =>
-        problemResponse(400, {
+        problemResponse(422, {
           type: 'urn:tim:problem:validation',
           title: 'Validation failed',
           detail: 'name required',
@@ -105,7 +105,7 @@ describe('error mapping', () => {
     const err = await createTemplate(template, { client: makeClient() }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({
-      status: 400,
+      status: 422,
       type: 'urn:tim:problem:validation',
       title: 'Validation failed',
       detail: 'name required',
