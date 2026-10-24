@@ -13,11 +13,11 @@ from typing import Any
 
 import pydantic_core
 from tim_actions import Column, ColumnType, RowId
+from tim_actions.rows import MAX_ID_CHARS, canonical_id, id_warnings
 
 from tim_api.runs.models import RunColumn, RunRow
 
 NUL_REPLACEMENT = "�"
-MAX_ID_CHARS = 512
 
 _ISO_DATE = re.compile(
     r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$"
@@ -83,17 +83,6 @@ def _type_of(value: Any) -> ColumnType | None:
     if isinstance(value, str):
         return "datetime" if _is_iso_date(value) else "string"
     return "json"
-
-
-def canonical_id(value: Any) -> str | None:
-    """An ``id`` in its canonical text form: a string as is, anything else as its compact JSON
-    text (so the number ``1`` and the string ``"1"`` match). ``None`` and ``""`` are no ``id``."""
-    value = to_json_value(value)
-    if value is None or value == "":
-        return None
-    if isinstance(value, str):
-        return sanitise_nul(value)  # type: ignore[no-any-return]
-    return sanitise_nul(pydantic_core.to_json(value).decode())  # type: ignore[no-any-return]
 
 
 class ResultBuilder:
@@ -162,7 +151,7 @@ class ResultBuilder:
         if value is not None and len(value) > MAX_ID_CHARS:
             self._long_ids += 1
             return None
-        return value
+        return sanitise_nul(value)  # type: ignore[no-any-return]
 
     def columns(self) -> list[RunColumn]:
         declared = [RunColumn(name=n, type=t, declared=True) for n, t in self._declared.items()]
@@ -175,16 +164,5 @@ class ResultBuilder:
 
     def warnings(self) -> list[str]:
         """Problems with the rows' ids, which never fail the run."""
-        found: list[str] = []
-        seen = self._inferred  # every column some row carries, declared or not
-        if self._row_id is not None and seen:
-            missing = [c for c in self._row_id.columns if c not in seen]
-            if len(missing) == 1:
-                found.append(f"Id column {missing[0]} not in results")
-            elif missing:
-                found.append(f"Id columns {', '.join(missing)} not in results")
-        if self._long_ids:
-            found.append(
-                f"{self._long_ids} row(s) have an id over {MAX_ID_CHARS} characters and get no id"
-            )
-        return found
+        # Every column some row carries, declared or not.
+        return id_warnings(self._row_id, list(self._inferred), self._long_ids)

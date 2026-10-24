@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Path, Request
 from tim_actions import Action, Sink
 from tim_actions import PivotCell as ActionPivotCell
 from tim_actions import resolve_pivot as resolve_action_pivot
+from tim_actions.pivots import pivot_refusal
 
 from tim_api.actions.models import Instance, PivotResolution, ResolvePivot
 from tim_api.auth import get_current_principal
@@ -26,10 +27,9 @@ def get_instance(request: Request) -> Instance:
 
 def _refusal(action: Action, rows: int, max_rows: int) -> str | None:
     """Why the action can't be resolved from ``rows`` selected rows, or ``None``."""
-    if action.pivot == "none":
-        return "Not offered as a pivot"
-    if action.pivot == "row" and rows > 1:
-        return "Takes one row"
+    refusal = pivot_refusal(action, rows)
+    if refusal is not None:
+        return refusal
     if rows > max_rows:
         return f"At most {max_rows:,} rows; {rows:,} selected"
     return None

@@ -35,6 +35,8 @@ from tim_actions.columns import Column
 from tim_actions.params import Param
 
 ACTION_FILE_SUFFIXES = (".yaml", ".yml")
+RESERVED_PREFIX = "tim."
+"""The key prefix of TIM's built-in actions."""
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
 
@@ -425,6 +427,29 @@ def load_action_files(
     for entry in action_file_entries(directory):
         _load_file(entry, directory, action_types, loaded)
     return loaded
+
+
+def add_file_actions(
+    actions: dict[str, tuple[Action | Sink, str]], loaded: LoadedFiles, *, builtin: bool
+) -> list[str]:
+    """Add the actions ``loaded`` gave to ``actions``, keyed with where each comes from, and
+    return the problems: ``loaded``'s own, then each key that is taken or, unless ``builtin``,
+    has the reserved prefix."""
+    problems = list(loaded.problems)
+    for item in loaded.actions:
+        key = item.action.key
+        if key.startswith(RESERVED_PREFIX) and not builtin:
+            problems.append(
+                f"{item.location}: key: the {RESERVED_PREFIX} prefix is reserved for TIM's "
+                "built-ins"
+            )
+        elif key in actions:
+            problems.append(
+                f"{item.location}: key: duplicate action key {key}, also in {actions[key][1]}"
+            )
+        else:
+            actions[key] = (item.action, item.location)
+    return problems
 
 
 def action_files_schema(action_types: Mapping[str, ActionType]) -> dict[str, Any]:

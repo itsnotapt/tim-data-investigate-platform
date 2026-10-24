@@ -16,6 +16,10 @@ kusto = ["azure-kusto-data>=6.0.4"]
 [project.entry-points."tim.actions"]
 tim = "tim_actions.builtin:provider"
 
+# The fixtures of tim_actions.testing, for provider authors' tests.
+[project.entry-points.pytest11]
+tim_actions = "tim_actions.testing.plugin"
+
 [dependency-groups]
 dev = [
     "tim-actions[kusto]",
@@ -58,7 +62,8 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --cov"
+# The plugin is loaded by tests/conftest.py, after coverage starts, not by its entry point.
+addopts = "-ra --cov -p no:tim_actions"
 
 [tool.coverage.run]
 source = ["tim_actions"]
