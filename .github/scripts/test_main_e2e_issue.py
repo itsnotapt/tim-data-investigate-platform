@@ -6,13 +6,13 @@ import main_e2e_issue as mei
 
 RUN = mei.Run(
     sha="c4aacbb0123456789abcdef0123456789abcdef0",
-    subject="fix(frontend): New menu clicks no longer miss while a folder opens (#175)",
+    message="fix(frontend): New menu clicks no longer miss while a folder opens (#175)\n\nfix: x",
     run_id="18765432101",
     run_url="https://github.com/itsnotapt/tim-data-investigate-platform/actions/runs/18765432101",
 )
 
 
-class Plan(unittest.TestCase):
+class TrackingIssue(unittest.TestCase):
     def test_a_failure_with_no_open_issue_opens_one(self):
         plan = mei.plan("failure", [], RUN)
 

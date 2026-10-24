@@ -159,7 +159,7 @@ The `@smoke` tag marks the smoke flows:
 
 - **Mocked app:** `e2e/flows/run-query.spec.ts`.
 - **Real api:** both tests in `e2e/flows/real-api.spec.ts`.
-- **Rule:** a flow gets the tag only when it is the only smoke flow for its layer ([CODING_STANDARDS.md](../CODING_STANDARDS.md#frontend-web)).
+- **Rule:** each layer has one smoke flow ([CODING_STANDARDS.md](../CODING_STANDARDS.md#frontend-web)).
 
 In a real-api flow:
 
@@ -333,10 +333,13 @@ Things the workflows don't tell you:
   - When you change one, keep the same image and tag.
   - Check the tag exists on the mirror: `docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`.
 - **`main-e2e-issue`** (`build-web.yml`) runs after the `e2e` job on a push to `main`, whether it passed or failed, through `.github/scripts/main_e2e_issue.py`.
-  - It is the only job with `issues: write`, it is not part of `build-web-gate`, and one run goes at a time.
+  - It is the only job with `issues: write`.
+  - It is not part of `build-web-gate`.
   - It keeps one open issue titled `Full e2e failing on main`, labelled `bug` and `needs-triage`.
   - A failure opens the issue, or comments on it when it is open. A pass comments and closes it.
-  - The body names the commit and its PR, links the run with its `playwright-report` artifact, and gives `gh run view <id> --log-failed`.
+  - The body names the commit and its PR.
+  - It links the run, which has the `playwright-report` artifact.
+  - It gives `gh run view <id> --log-failed` for the failures.
   - The script's tests run in `lint-workflows.yml` with the other `.github/scripts` tests.
 - **`kusto-live`** (`build-api.yml`) runs `pytest -m kusto` on pushes to `main` that change the api.
   - It signs in as an Entra test app through GitHub OIDC (`azure/login`, no secret).

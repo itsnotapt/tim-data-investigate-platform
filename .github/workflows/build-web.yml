@@ -177,14 +177,11 @@ jobs:
             web/test-results
           retention-days: 7
 
-  # A push to main ran the full suite: open, comment on or close the tracking issue. One run at a
-  # time, so two failing runs open one issue.
+  # A push to main ran the full suite: open, comment on or close the tracking issue.
   main-e2e-issue:
     needs: e2e
     if: always() && github.event_name == 'push' && (needs.e2e.result == 'success' || needs.e2e.result == 'failure')
     runs-on: ubuntu-latest
-    concurrency:
-      group: main-e2e-issue
     permissions:
       contents: read
       issues: write

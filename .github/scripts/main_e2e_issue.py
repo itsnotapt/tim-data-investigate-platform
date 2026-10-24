@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from typing import Literal
 
 TITLE = "Full e2e failing on main"
 LABELS = ["bug", "needs-triage"]
@@ -26,27 +27,27 @@ PR_NUMBER = re.compile(r"\(#(\d+)\)$")
 @dataclass(frozen=True)
 class Run:
     sha: str
-    subject: str
+    message: str
     run_id: str
     run_url: str
 
 
 @dataclass(frozen=True)
 class Plan:
-    action: str  # open, comment, close or none
+    action: Literal["open", "comment", "close", "none"]
     number: int | None
     body: str
 
 
 def _source(run: Run) -> str:
-    """The commit, and the PR it was squash-merged from: 'sha (#175)'."""
-    pr = PR_NUMBER.search(run.subject)
+    """The commit, and the PR its subject line names: 'sha (#N)'."""
+    pr = PR_NUMBER.search(run.message.split("\n", 1)[0])
     return f"{run.sha} (#{pr.group(1)})" if pr else run.sha
 
 
 def _failure_body(run: Run) -> str:
     return (
-        f"The full e2e suite failed on main at {_source(run)}.\n\n"
+        f"The full e2e job failed on main at {_source(run)}.\n\n"
         f"- Run: {run.run_url}, with the `playwright-report` artifact.\n"
         f"- Failures: `gh run view {run.run_id} --log-failed`."
     )
@@ -78,10 +79,7 @@ def gh(*args: str) -> str:
 
 
 def open_issues() -> list[dict[str, object]]:
-    """The open `bug` issues: the tracking issue always carries that label."""
-    out = gh(
-        "issue", "list", "--state", "open", "--label", "bug", "--limit", "500", "--json", "number,title"
-    )
+    out = gh("issue", "list", "--state", "open", "--limit", "1000", "--json", "number,title")
     issues: list[dict[str, object]] = json.loads(out)
     return issues
 
@@ -108,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-url", required=True)
     args = parser.parse_args(argv)
 
-    run = Run(args.sha, args.message.split("\n", 1)[0], args.run_id, args.run_url)
+    run = Run(args.sha, args.message, args.run_id, args.run_url)
     apply(plan(args.result, open_issues(), run))
     return 0
 
