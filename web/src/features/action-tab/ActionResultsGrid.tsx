@@ -22,10 +22,12 @@ import {
   labelColumnDef,
   LabelSymbol,
   makeLabelKeys,
+  targetRows,
   updateRowAnnotations,
   type LabelMenuOptions,
   type RowsById,
 } from '../labels';
+import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 
 /** The grid row id: the run's row ordinal. */
@@ -62,7 +64,7 @@ export type ActionResultsGridProps = Omit<
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
   runColumns?: readonly RunColumn[] | null;
-  /** More context menu items, after Label ▸, Annotate…, Comment… and Show details. */
+  /** More context menu items, after Label ▸, Annotate…, Comment… and Show details, before the sinks. */
   getContextMenuItems?: GetExtraContextMenuItems;
 };
 
@@ -73,7 +75,7 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
  * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
- * text columns, Label ▸, Annotate…, Comment… and their keys.
+ * text columns, Label ▸, Annotate…, Comment… and their keys, and the sinks, which take the rows.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
@@ -174,18 +176,32 @@ export function ActionResultsGrid({
     }),
     [labels, max, idParam, notifyContext],
   );
+  const sinks = useSinks(runColumns);
   const {
     menu: annotateMenu,
     keys: annotateKeys,
     dialog,
-  } = useAnnotating({ labels, max, idParam, rowsById: index });
+  } = useAnnotating({ labels, max, idParam, rowsById: index, sinks });
+  const sinkMenu = useCallback<GetExtraContextMenuItems>(
+    (params) => {
+      const rows = targetRows(params.api as GridApi<GridRowWithId>, params.node);
+      return buildSinkMenu({
+        actions: sinks.sinks,
+        rowCount: rows.length,
+        max,
+        onRun: (sink) => sinks.run(sink, rows),
+      });
+    },
+    [sinks, max],
+  );
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
       annotateMenu,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
+      sinkMenu,
     ],
-    [labelling, annotateMenu, getContextMenuItems],
+    [labelling, annotateMenu, getContextMenuItems, sinkMenu],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(

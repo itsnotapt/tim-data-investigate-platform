@@ -4,6 +4,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -16,6 +17,7 @@ import {
   isApiError,
   type Annotations,
   type CallOptions,
+  type CatalogueAction,
   type InstanceLabel,
   type TagSuggestions,
 } from '../../lib/api';
@@ -35,6 +37,18 @@ import {
   type TagEdits,
 } from './annotateLogic';
 
+/** The sinks Annotate… offers to run on the rows once the change is saved. */
+export interface AfterTagging {
+  /** None hides the picker. */
+  sinks: readonly CatalogueAction[];
+  /** The key of the sink picked first: the last one run. */
+  last: string | null;
+  /** Why no sink can take the rows, if none can. */
+  disabled: string | null;
+  /** Starts `sink` on the rows. */
+  run: (sink: CatalogueAction) => void;
+}
+
 export interface AnnotateDialogProps {
   /** `annotate`: label, tags and comment (Annotate…); `comment`: the comment only (Comment…). */
   mode: AnnotateMode;
@@ -47,6 +61,8 @@ export interface AnnotateDialogProps {
   /** Called with what the change changed, before the dialog closes. */
   onSaved: (changes: Annotations[]) => void | Promise<void>;
   onClose: () => void;
+  /** After tagging, run…; Annotate… only. */
+  afterTagging?: AfterTagging;
   call?: CallOptions;
 }
 
@@ -55,6 +71,7 @@ type LabelChoice = { keep: true } | { keep: false; key: string | null };
 const KEEP: LabelChoice = { keep: true };
 const CLEAR = 'tim:clear';
 const KEEP_VALUE = 'tim:keep';
+const NO_SINK = 'tim:none';
 
 /** Waits this long after typing before asking for suggestions. */
 const SUGGEST_DELAY_MS = 150;
@@ -122,8 +139,9 @@ interface Suggestion {
 
 /**
  * The Annotate dialog: the label (Keep, a label, Clear), the tag editor with partial tags and
- * suggestions, and a comment, saved as one change. As Comment…, the comment only. Ctrl+Enter
- * saves; a failed change keeps the dialog open with the error.
+ * suggestions, and a comment, saved as one change, then the sink picked in After tagging, run…,
+ * if any. As Comment…, the comment only. Ctrl+Enter saves; a failed change keeps the dialog open
+ * with the error, and runs no sink.
  */
 export function AnnotateDialog({
   mode,
@@ -133,6 +151,7 @@ export function AnnotateDialog({
   labels,
   onSaved,
   onClose,
+  afterTagging,
   call,
 }: AnnotateDialogProps) {
   const [label, setLabel] = useState<LabelChoice>(KEEP);
@@ -143,6 +162,10 @@ export function AnnotateDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const tagging = mode === 'annotate';
+  const sinks = (tagging && afterTagging?.sinks) || [];
+  const sinkDisabled = afterTagging?.disabled ?? null;
+  const [sinkKey, setSinkKey] = useState(afterTagging?.last ?? NO_SINK);
+  const sink = sinkDisabled === null ? sinks.find((s) => s.key === sinkKey) : undefined;
 
   const chips = useMemo(
     () => tagChips(current, targets.length, edits),
@@ -190,6 +213,7 @@ export function AnnotateDialog({
     try {
       const { changes } = await changeAnnotations(change, call);
       await onSaved(changes);
+      if (sink) afterTagging?.run(sink);
       onClose();
     } catch (e) {
       setError(`Couldn't save: ${reasonOf(e)}`);
@@ -223,7 +247,7 @@ export function AnnotateDialog({
             Cancel
           </Button>
           <Button variant="contained" onClick={() => void save()} disabled={!body || saving}>
-            Save
+            {sink ? `Save and run ${sink.name}` : 'Save'}
           </Button>
         </>
       }
@@ -306,6 +330,26 @@ export function AnnotateDialog({
         onChange={(e) => setComment(e.target.value)}
         helperText="Ctrl+Enter saves"
       />
+      {sinks.length > 0 && (
+        <TextField
+          select
+          label="After tagging, run…"
+          size="small"
+          fullWidth
+          sx={{ mt: 2 }}
+          value={sink?.key ?? NO_SINK}
+          onChange={(e) => setSinkKey(e.target.value)}
+          disabled={sinkDisabled !== null}
+          helperText={sinkDisabled ?? undefined}
+        >
+          <MenuItem value={NO_SINK}>None</MenuItem>
+          {sinks.map((s) => (
+            <MenuItem key={s.key} value={s.key}>
+              {s.name}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
       {error && (
         <Alert severity="error" sx={{ mt: 2 }}>
           {error}

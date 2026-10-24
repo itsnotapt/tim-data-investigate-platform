@@ -22,11 +22,25 @@ class RunStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class InputColumn(ApiModel):
+    name: str = Field(min_length=1)
+    type: ColumnType
+
+
+class SinkInput(ApiModel):
+    """The rows a sink writes, each a row's ``data``, and their columns."""
+
+    columns: list[InputColumn]
+    rows: list[dict[str, JsonValue]]
+
+
 class StartRun(ApiModel):
-    """Body of ``POST /api/runs``. The params are validated against the action's."""
+    """Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is
+    for a sink, and only a sink."""
 
     action: str
     params: dict[str, JsonValue] = Field(default_factory=dict)
+    input: SinkInput | None = None
 
 
 class RunAction(ApiModel):
@@ -45,9 +59,10 @@ class RunColumn(ApiModel):
 class Run(ApiModel):
     """A run without its rows. Server-produced only, never a request.
 
-    ``params`` are the resolved params. ``details`` holds TIM's ``duration`` (seconds) and
-    ``rowCount`` first, then the action's own, in the order they were reported. ``columns`` and
-    ``rowCount`` are set once the run succeeds; ``error`` is a message safe to show.
+    ``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``
+    (seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the
+    action's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a
+    query action's run succeeds, never for a sink; ``error`` is a message safe to show.
     """
 
     run_id: UUID

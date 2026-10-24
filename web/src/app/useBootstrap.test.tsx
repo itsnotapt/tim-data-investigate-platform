@@ -1,6 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { SnackbarHost } from '../components/SnackbarHost';
+import type { Notify } from '../components/notifyContext';
 import { AuthClientError, AuthProvider, type AuthAccount, type AuthClient } from '../lib/auth';
 import { AuthGate } from './AuthGate';
 import type { BootstrapSteps } from './useBootstrap';
@@ -17,11 +19,13 @@ const client = (over: Partial<AuthClient> = {}): AuthClient => ({
 
 function setup(authClient: AuthClient, steps: BootstrapSteps) {
   render(
-    <AuthProvider client={authClient}>
-      <AuthGate steps={steps}>
-        <p>app ready</p>
-      </AuthGate>
-    </AuthProvider>,
+    <SnackbarHost>
+      <AuthProvider client={authClient}>
+        <AuthGate steps={steps}>
+          <p>app ready</p>
+        </AuthGate>
+      </AuthProvider>
+    </SnackbarHost>,
   );
 }
 
@@ -35,6 +39,7 @@ function makeSteps(calls: string[] = []) {
       loadColumnViews: step('columnViews'),
       loadTabs: step('tabs'),
       resumeRuns: vi.fn(() => void calls.push('resumeRuns')),
+      resumeSinkRuns: vi.fn<(notify: Notify) => void>(() => void calls.push('resumeSinkRuns')),
       watchInstance: vi.fn(() => {
         calls.push('watchInstance');
         return () => void calls.push('unwatchInstance');
@@ -61,11 +66,22 @@ describe('useBootstrap', () => {
         'columnViews',
         'tabs',
         'resumeRuns',
+        'resumeSinkRuns',
         'watchInstance',
         'syncAnnotations',
       ]),
     );
     expect(steps.loadColumnViews).toHaveBeenCalledWith('jo@example.com');
+  });
+
+  it("picks the sink runs up again, toasting how they ended in the app's snackbar", async () => {
+    const { steps } = makeSteps();
+    setup(client(), steps);
+    expect(await screen.findByText('app ready')).toBeInTheDocument();
+    expect(steps.resumeSinkRuns).toHaveBeenCalledTimes(1);
+    const [notify] = steps.resumeSinkRuns.mock.calls[0]!;
+    act(() => notify('Save event: 2 rows'));
+    expect(await screen.findByText('Save event: 2 rows')).toBeInTheDocument();
   });
 
   it('does not load anything while signed out', async () => {

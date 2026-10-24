@@ -8,10 +8,10 @@ TIM is a Kusto investigation platform. Analysts:
 
 An investigation is a tree of tabs. Each pivot creates a child tab.
 
-| Part        | Location   | Stack                                                                                                  |
-| ----------- | ---------- | ------------------------------------------------------------------------------------------------------ |
-| Web         | `web/`     | React SPA served by nginx                                                                              |
-| API         | `api/`     | Python 3.12, FastAPI                                                                                   |
+| Part | Location | Stack |
+|---|---|---|
+| Web | `web/` | React SPA served by nginx |
+| API | `api/` | Python 3.12, FastAPI |
 | Persistence | PostgreSQL | templates, presets, column views, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Related docs:
@@ -80,22 +80,22 @@ Key points:
 
 ### Source layout
 
-| Path                                 | Contents                                                                                                                                                                                                                                                                                       |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `web/src/app/`                       | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme                                                                                                                                                                                                                             |
-| `web/src/components/`                | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar                                                                                                                                                                                                                   |
-| `web/src/features/`                  | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share`, `export-import` |
-| `web/src/lib/api/`                   | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated                                                                                                                                                                                |
-| `web/src/lib/annotations/`           | The annotation store and the change-feed poller                                                                                                                                                                                                                                                |
-| `web/src/lib/auth/`                  | MSAL client, auth provider, redirect bridge                                                                                                                                                                                                                                                    |
-| `web/src/lib/config/`                | Runtime config loader                                                                                                                                                                                                                                                                          |
-| `web/src/lib/kql-templates/`         | Template engine, escaping, param building, `getTagEvents` partial                                                                                                                                                                                                                              |
-| `web/src/lib/storage/`               | IndexedDB database and DAOs                                                                                                                                                                                                                                                                    |
-| `web/src/lib/monaco/`, `time-range/` | Editor setup, time range model                                                                                                                                                                                                                                                                 |
-| `web/src/lib/isEmpty.ts`             | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects                                                                                                                                                                                                            |
-| `web/src/lib/uuid.ts`                | `generateUuid` (v4 UUID via `crypto.randomUUID`)                                                                                                                                                                                                                                               |
-| `web/src/test/`                      | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities                                                                                                                                                                                                               |
-| `web/e2e/`                           | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `mocks/` and `fixtures.ts` (the mocked flows), screenshot helper                                                                    |
+| Path | Contents |
+|---|---|
+| `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
+| `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share`, `export-import` |
+| `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
+| `web/src/lib/annotations/` | The annotation store and the change-feed poller |
+| `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
+| `web/src/lib/config/` | Runtime config loader |
+| `web/src/lib/kql-templates/` | Template engine, escaping, param building, `getTagEvents` partial |
+| `web/src/lib/storage/` | IndexedDB database and DAOs |
+| `web/src/lib/monaco/`, `time-range/` | Editor setup, time range model |
+| `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
+| `web/src/lib/uuid.ts` | `generateUuid` (v4 UUID via `crypto.randomUUID`) |
+| `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
+| `web/e2e/` | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `mocks/` and `fixtures.ts` (the mocked flows), screenshot helper |
 
 Features import `lib/*` and `components/*`. Between features:
 
@@ -108,13 +108,13 @@ Features import `lib/*` and `components/*`. Between features:
 
 Routes are hash routes. Unknown hashes redirect to `#/`. Pages are lazy-loaded.
 
-| Route                                             | Page                                                                                                                                                                       |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#/`                                              | Welcome                                                                                                                                                                    |
-| `#/queries`                                       | Query Manager (template administration)                                                                                                                                    |
-| `#/view/:uuid`                                    | A tab of any kind: Kusto, template or action (`uuid` is the tab's component uuid)                                                                                          |
-| `#/share/:uuid?p=<base64url params>&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it                                                                                                            |
-| `#/exportimport`                                  | Export and import of the investigation as JSON; template tabs are exported without the template's `name`, `isDeleted`, `isManaged`, `createdBy`, `updatedBy` and `updated` |
+| Route | Page |
+|---|---|
+| `#/` | Welcome |
+| `#/queries` | Query Manager (template administration) |
+| `#/view/:uuid` | A tab of any kind: Kusto, template or action (`uuid` is the tab's component uuid) |
+| `#/share/:uuid?p=<base64url params>&execute=0\|1` | Opens a template with params from the link; `execute=1` runs it |
+| `#/exportimport` | Export and import of the investigation as JSON; template tabs are exported without the template's `name`, `isDeleted`, `isManaged`, `createdBy`, `updatedBy` and `updated` |
 
 ### Bundle
 
@@ -152,17 +152,17 @@ An action tab's params are `{action, params, presetId?}`: the action's key, the 
 
 Besides the common fields, an action tab's state holds:
 
-| Field              | Holds                                                                                                                                                                    |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `run`              | The envelope of the latest run. Cleared when a run starts, so `null` until its envelope arrives. Kept if the server refuses only params                                  |
-| `cancelling`       | A cancel was asked for and the run has not ended                                                                                                                         |
-| `paramErrors`      | Why each param was refused, by name                                                                                                                                      |
-| `runParams`        | The plain params the latest run started with                                                                                                                             |
-| `resultsRunId`     | The run whose rows are stored                                                                                                                                            |
-| `resultColumns`    | That run's columns                                                                                                                                                       |
-| `resultsStartedAt` | When that run started                                                                                                                                                    |
-| `gridState`        | The column and filter sections of the tab's grid, as the analyst last left them                                                                                          |
-| `columnView`       | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the action default), and the grid state just after it was put on |
+| Field | Holds |
+|---|---|
+| `run` | The envelope of the latest run. Cleared when a run starts, so `null` until its envelope arrives. Kept if the server refuses only params |
+| `cancelling` | A cancel was asked for and the run has not ended |
+| `paramErrors` | Why each param was refused, by name |
+| `runParams` | The plain params the latest run started with |
+| `resultsRunId` | The run whose rows are stored |
+| `resultColumns` | That run's columns |
+| `resultsStartedAt` | When that run started |
+| `gridState` | The column and filter sections of the tab's grid, as the analyst last left them |
+| `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the action default), and the grid state just after it was put on |
 
 ### Data flow: run, poll, pivot, tag
 
@@ -216,15 +216,15 @@ One run is followed per tab. Starting another run stops following the previous o
 
 Database `tim` (version 3):
 
-| Store                | Key                                     | Value                                                                                                                                                                                              |
-| -------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `display_components` | `componentUuid`                         | Tab: name (`KustoQueryResult`, `TemplateQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params                                             |
-| `row_results`        | tab uuid (out-of-line)                  | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run                                                                                                                     |
-| `column_views`       | `uuid`                                  | `{uuid, name, columnState}` (AG Grid column state). Used by template and Kusto tabs only                                                                                                           |
-| `applied_views`      | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>`                                                                             |
-| `query_options`      | template uuid (out-of-line)             | `{hide?, ...}`                                                                                                                                                                                     |
-| `annotations`        | `id`                                    | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
-| `annotation_sync`    | `cursor` (out-of-line)                  | The change feed version read up to; `0` before the first read                                                                                                                                      |
+| Store | Key | Value |
+|---|---|---|
+| `display_components` | `componentUuid` | Tab: name (`KustoQueryResult`, `TemplateQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
+| `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
+| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by template and Kusto tabs only |
+| `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>` |
+| `query_options` | template uuid (out-of-line) | `{hide?, ...}` |
+| `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
+| `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
 
 Annotations are never stored in `row_results`.
 
@@ -276,16 +276,16 @@ The action tab has a header, a pills bar and inner tabs.
 - A `connection` param whose type has exactly one connection is filled in when the tab opens from the New menu. Its pill is greyed out.
 - A pill shows the param's title and value. It opens a popover that edits the param by kind:
 
-  | Param              | Popover                                                                                                              |
-  | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-  | `boolean`          | A switch                                                                                                             |
-  | Many-valued        | Chips. Pasted text is split on newlines, tabs, commas and semicolons                                                 |
-  | With `choices`     | A pick list                                                                                                          |
-  | `connection`       | A pick list of the instance's connections of the param's `connectionType`                                            |
-  | `string`, `number` | Text                                                                                                                 |
-  | `datetime`         | A field, calendar and clock in UTC (Kusto's timezone). Pasting an ISO datetime from a result row sets it             |
-  | `timespan`         | Preset chips for common lookbacks (15 minutes to 30 days), and an amount with a unit. Stored as an ISO 8601 duration |
-  | `json`             | JSON text                                                                                                            |
+  | Param | Popover |
+  |---|---|
+  | `boolean` | A switch |
+  | Many-valued | Chips. Pasted text is split on newlines, tabs, commas and semicolons |
+  | With `choices` | A pick list |
+  | `connection` | A pick list of the instance's connections of the param's `connectionType` |
+  | `string`, `number` | Text |
+  | `datetime` | A field, calendar and clock in UTC (Kusto's timezone). Pasting an ISO datetime from a result row sets it |
+  | `timespan` | Preset chips for common lookbacks (15 minutes to 30 days), and an amount with a unit. Stored as an ISO 8601 duration |
+  | `json` | JSON text |
 
   A many-valued `datetime` or `timespan` param uses chips like any other.
 
@@ -476,6 +476,22 @@ The status bar has a panel "View: name (applied) • modified".
 - The server assigns `viewId`, `owner` (from the token) and the timestamps.
 - `404` for an unknown column view or someone else's private one. `403` for a change by someone who does not own it.
 
+### Sinks in the browser
+
+`web/src/features/sinks/` runs sinks on selected rows without opening a tab.
+
+- **Input.** The full selected rows (every column) come from the tab's IndexedDB copy, with the run's columns as `{name, type}`. So a sink runs on rows of an expired run too.
+- **Polling.** The run is polled in the background: every second for ten polls, then every 3 s.
+- **Result.** It ends in a toast: "<Sink name>: N rows", or the error with **Retry**, which resends the snapshot kept in memory.
+  - There is no Retry for a `413` ("Too much to send; select fewer rows"), a `422`, or a run the browser lost track of.
+- **After a reload.** Pending runs are kept in localStorage `tim-pending-sink-runs`. Their result shows once, without Retry.
+- **Last sink.** localStorage `tim-last-sink` holds the last sink run.
+- **Where it is offered.**
+  - The Annotate dialog's "After tagging, run…" picker, for **Annotate…** only: **None** or one sink, preselecting the last used. The button reads "Save and run <name>". The `PATCH` goes first and the sink starts only after it succeeds; a failed sink rolls nothing back.
+  - The grid's context menu, under the sink's menu path after **Pivot**.
+  - Both are disabled over `maxAnnotationIds` rows, with the reason ("At most 10,000 rows; 23,412 selected").
+  - Sinks are not in the New menu or in **Pivot**. With no sinks installed, the picker and menu items are hidden.
+
 ### Annotations in the browser
 
 `web/src/lib/annotations/` keeps the annotations of every `id` the browser has seen, apart from any tab's rows ([ADR-0020](adr/0020-annotations-in-postgres.md)).
@@ -568,15 +584,15 @@ A plain `{{x}}` is substituted unchanged. The partial `{{> getTagEvents}}` is bu
 - `web/public/config.js` is the development version.
 - Values are validated at load. An invalid or missing key shows a configuration error page.
 
-| Key                               | Meaning                                                                             |
-| --------------------------------- | ----------------------------------------------------------------------------------- |
+| Key | Meaning |
+|---|---|
 | `auth.clientId`, `auth.authority` | Entra app registration and authority (`https://login.microsoftonline.com/<tenant>`) |
-| `redirectUri`                     | MSAL redirect page (`/blank.html`)                                                  |
-| `apiEndpoint`                     | API origin; empty means same origin                                                 |
-| `agGridLicenseKey`                | AG Grid Enterprise key; empty runs in trial mode                                    |
-| `tagCluster`, `tagDatabase`       | Tag tables location (database default `Research`)                                   |
-| `defaultClusters`                 | Cluster and database groups offered in the UI                                       |
-| `wikiUri`, `issueUri`             | Help links                                                                          |
+| `redirectUri` | MSAL redirect page (`/blank.html`) |
+| `apiEndpoint` | API origin; empty means same origin |
+| `agGridLicenseKey` | AG Grid Enterprise key; empty runs in trial mode |
+| `tagCluster`, `tagDatabase` | Tag tables location (database default `Research`) |
+| `defaultClusters` | Cluster and database groups offered in the UI |
+| `wikiUri`, `issueUri` | Help links |
 
 `/config.js` and `index.html` are served uncached. Hashed assets under `/assets/` are cached for a year.
 
@@ -606,49 +622,49 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 
 ### Module layout (`api/src/tim_api`)
 
-| Module                                 | Responsibility                                                                                                                                                                                                                   |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `main.py`                              | App factory, lifespan (provider loading included), health routes, middleware order                                                                                                                                               |
-| `config.py`                            | Settings from `TIM_*` environment variables                                                                                                                                                                                      |
-| `errors.py`                            | Problem-details body and exception handlers                                                                                                                                                                                      |
-| `deps.py`                              | FastAPI dependencies returning the storage and its template, preset, column-view, run, query-run and annotation stores                                                                                                           |
-| `models_common.py`                     | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings                                                                                                                                          |
-| `observability.py`                     | Trace ids, logging, body-size limit, request logging, CORS                                                                                                                                                                       |
-| `actions/`                             | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
-| `cli.py`                               | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check`                                                                                                                                       |
-| `annotations/`                         | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models                                                                                                                                 |
-| `auth/`                                | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`)                                                                                                                                               |
-| `connections/`                         | `POST /api/connections/{name}/schema` (`router.py`) and its models                                                                                                                                                               |
-| `kusto/`                               | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema`                                                                                                                                                 |
-| `runs/`                                | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks)        |
-| `query_runs/`                          | Kusto query-run routes, models and their lifecycle (`runner.py`)                                                                                                                                                                 |
-| `templates/`                           | Template routes and models                                                                                                                                                                                                       |
-| `presets/`                             | `/api/presets` routes (`router.py`) and models                                                                                                                                                                                   |
-| `column_views/`                        | `/api/columnViews` routes (`router.py`) and models                                                                                                                                                                               |
-| `tagged_events/`                       | Tag routes, ingestion client, table schema, `create-tables` CLI                                                                                                                                                                  |
-| `storage/`                             | Storage interfaces, PostgreSQL and in-memory implementations, retention loop                                                                                                                                                     |
-| `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export                                                                                                                                                                                          |
+| Module | Responsibility |
+|---|---|
+| `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
+| `config.py` | Settings from `TIM_*` environment variables |
+| `errors.py` | Problem-details body and exception handlers |
+| `deps.py` | FastAPI dependencies returning the storage and its template, preset, column-view, run, query-run and annotation stores |
+| `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
+| `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
+| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
+| `cli.py` | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check` |
+| `annotations/` | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models |
+| `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
+| `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
+| `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
+| `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
+| `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
+| `templates/` | Template routes and models |
+| `presets/` | `/api/presets` routes (`router.py`) and models |
+| `column_views/` | `/api/columnViews` routes (`router.py`) and models |
+| `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
+| `storage/` | Storage interfaces, PostgreSQL and in-memory implementations, retention loop |
+| `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export |
 
 Database migrations are in `api/migrations` (Alembic).
 
 `tim-actions` (`api/tim-actions/src/tim_actions`) is a separate distribution that providers depend on instead of `tim-api` ([ADR-0021](adr/0021-tim-actions-and-derived-images.md)):
 
-| Module                | Responsibility                                                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `action.py`           | `Action`, the base of query action types, with its menu path, pivot columns and `resolve()`                                                       |
-| `pivots.py`           | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()`                                                              |
-| `params.py`           | `Param` and `validate_params`: declaration checks, then validation and conversion of values                                                       |
-| `columns.py`          | `Column`                                                                                                                                          |
-| `connections.py`      | `Connection`, the base of a connection type's entries in the connections file                                                                     |
-| `connections_file.py` | The connections file: the loader (`load_connections_file`) and the JSON Schema (`connections_file_schema`)                                        |
-| `labels_file.py`      | The labels file: `Label`, the default labels, the loader (`load_labels_file`) and the JSON Schema (`labels_file_schema`)                          |
-| `hooks.py`            | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema`                                      |
-| `run.py`              | `RunContext`, the protocol `run` is given, `Analyst` and `RunError`                                                                               |
-| `rows.py`             | `RowId`, how a row's `id` is taken from it, and `IdColumns`                                                                                       |
-| `provider.py`         | `Provider` and the `tim.actions` entry-point group                                                                                                |
-| `files.py`            | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`)                           |
-| `kusto.py`            | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
-| `builtin.py`          | TIM's built-in provider                                                                                                                           |
+| Module | Responsibility |
+|---|---|
+| `action.py` | `Action`, the base of query action types, with its menu path, pivot columns and `resolve()` |
+| `pivots.py` | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()` |
+| `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
+| `columns.py` | `Column` |
+| `connections.py` | `Connection`, the base of a connection type's entries in the connections file |
+| `connections_file.py` | The connections file: the loader (`load_connections_file`) and the JSON Schema (`connections_file_schema`) |
+| `labels_file.py` | The labels file: `Label`, the default labels, the loader (`load_labels_file`) and the JSON Schema (`labels_file_schema`) |
+| `hooks.py` | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema` |
+| `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
+| `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
+| `provider.py` | `Provider` and the `tim.actions` entry-point group |
+| `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`) and the JSON Schema (`action_files_schema`) |
+| `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
+| `builtin.py` | TIM's built-in provider |
 
 ### Request flow and middleware
 
@@ -668,8 +684,8 @@ Then the route runs. Its dependencies resolve the caller (`get_current_principal
 
 Actions come from providers ([ADR-0017](adr/0017-actions-from-providers.md)):
 
-- An **action type** is a Python subclass of `tim_actions.Action` that implements `run`.
-- An **action** is a configured instance of one, with a `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`.
+- An **action type** is a Python subclass of `tim_actions.Action` (a query action, which yields rows) or `tim_actions.Sink` ([Sinks](#sinks)) that implements `run`.
+- An **action** is a configured instance of one, with a `key`, `name`, `menu` and `description`. A query action also has `params`, `pivot`, `columns` and `id`.
 - A **provider** is a callable that a package exposes in the `tim.actions` entry-point group. It returns `Provider(actions, action_types, hooks)`.
 
 TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.
@@ -968,6 +984,31 @@ Housekeeping, for both:
   - It deletes ten runs at a time, so each delete of their rows stays short. Then it deletes the expired query runs.
   - Expired runs already read as `404` before they are deleted.
 
+### Sinks
+
+A **sink** is an action that takes rows and writes them somewhere, such as a ticket queue ([GLOSSARY.md](../GLOSSARY.md)).
+
+- A sink type subclasses `tim_actions.Sink`, a sibling of `Action` on `ActionBase`. It implements `run(columns, rows, ctx)`, which writes the rows and returns nothing.
+- A file-capable sink type's `File` model is a `SinkDocument`: `type`, `key`, `name`, `menu` and `description`, with the type's own fields.
+- A sink has no params, `pivot`, `columns` or `id`.
+- TIM ships no sinks. `dev_sink` (development only) discards the rows after its `delay`, or fails with its `error`.
+- In the catalogue a sink has `kind: "sink"`, `params: []` and `pivot: {rows: "rows", columns: []}`.
+
+`POST /api/runs` takes the rows to write as `input`: `{columns: [{name, type}], rows: [{...}]}`.
+
+- A query action with `input` gives `422` (`input`: "Only a sink takes input"). A sink without it gives `422` ("A sink needs the rows to write").
+- At most `maxAnnotationIds` rows are accepted (`input.rows`), and column names must be unique (`input.columns`).
+- The size of the input is limited by `TIM_MAX_REQUEST_BYTES`.
+- A sink's params must be empty.
+
+The run follows the lifecycle above, with these differences:
+
+- The worker thread calls `Sink.run(columns, rows, ctx)` and no rows are stored.
+- The succeeded run has no `columns` or `rowCount`, and its `params` are `{}`.
+- `details` holds `duration`, then `inputRowCount`, then the sink's own `ctx.detail` values.
+- Timeout and cancel work as for any run, through the sink's hooks.
+- `POST /api/actions/{key}/resolve` gives `404` for a sink, and a preset of a sink gives `422` (`action`: "A sink has no presets").
+
 ### Templates
 
 Templates are stored in PostgreSQL (`query_templates`), shared by all users. The model is `QueryTemplate` in `templates/models.py`:
@@ -1076,21 +1117,21 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - In development only, `memory://` selects an in-memory store. Production refuses it.
 - Alembic migrations create the schema (`alembic upgrade head`).
 
-| Table                | Key                    | Notes                                                                                                                                                                                                                                               |
-| -------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `query_templates`    | `uuid`                 | Editable fields, `path`/`params`/`fields`/`columns` as JSONB, `is_deleted`, `updated`, `created_by`, `updated_by`; index on `(updated, uuid)`                                                                                                       |
-| `presets`            | `preset_id`            | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)`                                                                         |
-| `preset_hidden`      | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE`                                                                                                                                                                    |
-| `column_views`       | `view_id`              | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)`                                           |
-| `column_view_hidden` | `(view_id, analyst)`   | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE`                                                                                                                                                            |
-| `runs`               | `run_id`               | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
-| `run_rows`           | `(run_id, ordinal)`    | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs                                                                                                   |
-| `annotation_clock`   | `one`                  | A single row, checked to be the only one: `version`, the feed's counter                                                                                                                                                                             |
-| `id_state`           | `id`                   | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared                                                                                                                                             |
-| `label_changes`      | `(id, version)`        | `label` (null for a clear), `changed_by`, `changed_at`                                                                                                                                                                                              |
-| `tags`               | `(id, tag)`            | `added_by`, `added_at`                                                                                                                                                                                                                              |
-| `comments`           | none                   | `id`, `author`, `created_at`, `text`, `version`; index on `(id, version)`                                                                                                                                                                           |
-| `query_runs`         | `query_run_id`         | `requested_by` (owner), `status`, `execute_date_time_utc`, `expires_at`, `kusto_query`, `result_data`, `execution_metrics` (JSONB), `main_error`; indexes on owner, expiry, and `created` runs                                                      |
+| Table | Key | Notes |
+|---|---|---|
+| `query_templates` | `uuid` | Editable fields, `path`/`params`/`fields`/`columns` as JSONB, `is_deleted`, `updated`, `created_by`, `updated_by`; index on `(updated, uuid)` |
+| `presets` | `preset_id` | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)` |
+| `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
+| `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
+| `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
+| `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
+| `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
+| `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
+| `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |
+| `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |
+| `tags` | `(id, tag)` | `added_by`, `added_at` |
+| `comments` | none | `id`, `author`, `created_at`, `text`, `version`; index on `(id, version)` |
+| `query_runs` | `query_run_id` | `requested_by` (owner), `status`, `execute_date_time_utc`, `expires_at`, `kusto_query`, `result_data`, `execution_metrics` (JSONB), `main_error`; indexes on owner, expiry, and `created` runs |
 
 `run_rows` is `UNLOGGED`, so it is not written to the WAL.
 
@@ -1119,8 +1160,8 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
 - **Connections run as the user** (OBO). Only tag ingestion and table creation use the app identity.
 - **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's auth stub throws in a production build.
 - **Request bodies are capped:**
-  - `TIM_MAX_REQUEST_BYTES` on the API (default 16 MiB, `413`);
-  - `client_max_body_size 25m` on nginx;
+  - `TIM_MAX_REQUEST_BYTES` on the API (default 64 MiB, `413`);
+  - `client_max_body_size 64m` on nginx;
   - tagged-event batches to 1000 items, and each `eventAsJson` to 1,000,000 bytes serialised;
   - queries to 100,000 characters.
 - **API responses** carry `x-content-type-options: nosniff` and `cache-control: no-store`.
@@ -1149,10 +1190,10 @@ Tag data lives in three tables in the tag database of the tag cluster ([configur
 
 The tables are append-only. When read, the latest row per key wins.
 
-| Table          | Columns                                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------------------ |
-| `SavedEvent`   | EventId:string, EventTime:datetime, DateTimeUtc:datetime, CreatedBy:string, EventAsJson:dynamic              |
-| `EventTag`     | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Tag:string, IsDeleted:bool                           |
+| Table | Columns |
+|---|---|
+| `SavedEvent` | EventId:string, EventTime:datetime, DateTimeUtc:datetime, CreatedBy:string, EventAsJson:dynamic |
+| `EventTag` | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Tag:string, IsDeleted:bool |
 | `EventComment` | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Comment:string, Determination:string, IsDeleted:bool |
 
 `EventComment.Determination` is `malicious`, `suspicious` or `benign`.

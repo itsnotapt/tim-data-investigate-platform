@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
+import { NotifyContext, type Notify } from '../components/notifyContext';
 import { loadAppliedViews } from '../features/action-column-views';
 import { resumeActionRuns } from '../features/action-tab';
 import { refreshInstanceOnFocus, useInstanceStore } from '../features/instance';
+import { resumeSinkRuns } from '../features/sinks';
 import { useTabsStore } from '../features/tabs';
 import { useTemplatesStore } from '../features/templates';
 import { startAnnotationSync } from '../lib/annotations';
@@ -18,6 +20,8 @@ export interface BootstrapSteps {
   loadTabs: () => Promise<void>;
   /** Picks up the runs the loaded tabs were following. */
   resumeRuns: () => void;
+  /** Picks up the sink runs the page was following before a reload, toasting how they end. */
+  resumeSinkRuns: (notify: Notify) => void;
   /** Refetches the instance on window focus while loaded; returns the cleanup. */
   watchInstance: () => () => void;
   /** Starts reading the annotation change feed while loaded; returns the stop. */
@@ -40,6 +44,7 @@ const defaultSteps: BootstrapSteps = {
   },
   loadTabs,
   resumeRuns: () => void resumeActionRuns(),
+  resumeSinkRuns: (notify) => void resumeSinkRuns({ notify }),
   watchInstance: () => refreshInstanceOnFocus(useInstanceStore),
   syncAnnotations: () =>
     startAnnotationSync(useInstanceStore.getState().instance?.limits.annotationPollSeconds ?? 30),
@@ -57,11 +62,12 @@ export interface UseBootstrap {
 
 /**
  * Startup sequence: sign in, then the instance, templates, column views and tabs, then the tabs'
- * runs are picked up again.
+ * runs and the sink runs are picked up again.
  * A failed attempt leaves the app retryable.
  */
 export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap {
   const auth = useAuth();
+  const notifyContext = useContext(NotifyContext);
   const signedIn = auth.status === 'signedIn';
   const analyst = auth.account?.name ?? null;
   const [attempt, setAttempt] = useState(0);
@@ -82,6 +88,7 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
         await steps.loadColumnViews(analyst);
         await steps.loadTabs();
         if (!cancelled) steps.resumeRuns();
+        if (!cancelled) steps.resumeSinkRuns((options) => notifyContext?.(options));
         if (!cancelled) setResult({ attempt, status: 'loaded', error: null });
       } catch (e) {
         console.error(e);
@@ -98,7 +105,7 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
       cancelled = true;
     };
     // `steps` is expected to be stable (module constant or memoised).
-  }, [signedIn, analyst, attempt, steps]);
+  }, [signedIn, analyst, attempt, steps, notifyContext]);
 
   const loaded = signedIn && result?.attempt === attempt && result.status === 'loaded';
   useEffect(() => (loaded ? steps.watchInstance() : undefined), [loaded, steps]);

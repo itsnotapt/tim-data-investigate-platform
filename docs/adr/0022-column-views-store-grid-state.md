@@ -16,12 +16,12 @@ Decided by the user. Related: [0006](0006-ag-grid-enterprise.md), [0004](0004-po
 
 ## Considered Options
 
-| Option                                    | Pros                   | Cons                                                                                                          |
-| ----------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| TIM's own column-settings format          | Independent of AG Grid | A second model to keep in step with every grid feature (calculated columns, filters, grouping)                |
-| Full `GridState`                          | Simple                 | Carries selection, scroll and side bar; a column view without pinning would unpin the action's pinned columns |
-| A server-side key list or schema          | Rejects junk           | Every AG Grid upgrade that adds a key needs an API change                                                     |
-| Remembering the last layout automatically | No Save step           | A one-off change quietly sticks to future tabs                                                                |
+| Option | Pros | Cons |
+|---|---|---|
+| TIM's own column-settings format | Independent of AG Grid | A second model to keep in step with every grid feature (calculated columns, filters, grouping) |
+| Full `GridState` | Simple | Carries selection, scroll and side bar; a column view without pinning would unpin the action's pinned columns |
+| A server-side key list or schema | Rejects junk | Every AG Grid upgrade that adds a key needs an API change |
+| Remembering the last layout automatically | No Save step | A one-off change quietly sticks to future tabs |
 
 ## Consequences
 

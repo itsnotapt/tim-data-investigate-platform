@@ -34,7 +34,10 @@ The column view an analyst has chosen for a preset or action. New tabs opened fr
 ### Actions
 
 **Action**:
-A named operation an analyst runs, which takes params and returns rows.
+A named operation an analyst runs. A query action takes params and returns rows; a sink takes rows and writes them.
+
+**Sink**:
+An action that takes the rows an analyst selected and writes them somewhere, such as a ticket queue. It has no params and returns no rows.
 
 **Action default**:
 The columns an action declares. A tab starts with them when there's no applied view.

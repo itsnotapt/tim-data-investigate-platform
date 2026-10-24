@@ -9,7 +9,7 @@ The UI depends on AG Grid Enterprise features, and the Community build silently 
 
 The Enterprise features the UI relies on:
 
-- the context menu, which is the only UI for labels, annotations and pivots
+- the context menu, which is the only UI for labels, annotations, pivots and sinks
 - set and multi filters
 - the side bar, which hosts the Columns, Filters and Views panels ([0022](0022-column-views-store-grid-state.md))
 - the status bar

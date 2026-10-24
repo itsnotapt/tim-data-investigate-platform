@@ -16,7 +16,7 @@ from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext
 
 if TYPE_CHECKING:
-    from tim_actions.files import ActionDocument
+    from tim_actions.files import ActionDocument, DocumentBase, SinkDocument
 
 ActionKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_.-]+$")]
 """Lowercase letters, digits, ``_``, ``-`` and ``.``; the ``tim.`` prefix is TIM's own."""
@@ -24,31 +24,22 @@ ActionKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_.-]+$")]
 Pivot = Literal["row", "rows", "none"]
 
 
-class Action(BaseModel, ABC):
-    """A query action. An action type subclasses this, adds its own configuration fields and
-    implements ``run``; each instance is one action.
+class ActionBase(BaseModel, ABC):
+    """What query actions and sinks share: the key, name, menu folder path and description, the
+    fixed connections, and how an action file builds one.
 
-    ``menu`` is a ``/``-separated folder path. ``pivot``, which has no default, says whether the
-    action is offered on one row, several rows or not at all in the grid's context menu. ``id`` is
-    the column, or alternatives where the first non-empty one wins, that gives each row its
-    ``id``.
+    ``menu`` is a ``/``-separated folder path.
     """
 
     model_config = STRICT | {"frozen": True}
 
     type_name: ClassVar[str | None] = None
     """Set by action types that action files can name, with ``File``."""
-    File: ClassVar[type[ActionDocument] | None] = None
-    """The model an action file of this type is validated against."""
 
     key: ActionKey
     name: NonBlankStr
     menu: str = ""
     description: NonBlankStr | None = None
-    params: Sequence[Param] = ()
-    pivot: Pivot
-    columns: Sequence[Column] | None = None
-    id: NonBlankStr | Sequence[NonBlankStr] | None = None
 
     @field_validator("menu")
     @classmethod
@@ -56,6 +47,40 @@ class Action(BaseModel, ABC):
         if value and not all(part.strip() for part in value.split("/")):
             raise ValueError("every folder in the path must be non-blank")
         return value
+
+    @classmethod
+    def from_file(cls, file: DocumentBase) -> Self:
+        """Build the action from its validated document in an action file. The default passes the
+        document's fields, all but ``type``, through by name; override it when the action type's
+        fields differ."""
+        return cls.model_validate({name: value for name, value in file if name != "type"})
+
+    @property
+    def menu_path(self) -> list[str]:
+        return [part.strip() for part in self.menu.split("/")] if self.menu else []
+
+    def connections(self) -> Mapping[str, str]:
+        """The fixed connections this action uses: each name and the connection type it must
+        be."""
+        return {}
+
+
+class Action(ActionBase):
+    """A query action. An action type subclasses this, adds its own configuration fields and
+    implements ``run``; each instance is one action.
+
+    ``pivot``, which has no default, says whether the action is offered on one row, several rows
+    or not at all in the grid's context menu. ``id`` is the column, or alternatives where the
+    first non-empty one wins, that gives each row its ``id``.
+    """
+
+    File: ClassVar[type[ActionDocument] | None] = None
+    """The model an action file of this type is validated against."""
+
+    params: Sequence[Param] = ()
+    pivot: Pivot
+    columns: Sequence[Column] | None = None
+    id: NonBlankStr | Sequence[NonBlankStr] | None = None
 
     @field_validator("params")
     @classmethod
@@ -85,22 +110,6 @@ class Action(BaseModel, ABC):
             raise ValueError("give a column name, or leave id out")
         return value
 
-    @classmethod
-    def from_file(cls, file: ActionDocument) -> Self:
-        """Build the action from its validated document in an action file. The default passes the
-        document's fields, all but ``type``, through by name; override it when the action type's
-        fields differ."""
-        return cls.model_validate({name: value for name, value in file if name != "type"})
-
-    @property
-    def menu_path(self) -> list[str]:
-        return [part.strip() for part in self.menu.split("/")] if self.menu else []
-
-    def connections(self) -> Mapping[str, str]:
-        """The fixed connections this action uses: each name and the connection type it must
-        be."""
-        return {}
-
     def pivot_columns(self) -> list[list[str]]:
         """The context menu's filter: a row needs one column from each group. Each
         required param's ``from_columns`` is a group."""
@@ -125,3 +134,27 @@ class Action(BaseModel, ABC):
         """Yield the result rows. Runs synchronously, in a worker thread. Raise ``RunError``
         to end the run in error with a message the analyst sees; any other exception ends it
         with a generic message."""
+
+
+class Sink(ActionBase):
+    """A sink: an action that takes the selected rows and writes them somewhere. An action type
+    subclasses this, adds its own configuration fields and implements ``run``.
+
+    A sink has no params, no column requirements and no ``id``; it is offered on any selected
+    rows.
+    """
+
+    File: ClassVar[type[SinkDocument] | None] = None
+    """The model an action file of this type is validated against."""
+
+    @abstractmethod
+    def run(
+        self, columns: Sequence[Column], rows: Sequence[Mapping[str, Any]], ctx: RunContext
+    ) -> None:
+        """Write ``rows``, whose columns are ``columns``. Runs synchronously, in a worker thread.
+        Raise ``RunError`` to end the run in error with a message the analyst sees; any other
+        exception ends it with a generic message."""
+
+
+ActionType = type[Action] | type[Sink]
+"""A query action type or a sink type."""

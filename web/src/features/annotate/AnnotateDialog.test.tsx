@@ -2,7 +2,12 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createApiClient, type Annotations, type InstanceLabel } from '../../lib/api';
+import {
+  createApiClient,
+  type Annotations,
+  type CatalogueAction,
+  type InstanceLabel,
+} from '../../lib/api';
 import { apiUrl, problemResponse, TEST_API } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { AnnotateDialog, type AnnotateDialogProps } from './AnnotateDialog';
@@ -194,5 +199,89 @@ describe('AnnotateDialog', () => {
     await user.click(save());
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(patches).toEqual([{ ids: ['h1', 'h2', 'h3'], comment: 'checked with the owner' }]);
+  });
+});
+
+const sink = (key: string, name: string): CatalogueAction => ({
+  key,
+  kind: 'sink',
+  name,
+  menuPath: [],
+  connections: [],
+  params: [],
+  pivot: { rows: 'rows', columns: [] },
+});
+const KUSTO = sink('kusto', 'Save event to Kusto');
+const CASE = sink('case', 'Add to case');
+
+describe('AnnotateDialog, After tagging, run…', () => {
+  const picker = () => screen.getByRole('combobox', { name: 'After tagging, run…' });
+  const afterTagging = (over: Partial<NonNullable<AnnotateDialogProps['afterTagging']>> = {}) => ({
+    sinks: [KUSTO, CASE],
+    last: 'case',
+    disabled: null,
+    run: vi.fn(),
+    ...over,
+  });
+
+  it('picks the last sink run first, and starts it once the change is saved', async () => {
+    const after = afterTagging({
+      run: vi.fn(() => expect(patches).toHaveLength(1)),
+    });
+    const { user, onSaved, onClose } = renderDialog({ afterTagging: after });
+    expect(picker()).toHaveTextContent('Add to case');
+    await user.click(screen.getByRole('button', { name: 'Benign' }));
+    await user.click(screen.getByRole('button', { name: 'Save and run Add to case' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onSaved).toHaveBeenCalled();
+    expect(after.run).toHaveBeenCalledExactlyOnceWith(CASE);
+  });
+
+  it('saves without running a sink when None is picked', async () => {
+    const after = afterTagging();
+    const { user, onClose } = renderDialog({ afterTagging: after });
+    await user.click(picker());
+    await user.click(screen.getByRole('option', { name: 'None' }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    await user.click(save());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(after.run).not.toHaveBeenCalled();
+  });
+
+  it('picks none first when the last sink run is gone', () => {
+    renderDialog({ afterTagging: afterTagging({ last: 'removed' }) });
+    expect(picker()).toHaveTextContent('None');
+    expect(save()).toBeInTheDocument();
+  });
+
+  it('runs no sink when the change fails', async () => {
+    server.use(http.patch(apiUrl('/api/annotations'), () => problemResponse(500)));
+    const after = afterTagging();
+    const { user, onClose } = renderDialog({ afterTagging: after });
+    await user.click(screen.getByRole('button', { name: 'Benign' }));
+    await user.click(screen.getByRole('button', { name: 'Save and run Add to case' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save");
+    expect(after.run).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('disables the picker with the reason when no sink can take the rows', () => {
+    renderDialog({
+      afterTagging: afterTagging({ disabled: 'At most 10,000 rows; 23,412 selected' }),
+    });
+    expect(picker()).toHaveAttribute('aria-disabled', 'true');
+    expect(picker()).toHaveTextContent('None');
+    expect(screen.getByText('At most 10,000 rows; 23,412 selected')).toBeInTheDocument();
+  });
+
+  it('is hidden with no sinks', () => {
+    renderDialog({ afterTagging: afterTagging({ sinks: [] }) });
+    expect(screen.queryByRole('combobox', { name: 'After tagging, run…' })).toBeNull();
+  });
+
+  it('is hidden as Comment…', () => {
+    renderDialog({ mode: 'comment', afterTagging: afterTagging() });
+    expect(screen.queryByRole('combobox', { name: 'After tagging, run…' })).toBeNull();
+    expect(save()).toBeInTheDocument();
   });
 });

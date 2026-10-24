@@ -51,8 +51,10 @@ class CatalogueColumn(ApiModel):
 
 
 class CatalogueAction(ApiModel):
+    """A query action or, as ``kind: "sink"``, a sink: no params, offered on any selected rows."""
+
     key: str
-    kind: Literal["query"]
+    kind: Literal["query", "sink"]
     name: str
     description: str | None = omitted()
     menu_path: list[str]

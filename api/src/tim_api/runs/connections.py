@@ -8,15 +8,17 @@ from collections.abc import Mapping
 from typing import Any
 
 from fastapi import Request
-from tim_actions import Action, Connection, Hook, RunError
+from tim_actions import Action, Connection, Hook, RunError, Sink
 
 from tim_api.auth.obo import OboError, OboTokenProvider
 from tim_api.auth.principal import Principal
 
 
-def run_connection_names(action: Action, params: Mapping[str, Any]) -> frozenset[str]:
+def run_connection_names(action: Action | Sink, params: Mapping[str, Any]) -> frozenset[str]:
     """The connections a run uses: the action's fixed ones and its connection params' values."""
     names = set(action.connections())
+    if isinstance(action, Sink):
+        return frozenset(names)
     names.update(
         str(params[p.name])
         for p in action.params
