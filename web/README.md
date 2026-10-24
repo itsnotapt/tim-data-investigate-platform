@@ -17,6 +17,7 @@ npm test              # Vitest (jsdom + Testing Library), single run
 npm run test:watch    # Vitest watch mode
 npm run e2e           # Playwright e2e (headless Chromium, real api and mocked flows)
 npm run e2e:headed    # same, with a visible browser
+npm run e2e:smoke     # only the flows tagged @smoke (what CI runs on a PR)
 npm run gen:api       # regenerate src/lib/api/schema.d.ts from openapi.json
 ```
 
@@ -28,7 +29,7 @@ Stack: React 19, React Router (hash router), MUI + Emotion, Zustand, AG Grid Ent
 
 ## E2E tests
 
-Playwright specs run in headless Chromium: `e2e/smoke.spec.ts` and `e2e/flows/*.spec.ts`.
+Playwright specs run in headless Chromium: `e2e/flows/*.spec.ts`. Flows tagged `@smoke` run on every PR; every flow runs on `main` and on release PRs.
 
 - The config is `playwright.config.ts`.
 - `e2e/` has its own `tsconfig.json`, and Vitest excludes it.

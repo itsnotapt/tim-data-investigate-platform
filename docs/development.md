@@ -97,7 +97,7 @@ Run the checks CI runs before you push:
 
 - **`api/`:** `uv run pytest`, `uv run ruff check`, `uv run ruff format --check` and `uv run mypy`.
 - **`api/tim-actions/`:** `uv run pytest` and `uv run mypy`.
-- **`web/`:** the `lint`, `format:check`, `typecheck`, `test`, `build` and `e2e` scripts.
+- **`web/`:** the `lint`, `format:check`, `typecheck`, `test`, `build` and `e2e` scripts. CI runs `e2e:smoke` on a PR; see [e2e tests](#e2e-tests).
 
 When `az account show` succeeds, set the [live Kusto test](#live-kusto-tests) variables first, so the `kusto` tests run rather than skip.
 
@@ -108,6 +108,7 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 | `uv sync --locked --all-packages` and `npm ci`                                                   | A stale `uv.lock` or `package-lock.json` passes `uv sync` / `npm install` but fails CI         |
 | `npm audit --omit=dev --audit-level=high`                                                        | Not part of any script; run it yourself after changing dependencies                           |
 | PostgreSQL tests against a `postgres:17` service (`TIM_TEST_DATABASE_URL`)                       | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                             |
+| `e2e:smoke` on a PR, `e2e` on a push to `main` and on a `release-please--*` PR                    | `npm run e2e` runs every flow                                                                 |
 | Playwright with `CI` set: `forbidOnly`, 1 retry, 3 workers, HTML report                             | `list` reporter only, no retries                                                              |
 | The e2e job's api on a `postgres:17` service (`TIM_TEST_DATABASE_URL`). The job also runs when `api/` changes | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                  |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
@@ -133,7 +134,7 @@ Both databases default to `Research`, as in CI. Each run adds an `itest` row to 
 
 ## e2e tests
 
-`npm run e2e` in `web/` runs every Playwright flow in `web/e2e/`. `playwright.config.ts` starts two servers:
+`npm run e2e` in `web/` runs every Playwright flow in `web/e2e/`. `npm run e2e:smoke` runs only the flows tagged `@smoke`. `playwright.config.ts` starts two servers:
 
 - **The api**, on the port after Vite's (`E2E_PORT + 1`, default 5181), through `web/e2e/api_server.py` (`uv run --project ../api`).
   - It runs with `TIM_ENVIRONMENT=development`, `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true`, `TIM_ACTIONS_DIR=web/e2e/actions`, `TIM_CONNECTIONS_FILE=web/e2e/connections.yaml` and `TIM_LABELS_FILE=web/e2e/labels.yaml`.
@@ -153,6 +154,12 @@ There are two kinds of flow. What the spec imports picks the kind:
 |---|---|---|
 | Against the real api | `e2e/realApi.ts` | The api above. Nothing is intercepted. `page.route` is only for faults the server can't produce. New flows are written this way |
 | Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the template and Kusto features, which predate actions |
+
+The `@smoke` tag marks the smoke flows:
+
+- **Mocked app:** `e2e/flows/run-query.spec.ts`.
+- **Real api:** both tests in `e2e/flows/real-api.spec.ts`.
+- **Rule:** a flow gets the tag only when it is the only smoke flow for its layer ([CODING_STANDARDS.md](../CODING_STANDARDS.md#frontend-web)).
 
 In a real-api flow:
 
@@ -313,6 +320,8 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
 | `build-api.yml` | `api/`, the workflow file, `docs/architecture.md` and `web/src/lib/api/openapi.json`, which the api tests read, and `deploy/config/`, which the image build checks |
 
 - The gate job fails when the `changes` job or a build job failed or was cancelled.
+- The `e2e` job in `build-web.yml` runs `npm run e2e:smoke` on a PR, and `npm run e2e` on a push to `main` and on a `release-please--*` PR.
+  - An api-only PR also runs only the smoke flows.
 - Runs on release-please PRs wait for approval (**Approve and run** on the PR) before they report.
 
 Things the workflows don't tell you:
@@ -323,6 +332,12 @@ Things the workflows don't tell you:
   - `nginx-unprivileged` comes from its publisher's `ghcr.io/nginx`.
   - When you change one, keep the same image and tag.
   - Check the tag exists on the mirror: `docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`.
+- **`main-e2e-issue`** (`build-web.yml`) runs after the `e2e` job on a push to `main`, whether it passed or failed, through `.github/scripts/main_e2e_issue.py`.
+  - It is the only job with `issues: write`, it is not part of `build-web-gate`, and one run goes at a time.
+  - It keeps one open issue titled `Full e2e failing on main`, labelled `bug` and `needs-triage`.
+  - A failure opens the issue, or comments on it when it is open. A pass comments and closes it.
+  - The body names the commit and its PR, links the run with its `playwright-report` artifact, and gives `gh run view <id> --log-failed`.
+  - The script's tests run in `lint-workflows.yml` with the other `.github/scripts` tests.
 - **`kusto-live`** (`build-api.yml`) runs `pytest -m kusto` on pushes to `main` that change the api.
   - It signs in as an Entra test app through GitHub OIDC (`azure/login`, no secret).
   - The app needs a federated credential with subject `repo:itsnotapt/tim-data-investigate-platform:ref:refs/heads/main`. That is why pull requests can't run the job.

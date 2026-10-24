@@ -4,6 +4,8 @@ name: Build web
 # the changes job skips the build jobs when the PR does not touch web/, this file, or a file the
 # web checks read from outside web/ (.editorconfig, which Prettier reads). The e2e job also runs
 # when api/ changes, because its flows run against a real tim-api.
+# The e2e job runs the @smoke flows on a PR, and every flow on a push to main and on a release PR.
+# On main, the main-e2e-issue job keeps an issue open while the full suite fails.
 on:
   pull_request:
   push:
@@ -160,8 +162,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E tests
-        run: npm run e2e
+        run: npm run "$SCRIPT"
         env:
+          SCRIPT: ${{ (github.event_name == 'push' || startsWith(github.head_ref, 'release-please--')) && 'e2e' || 'e2e:smoke' }}
           TIM_TEST_DATABASE_URL: postgresql+asyncpg://tim:tim@localhost:5432/tim_e2e
 
       - name: Upload Playwright report
@@ -173,6 +176,33 @@ jobs:
             web/playwright-report
             web/test-results
           retention-days: 7
+
+  # A push to main ran the full suite: open, comment on or close the tracking issue. One run at a
+  # time, so two failing runs open one issue.
+  main-e2e-issue:
+    needs: e2e
+    if: always() && github.event_name == 'push' && (needs.e2e.result == 'success' || needs.e2e.result == 'failure')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: main-e2e-issue
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Update the tracking issue
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.e2e.result }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          python3 .github/scripts/main_e2e_issue.py "$RESULT" --sha "$GITHUB_SHA" --message "$MESSAGE"
+          --run-id "$GITHUB_RUN_ID" --run-url "$RUN_URL"
 
   docker-build-web:
     needs: changes
