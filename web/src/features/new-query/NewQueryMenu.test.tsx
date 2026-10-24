@@ -46,6 +46,7 @@ const actions: CatalogueAction[] = [
   {
     key: 'dev-sign-ins',
     kind: 'query',
+    actionFile: false,
     name: 'Sign-ins',
     menuPath: ['Identity', 'Entra'],
     connections: [],
@@ -65,6 +66,7 @@ const actions: CatalogueAction[] = [
   {
     key: 'tim.run_kql',
     kind: 'query',
+    actionFile: false,
     name: 'Run KQL',
     menuPath: [],
     connections: [],
@@ -84,6 +86,7 @@ const actions: CatalogueAction[] = [
   {
     key: 'dev-slow',
     kind: 'query',
+    actionFile: false,
     name: 'Slow',
     menuPath: [],
     connections: [],

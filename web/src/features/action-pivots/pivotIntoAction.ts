@@ -8,6 +8,7 @@ import {
 } from '../../lib/api';
 import { isApiError } from '../../lib/api/errors';
 import { initialParams, paramTitles, stillMissing } from '../action-tab/paramValues';
+import { pills } from '../action-tab/queryParameters';
 import { useTabsStore, type TabsStore } from '../tabs';
 
 interface ChildTabInput {
@@ -67,7 +68,7 @@ function openChildTab(
   if (needed.length > 0) {
     store.getState().updateState(uuid, { pivotMissing: missing });
     notify({
-      message: `Opened ${title}: needs ${paramTitles(action, needed)}`,
+      message: `Opened ${title}: needs ${paramTitles(pills(action.params, params).params, needed)}`,
       action: goToChild,
     });
   } else {

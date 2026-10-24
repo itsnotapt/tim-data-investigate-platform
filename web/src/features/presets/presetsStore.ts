@@ -2,6 +2,7 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import {
   createPreset,
   deletePreset,
+  getPresetActionFile,
   listPresets,
   replacePreset,
   setPresetHidden,
@@ -16,6 +17,7 @@ export interface PresetsApi {
   replace(presetId: string, fields: PresetFields): Promise<Preset>;
   remove(presetId: string): Promise<void>;
   setHidden(presetId: string, hidden: boolean): Promise<void>;
+  actionFile(presetId: string): Promise<string>;
 }
 
 export interface PresetsState {
@@ -31,6 +33,8 @@ export interface PresetsState {
   replace(presetId: string, fields: PresetFields): Promise<Preset>;
   remove(presetId: string): Promise<void>;
   setHidden(presetId: string, hidden: boolean): Promise<void>;
+  /** The preset as an action file, in YAML; it changes nothing. */
+  actionFile(presetId: string): Promise<string>;
 }
 
 export type PresetsStore = UseBoundStore<StoreApi<PresetsState>>;
@@ -41,6 +45,7 @@ const defaultApi: PresetsApi = {
   replace: (presetId, fields) => replacePreset(presetId, fields),
   remove: (presetId) => deletePreset(presetId),
   setHidden: (presetId, hidden) => setPresetHidden(presetId, hidden),
+  actionFile: (presetId) => getPresetActionFile(presetId),
 };
 
 export function createPresetsStore({ api = defaultApi }: { api?: PresetsApi } = {}): PresetsStore {
@@ -77,6 +82,7 @@ export function createPresetsStore({ api = defaultApi }: { api?: PresetsApi } = 
         const preset = get().presets.find((p) => p.presetId === presetId);
         if (preset) put({ ...preset, hidden });
       },
+      actionFile: (presetId) => api.actionFile(presetId),
     };
   });
 }

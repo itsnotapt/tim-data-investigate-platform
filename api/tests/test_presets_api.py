@@ -20,9 +20,16 @@ SIGN_INS = Rows(
     pivot="rows",
 )
 
+AD_HOC = Rows(
+    key="ad-hoc",
+    name="Ad hoc",
+    params=(Param("kql", "kql"), Param("parameters", "json", required=False)),
+    pivot="none",
+)
+
 
 def client_for(auth: AuthKit) -> TestClient:
-    app = create_test_app(providers=[Provider(actions=[SIGN_INS])])
+    app = create_test_app(providers=[Provider(actions=[SIGN_INS, AD_HOC])])
     auth.install(app)
     return TestClient(app, headers=auth.headers(ALICE, "oid-a"))
 
@@ -203,3 +210,75 @@ def test_a_param_input_takes_its_type_from_the_param_so_a_sent_type_is_dropped(
     assert created.json()["inputs"] == [
         {"name": "users", "source": "param", "fixed": True, "value": ["a"]}
     ]
+
+
+QUERY_PARAMETER_INPUTS = [
+    {
+        "name": "Upn",
+        "source": "queryParameter",
+        "type": "string",
+        "fixed": False,
+        "fromColumns": ["UserPrincipalName", "Upn"],
+    },
+    {
+        "name": "Since",
+        "source": "queryParameter",
+        "type": "datetime",
+        "fixed": True,
+        "value": "2026-10-01T00:00:00Z",
+    },
+    {
+        "name": "Hosts",
+        "source": "queryParameter",
+        "type": "dynamic",
+        "fixed": False,
+        "fromColumns": [],
+    },
+]
+
+
+def ad_hoc(**changes: Any) -> dict[str, Any]:
+    return bookmark(
+        action="ad-hoc",
+        params={"kql": "SigninLogs | where UserPrincipalName == Upn and TimeGenerated > Since"},
+        **{"inputs": QUERY_PARAMETER_INPUTS, **changes},
+    )
+
+
+def test_a_preset_keeps_its_query_parameter_inputs(auth: AuthKit) -> None:
+    with client_for(auth) as client:
+        created = client.post("/api/presets", json=ad_hoc())
+        listed = client.get("/api/presets").json()
+
+    assert created.status_code == 201
+    assert listed[0]["inputs"] == QUERY_PARAMETER_INPUTS
+
+
+def test_query_parameter_inputs_need_an_action_that_takes_them_and_unique_names(
+    auth: AuthKit,
+) -> None:
+    upn = {"name": "Upn", "source": "queryParameter", "type": "string", "fixed": True, "value": "a"}
+    with client_for(auth) as client:
+        no_parameters = client.post("/api/presets", json=bookmark(inputs=[upn]))
+        twice = client.post("/api/presets", json=ad_hoc(inputs=[upn, upn]))
+        bad_name = client.post("/api/presets", json=ad_hoc(inputs=[{**upn, "name": "a b"}]))
+        bad_type = client.post("/api/presets", json=ad_hoc(inputs=[{**upn, "type": "int64"}]))
+
+    assert (no_parameters.status_code, no_parameters.json()["errors"]) == (
+        422,
+        {"inputs.0.source": ["Sign-ins takes no query parameters"]},
+    )
+    assert (twice.status_code, twice.json()["errors"]) == (
+        422,
+        {"inputs.1.name": ["Upn is already an input"]},
+    )
+    assert (bad_name.status_code, bad_name.json()["errors"]) == (
+        422,
+        {
+            "inputs.0.name": [
+                "A query parameter's name starts with a letter or _ and holds only letters, "
+                "digits and _"
+            ]
+        },
+    )
+    assert bad_type.status_code == 400

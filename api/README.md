@@ -243,7 +243,7 @@ Errors:
 `POST`:
 
 1. looks the action up in `app.state.actions`. An unknown action gives 422, keyed `action`;
-2. validates the params with `tim_actions.validate_params`. An invalid param gives 422, keyed `params.<name>`, before a run exists;
+2. validates the params with the action's `check_params` (by default `tim_actions.validate_params`). An invalid param gives 422, keyed `params.<name>`, before a run exists;
 3. calls `Runner.start` (`runs/runner.py`), which stores the run as `running` and starts a tracked asyncio task;
 4. waits 1 s (`RACE_SECONDS`): 200 with the ended run, else 202.
 
@@ -433,10 +433,11 @@ Details are fixed strings. Exception messages are never echoed.
 
 ## Preset endpoints
 
-`presets/router.py` implements `/api/presets`: list, POST 201, PUT (whole replace), DELETE 204, and PUT and DELETE `/{presetId}/hidden`. [api.md](../docs/api.md#presets) has the rules.
+`presets/router.py` implements `/api/presets`: list, POST 201, PUT (whole replace), DELETE 204, PUT and DELETE `/{presetId}/hidden`, and GET `/{presetId}/actionFile`. [api.md](../docs/api.md#presets) has the rules.
 
 - The server assigns `presetId` and the timestamps (truncated to milliseconds), and takes `owner` from the principal.
-- `_check` requires `action` in the catalogue, and each input to be a param of it with `from_columns`. Failures are `422` with `errors` keys `action` and `inputs.<i>.name`.
+- `_check` requires `action` in the catalogue, each param input to be a param of it with `from_columns`, and each query parameter input to be on an action that takes them (`Action.takes_query_parameters`), with a unique name that matches `PARAM_NAME`. Failures are `422` with `errors` keys `action`, `inputs.<i>.name` and `inputs.<i>.source`.
+- `presets/action_file.py` builds the actionFile response with the action's `preset_file`. `NoActionFileError` is `409` `no-action-file`; it also answers a Run KQL preset without a connection, database or query, for which `RunKql.preset_file` returns `None`. The file pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 - `_visible` answers `404` for an unknown preset or someone else's private one. `_owned` adds `403` for a change by a non-owner.
 
 ## Template endpoints

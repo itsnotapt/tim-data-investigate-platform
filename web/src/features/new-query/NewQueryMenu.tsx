@@ -142,6 +142,15 @@ export function NewQueryMenu({
         onHidden={(hidden) =>
           change(hidden ? 'hide it' : 'unhide it', (s) => s.setHidden(id, hidden))
         }
+        onCopyActionFile={
+          entry.action?.actionFile
+            ? () =>
+                change('copy it as an action file', async (s) => {
+                  await navigator.clipboard.writeText(await s.actionFile(id));
+                  notify?.(`Copied "${preset.name}" as an action file`);
+                })
+            : undefined
+        }
       />
     );
   };

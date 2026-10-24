@@ -192,8 +192,18 @@ The built-in provider adds the `kql_query` action type and the **Run KQL** actio
 | `database` | The database to query. The tab suggests the chosen connection's `databases`. |
 | `kql` | The query, written in the tab's Query editor, scoped by the `connection` and `database` params. |
 | `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
+| `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-kql). |
 
 The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
+
+#### Query parameters of Run KQL
+
+`parameters` is a list of `{name, type, value}`. The `type` is `string`, `long`, `real`, `bool`, `datetime`, `timespan` or `dynamic`.
+
+- TIM puts `declare query_parameters(Name:type, ...);` and a newline before the KQL, and sends the values as Kusto query parameters. The KQL uses the names as it would any query parameter.
+- A bad value answers `422` with `errors["params.parameters.<name>"]`, such as "Must be an ISO 8601 datetime", "Required" or, for a `long`, "Must be a whole number".
+- A structural problem answers `422` with `errors["params.parameters"]`: a bad name, a bad type, a duplicate name or a value that is not a list.
+- A [preset](../GLOSSARY.md) of Run KQL can have query parameters as inputs, and be copied as an action file: [GET /api/presets/{presetId}/actionFile](api.md#get-apipresetspresetidactionfile).
 
 ### `kql_query`
 
@@ -327,6 +337,24 @@ TIM validates each document against the `File` model, then builds the action wit
 - The default passes the file's fields, all but `type`, to the action by name.
 - Override `from_file` when the action's fields differ from the file's.
 - The action type's docstring becomes the type's description in the schema.
+
+### Checking params
+
+`Action.check_params(values, *, connections=None)` validates the values of a run when it starts and returns them converted, by param name. It raises `ParamsError`.
+
+- The default is `tim_actions.validate_params`.
+- Override it to check more, such as the entries of a `json` param. Run KQL does so for `parameters`.
+
+### Presets as action files
+
+An action type can say how a preset of its actions becomes an action file by overriding `Action.preset_file(*, key, name, menu, params, query_parameters)`.
+
+- It returns an `ActionDocument`, or `None`, the default, when a preset of the action has no action file.
+  - `RunKql.preset_file` returns `None` for a preset that lacks a connection, database or query.
+  - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
+- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries.
+- `Action.has_preset_file` is whether the type overrides it. It becomes `actionFile` in the catalogue.
+- `tim_actions.action_file_yaml(document)` writes the document as the YAML of an action file.
 
 ### Sinks
 
