@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.8.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.7.0...frontend-v1.8.0) (2026-10-24)
+
+
+### Features
+
+* **backend,tim-actions,frontend:** label ids from the grid, shared through the change feed ([#157](https://github.com/itsnotapt/tim-data-investigate-platform/issues/157)) ([44fab6c](https://github.com/itsnotapt/tim-data-investigate-platform/commit/44fab6c9a6ce0cec8b01c35f9f661e008658ddd2))
+* **backend,tim-actions:** runs and rows on /api/runs ([#137](https://github.com/itsnotapt/tim-data-investigate-platform/issues/137)) ([c14c74b](https://github.com/itsnotapt/tim-data-investigate-platform/commit/c14c74bbec228226e206100cc9b2a33febe67762))
+* **backend,tim-actions:** tim-actions providers and GET /api/instance ([#132](https://github.com/itsnotapt/tim-data-investigate-platform/issues/132)) ([732745f](https://github.com/itsnotapt/tim-data-investigate-platform/commit/732745f2bc5b169c9c300715fcb2f7c45d53f533))
+* **frontend,backend,tim-actions,chart:** sinks, After tagging, run… and right-click sink items ([#166](https://github.com/itsnotapt/tim-data-investigate-platform/issues/166)) ([22e06c9](https://github.com/itsnotapt/tim-data-investigate-platform/commit/22e06c9ede570e67ccc91812f9f23ddead7d4f60))
+* **frontend,backend,tim-actions:** development actions and e2e against a real tim-api ([#138](https://github.com/itsnotapt/tim-data-investigate-platform/issues/138)) ([5107562](https://github.com/itsnotapt/tim-data-investigate-platform/commit/5107562460fca407f4396649506964334e2934e8))
+* **frontend,backend,tim-actions:** Kusto connections and Run KQL ([#145](https://github.com/itsnotapt/tim-data-investigate-platform/issues/145)) ([d13dd2c](https://github.com/itsnotapt/tim-data-investigate-platform/commit/d13dd2c25caadb18198895e676866f910394377e))
+* **frontend,backend,tim-actions:** pivots from result rows ([#155](https://github.com/itsnotapt/tim-data-investigate-platform/issues/155)) ([cb232f1](https://github.com/itsnotapt/tim-data-investigate-platform/commit/cb232f1beff7ff18296f38d7993266ac803dc50c))
+* **frontend,backend,tim-actions:** schema completion in the Run KQL editor ([#150](https://github.com/itsnotapt/tim-data-investigate-platform/issues/150)) ([44b6c95](https://github.com/itsnotapt/tim-data-investigate-platform/commit/44b6c95c7c2b1764434abcd94187a7e3f1c7184f))
+* **frontend,backend:** action tab: open an action from the New menu, run it and see its results ([#140](https://github.com/itsnotapt/tim-data-investigate-platform/issues/140)) ([cc664fd](https://github.com/itsnotapt/tim-data-investigate-platform/commit/cc664fd7695f2d006911cae45e3c71b52ba782f2))
+* **frontend,backend:** column views and the Views panel ([#169](https://github.com/itsnotapt/tim-data-investigate-platform/issues/169)) ([55e0956](https://github.com/itsnotapt/tim-data-investigate-platform/commit/55e09569ace0eb429684bc0e44b7c32e6e84781b))
+* **frontend,backend:** presets and the New menu ([#160](https://github.com/itsnotapt/tim-data-investigate-platform/issues/160)) ([220f885](https://github.com/itsnotapt/tim-data-investigate-platform/commit/220f885b94115e65f54a7ece077841715a149859))
+* **frontend,backend:** tags and comments, and the Annotate dialog ([#163](https://github.com/itsnotapt/tim-data-investigate-platform/issues/163)) ([fc039c7](https://github.com/itsnotapt/tim-data-investigate-platform/commit/fc039c7ae55ab598e97f6c35cfa96bfe71c0eba2))
+* **frontend:** action tab: cancel a run, see its details in a Run tab, and keep the last results through failures ([#141](https://github.com/itsnotapt/tim-data-investigate-platform/issues/141)) ([ce706a6](https://github.com/itsnotapt/tim-data-investigate-platform/commit/ce706a6d50e6ab5c3961bbeebae7a2f45eb2ebf2))
+* **frontend:** preset pivots on the right-click menu ([#164](https://github.com/itsnotapt/tim-data-investigate-platform/issues/164)) ([3c2e1a6](https://github.com/itsnotapt/tim-data-investigate-platform/commit/3c2e1a6aafd766cc3441075cab3b25e825b772b3))
+
+
+### Bug Fixes
+
+* **frontend:** update dompurify for GHSA-cg2g-xh64-v4q7 ([#161](https://github.com/itsnotapt/tim-data-investigate-platform/issues/161)) ([539bd35](https://github.com/itsnotapt/tim-data-investigate-platform/commit/539bd35bb6a3739cf3bff4900dc7200779caa1e9))
+
 ## [1.7.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/frontend-v1.6.0...frontend-v1.7.0) (2026-10-10)
 
 
