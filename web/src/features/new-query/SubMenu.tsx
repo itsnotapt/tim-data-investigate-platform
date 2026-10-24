@@ -1,6 +1,6 @@
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import Collapse from '@mui/material/Collapse';
+import Collapse, { collapseClasses } from '@mui/material/Collapse';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
@@ -24,6 +24,12 @@ export interface SubMenuProps<T> {
   /** Nesting level, for indentation. */
   depth?: number;
 }
+
+/**
+ * While a folder opens or closes, its items are clipped with `overflow: clip` rather than MUI's
+ * `hidden`, which can be scrolled: nothing scrolls them, so they stay put under the pointer.
+ */
+const OPENING_CLIP = { [`&:not(.${collapseClasses.entered})`]: { overflow: 'clip' } };
 
 /** Recursive collapsible list; folders are keyed by full path and show how many items they hold. */
 export function SubMenu<T>({
@@ -53,7 +59,7 @@ export function SubMenu<T>({
         )}
         {expanded ? <ExpandLess /> : <ExpandMore />}
       </ListItemButton>
-      <Collapse in={expanded} timeout="auto" unmountOnExit>
+      <Collapse in={expanded} timeout="auto" unmountOnExit sx={OPENING_CLIP}>
         <List disablePadding dense>
           {nodes.map((n) =>
             n.kind === 'folder' ? (
