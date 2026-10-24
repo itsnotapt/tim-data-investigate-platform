@@ -1,0 +1,25 @@
+# Action file panel: Host sign-ins with Host pinned left and Label shown, as its columns: block copies them.
+type: dev_rows
+key: dev-hosts-laid-out
+name: Host sign-ins (laid out)
+menu: Development / Action file
+description: Host sign-ins with the columns copied from its Action file panel
+pivot: none
+id: Host
+columns:
+  - name: Result
+    type: string
+  - name: Host
+    type: string
+    pinned: left
+  - name: User
+    type: string
+  - name: Region
+    type: string
+    hidden: true
+  - name: tim:label
+    type: string
+rows:
+  - { Host: web-1, User: alice@example.com, Result: Success, Region: eu }
+  - { Host: web-2, User: bob@example.com, Result: Failure, Region: us }
+  - { Host: web-3, User: carol@example.com, Result: Success, Region: eu }

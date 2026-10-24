@@ -99,6 +99,16 @@ A `calculated` column isn't in the result.
 - The tab's grid evaluates it, and places it after the declared column before it.
 - Analysts can add their own calculated columns from the grid's column menu.
 
+An entry can name one of TIM's own grid columns to set it up: `tim:label`, `tim:tags`, `tim:commentText` or `tim:comments`.
+
+- It gives that column's `title`, `hidden`, `width`, `pinned`, `sort` and `group`.
+- It is shown unless it says `hidden: true`, like any declared column, so declaring `tim:tags` or `tim:commentText` without `hidden: true` shows a column TIM otherwise hides.
+- Any other `tim:` name is an error, and so is `calculated` on a `tim:` column.
+- The grid places it after the declared column before it, like a calculated column.
+- It holds no data and isn't one of the run's columns. `dev_rows` makes no value for it.
+
+The Action file panel in an action tab's side bar, and **Copy column settings (action file)** in the grid's menus, give a `columns:` block from the tab's grid ([architecture.md](architecture.md#action-file-panel)).
+
 The tab's grid uses the declared settings as AG Grid's initial column settings.
 
 - `title` is the header.

@@ -78,6 +78,15 @@ def test_dev_rows_generates_a_value_per_declared_column(tmp_path: Path) -> None:
     )
 
 
+def test_dev_rows_generates_no_value_for_a_tim_column(tmp_path: Path) -> None:
+    action = load_rows(
+        tmp_path,
+        "type: dev_rows\nkey: g\nname: G\npivot: none\ngenerate: 1\ncolumns:\n"
+        "  - {name: Host, type: string}\n  - {name: 'tim:label', type: string, hidden: false}\n",
+    )
+    assert run(action) == [(None, {"Host": "Host-1"})]
+
+
 def test_dev_rows_params_with_from_columns_filter_the_rows(tmp_path: Path) -> None:
     action = load_rows(
         tmp_path,
