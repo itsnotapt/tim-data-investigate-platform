@@ -28,6 +28,7 @@ import {
   type LabelMenuOptions,
   type RowsById,
 } from '../labels';
+import { copyRunLink } from '../run-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 
@@ -68,6 +69,12 @@ export type ActionResultsGridProps = Omit<
   runColumns?: readonly RunColumn[] | null;
   /** More context menu items, after Label ▸, Show details, Annotate…, Comment… and History, before the sinks. */
   getContextMenuItems?: GetExtraContextMenuItems;
+  /** The run the rows came from, for each row's Copy link. */
+  runId?: string | null;
+  /** The row a share link named: focused, with its History open, once it has arrived. */
+  linkedRow?: number | null;
+  /** Called once the linked row is focused. */
+  onLinkedRowShown?: () => void;
 };
 
 /** Whether `next` is `shown` with more rows after it (pages append; a reload gives new objects). */
@@ -77,12 +84,13 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
  * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
- * text columns, Label ▸, Annotate…, Comment…, History and their keys, the History panel, and the
- * sinks, which take the rows.
+ * text columns, Label ▸, Annotate…, Comment…, History and their keys, the History panel, the
+ * sinks, which take the rows, and Copy link to the right-clicked row.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
  * side bar, with the view's name in the status bar.
+ * The row a share link named is focused, with its History open, once it has arrived.
  */
 export function ActionResultsGrid({
   uuid,
@@ -92,6 +100,9 @@ export function ActionResultsGrid({
   runColumns,
   onGridReady,
   getContextMenuItems,
+  runId = null,
+  linkedRow = null,
+  onLinkedRowShown,
   ...rest
 }: ActionResultsGridProps) {
   const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
@@ -115,6 +126,7 @@ export function ActionResultsGrid({
   const [given, setGiven] = useState(rows);
   const shown = useRef(rows);
   const api = useRef<GridApi<GridRowWithId> | null>(null);
+  const [gridReady, setGridReady] = useState(false);
   const [index] = useState<RowsById>(() => {
     const byId: RowsById = new Map();
     indexRows(byId, rows);
@@ -162,6 +174,7 @@ export function ActionResultsGrid({
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
       api.current = e.api;
+      setGridReady(true);
       void start(e.api);
       void showStoredAnnotations();
       onGridReady?.(e);
@@ -202,7 +215,40 @@ export function ActionResultsGrid({
     keys: historyKeys,
     onCellFocused,
     panel: historyPanel,
+    open: openHistory,
   } = useHistoryPanel({ labels, idParam });
+  const linkedShown = useRef(false);
+  useEffect(() => {
+    const grid = api.current;
+    if (linkedRow === null || linkedShown.current || !gridReady || !grid) return;
+    const node = grid.getRowNode(String(linkedRow));
+    if (!node?.data) return;
+    linkedShown.current = true;
+    for (let group = node.parent; group && group.level >= 0; group = group.parent) {
+      group.setExpanded(true, undefined, true);
+    }
+    grid.ensureNodeVisible(node, 'middle');
+    const column = grid.getAllDisplayedColumns().find((c) => !c.getColId().startsWith('ag-Grid-'));
+    if (node.rowIndex !== null && column) grid.setFocusedCell(node.rowIndex, column);
+    openHistory(node.data);
+    onLinkedRowShown?.();
+  }, [linkedRow, gridReady, given, rows, openHistory, onLinkedRowShown]);
+  const linkMenu = useCallback<GetExtraContextMenuItems>(
+    ({ node }) => {
+      if (runId === null) return [];
+      const row = (node?.data as GridRowWithId | undefined)?.row;
+      return [
+        {
+          name: 'Copy link',
+          disabled: typeof row !== 'number',
+          action: () => {
+            if (typeof row === 'number') void copyRunLink(runId, row, notifyContext);
+          },
+        },
+      ];
+    },
+    [runId, notifyContext],
+  );
   const menu = useMemo(
     () => [
       buildLabelMenu(labelling),
@@ -212,8 +258,9 @@ export function ActionResultsGrid({
       ]) satisfies GetExtraContextMenuItems,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
+      linkMenu,
     ],
-    [labelling, annotateMenu, historyMenu, getContextMenuItems, sinkMenu],
+    [labelling, annotateMenu, historyMenu, getContextMenuItems, sinkMenu, linkMenu],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(

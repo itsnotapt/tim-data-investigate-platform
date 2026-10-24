@@ -1,1 +1,1 @@
-export { resumeActionRuns, runActionTab, runPollDelay } from './actionRuns';
+export { openRunTab, resumeActionRuns, runActionTab, runPollDelay } from './actionRuns';

@@ -119,7 +119,7 @@ describe('AppShell / AuthGate', () => {
     }
   });
 
-  it('menus link to Query Manager, home and Export / Import', async () => {
+  it('menus link to Query Manager and home', async () => {
     renderShell(fakeClient());
     expect(screen.getByRole('link', { name: 'TIM' })).toHaveAttribute('href', '/');
     await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
@@ -127,19 +127,13 @@ describe('AppShell / AuthGate', () => {
       'href',
       '/queries',
     );
-    await userEvent.keyboard('{Escape}');
-    await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(screen.getByRole('menuitem', { name: 'Export / Import' })).toHaveAttribute(
-      'href',
-      '/exportimport',
-    );
   });
 
-  it('Settings lists Appearance above Export / Import', async () => {
+  it('Settings lists Appearance', async () => {
     renderShell(fakeClient());
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual(['Appearance', 'Export / Import']);
+    expect(items.map((i) => i.textContent)).toEqual(['Appearance']);
     expect(items[0]).toHaveAttribute('aria-haspopup', 'menu');
   });
 });

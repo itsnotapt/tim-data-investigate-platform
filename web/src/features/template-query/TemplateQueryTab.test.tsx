@@ -176,7 +176,7 @@ describe('TemplateQueryTab form', () => {
   it('is read-only (no form) when editQuery is false, and Edit persists edit mode in the tab', async () => {
     const { user, uuid } = setup(baseParams(), false);
     expect(screen.queryByLabelText('Summary')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Share Link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     expect(tab(uuid).state.editQuery).toBe(true);
     expect(screen.getByLabelText('Summary')).toHaveValue('Stored title');
@@ -300,15 +300,13 @@ describe('TemplateQueryTab form', () => {
     expect(tab(uuid).params.inParams.col).toEqual([{ column: 'ipB', value: '10.0.0.2' }]);
   });
 
-  it('calls the run, clone and share hooks; Convert asks for confirmation first', async () => {
-    const h = { onRun: vi.fn(), onClone: vi.fn(), onConvert: vi.fn(), onShare: vi.fn() };
+  it('calls the run and clone hooks; Convert asks for confirmation first', async () => {
+    const h = { onRun: vi.fn(), onClone: vi.fn(), onConvert: vi.fn() };
     const { user, uuid } = setup(baseParams(), false, h);
     await user.click(screen.getByRole('button', { name: 'Run Query' }));
     await user.click(screen.getByRole('button', { name: 'Clone' }));
-    await user.click(screen.getByRole('button', { name: 'Share Link' }));
     expect(h.onRun).toHaveBeenCalledWith(uuid);
     expect(h.onClone).toHaveBeenCalledWith(uuid);
-    expect(h.onShare).toHaveBeenCalledWith(uuid);
 
     await user.click(screen.getByRole('button', { name: 'Convert' }));
     const dialog = await screen.findByRole('dialog');

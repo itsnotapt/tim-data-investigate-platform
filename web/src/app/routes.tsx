@@ -1,6 +1,6 @@
 import { Navigate, type RouteObject } from 'react-router';
 import { AppShell } from './AppShell';
-import { ExportImportPage, QueryManagerPage, ShareQueryPage, ViewPage, Welcome } from './lazyPages';
+import { QueryManagerPage, RunLinkPage, ViewPage, Welcome } from './lazyPages';
 
 // Hash routes. Pages are lazy; AppShell provides the Suspense boundary. Unknown hashes go home.
 export const routes: RouteObject[] = [
@@ -11,8 +11,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <Welcome /> },
       { path: 'queries', element: <QueryManagerPage /> },
       { path: 'view/:uuid', element: <ViewPage /> },
-      { path: 'share/:uuid', element: <ShareQueryPage /> },
-      { path: 'exportimport', element: <ExportImportPage /> },
+      { path: 'runs/:runId', element: <RunLinkPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

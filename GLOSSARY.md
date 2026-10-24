@@ -133,7 +133,7 @@ The page where query templates are created, edited and deleted.
 An analyst's own settings for a query template, such as hiding it from the menus.
 
 **Share link**:
-A link that opens a query template with given params, and optionally runs it.
+A link to a run, `#/runs/<runId>`, that can name one of its rows with `?row=<n>`. Anyone signed in who holds it can open the run's rows. Opening it gives an ordinary tab holding the run, and Run starts a run of their own.
 
 ### Running actions
 

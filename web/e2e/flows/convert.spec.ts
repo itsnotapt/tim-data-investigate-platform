@@ -4,7 +4,7 @@ import { openRunTemplateTab } from '../mocks/templates';
 
 test('convert a template tab to a custom KQL query', async ({ page }) => {
   await openRunTemplateTab(page);
-  await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Convert' }).click();
   const dialog = page.getByRole('dialog', { name: 'Convert to custom query?' });
@@ -16,7 +16,7 @@ test('convert a template tab to a custom KQL query', async ({ page }) => {
   // Cancel leaves the template tab untouched.
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Convert' }).click();
   await dialog.getByRole('button', { name: 'Convert' }).click();
@@ -25,7 +25,6 @@ test('convert a template tab to a custom KQL query', async ({ page }) => {
   // Now an ad-hoc Kusto tab (opens in edit mode): Kusto actions, template-only buttons gone.
   await expect(page.getByRole('button', { name: 'Save Changes & Run' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Time range: Last 15 minutes' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Share Link' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Convert' })).toHaveCount(0);
 
   // The rendered KQL has the parameters substituted (constant).

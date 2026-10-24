@@ -7,12 +7,7 @@ import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { DETERMINATION_SYMBOLS_KEY } from '../../src/features/grid/determinationSymbolsKey';
 import { waitForEditor } from '../mocks/editor';
-import {
-  openRunTemplateTab,
-  shareParams,
-  STORM_UUID,
-  templateStoreHandlers,
-} from '../mocks/templates';
+import { openRunTemplateTab, openTemplateTab, templateStoreHandlers } from '../mocks/templates';
 
 // Computed colours of the light and dark palettes (web/src/app/theme.ts).
 const LIGHT = {
@@ -179,7 +174,7 @@ async function waitForAnimations(page: Page) {
 /**
  * axe colour contrast (WCAG 2 AA) on the current page once its animations have ended, so a
  * partly faded-in element is measured at its final colours; "incomplete" results don't fail.
- * Without the wait, the Export / Import snackbar fading in on the light page fails axe.
+ * Without the wait, a snackbar fading in on the light page fails axe.
  */
 async function expectColourContrast(page: Page) {
   await waitForAnimations(page);
@@ -406,7 +401,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await expectColourContrast(page);
     }
 
-    test('home, Query Manager and Export / Import', async ({ page }) => {
+    test('home and Query Manager', async ({ page }) => {
       await pickScheme(page);
       await expectContrastInScheme(page);
 
@@ -414,38 +409,22 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
       await expectContrastInScheme(page);
-
-      // Last, so the snackbar fading out never overlaps an axe run.
-      await page.getByRole('button', { name: 'Settings' }).click();
-      await page.getByRole('menuitem', { name: 'Export / Import' }).click();
-      await expect(page).toHaveURL(/#\/exportimport/);
-      await page.getByRole('button', { name: 'Export' }).click();
-      await expect(
-        page.getByText('All settings have been exported and saved to your clipboard.'),
-      ).toBeVisible();
-      await expectContrastInScheme(page);
     });
 
-    test('a share link, one with missing params, and its template tab after a reload', async ({
-      page,
-    }) => {
+    test('a template tab in edit mode, and its results after a reload', async ({ page }) => {
       await pickScheme(page);
 
-      await page.goto(`/#/share/${STORM_UUID}?p=${shareParams({ State: 'TEXAS' })}&execute=0`);
+      await openTemplateTab(page);
       await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
       await expectContrastInScheme(page);
 
-      await page.goto(`/#/share/${STORM_UUID}`);
-      await expect(page.getByText('Parameters are missing.')).toBeVisible();
-      await expectContrastInScheme(page);
-
       await openRunTemplateTab(page);
-      // Reloading the tab's own URL reopens the template tab, not the share link.
+      // Reloading the tab's own URL reopens the template tab.
       await page.reload();
       await expect(page).toHaveURL(/#\/view\//);
       await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
       await expectContrastInScheme(page);
     });
 

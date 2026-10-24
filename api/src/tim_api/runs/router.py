@@ -60,9 +60,16 @@ def _run_input(action: Action | Sink, body: StartRun, max_rows: int) -> RunInput
     return RunInput(columns, given.rows)
 
 
-async def _owned_run(store: RunStore, run_id: UUID, principal: Principal) -> Run:
+async def _known_run(store: RunStore, run_id: UUID) -> Run:
     run = await store.get(run_id, datetime.now(UTC))
-    if run is None or run.owner != principal.name:  # unknown, expired or someone else's
+    if run is None:  # unknown or expired
+        raise problem_exception(404, "Run not found")
+    return run
+
+
+async def _owned_run(store: RunStore, run_id: UUID, principal: Principal) -> Run:
+    run = await _known_run(store, run_id)
+    if run.owner != principal.name:
         raise problem_exception(404, "Run not found")
     return run
 
@@ -113,7 +120,8 @@ async def get_run(
     principal: Caller,
     store: Annotated[RunStore, Depends(get_run_store)],
 ) -> Run:
-    return await _owned_run(store, run_id, principal)
+    """Any analyst holding the ``runId`` can read the run; only its owner can cancel it."""
+    return await _known_run(store, run_id)
 
 
 @router.post("/{runId}/cancel", response_model=Run)
@@ -140,7 +148,7 @@ async def get_rows(
 ) -> RowsPage:
     """The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them, and their
     ids' annotations."""
-    run = await _owned_run(store, run_id, principal)
+    run = await _known_run(store, run_id)
     if run.status is not RunStatus.SUCCEEDED:
         raise RunNotSucceededError
     last = start_row + settings.rows_page_size

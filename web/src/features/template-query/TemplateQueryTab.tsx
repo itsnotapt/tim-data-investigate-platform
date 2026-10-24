@@ -5,7 +5,6 @@ import ErrorOutlineIcon from '@mui/icons-material/Error';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SaveIcon from '@mui/icons-material/Save';
-import ShareIcon from '@mui/icons-material/Share';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -32,15 +31,13 @@ import {
   useCloneTemplateQuery,
   useConvertTemplateQuery,
   useRunTemplateQuery,
-  useShareTemplateQuery,
 } from './useTemplateTabActions';
 
 export interface TemplateQueryTabProps extends TabComponentProps {
-  /** Overrides for the run / clone / convert / share actions (defaults in `useTemplateTabActions`). */
+  /** Overrides for the run / clone / convert actions (defaults in `useTemplateTabActions`). */
   onRun?: (uuid: string) => void;
   onClone?: (uuid: string) => void;
   onConvert?: (uuid: string) => void;
-  onShare?: (uuid: string) => void;
 }
 
 interface Draft {
@@ -65,13 +62,7 @@ function safeBuild(fn: () => string): string {
  * persisted in the tab's `state.editQuery` (new template tabs and incomplete pivots open in it);
  * edits live in a local draft until Save / Save & Run.
  */
-export function TemplateQueryTab({
-  uuid,
-  onRun,
-  onClone,
-  onConvert,
-  onShare,
-}: TemplateQueryTabProps) {
+export function TemplateQueryTab({ uuid, onRun, onClone, onConvert }: TemplateQueryTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
   const templates = useTemplatesStore((s) => s.templates);
   const queryOptions = useTemplatesStore((s) => s.queryOptions);
@@ -79,11 +70,9 @@ export function TemplateQueryTab({
   const defaultRun = useRunTemplateQuery();
   const defaultClone = useCloneTemplateQuery();
   const defaultConvert = useConvertTemplateQuery();
-  const defaultShare = useShareTemplateQuery();
   const run = onRun ?? defaultRun;
   const clone = onClone ?? defaultClone;
   const convert = onConvert ?? defaultConvert;
-  const share = onShare ?? defaultShare;
 
   const [draft, setDraft] = useState<Draft | null>(null);
   /** Params when edit mode started: suggestions for `match` / `multiple`. */
@@ -174,19 +163,9 @@ export function TemplateQueryTab({
         </Button>
         <Sep />
         {!editing && (
-          <>
-            <Button size="small" color="inherit" startIcon={<EditIcon />} onClick={startEdit}>
-              Edit
-            </Button>
-            <Button
-              size="small"
-              color="inherit"
-              startIcon={<ShareIcon />}
-              onClick={() => share(uuid)}
-            >
-              Share Link
-            </Button>
-          </>
+          <Button size="small" color="inherit" startIcon={<EditIcon />} onClick={startEdit}>
+            Edit
+          </Button>
         )}
         {editing && (
           <>

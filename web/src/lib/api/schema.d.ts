@@ -372,7 +372,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Run */
+        /**
+         * Get Run
+         * @description Any analyst holding the ``runId`` can read the run; only its owner can cancel it.
+         */
         get: operations["getRun"];
         put?: never;
         post?: never;

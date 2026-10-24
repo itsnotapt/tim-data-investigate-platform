@@ -9,7 +9,6 @@ import { apiUrl, makeRun } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { initAgGrid } from '../grid/agGridSetup';
-import { decodeShareParams } from '../share/shareLink';
 import { useTabsStore } from '../tabs/tabStore';
 import { TemplateQueryTab } from './TemplateQueryTab';
 
@@ -107,17 +106,5 @@ describe('TemplateQueryTab actions', () => {
       database: 'Db',
       query: expect.stringContaining('bob') as string,
     });
-  });
-
-  it('Share Link copies a decodable link and shows the snackbar', async () => {
-    const user = setup();
-    await user.click(screen.getByRole('button', { name: 'Share Link' }));
-    expect(
-      await screen.findByText('Shared link has been saved to the clipboard.'),
-    ).toBeInTheDocument();
-    const url = await navigator.clipboard.readText();
-    expect(url).toMatch(/#\/share\/t1\?p=[\w-]+&execute=0$/);
-    const p = new URL(url.replace('#', '')).searchParams.get('p') ?? '';
-    expect(decodeShareParams(p)).toEqual({ user: 'bob' });
   });
 });

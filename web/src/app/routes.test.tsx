@@ -65,17 +65,11 @@ describe('routes', () => {
     expect(await screen.findByText(/Failed to reload templates: offline/)).toBeInTheDocument();
   });
 
-  it('/share/tpl-1 renders the share page (no such template)', async () => {
-    renderAt('/share/tpl-1');
-    expect(await screen.findByText('This query was not found.')).toBeInTheDocument();
-  });
-
-  it.each([
-    ['/queries', 'Query Manager'],
-    ['/exportimport', 'Export / Import'],
-  ])('%s renders its page', async (path, title) => {
-    renderAt(path);
-    expect(await screen.findByRole('heading', { level: 2, name: title })).toBeInTheDocument();
+  it('/queries renders its page', async () => {
+    renderAt('/queries');
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Query Manager' }),
+    ).toBeInTheDocument();
   });
 
   it('/view/:uuid renders the ad-hoc query tab', async () => {
@@ -96,9 +90,12 @@ describe('routes', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
-  it('redirects an unknown hash to /', async () => {
-    const router = renderAt('/no/such/page');
-    expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/');
-  });
+  it.each(['/no/such/page', '/share/tpl-1?p=e30&execute=1', '/exportimport'])(
+    'redirects an unknown hash, such as %s, to /',
+    async (path) => {
+      const router = renderAt(path);
+      expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe('/');
+    },
+  );
 });

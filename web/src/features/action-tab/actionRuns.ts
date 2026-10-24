@@ -278,3 +278,25 @@ export async function resumeActionRuns(options: ActionRunOptions = {}): Promise<
   });
   await Promise.all(pending);
 }
+
+/**
+ * Opens `run` in a new root action tab, as a share link does: the tab holds the run's action and
+ * params, and `linkedRow` when the link names a row. Starts no run; follows `run` until its rows
+ * are stored. Returns the tab's uuid.
+ */
+export function openRunTab(
+  run: Run,
+  linkedRow: number | null,
+  options: ActionRunOptions = {},
+): string {
+  const store = options.store ?? useTabsStore;
+  const uuid = store.getState().createTab({
+    componentName: 'ActionResult',
+    parentUuid: null,
+    title: run.action.name,
+    params: { action: run.action.key, params: run.params },
+    state: { run, runParams: run.params, isExecuting: true, linkedRow },
+  });
+  void followRun(uuid, run, follow(uuid), options);
+  return uuid;
+}
