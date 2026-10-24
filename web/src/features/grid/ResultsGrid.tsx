@@ -12,6 +12,7 @@ import type {
   ColDef,
   CellFocusedEvent,
   FullWidthCellKeyDownEvent,
+  GetMainMenuItems,
   GridApi,
   GridReadyEvent,
   RowClassRules,
@@ -73,6 +74,8 @@ export interface ResultsGridProps {
    * separator (pivots).
    */
   getContextMenuItems?: GetExtraContextMenuItems | GetExtraContextMenuItems[];
+  /** The column menu's items, instead of AG Grid's own. */
+  getMainMenuItems?: GetMainMenuItems<GridRowWithId>;
   /** Exposes the grid api (column state save/restore, transactions). */
   onGridReady?: (event: GridReadyEvent<GridRowWithId>) => void;
   onCellEditRequest?: (event: CellEditRequestEvent<GridRowWithId>) => void;
@@ -116,6 +119,7 @@ export function ResultsGrid({
   columnDefs: givenColumnDefs,
   stats,
   getContextMenuItems,
+  getMainMenuItems,
   onGridReady,
   onCellEditRequest,
   toolbarExtra,
@@ -260,6 +264,7 @@ export function ResultsGrid({
           context={context}
           quickFilterText={quick}
           getContextMenuItems={menu}
+          getMainMenuItems={getMainMenuItems}
           onCellEditRequest={onCellEditRequest}
           onCellFocused={onCellFocused}
           onCellKeyDown={onCellKeyDown}

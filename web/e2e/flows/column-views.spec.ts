@@ -1,4 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
+import { load } from 'js-yaml';
 import { grid, openAction } from '../actionTab';
 import { test, expect } from '../realApi';
 
@@ -37,7 +42,11 @@ async function runAction(page: Page, path: string[]) {
 }
 
 /** Opens a side bar tool panel of the tab on show; the grid is still settling right after a run. */
-async function sideBar(page: Page, name: 'Columns' | 'Filters' | 'Views', panel: Locator) {
+async function sideBar(
+  page: Page,
+  name: 'Columns' | 'Filters' | 'Views' | 'Action file',
+  panel: Locator,
+) {
   await expect(async () => {
     await grid(page).locator('.ag-side-button', { hasText: name }).click();
     await expect(panel).toBeVisible({ timeout: 1500 });
@@ -270,4 +279,54 @@ test('a deleted applied view is warned about, and new tabs start with the action
   ).toBeVisible();
   await expect(status(page)).toHaveText('View:Action default (applied)');
   await expect(header(page, 'User')).toBeVisible();
+});
+
+test("the Action file panel copies the tab's columns as an action file's columns: block, which reproduces them", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await runAction(page, WIDE);
+  const panel = page.getByTestId('action-file-tool-panel').filter({ visible: true });
+  const block = panel.locator('pre');
+
+  const columns = grid(page).locator('.ag-column-select');
+  await sideBar(page, 'Columns', columns);
+  await columns
+    .locator('.ag-column-select-column', { has: page.getByText('Label', { exact: true }) })
+    .locator('.ag-column-select-checkbox')
+    .click();
+  await expect(header(page, 'tim:label')).toBeVisible();
+  await sideBar(page, 'Action file', panel);
+  await expect(block).toContainText('- name: tim:label');
+  await expect(block).not.toContainText('pinned');
+  await pinLeft(page, 'Host');
+  await expect(block).toContainText('pinned: left');
+
+  await panel.getByRole('button', { name: 'Copy' }).click();
+  await expect(page.getByText('Copied the column settings')).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+
+  // Pasted into an action file, it passes `tim-api check`.
+  const dir = mkdtempSync(join(tmpdir(), 'tim-action-file-'));
+  writeFileSync(
+    join(dir, 'pasted.yaml'),
+    `type: dev_rows\nkey: pasted\nname: Pasted\npivot: none\n${copied}`,
+  );
+  execFileSync(
+    'uv',
+    ['run', '--project', '../api', 'tim-api', 'check', '--dev-actions', '--actions', dir],
+    { stdio: 'pipe' },
+  );
+
+  // It is the columns: of Host sign-ins (laid out), whose tabs start with the same columns.
+  const fixture = load(
+    readFileSync(resolve(import.meta.dirname, '../actions/action-file.yaml'), 'utf8'),
+  ) as { columns: unknown };
+  expect(load(copied)).toEqual({ columns: fixture.columns });
+  await runAction(page, ['Development', 'Action file', 'Host sign-ins (laid out)']);
+  await expect(pinnedLeft(page, 'Host')).toBeVisible();
+  await expect(header(page, 'Region')).toHaveCount(0);
+  await expect(header(page, 'tim:label')).toBeVisible();
+  expect(await shownColumns(page)).toEqual(['Host', 'Result', 'User']);
 });

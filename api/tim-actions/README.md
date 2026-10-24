@@ -11,7 +11,7 @@ The interface TIM providers build against, released on its own semver (`tim-acti
   - `Action.pivot_columns()` returns the column groups a row needs one of each from to be offered the action. The default makes each required param's `from_columns` a group.
   - `resolve_pivot(action, rows, cell)` trims the rows to those columns and the params' `from_columns`, then calls `resolve()`.
 - `RowId` and `IdColumns`: how a row's `id` is taken from it. `Action.row_id(params)` returns `IdColumns` over the action's `id` column or list of alternatives by default, which takes the first that isn't `None` or `""`; override it for anything else.
-- `Param` and `Column`: params and result columns, declared as data. An invalid declaration fails when it is constructed.
+- `Param` and `Column`: params and result columns, declared as data. An invalid declaration fails when it is constructed. A `Column` named in `TIM_COLUMNS` (`tim:label`, `tim:tags`, `tim:commentText`, `tim:comments`) only sets up that grid column of TIM's: it is not one of the run's columns.
 - `validate_params(params, values, connections=...)`: validates and converts param values, raising `ParamsError` with errors keyed `params.<name>`.
 - `Hook`: access to a connection type's backend, with `cancel()` and `editor_schema(scope)`.
 - `ActionDocument` and `Sidecar`:

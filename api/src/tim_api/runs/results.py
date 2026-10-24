@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 
 import pydantic_core
-from tim_actions import Column, ColumnType, RowId
+from tim_actions import TIM_COLUMNS, Column, ColumnType, RowId
 from tim_actions.rows import MAX_ID_CHARS, canonical_id, id_warnings
 
 from tim_api.runs.models import RunColumn, RunRow
@@ -88,7 +88,8 @@ def _type_of(value: Any) -> ColumnType | None:
 class ResultBuilder:
     """Turns each row ``run`` yields into a stored row, and keeps the row count, the bytes
     (compact JSON per row, summed) and the columns: declared ones first, then the rest in
-    first-seen order with their types inferred.
+    first-seen order with their types inferred. A declared ``tim:`` column only sets up TIM's own
+    grid column, so it is not one of the run's columns.
 
     Not thread-safe: one worker thread calls ``add`` and ``declare``.
     """
@@ -101,7 +102,8 @@ class ResultBuilder:
         max_rows: int,
         max_bytes: int,
     ) -> None:
-        self._declared: dict[str, ColumnType] = {c.name: c.type for c in declared or ()}
+        self._declared: dict[str, ColumnType] = {}
+        self.declare(declared or ())
         self._inferred: dict[str, ColumnType | None] = {}
         self._row_id = row_id
         self._max_rows = max_rows
@@ -114,7 +116,8 @@ class ResultBuilder:
         """Columns the run declares, after the action's own; a name already declared keeps
         its first declaration."""
         for column in columns:
-            self._declared.setdefault(column.name, column.type)
+            if column.name not in TIM_COLUMNS:
+                self._declared.setdefault(column.name, column.type)
 
     def add(self, row: Mapping[str, Any]) -> RunRow:
         if not isinstance(row, Mapping):

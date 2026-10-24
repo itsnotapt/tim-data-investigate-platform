@@ -17,6 +17,7 @@ npm test              # Vitest (jsdom + Testing Library), single run
 npm run test:watch    # Vitest watch mode
 npm run e2e           # Playwright e2e (headless Chromium, real api and mocked flows)
 npm run e2e:headed    # same, with a visible browser
+npm run e2e:smoke     # only the flows tagged @smoke (what CI runs on a PR)
 npm run gen:api       # regenerate src/lib/api/schema.d.ts from openapi.json
 ```
 
@@ -28,7 +29,7 @@ Stack: React 19, React Router (hash router), MUI + Emotion, Zustand, AG Grid Ent
 
 ## E2E tests
 
-Playwright specs run in headless Chromium: `e2e/smoke.spec.ts` and `e2e/flows/*.spec.ts`.
+Playwright specs run in headless Chromium: `e2e/flows/*.spec.ts`. Flows tagged `@smoke` run on every PR; every flow runs on `main` and on release PRs.
 
 - The config is `playwright.config.ts`.
 - `e2e/` has its own `tsconfig.json`, and Vitest excludes it.
@@ -528,7 +529,7 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - `resumeActionRuns` picks runs up again after a reload.
   - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Run links.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
-- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks.
+- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
   - Given `linkedRow`, it focuses that row and opens its History once the row has arrived, then calls `onLinkedRowShown`.
 - `StoredActionResultsGrid` (same file) reads `row_results` instead, after a reload.
 - `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.

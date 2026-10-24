@@ -1,7 +1,7 @@
-import { test, expect } from './fixtures';
-import { shot } from './shot';
+import { test, expect } from '../fixtures';
+import { shot } from '../shot';
 
-test('sign in, new query, run shows the mocked rows', async ({ page, api }) => {
+test('sign in, new query, run shows the mocked rows', { tag: '@smoke' }, async ({ page, api }) => {
   await page.goto('/');
 
   // Stub auth signs in automatically (AuthGate renders the shell once the account resolves).
@@ -19,7 +19,7 @@ test('sign in, new query, run shows the mocked rows', async ({ page, api }) => {
     'KANSAS',
   );
   await expect(page.locator('.ag-row')).not.toHaveCount(0);
-  await shot(page, '00-e2e-smoke-results');
+  await shot(page, '00-run-query-results');
 
   const [post] = api.callsTo('POST', '/api/kusto/query');
   expect(post?.authorization).toBe('Bearer dev:dev.user@example.com');

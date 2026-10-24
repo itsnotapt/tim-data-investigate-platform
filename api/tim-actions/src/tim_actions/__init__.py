@@ -10,7 +10,7 @@ from tim_actions.action import (
     QueryParameterType,
     Sink,
 )
-from tim_actions.columns import Column, ColumnType
+from tim_actions.columns import TIM_COLUMNS, Column, ColumnType
 from tim_actions.connections import Auth, Connection, ConnectionName
 from tim_actions.files import ActionDocument, Sidecar, SinkDocument, action_file_yaml
 from tim_actions.hooks import EditorSchema, Hook, TokenFor
@@ -22,6 +22,7 @@ from tim_actions.run import Analyst, DetailValue, RunContext, RunError
 
 __all__ = [
     "ENTRY_POINT_GROUP",
+    "TIM_COLUMNS",
     "Action",
     "ActionBase",
     "ActionDocument",

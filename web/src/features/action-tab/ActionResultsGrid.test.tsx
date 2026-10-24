@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
+import { load } from 'js-yaml';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
 import { SnackbarHost } from '../../components/SnackbarHost';
@@ -61,14 +62,18 @@ const rows: RunRow[] = [
   },
 ];
 
-function renderGrid(uuid: string, shown: readonly RunRow[] = rows) {
+function renderGrid(
+  uuid: string,
+  shown: readonly RunRow[] = rows,
+  declaredColumns: readonly CatalogueColumn[] = declared,
+) {
   let api: GridApi | undefined;
   const grid = (r: readonly RunRow[]) => (
     <ActionResultsGrid
       uuid={uuid}
       action="dev.sign_ins"
       rows={r}
-      declaredColumns={declared}
+      declaredColumns={declaredColumns}
       runColumns={columns}
       height={400}
       onGridReady={(e) => (api = e.api)}
@@ -84,8 +89,8 @@ function renderGrid(uuid: string, shown: readonly RunRow[] = rows) {
   };
 }
 
-async function gridOf(uuid: string) {
-  const api = await renderGrid(uuid).api();
+async function gridOf(uuid: string, declaredColumns?: readonly CatalogueColumn[]) {
+  const api = await renderGrid(uuid, rows, declaredColumns).api();
   await waitFor(() => expect(api.getDisplayedRowCount()).toBeGreaterThan(0));
   return api;
 }
@@ -93,7 +98,35 @@ async function gridOf(uuid: string) {
 const stateOf = (api: GridApi, colId: string): ColumnState | undefined =>
   api.getColumnState().find((c) => c.colId === colId);
 
-beforeEach(() => useTabsStore.reset());
+let clipboard: string | null;
+
+beforeEach(() => {
+  useTabsStore.reset();
+  clipboard = null;
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: (t: string) => {
+        clipboard = t;
+        return Promise.resolve();
+      },
+    },
+  });
+});
+
+type Item = string | MenuItemDef;
+const find = (items: Item[], name: string) =>
+  items.find((i): i is MenuItemDef => typeof i === 'object' && i.name === name);
+
+/** The `columns:` block for the `declared` and run columns, as the grid lays them out. */
+const declaredBlock = [
+  { name: 'Timestamp', type: 'datetime', width: 180, pinned: 'left', sort: 'desc' },
+  { name: 'User', type: 'string', title: 'Analyst', group: true },
+  { name: 'Raw', type: 'json', hidden: true },
+  { name: 'KiB', type: 'number', title: 'Size (KiB)', calculated: '[Raw Bytes] / 1024' },
+  { name: 'row', type: 'string' },
+  { name: 'Raw Bytes', type: 'number' },
+];
 
 describe('ActionResultsGrid', () => {
   it('applies the declared columns as initial settings', async () => {
@@ -154,6 +187,66 @@ describe('ActionResultsGrid', () => {
       'tim:commentText',
       'tim:label',
     ]);
+  });
+
+  it("applies a declared tim: column's settings to TIM's own column, after the declared column before it", async () => {
+    const api = await gridOf('tim', [
+      { name: 'Timestamp', type: 'datetime', hidden: false, group: false },
+      {
+        name: 'tim:label',
+        type: 'string',
+        title: 'Verdict',
+        hidden: false,
+        group: false,
+        width: 120,
+        pinned: 'left',
+      },
+      { name: 'tim:comments', type: 'number', hidden: true, width: 140, group: false },
+      { name: 'User', type: 'string', hidden: false, group: false },
+    ]);
+    expect(stateOf(api, 'tim:label')).toMatchObject({ hide: false, width: 120, pinned: 'left' });
+    expect(api.getColumn('tim:label')?.getColDef().headerName).toBe('Verdict');
+    expect(stateOf(api, 'tim:comments')).toMatchObject({ hide: true, width: 140 });
+    const order = api
+      .getColumnState()
+      .map((c) => c.colId)
+      .filter((id) => !id.startsWith('ag-Grid-'));
+    expect(order).toEqual([
+      'Timestamp',
+      'tim:label',
+      'tim:comments',
+      'User',
+      'Raw',
+      'row',
+      'Raw Bytes',
+      'tim:tags',
+      'tim:commentText',
+    ]);
+  });
+
+  it('copies the column settings as an action file from the right-click menu', async () => {
+    const api = await gridOf('copy-cell');
+    const items = (api.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+      api,
+      node: api.getRowNode('0'),
+      column: api.getColumn('Timestamp'),
+    });
+    act(() => find(items, 'Copy column settings (action file)')?.action?.({} as never));
+    await waitFor(() => expect(clipboard).not.toBeNull());
+    expect(load(clipboard!)).toEqual({ columns: declaredBlock });
+  });
+
+  it('copies the column settings as an action file from the column menu', async () => {
+    const api = await gridOf('copy-header');
+    const items = (api.getGridOption('getMainMenuItems') as (p: unknown) => Item[])({
+      api,
+      column: api.getColumn('Timestamp'),
+      defaultItems: ['pinSubMenu'],
+    });
+    expect(items[0]).toBe('pinSubMenu');
+    act(() => find(items, 'Copy column settings (action file)')?.action?.({} as never));
+    await waitFor(() => expect(clipboard).not.toBeNull());
+    expect(load(clipboard!)).toEqual({ columns: declaredBlock });
   });
 
   it('adds the rows of each page that arrives, and replaces rows that are not a continuation', async () => {

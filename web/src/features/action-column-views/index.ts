@@ -13,3 +13,6 @@ export type { ColumnViewState } from './columnViewState';
 export { ACTION_SIDE_BAR, ACTION_STATUS_PANELS } from './gridParts';
 export { useActionColumnView } from './useActionColumnView';
 export type { ColumnViewController } from './useActionColumnView';
+export { actionFileColumns } from './actionFileColumns';
+export type { ActionFileOf } from './actionFileColumns';
+export { copyColumnSettings, copyColumnSettingsItem } from './copyColumnSettings';
