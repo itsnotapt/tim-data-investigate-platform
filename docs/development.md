@@ -56,6 +56,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
     - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL and `kql_query` on a real cluster as an `AZURE_*` identity.
 
     They run locally against the shared test cluster (see [Live Kusto tests](#live-kusto-tests)), and in CI in the [`kusto-live` job](#ci-and-releases).
+  - **`snowflake` tests** skip unless `TIM_TEST_SNOWFLAKE_ACCOUNT` is set. They also use `TIM_TEST_SNOWFLAKE_WAREHOUSE`, `TIM_TEST_SNOWFLAKE_SCOPE` and an `AZURE_*` identity, and run Run SQL on a real account as that identity. `uv run pytest -m snowflake --no-cov` runs them. CI doesn't.
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
 - **Playwright fails if its ports are busy.** It never reuses a running server, so a stray server on its ports (default 5180 and 5181) stops the run.

@@ -73,7 +73,7 @@ Key points:
 - React 19, TypeScript (strict) and Vite.
 - react-router (hash routes) and zustand stores.
 - MUI 9 and AG Grid 36 Enterprise ([ADR-0006](adr/0006-ag-grid-enterprise.md)).
-- Monaco with `@kusto/monaco-kusto`.
+- Monaco with `@kusto/monaco-kusto`, and its `sql` language.
 - Handlebars for KQL templates, and js-yaml for the template editor.
 - `idb` for IndexedDB.
 - `@azure/msal-browser` and `@azure/msal-react`.
@@ -651,6 +651,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 - PyJWT, for token validation.
 - `msal`, for OBO.
 - `azure-kusto-data`, for queries, in the `tim-actions` `kusto` extra.
+- `snowflake-connector-python`, for SQL, in the `tim-actions` `snowflake` extra.
 - `azure-kusto-ingest` and `azure-identity`, for tag ingestion.
 - SQLAlchemy 2 with asyncpg, and Alembic, for PostgreSQL.
 - `jsonpatch`.
@@ -699,8 +700,9 @@ Database migrations are in `api/migrations` (Alembic).
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`) |
 | `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
+| `snowflake.py` | The `snowflake` connection type (`SnowflakeConnection`, `SnowflakeHook`) and the built-in Run SQL action; needs the `snowflake` extra |
 | `builtin.py` | TIM's built-in provider |
-| `testing/` | `tim_actions.testing`: `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`, and `plugin.py`, the `pytest11` plugin with the `tim_analyst`, `tim_connections` and `tim_kusto` fixtures ([actions.md](actions.md#testing)) |
+| `testing/` | `tim_actions.testing`: `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`, and `plugin.py`, the `pytest11` plugin with the `tim_analyst`, `tim_connections`, `tim_kusto` and `tim_snowflake` fixtures ([actions.md](actions.md#testing)) |
 
 ### Request flow and middleware
 
@@ -726,8 +728,10 @@ Actions come from providers ([ADR-0017](adr/0017-actions-from-providers.md)):
 
 TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.
 
-- With the `kusto` extra installed, it adds the `kusto` connection type, the `kql_query` action type and the action **Run KQL** (`tim.run_kql`).
-- Without it, the provider is empty.
+- Each connection type is included when its extra is installed.
+  - The `kusto` extra adds the `kusto` connection type, the `kql_query` action type and the action **Run KQL** (`tim.run_kql`).
+  - The `snowflake` extra adds the `snowflake` connection type and the action **Run SQL** (`tim.run_sql`).
+- With neither extra, the provider is empty.
 
 Loading happens once, in the lifespan, before storage is opened:
 
@@ -855,7 +859,7 @@ A hook class sets:
 
 - `connection_type`;
 - its `Connection` model, for the type's entries in the file. It extends `tim_actions.Connection` (`name`, `title`, `type`, `auth`, `scope`) with its own fields;
-- `editor`: `kql` for Kusto.
+- `editor`: `kql` for Kusto, `sql` for Snowflake.
 
 `Connections` (`runs/connections.py`) holds the instance's connections and hooks. For a run, it:
 
@@ -882,12 +886,32 @@ The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fiel
 - Kusto errors become sanitised messages: stack-trace lines removed, capped at 2000 characters.
 - `KustoHook.query(database, kql, *, deadline, parameters=None)` sends `parameters` as query parameters in `ClientRequestProperties`. `parameters` maps each name to its Kusto literal text.
 
+The `snowflake` connection type (`tim_actions/snowflake.py`, extra `snowflake`) has the fields `account`, `warehouse`, `role` (optional) and `scope`, and the auth `obo` and `workload_identity`:
+
+- `account` is an account identifier such as `myorg-myaccount`, not a URL or host name. The file's loader rejects anything else.
+- `obo` has no default `scope`, so the file must give one.
+  - `SnowflakeHook` logs in as the analyst with `authenticator="oauth"` and the token from `token_for(scope)`. Snowflake accepts it through an External OAuth security integration ([deployment.md](deployment.md#snowflake-app-registration-and-external-oauth)).
+- `workload_identity` logs in as TIM, with the authenticator `WORKLOAD_IDENTITY` and the provider `AZURE`. It uses TIM's managed or workload identity, with no OBO exchange. A `scope` on it is refused when the file loads ("scope is only for auth obo").
+  - Every analyst gets TIM's access, which is the operator's choice ([ADR-0018](adr/0018-fixed-connections.md)).
+  - An instance whose connections are all `workload_identity` needs no OBO credential.
+
+`SnowflakeHook` runs the synchronous `snowflake-connector-python` client on a worker thread, with one login per query and no pooling across analysts.
+
+- It sends the SQL with `paramstyle` numeric, and sets the time left until the run's deadline as the session's `STATEMENT_TIMEOUT_IN_SECONDS`.
+- It runs the query asynchronously, so `cancel()` aborts it on Snowflake by its query id, and refuses new ones.
+- Columns are declared from Snowflake's types: numbers, booleans and datetimes keep their kind, `VARIANT`, `OBJECT`, `ARRAY` and the geography, geometry, vector and map types are `json`, and the rest are `string`.
+- Result values are serialised (datetime as UTC ISO 8601, decimal, binary as hex).
+- Snowflake errors become the run's error with Snowflake's own message, without the connector's code and ids, capped at 2000 characters. A login failure is a run error too.
+
 A hook can also give the editor schema of its connection: `Hook.editor_schema(scope)`.
 
 - It returns an `EditorSchema` of a `kind` and a `schema`, or `None`.
 - `scope` holds the values of the editor param's `schemaFrom` params, without its `connection` param.
 - `KustoHook` runs `.show schema as json` in the scope's `database`, and returns kind `kql`. Without a `database`, it returns `None`.
-- A Kusto error or an unrecognised result is a `RunError`.
+- `SnowflakeHook` returns kind `sql`: `{databases: [{name, schemas: [{name, tables: [{name, columns: [{name, type}]}]}]}]}`.
+  - It reads `SHOW TERSE DATABASES`, then each database's `INFORMATION_SCHEMA.COLUMNS`. It leaves out a database the login can't read.
+  - It takes no scope values.
+- A Kusto or Snowflake error, or an unrecognised Kusto result, is a `RunError`.
 
 `POST /api/connections/{name}/schema` ([api.md](api.md#post-apiconnectionsnameschema)) serves it:
 
@@ -901,6 +925,11 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `useEditorSchema` in `web/src/features/action-tab/editorSchema.ts` loads, caches and settles the schema. It hands `{kind, schema, connection, scope}` to a callback, and does not touch the editor.
 - The browser has one completion adapter per kind, in `web/src/features/action-tab/editorSchemaAdapters.ts`. The Query editor in `ActionTab.tsx` applies it from that callback.
 - The `kql` adapter gives Monaco's Kusto worker the schema, with the connection name where Monaco wants a cluster.
+- The `sql` adapter (`web/src/features/action-tab/sqlSchema.ts`) registers a completion provider for Monaco's `sql` language. The Query editor uses that language for `sql` params.
+  - It offers the databases, and the columns of the tables the query names in `FROM` and `JOIN` as `db.schema.table`, the path perhaps shortened, with an optional alias.
+  - After `DB.` it offers that database's schemas. After a table's alias or name, it offers its columns.
+  - `DB.SCHEMA.` gives tables, and `DB.SCHEMA.TABLE.` gives columns.
+  - A name is quoted unless it is what an unquoted name resolves to.
 
 **Run KQL** (`tim.run_kql`) is the built-in action on a Kusto connection. It sets `pivot: none`. Its params:
 
@@ -911,6 +940,14 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `parameters`, optional, `json`: the query parameters, `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params` checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
 A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
+
+**Run SQL** (`tim.run_sql`) is the built-in action on a Snowflake connection. It sets `pivot: none`. Its params:
+
+- `connection`: a Snowflake connection;
+- `sql`: a `sql` param scoped by the `connection` param;
+- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`.
+
+The run sends `sql` unchanged through `SnowflakeHook.query`. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
 
 **`kql_query`** (`KqlQuery`, with `KqlQueryFile` as its file model) is a file-capable action type with the fields `connection`, `database` and `kql`. In files, `kql` can be a `kql_file` sidecar.
 

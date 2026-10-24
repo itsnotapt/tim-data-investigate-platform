@@ -5,6 +5,7 @@ declare module 'monaco-editor/esm/vs/editor/editor.api' {
 declare module 'monaco-editor/esm/vs/editor/edcore.main';
 declare module 'monaco-editor/esm/vs/editor/editor.worker';
 declare module 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution';
+declare module 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution';
 declare module 'monaco-editor/esm/vs/language/json/monaco.contribution';
 declare module 'monaco-editor/esm/vs/editor/editor.worker?worker' {
   const WorkerCtor: new () => Worker;

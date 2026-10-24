@@ -133,7 +133,7 @@ async def test_tim_api_check_accepts_the_action_file(
 
     out, err = capsys.readouterr()
     assert (code, err) == (0, ""), err
-    assert out.startswith("OK: ")
+    assert out.splitlines()[-1].startswith("OK: "), out
 
 
 async def test_a_preset_of_an_action_without_an_action_file_is_a_conflict(

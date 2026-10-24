@@ -21,8 +21,8 @@ class Connection(BaseModel):
     """One connection in the connections file. A connection type's hook subclasses this with the
     type's own fields, narrows ``type`` to its name and ``auth`` to the mechanisms it supports.
 
-    ``scope`` is what an ``obo`` token is exchanged for; a connection type may give a default
-    (``default_scope``), and without one ``scope`` is required.
+    ``scope`` is what an ``obo`` token is exchanged for, and only ``obo`` takes one; a connection
+    type may give a default (``default_scope``), and without one ``scope`` is required.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -52,4 +52,6 @@ class Connection(BaseModel):
     def _scope(self) -> Connection:
         if self.auth == "obo" and self.obo_scope is None:
             raise ValueError("scope is required for auth obo")
+        if self.auth != "obo" and self.scope is not None:
+            raise ValueError("scope is only for auth obo")
         return self

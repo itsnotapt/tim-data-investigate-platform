@@ -4,7 +4,7 @@ import type * as Monaco from 'monaco-editor';
 import { buildTimTheme, TIM_THEME_NAMES, type TimPalettes } from './timThemes';
 
 export type MonacoApi = typeof Monaco;
-export type EditorLanguage = 'kusto' | 'yaml' | 'json' | 'plaintext';
+export type EditorLanguage = 'kusto' | 'sql' | 'yaml' | 'json' | 'plaintext';
 
 let corePromise: Promise<MonacoApi> | null = null;
 let kustoPromise: Promise<void> | null = null;
@@ -32,7 +32,7 @@ async function loadKustoRules(): Promise<KustoRules> {
 }
 
 /**
- * Loads the locally bundled monaco-editor (no CDN) with the yaml and json languages, installs the
+ * Loads the locally bundled monaco-editor (no CDN) with the yaml, sql and json languages, installs the
  * worker environment, points @monaco-editor/react at it and defines the TIM themes from
  * `palettes`. Cached; safe to call repeatedly.
  */
@@ -43,6 +43,7 @@ export function loadMonaco(palettes: TimPalettes): Promise<MonacoApi> {
       // Full editor features without bundling every basic language.
       import('monaco-editor/esm/vs/editor/edcore.main'),
       import('monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution'),
+      import('monaco-editor/esm/vs/basic-languages/sql/sql.contribution'),
       import('monaco-editor/esm/vs/language/json/monaco.contribution'),
     ]);
     installMonacoEnvironment();

@@ -100,9 +100,10 @@ def test_the_provider(tmp_path: Path, tim_connections: Connections, tim_analyst:
     assert run_sink(save, result.rows).details == {"saved": 1}
 """
 
-# Runs pytest as if the kusto extra weren't installed: importing azure fails.
-WITHOUT_KUSTO = (
-    "import sys; sys.modules['azure'] = None; import pytest; "
+# Runs pytest as if the kusto and snowflake extras weren't installed: importing azure or snowflake
+# fails.
+WITHOUT_EXTRAS = (
+    "import sys; sys.modules['azure'] = None; sys.modules['snowflake'] = None; import pytest; "
     "raise SystemExit(pytest.main(sys.argv[1:]))"
 )
 
@@ -111,6 +112,6 @@ def test_a_provider_tests_its_actions_with_only_tim_actions_installed(
     pytester: pytest.Pytester,
 ) -> None:
     pytester.makepyfile(acme_tim=PROVIDER, test_acme=TESTS)
-    result = pytester.run(sys.executable, "-c", WITHOUT_KUSTO, "-p", "no:cacheprovider", "-q")
+    result = pytester.run(sys.executable, "-c", WITHOUT_EXTRAS, "-p", "no:cacheprovider", "-q")
     assert result.ret == 0, result.stdout.str()
     result.stdout.fnmatch_lines(["1 passed*"])

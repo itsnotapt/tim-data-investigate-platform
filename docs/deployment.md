@@ -68,7 +68,43 @@ The result grids use AG Grid Enterprise only ([ADR-0006](adr/0006-ag-grid-enterp
 ### Entra app registration
 
 - Register `<public URL>/blank.html` as a SPA redirect URI.
-- When a connection in the connections file uses `obo`, the api needs an OBO credential at startup: a client secret (`TIM_AUTH_CLIENT_SECRET`) or, on Kubernetes, Entra workload identity.
+- When a connection in the connections file uses `obo`, the api needs an OBO credential at startup: a client secret (`TIM_AUTH_CLIENT_SECRET`) or, on Kubernetes, Entra workload identity. An instance whose connections all use `workload_identity` needs none.
+
+### Snowflake app registration and External OAuth
+
+A `snowflake` connection with `auth: obo` runs as the analyst. TIM sends Snowflake an Entra token for the connection's `scope`, and Snowflake accepts it through an External OAuth security integration.
+
+1. **Register an app for Snowflake** in Entra, the Snowflake resource app.
+   - Set its App ID URI, e.g. `api://<snowflake-app>`.
+   - Add the delegated permission `session:role-any`.
+   - Issue version 1 access tokens, so the issuer is `https://sts.windows.net/<tid>/`.
+2. **Grant TIM's app** (the API app registration) that permission, and grant admin consent for it. TIM exchanges the analyst's token for `<App ID URI>/session:role-any`; that string is the connection's `scope`.
+3. **Create the security integration** in Snowflake:
+
+   ```sql
+   CREATE SECURITY INTEGRATION tim_entra
+     TYPE = EXTERNAL_OAUTH
+     ENABLED = TRUE
+     EXTERNAL_OAUTH_TYPE = AZURE
+     EXTERNAL_OAUTH_ISSUER = 'https://sts.windows.net/<tid>/'
+     EXTERNAL_OAUTH_JWS_KEYS_URL = 'https://login.microsoftonline.com/<tid>/discovery/v2.0/keys'
+     EXTERNAL_OAUTH_AUDIENCE_LIST = ('api://<snowflake-app>')
+     EXTERNAL_OAUTH_TOKEN_USER_MAPPING_CLAIM = 'upn'
+     EXTERNAL_OAUTH_SNOWFLAKE_USER_MAPPING_ATTRIBUTE = 'login_name'
+     EXTERNAL_OAUTH_ANY_ROLE_MODE = 'ENABLE';
+   ```
+
+4. **Provision the users.** Each analyst needs a Snowflake user whose `login_name` is their `upn`. Create them from Entra with SCIM.
+
+The connection's `account` is an account identifier such as `myorg-myaccount`, not a URL.
+
+### Snowflake workload identity
+
+A `snowflake` connection with `auth: workload_identity` runs as TIM, not as the analyst. Every analyst gets the access of that Snowflake user.
+
+- TIM logs in through Snowflake workload identity federation (authenticator `WORKLOAD_IDENTITY`, provider `AZURE`), with the api's managed or workload identity. It sends no scope and makes no OBO exchange.
+- In Snowflake, create a service user with `WORKLOAD_IDENTITY` set to TIM's Entra issuer and subject, with type `AZURE`.
+- The api needs the Azure identity, as for [Entra workload identity](#entra-workload-identity) below, but not the OBO credential.
 
 ## Docker Compose
 
@@ -374,7 +410,7 @@ Ingress controllers have their own body-size and timeout defaults: ingress-nginx
   - The images follow the pair that chart version pins. Set `api.image.tag` or `web.image.tag` only to override.
   - The migrations Job runs first. The Deployments then roll with `maxUnavailable` 25 %, gated on readiness.
   - Migrations are forward-only. `helm rollback` restores the previous images, but not the previous schema. So back up the database before upgrading.
-- **Running queries:** the api holds running Kusto queries in-process.
+- **Running queries:** the api holds running queries (Kusto and Snowflake) in-process.
   - Pods stopped during a rollout end their running queries.
   - Clients see those runs as failed, and can rerun them.
 - Back up PostgreSQL before every upgrade (`pg_dump`, or your managed service's snapshots).

@@ -9,6 +9,7 @@ import pytest
 from tim_actions import Connection, Hook
 from tim_actions.connections_file import connections_file_schema, load_connections_file
 from tim_actions.kusto import KustoHook
+from tim_actions.snowflake import SnowflakeHook
 
 
 class LakeConnection(Connection):
@@ -143,3 +144,53 @@ def test_the_schema_has_one_definition_per_connection_type() -> None:
     one = connections_file_schema({"kusto": KustoHook})
     assert one["items"] == {"$ref": "#/$defs/kusto"}
     assert connections_file_schema({})["maxItems"] == 0
+
+
+def test_a_snowflake_connection_signs_in_with_obo_for_its_scope_or_as_tim_without_one(
+    tmp_path: Path,
+) -> None:
+    connections, problems = load(
+        tmp_path,
+        """\
+- name: warehouse
+  title: Warehouse
+  type: snowflake
+  auth: obo
+  scope: api://snowflake/session:role-any
+  account: myorg-myaccount
+  warehouse: ANALYSTS
+  role: ANALYST
+- name: warehouse-tim
+  title: Warehouse as TIM
+  type: snowflake
+  auth: workload_identity
+  account: myorg-myaccount
+  warehouse: ANALYSTS
+- name: no-scope
+  title: No scope
+  type: snowflake
+  auth: obo
+  account: myorg-myaccount
+  warehouse: ANALYSTS
+- name: no-warehouse
+  title: No warehouse
+  type: snowflake
+  auth: workload_identity
+  account: myorg-myaccount
+- name: scope-as-tim
+  title: Scope as TIM
+  type: snowflake
+  auth: workload_identity
+  scope: api://snowflake/session:role-any
+  account: myorg-myaccount
+  warehouse: ANALYSTS
+""",
+        {"snowflake": SnowflakeHook},
+    )
+    assert connections["warehouse"].obo_scope == "api://snowflake/session:role-any"
+    assert connections["warehouse-tim"].obo_scope is None
+    assert problems == [
+        ":15: [2]: scope is required for auth obo",
+        ":21: [3].warehouse: Field required",
+        ":26: [4]: scope is only for auth obo",
+    ]

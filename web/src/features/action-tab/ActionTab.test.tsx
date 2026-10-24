@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -61,9 +61,36 @@ const runKql: CatalogueAction = {
   ],
   pivot: null,
 };
+const runSql: CatalogueAction = {
+  key: 'tim.run_sql',
+  kind: 'query',
+  actionFile: false,
+  name: 'Run SQL',
+  menuPath: [],
+  connections: [],
+  params: [
+    {
+      name: 'connection',
+      title: 'Connection',
+      kind: 'connection',
+      connectionType: 'snowflake',
+      required: true,
+      many: false,
+    },
+    {
+      name: 'sql',
+      title: 'Query',
+      kind: 'sql',
+      required: true,
+      many: false,
+      schemaFrom: ['connection'],
+    },
+  ],
+  pivot: null,
+};
 const instance: Instance = {
   version: 'v1',
-  actions: [action, runKql],
+  actions: [action, runKql, runSql],
   connections: [{ name: 'security', type: 'kusto', title: 'Security', databases: ['Samples'] }],
   labels: [],
   limits: {
@@ -380,6 +407,17 @@ describe('ActionTab with a query param', () => {
     expect(onRun).toHaveBeenCalledTimes(1);
     await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
     expect(onRun).toHaveBeenCalledTimes(2);
+  });
+
+  it('edits KQL as Kusto and SQL as SQL', () => {
+    setupKql();
+    expect(screen.getByRole('textbox', { name: 'Query' })).toHaveAttribute(
+      'data-language',
+      'kusto',
+    );
+    cleanup();
+    setup({}, 'tim.run_sql', { params: { connection: 'warehouse', sql: 'SELECT 1' } });
+    expect(screen.getByRole('textbox', { name: 'Query' })).toHaveAttribute('data-language', 'sql');
   });
 
   it('greys out the only connection', () => {

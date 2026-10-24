@@ -121,7 +121,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
   - `actionFile` is whether a preset of the action can be copied as an action file ([GET /api/presets/{presetId}/actionFile](#get-apipresetspresetidactionfile)).
-- `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql`). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
+- `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql` for Kusto, `sql` for Snowflake). `databases` are the suggestions a Kusto connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
 - `limits`: `{maxResultRows, maxResultBytes, maxPivotRows, rowsPageSize, runTimeoutSeconds, maxAnnotationIds, annotationPollSeconds}`, from `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`, `TIM_MAX_PIVOT_ROWS`, `TIM_ROWS_PAGE_SIZE`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_ANNOTATION_IDS` and `TIM_ANNOTATION_POLL_SECONDS`.
 
@@ -406,13 +406,16 @@ Answer: `{ "kind": "...", "schema": ... }`, from the connection type's hook (`Ho
 
 - `kind` says how to read `schema`.
 - For the `kusto` connection type, the kind is `kql`. The schema is the parsed `.show schema as json` document of the scope's `database`, unchanged.
+- For the `snowflake` connection type, the kind is `sql`. The schema is `{ "databases": [{ "name", "schemas": [{ "name", "tables": [{ "name", "columns": [{ "name", "type" }] }] }] }] }`.
+  - It comes from `SHOW TERSE DATABASES` and each database's `INFORMATION_SCHEMA.COLUMNS`. A database the login can't read is left out.
+  - It takes no scope values.
 - The answer is `204` with no body when the hook has none for the scope, as with a Kusto scope without a `database`.
 
 Errors:
 
 - `404` for an unknown connection.
 - The connection's `obo` token is got before the hook runs. So `403 consent-required`, `502` and `503` answer as on `POST /api/runs`.
-- `502` with the hook's message when the hook fails, for example on a Kusto error or an unrecognised result.
+- `502` with the hook's message when the hook fails, for example on a Kusto or Snowflake error or an unrecognised result.
 
 ## Kusto
 

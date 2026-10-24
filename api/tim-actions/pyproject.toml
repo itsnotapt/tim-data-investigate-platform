@@ -11,6 +11,7 @@ dependencies = [
 
 [project.optional-dependencies]
 kusto = ["azure-kusto-data>=6.0.4"]
+snowflake = ["snowflake-connector-python>=4.7.1"]
 
 # TIM's built-in provider registers the same way as any other.
 [project.entry-points."tim.actions"]
@@ -22,7 +23,7 @@ tim_actions = "tim_actions.testing.plugin"
 
 [dependency-groups]
 dev = [
-    "tim-actions[kusto]",
+    "tim-actions[kusto,snowflake]",
     "mypy>=2.4.0",
     "pytest",
     "pytest-cov>=7.1.0",

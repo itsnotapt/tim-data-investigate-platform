@@ -20,7 +20,7 @@ The interface TIM providers build against, released on its own semver (`tim-acti
   - A `str` field annotated `Sidecar()` can be read from a file next to the action file instead (`<field>_file:`).
 - `tim_actions.testing`: runs actions, sinks, pivots and action files as TIM does, for provider authors' tests.
   - `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`.
-  - A `pytest11` plugin adds the fixtures `tim_analyst`, `tim_connections` and `tim_kusto` (the last needs the `kusto` extra).
+  - A `pytest11` plugin adds the fixtures `tim_analyst`, `tim_connections`, `tim_kusto` and `tim_snowflake` (the last two need the `kusto` and `snowflake` extras).
   - Guide: [actions.md](../../docs/actions.md#testing).
 - `Provider(actions, action_types, hooks, action_files)`: what a package adds; `action_files` is a directory of action files in the package's data. Expose a callable returning one in the `tim.actions` entry-point group:
 

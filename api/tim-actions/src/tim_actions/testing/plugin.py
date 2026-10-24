@@ -11,6 +11,7 @@ from tim_actions.testing.runs import DEFAULT_ANALYST, Connections
 
 if TYPE_CHECKING:
     from tim_actions.testing.kusto import FakeKusto
+    from tim_actions.testing.snowflake import FakeSnowflake
 
 
 @pytest.fixture
@@ -33,4 +34,15 @@ def tim_kusto(tim_connections: Connections) -> FakeKusto:
 
     fake = FakeKusto()
     tim_connections.answer("kusto", fake.hook)
+    return fake
+
+
+@pytest.fixture
+def tim_snowflake(tim_connections: Connections) -> FakeSnowflake:
+    """A recording fake of the Snowflake hook, answering ``tim_connections``' Snowflake
+    connections. Needs the ``snowflake`` extra."""
+    from tim_actions.testing.snowflake import FakeSnowflake
+
+    fake = FakeSnowflake()
+    tim_connections.answer("snowflake", fake.hook)
     return fake

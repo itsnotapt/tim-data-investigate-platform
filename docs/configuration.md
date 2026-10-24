@@ -73,8 +73,8 @@ The file is a YAML list of the instance's connections. Each entry has:
 | `name`  | yes | Lowercase letters, digits and `-`, unique in the file. Actions and the browser refer to the connection by it. |
 | `title` | yes | What analysts see. |
 | `type`  | yes | A connection type installed in the image; `tim-api schema connections` lists them. |
-| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity` is in the model, but the `kusto` type supports only `obo`. |
-| `scope` | no | The scope an `obo` token is requested for; the type may default it. |
+| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity`: runs as TIM; the `snowflake` type supports it, the `kusto` type supports only `obo`. |
+| `scope` | for `obo` | The scope an `obo` token is requested for; the type may default it (`kusto` does, `snowflake` doesn't). Any other `auth` refuses it ("scope is only for auth obo"). |
 
 The `kusto` connection type adds `cluster` (required), `databases` (optional) and `scope`:
 
@@ -83,6 +83,15 @@ The `kusto` connection type adds `cluster` (required), `databases` (optional) an
 | `cluster`   | An absolute https URL of a plain DNS host with no credentials, port other than 443, path, query or fragment, and not an IP address. It is normalised to `https://<host>` at startup ([api.md](api.md#cluster-validation)). |
 | `databases` | Database names the browser suggests for Run KQL's `database` param. Not a restriction. |
 | `scope`     | The OBO scope. Defaults to `{cluster}/.default`. |
+
+The `snowflake` connection type adds `account`, `warehouse`, `role` (optional) and `scope`:
+
+| Field       | Description |
+| ----------- | ----------- |
+| `account`   | The account identifier, such as `myorg-myaccount`. A URL or host name stops startup. |
+| `warehouse` | The warehouse that runs the queries. Required. |
+| `role`      | The role to use. Optional. |
+| `scope`     | The OBO scope, such as `api://<snowflake-app>/session:role-any`. Required for `obo`, with no default. `workload_identity` refuses it. |
 
 ```yaml
 - name: samples
@@ -96,7 +105,7 @@ The `kusto` connection type adds `cluster` (required), `databases` (optional) an
 - A problem in the file stops startup. It is reported as `<file>:<line>: <field>: <message>` ([operations.md](operations.md#startup-failures-from-the-files)).
 - Check a file before deploying it with `tim-api check --connections <file>` ([operations.md](operations.md#tim-api-check)).
 - The api's OBO credential is needed when a connection uses `obo` ([Authentication](#authentication)).
-- `GET /api/instance` lists each connection's name, type, title, editor and databases. It never lists the cluster, auth or scope.
+- `GET /api/instance` lists each connection's name, type, title, editor and databases. It never lists the cluster, account, auth or scope.
 
 ### Cluster allow-list
 
@@ -215,6 +224,7 @@ The web container's nginx allows request bodies up to 64 MB and waits up to 620 
 | `TIM_TEST_DATABASE_URL`                                                        | `pytest`, Playwright | Postgres server for storage tests, and the e2e api's database, which Playwright empties at the start of each run; falls back to `pgserver`. |
 | `TIM_TEST_KUSTO_INGEST_URL`, `TIM_TEST_KUSTO_DATABASE`, `TIM_TEST_KUSTO_TABLE` | `pytest -m kusto` | Real ingest endpoint for the integration test (database default `Research`, table default `EventTag`). |
 | `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the live tests `test_run_kql_on_a_real_cluster` and `test_kql_query_binds_params_on_a_real_cluster` (database default `Research`). It runs as the `AZURE_*` identity through `DefaultAzureCredential`, or your Azure CLI login, see [development.md](development.md#live-kusto-tests). |
+| `TIM_TEST_SNOWFLAKE_ACCOUNT`, `TIM_TEST_SNOWFLAKE_WAREHOUSE`, `TIM_TEST_SNOWFLAKE_SCOPE` | `pytest -m snowflake` | A real account for the live test `test_run_sql_on_a_real_account`; it skips unless the account is set. It runs as the `AZURE_*` identity through `DefaultAzureCredential`, which needs a token for the scope that the account's External OAuth integration accepts. |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
 | `E2E_PORT`                                                                     | Playwright        | Vite's port for e2e runs. Default `5180`, a whole number from 1 to 65534. The api takes the next port. |
 | `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |
