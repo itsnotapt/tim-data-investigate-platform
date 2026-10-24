@@ -1,0 +1,21 @@
+# e2e and local development sinks, run by the dev actions (TIM_DEV_ACTIONS). Each takes the rows
+# and discards them.
+type: dev_sink
+key: dev-save
+name: Save event
+menu: Send to / Development
+description: Takes the rows and discards them
+---
+type: dev_sink
+key: dev-save-refused
+name: Save event (refused)
+menu: Send to / Development
+description: Refuses the rows
+error: The event store refused the rows
+---
+type: dev_sink
+key: dev-save-slow
+name: Save event (slow)
+menu: Send to / Development
+description: Takes the rows after three seconds
+delay: 3

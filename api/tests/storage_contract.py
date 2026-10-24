@@ -23,6 +23,7 @@ from tim_api.annotations.models import (
     LabelEntry,
     LabelState,
 )
+from tim_api.column_views.models import ColumnViewFields, StoredColumnView
 from tim_api.presets.models import PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
@@ -96,6 +97,36 @@ def make_preset(
                 {"name": "users", "source": "param", "fixed": True, "value": ["alice"]},
                 {"name": "hosts", "source": "param", "fixed": False, "fromColumns": ["Host"]},
             ],
+            "owner": owner,
+            "createdAt": created,
+            "updatedAt": created,
+        }
+    )
+
+
+def make_column_view(
+    *,
+    view_id: UUID | None = None,
+    owner: str = "alice",
+    visibility: str = "private",
+    created: datetime = T0,
+    name: str = "Triage",
+    preset_id: UUID | None = None,
+) -> StoredColumnView:
+    saved_from: dict[str, Any] = {"action": "sign-ins"}
+    if preset_id:
+        saved_from["presetId"] = str(preset_id)
+    return StoredColumnView.model_validate(
+        {
+            "viewId": str(view_id or uuid4()),
+            "name": name,
+            "visibility": visibility,
+            "savedFrom": saved_from,
+            "state": {
+                "partialColumnState": True,
+                "columnOrder": {"orderedColIds": ["User", "tim:label"]},
+                "filter": {"filterModel": {"User": {"filterType": "text", "filter": "a"}}},
+            },
             "owner": owner,
             "createdAt": created,
             "updatedAt": created,
@@ -1002,3 +1033,116 @@ class AnnotationContract:
 class HealthContract:
     async def test_health(self, storage: Storage) -> None:
         assert await storage.health() is True
+
+
+class ColumnViewContract:
+    async def test_create_get_roundtrip(self, storage: Storage) -> None:
+        view = make_column_view(preset_id=UUID(int=7))
+        await storage.column_views.create(view)
+        got = await storage.column_views.get(view.view_id, "alice")
+        assert got is not None
+        assert got.model_dump() == {**view.model_dump(), "owned": True, "hidden": False}
+
+    async def test_a_view_without_a_preset_has_none(self, storage: Storage) -> None:
+        view = make_column_view()
+        await storage.column_views.create(view)
+        got = await storage.column_views.get(view.view_id, "alice")
+        assert got is not None
+        assert got.saved_from.preset_id is None
+
+    async def test_get_missing_is_none(self, storage: Storage) -> None:
+        assert await storage.column_views.get(uuid4(), "alice") is None
+
+    async def test_get_returns_someone_elses_private_view(self, storage: Storage) -> None:
+        view = make_column_view(owner="alice")
+        await storage.column_views.create(view)
+        got = await storage.column_views.get(view.view_id, "bob")
+        assert got is not None
+        assert got.owner == "alice"
+        assert got.owned is False
+
+    async def test_create_duplicate_raises(self, storage: Storage) -> None:
+        view = make_column_view()
+        await storage.column_views.create(view)
+        with pytest.raises(AlreadyExistsError):
+            await storage.column_views.create(make_column_view(view_id=view.view_id))
+
+    async def test_list_has_own_and_shared_in_creation_order(self, storage: Storage) -> None:
+        a, b, c, d = (UUID(int=i) for i in (1, 2, 3, 4))
+        await storage.column_views.create(
+            make_column_view(view_id=d, owner="bob", created=_minutes(1))
+        )
+        await storage.column_views.create(
+            make_column_view(view_id=c, owner="bob", visibility="shared", created=_minutes(2))
+        )
+        await storage.column_views.create(
+            make_column_view(view_id=b, owner="alice", created=_minutes(2))
+        )
+        await storage.column_views.create(
+            make_column_view(view_id=a, owner="alice", created=_minutes(3))
+        )
+        listed = await storage.column_views.list("alice")
+        assert [v.view_id for v in listed] == [b, c, a]
+
+    async def test_list_empty(self, storage: Storage) -> None:
+        assert await storage.column_views.list("alice") == []
+
+    async def test_replace_keeps_owner_saved_from_and_created_at(self, storage: Storage) -> None:
+        view = make_column_view(preset_id=UUID(int=7))
+        await storage.column_views.create(view)
+        fields = ColumnViewFields.model_validate(
+            {"name": "Renamed", "visibility": "shared", "state": {"sort": {"sortModel": []}}}
+        )
+        await storage.column_views.replace(view.view_id, fields, updated_at=_minutes(5))
+        got = await storage.column_views.get(view.view_id, "alice")
+        assert got is not None
+        assert got.model_dump(by_alias=False) == {
+            **fields.model_dump(by_alias=False),
+            "view_id": view.view_id,
+            "saved_from": view.saved_from.model_dump(by_alias=False),
+            "owner": "alice",
+            "created_at": T0,
+            "updated_at": _minutes(5),
+            "owned": True,
+            "hidden": False,
+        }
+
+    async def test_replace_missing_raises(self, storage: Storage) -> None:
+        with pytest.raises(NotFoundError):
+            await storage.column_views.replace(uuid4(), make_column_view(), updated_at=T0)
+
+    async def test_hidden_is_per_analyst(self, storage: Storage) -> None:
+        view = make_column_view(visibility="shared")
+        await storage.column_views.create(view)
+        await storage.column_views.set_hidden(view.view_id, "bob", True)
+        await storage.column_views.set_hidden(view.view_id, "bob", True)
+        assert [v.hidden for v in await storage.column_views.list("bob")] == [True]
+        assert [v.hidden for v in await storage.column_views.list("alice")] == [False]
+        await storage.column_views.set_hidden(view.view_id, "bob", False)
+        await storage.column_views.set_hidden(view.view_id, "bob", False)
+        assert [v.hidden for v in await storage.column_views.list("bob")] == [False]
+
+    async def test_set_hidden_on_missing_raises(self, storage: Storage) -> None:
+        with pytest.raises(NotFoundError):
+            await storage.column_views.set_hidden(uuid4(), "bob", True)
+
+    async def test_delete_removes_the_view_and_its_hidden_marks(self, storage: Storage) -> None:
+        view = make_column_view(visibility="shared")
+        await storage.column_views.create(view)
+        await storage.column_views.set_hidden(view.view_id, "bob", True)
+        await storage.column_views.delete(view.view_id)
+        assert await storage.column_views.get(view.view_id, "bob") is None
+        with pytest.raises(NotFoundError):
+            await storage.column_views.delete(view.view_id)
+
+    async def test_the_stored_state_is_a_copy(self, storage: Storage) -> None:
+        view = make_column_view()
+        await storage.column_views.create(view)
+        view.state["columnOrder"] = "changed"
+        got = await storage.column_views.get(view.view_id, "alice")
+        assert got is not None
+        got.state["filter"] = "changed"
+        again = await storage.column_views.get(view.view_id, "alice")
+        assert again is not None
+        assert again.state["columnOrder"] == {"orderedColIds": ["User", "tim:label"]}
+        assert again.state["filter"] != "changed"

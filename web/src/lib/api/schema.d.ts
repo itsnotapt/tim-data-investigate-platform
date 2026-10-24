@@ -87,6 +87,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/columnViews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Column Views */
+        get: operations["listColumnViews"];
+        put?: never;
+        /** Create Column View */
+        post: operations["createColumnView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/columnViews/{viewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace Column View */
+        put: operations["replaceColumnView"];
+        post?: never;
+        /** Delete Column View */
+        delete: operations["deleteColumnView"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/columnViews/{viewId}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide Column View */
+        put: operations["hideColumnView"];
+        post?: never;
+        /** Unhide Column View */
+        delete: operations["unhideColumnView"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connections/{name}/schema": {
         parameters: {
             query?: never;
@@ -280,7 +334,8 @@ export interface paths {
         /**
          * Start Run
          * @description Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``
-         *     connection's token is got first, so OBO problems answer this request.
+         *     connection's token is got first, so OBO problems answer this request. A sink takes the
+         *     rows to write as ``input``, at most ``maxAnnotationIds`` of them.
          */
         post: operations["startRun"];
         delete?: never;
@@ -519,7 +574,10 @@ export interface components {
             /** Settags */
             setTags?: string[] | null;
         };
-        /** CatalogueAction */
+        /**
+         * CatalogueAction
+         * @description A query action or, as ``kind: "sink"``, a sink: no params, offered on any selected rows.
+         */
         CatalogueAction: {
             /** Columns */
             columns?: components["schemas"]["CatalogueColumn"][] | null;
@@ -531,9 +589,9 @@ export interface components {
             key: string;
             /**
              * Kind
-             * @constant
+             * @enum {string}
              */
-            kind: "query";
+            kind: "query" | "sink";
             /** Menupath */
             menuPath: string[];
             /** Name */
@@ -623,6 +681,60 @@ export interface components {
             changes: components["schemas"]["Annotations"][];
             /** Version */
             version: number;
+        };
+        /**
+         * ColumnView
+         * @description A column view as one analyst sees it: ``owned`` is whether they own it, ``hidden``
+         *     whether they hid it.
+         */
+        ColumnView: {
+            /** Createdat */
+            createdAt: string;
+            /** Hidden */
+            hidden: boolean;
+            /** Name */
+            name: string;
+            /** Owned */
+            owned: boolean;
+            /** Owner */
+            owner: string;
+            savedFrom: components["schemas"]["SavedFrom"];
+            /** State */
+            state: {
+                [key: string]: unknown;
+            };
+            /** Updatedat */
+            updatedAt: string;
+            /**
+             * Viewid
+             * Format: uuid
+             */
+            viewId: string;
+            /**
+             * Visibility
+             * @default private
+             * @enum {string}
+             */
+            visibility: "private" | "shared";
+        };
+        /**
+         * ColumnViewFields
+         * @description The fields the owner writes: the ``PUT`` body. ``state`` is a partial AG Grid
+         *     ``GridState``, whose keys only the browser decides (ADR-0022).
+         */
+        ColumnViewFields: {
+            /** Name */
+            name: string;
+            /** State */
+            state: {
+                [key: string]: unknown;
+            };
+            /**
+             * Visibility
+             * @default private
+             * @enum {string}
+             */
+            visibility: "private" | "shared";
         };
         /** Comment */
         Comment: {
@@ -736,6 +848,16 @@ export interface components {
              * @constant
              */
             source: "param";
+        };
+        /** InputColumn */
+        InputColumn: {
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
         };
         /**
          * Instance
@@ -921,6 +1043,25 @@ export interface components {
             rowsPageSize: number;
             /** Runtimeoutseconds */
             runTimeoutSeconds: number;
+        };
+        /**
+         * NewColumnView
+         * @description The ``POST`` body: ``savedFrom`` is fixed at creation.
+         */
+        NewColumnView: {
+            /** Name */
+            name: string;
+            savedFrom: components["schemas"]["SavedFrom"];
+            /** State */
+            state: {
+                [key: string]: unknown;
+            };
+            /**
+             * Visibility
+             * @default private
+             * @enum {string}
+             */
+            visibility: "private" | "shared";
         };
         /**
          * PatchOperation
@@ -1280,9 +1421,10 @@ export interface components {
          * Run
          * @description A run without its rows. Server-produced only, never a request.
          *
-         *     ``params`` are the resolved params. ``details`` holds TIM's ``duration`` (seconds) and
-         *     ``rowCount`` first, then the action's own, in the order they were reported. ``columns`` and
-         *     ``rowCount`` are set once the run succeeds; ``error`` is a message safe to show.
+         *     ``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``
+         *     (seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the
+         *     action's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a
+         *     query action's run succeeds, never for a sink; ``error`` is a message safe to show.
          */
         Run: {
             action: components["schemas"]["RunAction"];
@@ -1373,6 +1515,16 @@ export interface components {
             eventTime: string;
         };
         /**
+         * SavedFrom
+         * @description The action, and the preset when there is one, of the tab the view was saved from.
+         */
+        SavedFrom: {
+            /** Action */
+            action: string;
+            /** Presetid */
+            presetId?: string | null;
+        };
+        /**
          * SchemaResponse
          * @description `{schema: <parsed .show schema as json document>}`, passed through untouched.
          */
@@ -1383,12 +1535,26 @@ export interface components {
             };
         };
         /**
+         * SinkInput
+         * @description The rows a sink writes, each a row's ``data``, and their columns.
+         */
+        SinkInput: {
+            /** Columns */
+            columns: components["schemas"]["InputColumn"][];
+            /** Rows */
+            rows: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+        };
+        /**
          * StartRun
-         * @description Body of ``POST /api/runs``. The params are validated against the action's.
+         * @description Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is
+         *     for a sink, and only a sink.
          */
         StartRun: {
             /** Action */
             action: string;
+            input?: components["schemas"]["SinkInput"] | null;
             /** Params */
             params?: {
                 [key: string]: components["schemas"]["JsonValue"];
@@ -1625,6 +1791,373 @@ export interface operations {
                 headers: {
                     /** @description `Bearer` */
                     "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listColumnViews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnView"][];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createColumnView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewColumnView"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnView"];
+                };
+            };
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    replaceColumnView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                viewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColumnViewFields"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColumnView"];
+                };
+            };
+            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deleteColumnView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                viewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    hideColumnView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                viewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    unhideColumnView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                viewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

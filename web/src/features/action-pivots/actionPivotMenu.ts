@@ -21,8 +21,12 @@ export interface ActionPivotMenuInput {
 export const recentPivotKey = (item: CatalogueAction | Preset): string =>
   'presetId' in item ? `preset:${item.presetId}` : item.key;
 
-/** Whether every row has a column from each of the action's pivot column groups. */
+/**
+ * Whether `action` is a query action and every row has a column from each of its pivot column
+ * groups.
+ */
 const pivotsFrom = (action: CatalogueAction, rows: readonly Record<string, unknown>[]) =>
+  action.kind === 'query' &&
   action.pivot !== null &&
   rows.every((row) => action.pivot!.columns.every((group) => group.some((c) => c in row)));
 
@@ -30,11 +34,11 @@ const count = (n: number) => n.toLocaleString('en');
 
 /**
  * The Pivot ▸ item of an action tab's context menu: Recent, the analyst's recent pivots by their
- * full menu path, then the actions and presets by menu path. It lists the actions whose `pivot`
- * columns the rows have, and the presets that pivot from them (`presetPivot`), except hidden
- * ones. A one-row action is disabled for several rows, a preset whose rows disagree on a value,
- * and the whole item over `maxPivotRows`, each with the reason. Empty when nothing pivots from
- * the rows.
+ * full menu path, then the actions and presets by menu path. It lists the query actions whose
+ * `pivot` columns the rows have, and the presets that pivot from them (`presetPivot`), except
+ * hidden ones. A one-row action is disabled for several rows, a preset whose rows disagree on a
+ * value, and the whole item over `maxPivotRows`, each with the reason. Empty when nothing pivots
+ * from the rows.
  */
 export function buildActionPivotMenu({
   actions,

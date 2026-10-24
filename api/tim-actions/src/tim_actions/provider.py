@@ -8,7 +8,7 @@ from importlib.resources.abc import Traversable
 from pydantic import ConfigDict, model_validator
 from pydantic.dataclasses import dataclass
 
-from tim_actions.action import Action
+from tim_actions.action import Action, ActionType, Sink
 from tim_actions.hooks import Hook
 
 ENTRY_POINT_GROUP = "tim.actions"
@@ -18,14 +18,14 @@ returns a ``Provider``."""
 
 @dataclass(frozen=True, config=ConfigDict(extra="forbid", arbitrary_types_allowed=True))
 class Provider:
-    """Actions, file-capable action types and connection types' hooks.
+    """Actions and sinks, file-capable action types and connection types' hooks.
 
     ``action_files`` is a directory of action files in the package's data, such as
     ``importlib.resources.files("acme_tim") / "actions"``.
     """
 
-    actions: Sequence[Action] = ()
-    action_types: Sequence[type[Action]] = ()
+    actions: Sequence[Action | Sink] = ()
+    action_types: Sequence[ActionType] = ()
     hooks: Sequence[type[Hook]] = ()
     action_files: Traversable | None = None
 

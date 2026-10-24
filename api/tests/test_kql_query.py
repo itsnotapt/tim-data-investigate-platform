@@ -22,7 +22,7 @@ from tim_api.actions import InstanceConfigError
 
 # Read before the autouse fixture in conftest.py clears TIM_* variables.
 LIVE_CLUSTER = os.environ.get("TIM_TEST_KUSTO_CLUSTER")
-LIVE_DATABASE = os.environ.get("TIM_TEST_KUSTO_QUERY_DATABASE", "Samples")
+LIVE_DATABASE = os.environ.get("TIM_TEST_KUSTO_QUERY_DATABASE", "Research")
 FIXTURES = Path(__file__).parent / "fixtures" / "action_files"
 STORMS_KQL = (FIXTURES / "kql_query" / "storms.kql").read_text()
 STORMS_PARAMS = {

@@ -174,6 +174,7 @@
         "type": "object"
       },
       "CatalogueAction": {
+        "description": "A query action or, as ``kind: \"sink\"``, a sink: no params, offered on any selected rows.",
         "properties": {
           "columns": {
             "anyOf": [
@@ -212,7 +213,10 @@
             "type": "string"
           },
           "kind": {
-            "const": "query",
+            "enum": [
+              "query",
+              "sink"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -520,6 +524,99 @@
         "title": "ChangedAnnotations",
         "type": "object"
       },
+      "ColumnView": {
+        "description": "A column view as one analyst sees it: ``owned`` is whether they own it, ``hidden``\nwhether they hid it.",
+        "properties": {
+          "createdAt": {
+            "title": "Createdat",
+            "type": "string"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owned": {
+            "title": "Owned",
+            "type": "boolean"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "savedFrom": {
+            "$ref": "#/components/schemas/SavedFrom"
+          },
+          "state": {
+            "additionalProperties": true,
+            "title": "State",
+            "type": "object"
+          },
+          "updatedAt": {
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "viewId": {
+            "format": "uuid",
+            "title": "Viewid",
+            "type": "string"
+          },
+          "visibility": {
+            "default": "private",
+            "enum": [
+              "private",
+              "shared"
+            ],
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "savedFrom",
+          "viewId",
+          "owner",
+          "createdAt",
+          "updatedAt",
+          "owned",
+          "hidden"
+        ],
+        "title": "ColumnView",
+        "type": "object"
+      },
+      "ColumnViewFields": {
+        "description": "The fields the owner writes: the ``PUT`` body. ``state`` is a partial AG Grid\n``GridState``, whose keys only the browser decides (ADR-0022).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "additionalProperties": true,
+            "title": "State",
+            "type": "object"
+          },
+          "visibility": {
+            "default": "private",
+            "enum": [
+              "private",
+              "shared"
+            ],
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state"
+        ],
+        "title": "ColumnViewFields",
+        "type": "object"
+      },
       "Comment": {
         "properties": {
           "at": {
@@ -724,6 +821,33 @@
           "fromColumns"
         ],
         "title": "FromRowInput",
+        "type": "object"
+      },
+      "InputColumn": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "datetime",
+              "timespan",
+              "json"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "InputColumn",
         "type": "object"
       },
       "Instance": {
@@ -1222,6 +1346,39 @@
           "annotationPollSeconds"
         ],
         "title": "Limits",
+        "type": "object"
+      },
+      "NewColumnView": {
+        "description": "The ``POST`` body: ``savedFrom`` is fixed at creation.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "savedFrom": {
+            "$ref": "#/components/schemas/SavedFrom"
+          },
+          "state": {
+            "additionalProperties": true,
+            "title": "State",
+            "type": "object"
+          },
+          "visibility": {
+            "default": "private",
+            "enum": [
+              "private",
+              "shared"
+            ],
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "savedFrom"
+        ],
+        "title": "NewColumnView",
         "type": "object"
       },
       "PatchOperation": {
@@ -2062,7 +2219,7 @@
         "type": "object"
       },
       "Run": {
-        "description": "A run without its rows. Server-produced only, never a request.\n\n``params`` are the resolved params. ``details`` holds TIM's ``duration`` (seconds) and\n``rowCount`` first, then the action's own, in the order they were reported. ``columns`` and\n``rowCount`` are set once the run succeeds; ``error`` is a message safe to show.",
+        "description": "A run without its rows. Server-produced only, never a request.\n\n``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``\n(seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the\naction's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a\nquery action's run succeeds, never for a sink; ``error`` is a message safe to show.",
         "properties": {
           "action": {
             "$ref": "#/components/schemas/RunAction"
@@ -2295,6 +2452,32 @@
         "title": "SavedEvent",
         "type": "object"
       },
+      "SavedFrom": {
+        "description": "The action, and the preset when there is one, of the tab the view was saved from.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "presetId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presetid"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "SavedFrom",
+        "type": "object"
+      },
       "SchemaResponse": {
         "description": "`{schema: <parsed .show schema as json document>}`, passed through untouched.",
         "properties": {
@@ -2310,12 +2493,50 @@
         "title": "SchemaResponse",
         "type": "object"
       },
+      "SinkInput": {
+        "description": "The rows a sink writes, each a row's ``data``, and their columns.",
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/InputColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "title": "SinkInput",
+        "type": "object"
+      },
       "StartRun": {
-        "description": "Body of ``POST /api/runs``. The params are validated against the action's.",
+        "description": "Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is\nfor a sink, and only a sink.",
         "properties": {
           "action": {
             "title": "Action",
             "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SinkInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "params": {
             "additionalProperties": {
@@ -2713,6 +2934,505 @@
         "summary": "Annotation History",
         "tags": [
           "annotations"
+        ]
+      }
+    },
+    "/api/columnViews": {
+      "get": {
+        "operationId": "listColumnViews",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ColumnView"
+                  },
+                  "title": "Response List Column Views Api Columnviews Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Column Views",
+        "tags": [
+          "column views"
+        ]
+      },
+      "post": {
+        "operationId": "createColumnView",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewColumnView"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Column View",
+        "tags": [
+          "column views"
+        ]
+      }
+    },
+    "/api/columnViews/{viewId}": {
+      "delete": {
+        "operationId": "deleteColumnView",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Viewid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Column View",
+        "tags": [
+          "column views"
+        ]
+      },
+      "put": {
+        "operationId": "replaceColumnView",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Viewid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ColumnViewFields"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColumnView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Replace Column View",
+        "tags": [
+          "column views"
+        ]
+      }
+    },
+    "/api/columnViews/{viewId}/hidden": {
+      "delete": {
+        "operationId": "unhideColumnView",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Viewid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Unhide Column View",
+        "tags": [
+          "column views"
+        ]
+      },
+      "put": {
+        "operationId": "hideColumnView",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Viewid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Hide Column View",
+        "tags": [
+          "column views"
         ]
       }
     },
@@ -3757,7 +4477,7 @@
     },
     "/api/runs": {
       "post": {
-        "description": "Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``\nconnection's token is got first, so OBO problems answer this request.",
+        "description": "Start a run; ``200`` when it ends within about a second, else ``202``. Each ``obo``\nconnection's token is got first, so OBO problems answer this request. A sink takes the\nrows to write as ``input``, at most ``maxAnnotationIds`` of them.",
         "operationId": "startRun",
         "requestBody": {
           "content": {

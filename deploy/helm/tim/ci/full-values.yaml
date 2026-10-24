@@ -41,7 +41,7 @@ ingress:
   className: nginx
   host: tim.example.com
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: 25m
+    nginx.ingress.kubernetes.io/proxy-body-size: 64m
     nginx.ingress.kubernetes.io/proxy-read-timeout: "620"
     cert-manager.io/cluster-issuer: letsencrypt
 postgresql:

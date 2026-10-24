@@ -15,6 +15,9 @@ import type {
   GridApi,
   GridReadyEvent,
   RowClassRules,
+  SideBarDef,
+  StateUpdatedEvent,
+  StatusPanelDef,
 } from 'ag-grid-community';
 import { ColumnViewBar } from '../column-views';
 import { DetailPanel } from './DetailPanel';
@@ -28,6 +31,7 @@ import {
   buildSymbolSelectionColumnDef,
   determinationSymbolsMenuItem,
   makeGetContextMenuItems,
+  STATUS_PANELS,
   staticGridOptions,
 } from './gridOptions';
 import type { ExtraMenuItems, GetExtraContextMenuItems } from './gridOptions';
@@ -95,6 +99,14 @@ export interface ResultsGridProps {
   onCellKeyDown?: (event: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => void;
   /** Called when a cell takes focus, after the detail panel follows it. */
   onCellFocused?: (event: CellFocusedEvent<GridRowWithId>) => void;
+  /** The side bar, instead of Columns and Filters. */
+  sideBar?: SideBarDef;
+  /** Status bar panels after the execution stats, before the counts. */
+  statusPanels?: StatusPanelDef[];
+  /** More of the grid's `context`, beside the execution stats, for custom panels. */
+  context?: Record<string, unknown>;
+  /** The grid's state changed while it's shown (not while its tab is hidden). */
+  onStateUpdated?: (event: StateUpdatedEvent<GridRowWithId>) => void;
 }
 
 export function ResultsGrid({
@@ -115,6 +127,10 @@ export function ResultsGrid({
   selectionSymbol,
   onCellKeyDown,
   onCellFocused: givenOnCellFocused,
+  sideBar,
+  statusPanels,
+  context: extraContext,
+  onStateUpdated,
 }: ResultsGridProps) {
   const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
@@ -130,7 +146,14 @@ export function ResultsGrid({
 
   const [statsStore] = useState<StatsStore>(() => createStatsStore());
   statsStore.set(stats ?? {});
-  const context = useMemo(() => ({ statsStore }), [statsStore]);
+  const context = useMemo(() => ({ ...extraContext, statsStore }), [extraContext, statsStore]);
+  const statusBar = useMemo(
+    () =>
+      statusPanels && {
+        statusPanels: [STATUS_PANELS[0]!, ...statusPanels, ...STATUS_PANELS.slice(1)],
+      },
+    [statusPanels],
+  );
 
   const rowData = useMemo(() => prepareRows(rows, columnId), [rows, columnId]);
   const columnDefs = useMemo(
@@ -241,7 +264,13 @@ export function ResultsGrid({
           onCellFocused={onCellFocused}
           onCellKeyDown={onCellKeyDown}
           rowClassRules={classRules}
-          onStateUpdated={save}
+          sideBar={sideBar ?? staticGridOptions.sideBar}
+          statusBar={statusBar ?? staticGridOptions.statusBar}
+          onStateUpdated={(e) => {
+            save();
+            const el = containerRef.current;
+            if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) onStateUpdated?.(e);
+          }}
           onGridReady={(e) => {
             apiRef.current = e.api;
             setGridApi(e.api);

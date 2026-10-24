@@ -7,7 +7,17 @@ from typing import Any
 
 import pytest
 
-from tim_actions import Action, Analyst, Column, DetailValue, Hook, RunError, dev, validate_params
+from tim_actions import (
+    Action,
+    Analyst,
+    Column,
+    DetailValue,
+    Hook,
+    RunError,
+    Sink,
+    dev,
+    validate_params,
+)
 from tim_actions.files import load_action_files
 
 
@@ -41,6 +51,7 @@ def load(tmp_path: Path, text: str) -> Action:
     loaded = load_action_files(tmp_path, {"dev_rows": dev.DevRows})
     assert loaded.problems == []
     [item] = loaded.actions
+    assert isinstance(item.action, Action)
     return item.action
 
 
@@ -52,10 +63,10 @@ def problems(tmp_path: Path, text: str) -> list[str]:
     ]
 
 
-def test_the_provider_has_dev_json_and_the_dev_rows_type() -> None:
+def test_the_provider_has_dev_json_and_the_dev_rows_and_dev_sink_types() -> None:
     provider = dev.provider()
     assert [action.key for action in provider.actions] == ["tim.dev_json"]
-    assert provider.action_types == [dev.DevRows]
+    assert provider.action_types == [dev.DevRows, dev.DevSink]
 
 
 def test_dev_json_yields_the_pasted_rows_with_ids_from_its_id_column() -> None:
@@ -145,3 +156,32 @@ def test_dev_rows_filters_never_match_a_boolean_with_a_number(tmp_path: Path) ->
     )
     assert [row for _, row in run(action, {"count": 1})] == [{"Value": 1}, {"Value": 1.0}]
     assert [row for _, row in run(action, {"flag": True})] == [{"Value": True}]
+
+
+def load_sink(tmp_path: Path, text: str) -> Sink:
+    (tmp_path / "sink.yaml").write_text(text)
+    loaded = load_action_files(tmp_path, {"dev_sink": dev.DevSink})
+    assert loaded.problems == []
+    [item] = loaded.actions
+    assert isinstance(item.action, Sink)
+    return item.action
+
+
+def test_dev_sink_takes_the_rows_and_discards_them(tmp_path: Path) -> None:
+    sink = load_sink(tmp_path, "type: dev_sink\nkey: s\nname: Save\nmenu: Dev / Sinks\n")
+    assert sink.menu_path == ["Dev", "Sinks"]
+    columns = [Column(name="Host", type="string")]
+    assert sink.run(columns, [{"Host": "h-1"}], Context()) is None
+
+
+def test_dev_sink_waits_then_fails(tmp_path: Path) -> None:
+    sink = load_sink(tmp_path, "type: dev_sink\nkey: s\nname: S\ndelay: 0.01\nerror: Refused\n")
+    with pytest.raises(RunError, match=r"^Refused$"):
+        sink.run([], [{"n": 1}], Context())
+
+
+@pytest.mark.parametrize("field", ["pivot: rows", "params: []", "id: Host", "columns: []"])
+def test_a_sink_file_has_no_query_fields(tmp_path: Path, field: str) -> None:
+    (tmp_path / "sink.yaml").write_text(f"type: dev_sink\nkey: s\nname: S\n{field}\n")
+    [problem] = load_action_files(tmp_path, {"dev_sink": dev.DevSink}).problems
+    assert problem.endswith("Extra inputs are not permitted")

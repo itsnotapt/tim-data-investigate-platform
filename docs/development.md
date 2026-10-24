@@ -55,7 +55,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
     - `TIM_TEST_KUSTO_INGEST_URL`, for tag ingestion;
     - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL and `kql_query` on a real cluster as an `AZURE_*` identity.
 
-    CI runs them only in the [`kusto-live` job](#ci-and-releases).
+    They run locally against the shared test cluster (see [Live Kusto tests](#live-kusto-tests)), and in CI in the [`kusto-live` job](#ci-and-releases).
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
 - **Playwright fails if its ports are busy.** It never reuses a running server, so a stray server on its ports (default 5180 and 5181) stops the run.
@@ -99,6 +99,8 @@ Run the checks CI runs before you push:
 - **`api/tim-actions/`:** `uv run pytest` and `uv run mypy`.
 - **`web/`:** the `lint`, `format:check`, `typecheck`, `test`, `build` and `e2e` scripts.
 
+When `az account show` succeeds, set the [live Kusto test](#live-kusto-tests) variables first, so the `kusto` tests run rather than skip.
+
 The workflows are in `.github/workflows/`. Where CI differs from a local run:
 
 | CI does                                                                                          | Locally                                                                                       |
@@ -112,6 +114,22 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 | `build-api.yml` `docker-build-api`: builds the api image and runs the derived-image and `deploy/config` checks | Needs Docker; read the workflow for the exact commands |
 | `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions, and the rendered `/etc/tim` mount and variables of both compose files | Needs those tools installed; read the workflow for the exact commands |
 | `lint-workflows.yml`: actionlint and shellcheck on workflows, plus the `.github/scripts` tests     | `python3 -B -m unittest discover -s .github/scripts` (`-B` keeps `__pycache__` out of the tree) |
+
+## Live Kusto tests
+
+The `kusto` tests run against the shared test cluster, signed in with your own Azure CLI login, which `DefaultAzureCredential` picks up.
+
+1. Sign in to the test tenant: `az login --tenant $(gh variable get TIM_TESTS_TENANT_ID)`.
+2. Your account needs Viewer on the `Research` database to query, and Ingestor to ingest. Ask a maintainer of the cluster.
+3. In `api/`, read the cluster from the repository variables and run the tests:
+
+   ```sh
+   export TIM_TEST_KUSTO_CLUSTER=$(gh variable get TIM_TEST_KUSTO_CLUSTER)
+   export TIM_TEST_KUSTO_INGEST_URL=$(gh variable get TIM_TEST_KUSTO_INGEST_URL)
+   uv run pytest -m kusto --no-cov
+   ```
+
+Both databases default to `Research`, as in CI. Each run adds an `itest` row to the ingest table.
 
 ## e2e tests
 
@@ -152,7 +170,7 @@ With `TIM_DEV_ACTIONS=true`, the api registers actions that need no connection, 
 - Validate a directory that uses them with `uv run tim-api check --dev-actions --actions <dir>`.
 - Print their schema with `uv run tim-api schema actions --dev-actions`.
 
-There are two actions:
+There are two actions and two action file types:
 
 - **`tim.dev_json` "JSON (development)"**: the run yields the rows the analyst pastes into its `rows` param, a JSON array of objects.
   - The optional `idColumn` param names the column that gives each row its `id`.
@@ -181,6 +199,12 @@ There are two actions:
     - { User: alice@example.com, CorrelationId: c-1 }
     - { User: bob@example.com, CorrelationId: c-2 }
   ```
+
+- **`dev_sink`**, an action file type for a sink ([architecture.md](architecture.md#sinks)). It has the common fields of a sink (`key`, `name`, `menu`, `description`), and these:
+  - `delay`: seconds to wait before the sink ends. Cancel or the timeout ends the run at once.
+  - `error`: ends the run in error with this message, after the delay.
+
+  Without `error` it discards the rows.
 
 `TIM_DEV_ACTIONS` also registers a connection type:
 
@@ -228,6 +252,16 @@ These pins hold `web/package.json` back on purpose.
 | `monaco-editor` `^0.55.1`                 | `@kusto/monaco-kusto` 15.0.1, the latest release, peers on `monaco-editor@^0.55.0` (0.55.x only). Its language service is built against that editor, so a newer `monaco-editor` is not installed. | `@kusto/monaco-kusto` releases a version that accepts a newer `monaco-editor`.                                   |
 | `overrides.dompurify` `^3.4.15`           | `monaco-editor` 0.55 depends on exactly `dompurify` 3.2.7, which `npm audit --omit=dev` flags (CI runs `npm audit`). The override installs a 3.4.x release instead.                               | The `monaco-editor` pin is lifted: `monaco-editor` 0.57 depends on `dompurify` 3.4.15, which passes `npm audit`. |
 | `@types/node` `^24`                       | Matches the Node 24 runtime (`engines.node`, `web/Dockerfile`), so Node APIs newer than 24 are a type error.                                                                                       | The runtime moves to a newer Node major. Move `engines.node` and the `web/Dockerfile` base image with it.         |
+
+## AG Grid upgrades
+
+Stored column views keep the `state.version` AG Grid reported and are never rewritten ([ADR-0022](adr/0022-column-views-store-grid-state.md)). On every AG Grid upgrade:
+
+- Read the release's state-migration notes. A stored column view goes through `setState`'s own migration, then the browser's fit step (`web/src/features/action-column-views/columnViewState.ts`).
+- Check the `getState` and `setState` behaviour the fit step relies on:
+  - `getState` leaves out a section that is empty;
+  - `setState` resets every section it isn't told to ignore.
+- Run the column views e2e flow: `npx playwright test e2e/flows/column-views.spec.ts` in `web/`.
 
 ## API types
 

@@ -61,6 +61,7 @@ columns:
 """
     )
     [item] = load_action_files(tmp_path, TYPES).actions
+    assert isinstance(item.action, Action)
     assert item.action.id == ("CorrelationId", "RequestId")
     assert item.action.columns == (
         Column("Timestamp", "datetime", sort="desc", pinned="left"),

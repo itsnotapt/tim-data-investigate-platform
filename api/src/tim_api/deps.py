@@ -6,6 +6,7 @@ from fastapi import Request
 
 from tim_api.storage import (
     AnnotationStore,
+    ColumnViewStore,
     PresetStore,
     QueryRunStore,
     RunStore,
@@ -33,6 +34,10 @@ def get_run_store(request: Request) -> RunStore:
 
 def get_preset_store(request: Request) -> PresetStore:
     return get_storage(request).presets
+
+
+def get_column_view_store(request: Request) -> ColumnViewStore:
+    return get_storage(request).column_views
 
 
 def get_annotation_store(request: Request) -> AnnotationStore:

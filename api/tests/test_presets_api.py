@@ -4,7 +4,7 @@ from typing import Any
 
 from app_factory import AuthKit, create_test_app
 from fastapi.testclient import TestClient
-from scripted_actions import Rows
+from scripted_actions import Recording, Rows
 from tim_actions import Param, Provider
 
 ALICE = "alice@example.com"
@@ -164,6 +164,16 @@ def test_a_preset_of_an_unknown_action_is_refused(auth: AuthKit) -> None:
     assert created.json()["errors"] == {"action": ["Unknown action"]}
     assert replaced.status_code == 422
     assert replaced.json()["errors"] == {"action": ["Unknown action"]}
+
+
+def test_a_preset_of_a_sink_is_refused(auth: AuthKit) -> None:
+    sink = Recording(key="save-event", name="Save event")
+    app = create_test_app(providers=[Provider(actions=[sink])])
+    auth.install(app)
+    with TestClient(app, headers=auth.headers(ALICE, "oid-a")) as client:
+        created = client.post("/api/presets", json=bookmark(action="save-event", params={}))
+    assert created.status_code == 422
+    assert created.json()["errors"] == {"action": ["A sink has no presets"]}
 
 
 def test_a_param_input_must_be_a_param_the_rows_can_fill(auth: AuthKit) -> None:

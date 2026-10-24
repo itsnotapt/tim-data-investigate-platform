@@ -53,6 +53,7 @@ from tim_api.annotations.models import (
     LabelState,
     TagSuggestions,
 )
+from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import (
     KustoQueryEcho,
@@ -68,6 +69,7 @@ from tim_api.storage.base import (
     AnnotationsChanged,
     AnnotationsOf,
     AnnotationStore,
+    ColumnViewStore,
     NotFoundError,
     PresetStore,
     QueryRunStore,
@@ -189,6 +191,30 @@ preset_hidden = Table(
     Column("preset_id", Uuid, ForeignKey("presets.preset_id", ondelete="CASCADE"), nullable=False),
     Column("analyst", Text, nullable=False),
     PrimaryKeyConstraint("preset_id", "analyst"),
+)
+
+column_views = Table(
+    "column_views",
+    metadata,
+    Column("view_id", Uuid, primary_key=True),
+    Column("owner", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("visibility", String(16), nullable=False),
+    Column("saved_from_action", Text, nullable=False),
+    Column("saved_from_preset_id", Uuid),
+    Column("state", _JSON, nullable=False),
+    Column("created_at", _TS, nullable=False),
+    Column("updated_at", _TS, nullable=False),
+    # list() orders by (created_at, view_id).
+    Index("ix_column_views_created_id", "created_at", "view_id"),
+)
+
+column_view_hidden = Table(
+    "column_view_hidden",
+    metadata,
+    Column("view_id", Uuid, ForeignKey("column_views.view_id", ondelete="CASCADE"), nullable=False),
+    Column("analyst", Text, nullable=False),
+    PrimaryKeyConstraint("view_id", "analyst"),
 )
 
 # One row: the change feed's version. Every annotation change takes it first, so its row lock
@@ -368,6 +394,27 @@ def _preset_field_values(fields: PresetFields) -> dict[str, Any]:
 
 def _preset_from_row(row: Any) -> Preset:
     return Preset.model_validate(dict(row._mapping))
+
+
+def _column_view_from_row(row: Any) -> ColumnView:
+    m = row._mapping
+    saved_from: dict[str, Any] = {"action": m["saved_from_action"]}
+    if m["saved_from_preset_id"] is not None:
+        saved_from["preset_id"] = m["saved_from_preset_id"]
+    return ColumnView.model_validate(
+        {
+            "view_id": m["view_id"],
+            "name": m["name"],
+            "owner": m["owner"],
+            "visibility": m["visibility"],
+            "saved_from": saved_from,
+            "state": m["state"],
+            "created_at": m["created_at"],
+            "updated_at": m["updated_at"],
+            "owned": m["owned"],
+            "hidden": m["hidden"],
+        }
+    )
 
 
 class _Db:
@@ -773,6 +820,108 @@ class PostgresPresetStore(PresetStore):
                 )
 
 
+class PostgresColumnViewStore(ColumnViewStore):
+    def __init__(self, db: _Db) -> None:
+        self._db = db
+
+    @staticmethod
+    def _select(viewer: str) -> Any:
+        hidden = (
+            exists()
+            .where(
+                column_view_hidden.c.view_id == column_views.c.view_id,
+                column_view_hidden.c.analyst == viewer,
+            )
+            .label("hidden")
+        )
+        return select(column_views, (column_views.c.owner == viewer).label("owned"), hidden)
+
+    async def list(self, viewer: str) -> list[ColumnView]:
+        stmt = (
+            self._select(viewer)
+            .where((column_views.c.owner == viewer) | (column_views.c.visibility == "shared"))
+            .order_by(column_views.c.created_at, column_views.c.view_id)
+        )
+        async with self._db.begin() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [_column_view_from_row(r) for r in rows]
+
+    async def get(self, view_id: UUID, viewer: str) -> ColumnView | None:
+        stmt = self._select(viewer).where(column_views.c.view_id == view_id)
+        async with self._db.begin() as conn:
+            row = (await conn.execute(stmt)).first()
+        return _column_view_from_row(row) if row else None
+
+    async def create(self, view: StoredColumnView) -> None:
+        values = {
+            "view_id": view.view_id,
+            "owner": view.owner,
+            "name": view.name,
+            "visibility": view.visibility,
+            "saved_from_action": view.saved_from.action,
+            "saved_from_preset_id": view.saved_from.preset_id,
+            "state": view.state,
+            "created_at": view.created_at,
+            "updated_at": view.updated_at,
+        }
+        try:
+            async with self._db.begin() as conn:
+                await conn.execute(insert(column_views).values(**values))
+        except IntegrityError:
+            raise AlreadyExistsError(str(view.view_id)) from None
+
+    async def replace(
+        self, view_id: UUID, fields: ColumnViewFields, *, updated_at: datetime
+    ) -> None:
+        stmt = (
+            update(column_views)
+            .where(column_views.c.view_id == view_id)
+            .values(
+                name=fields.name,
+                visibility=fields.visibility,
+                state=fields.state,
+                updated_at=updated_at,
+            )
+            .returning(column_views.c.view_id)
+        )
+        async with self._db.begin() as conn:
+            if (await conn.execute(stmt)).first() is None:
+                raise NotFoundError(str(view_id))
+
+    async def delete(self, view_id: UUID) -> None:
+        stmt = (
+            delete(column_views)
+            .where(column_views.c.view_id == view_id)
+            .returning(column_views.c.view_id)
+        )
+        async with self._db.begin() as conn:
+            if (await conn.execute(stmt)).first() is None:
+                raise NotFoundError(str(view_id))
+
+    async def set_hidden(self, view_id: UUID, analyst: str, hidden: bool) -> None:
+        async with self._db.begin() as conn:
+            found = await conn.execute(
+                select(column_views.c.view_id)
+                .where(column_views.c.view_id == view_id)
+                .with_for_update()
+            )
+            if found.first() is None:
+                raise NotFoundError(str(view_id))
+            if hidden:
+                await conn.execute(
+                    pg_insert(column_view_hidden)
+                    .values(view_id=view_id, analyst=analyst)
+                    .on_conflict_do_nothing()
+                )
+            else:
+                await conn.execute(
+                    delete(column_view_hidden).where(
+                        column_view_hidden.c.view_id == view_id,
+                        column_view_hidden.c.analyst == analyst,
+                    )
+                )
+
+
 class _NothingChanged(Exception):
     """Rolls back a change that changed nothing, so it takes no version."""
 
@@ -1018,6 +1167,7 @@ class PostgresStorage(Storage):
         self.query_runs = PostgresQueryRunStore(db)
         self.runs = PostgresRunStore(db)
         self.presets = PostgresPresetStore(db)
+        self.column_views = PostgresColumnViewStore(db)
         self.annotations = PostgresAnnotationStore(db)
 
     async def health(self) -> bool:
