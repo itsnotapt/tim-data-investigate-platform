@@ -1,0 +1,827 @@
+{
+  "connector": "5.1.0",
+  "recorded": "2026-10-25",
+  "statements": [
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        "alice@contoso.com"
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          "alice@contoso.com",
+          "VARCHAR(17)[LOB]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        42
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 0,
+          "precision": 2,
+          "scale": 0
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          42,
+          "NUMBER(2,0)[SB1]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        12345678901234567890
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 0,
+          "precision": 20,
+          "scale": 0
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          12345678901234567890,
+          "NUMBER(20,0)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        18446744073709551616
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 0,
+          "precision": 20,
+          "scale": 0
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          18446744073709551616,
+          "NUMBER(20,0)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        -1.5
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 1,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          -1.5,
+          "FLOAT[DOUBLE]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "$float": "nan"
+        }
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 1,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$float": "nan"
+          },
+          "FLOAT[DOUBLE]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        true
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 13,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          true,
+          "BOOLEAN[SB1]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        null
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          null,
+          "VARCHAR[LOB]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "$datetime": "2026-01-02T03:04:05.123456"
+        }
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          },
+          "TIMESTAMP_NTZ(9)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "$datetime": "2026-01-02T03:04:05.123456+00:00"
+        }
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          },
+          "TIMESTAMP_NTZ(9)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "$datetime": "2026-01-02T03:04:05.123456+02:00"
+        }
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-01-02T01:04:05.123456"
+          },
+          "TIMESTAMP_NTZ(9)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "$date": "2026-01-02"
+        }
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 3,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$date": "2026-01-02"
+          },
+          "DATE[SB4]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        [
+          "TIMESTAMP_TZ",
+          {
+            "$datetime": "2026-01-02T03:04:05.123456+00:00"
+          }
+        ]
+      ],
+      "error": {
+        "class": "DatabaseError",
+        "msg": "Cannot retrieve data on the status of this query. No information returned from server for query '<query id>'",
+        "errno": -1,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        [
+          "TIMESTAMP_LTZ",
+          {
+            "$datetime": "2026-01-02T03:04:05.123456+00:00"
+          }
+        ]
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          },
+          "TIMESTAMP_NTZ(9)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        [
+          "TIMESTAMP_NTZ",
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          }
+        ]
+      ],
+      "description": [
+        {
+          "name": "V",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          },
+          "TIMESTAMP_NTZ(9)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1 AS A, :2 AS B, :1 AS C",
+      "params": [
+        "x",
+        2
+      ],
+      "description": [
+        {
+          "name": "A",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "B",
+          "type_code": 0,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "C",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          "x",
+          2,
+          "x"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1::NUMBER(38, 0) AS N, :2::TIMESTAMP_TZ AS T, :3::VARIANT AS J",
+      "params": [
+        "123",
+        "2026-01-02 03:04:05 +02:00",
+        "{\"a\": 1}"
+      ],
+      "description": [
+        {
+          "name": "N",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        },
+        {
+          "name": "T",
+          "type_code": 7,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "J",
+          "type_code": 5,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          123,
+          {
+            "$datetime": "2026-01-02T03:04:05+02:00"
+          },
+          "\"{\\\"a\\\": 1}\""
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ':1' AS LIT, :1 AS V -- :2\n",
+      "params": [
+        "x"
+      ],
+      "description": [
+        {
+          "name": "LIT",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "V",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          ":1",
+          "x"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID, NAME FROM TIM_RECORDING.PUBLIC.EVERY_TYPE\n    WHERE NAME IN (SELECT value::string FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID",
+      "params": [
+        "[\"alice@contoso.com\", \"bob@contoso.com\"]"
+      ],
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        },
+        {
+          "name": "NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "alice@contoso.com"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID, NAME FROM TIM_RECORDING.PUBLIC.EVERY_TYPE\n    WHERE ID IN (SELECT value::number FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID",
+      "params": [
+        "[1, 2, 3]"
+      ],
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        },
+        {
+          "name": "NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          1,
+          "alice@contoso.com"
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID, NAME FROM TIM_RECORDING.PUBLIC.EVERY_TYPE\n    WHERE ID IN (SELECT value::number FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID",
+      "params": [
+        "[]"
+      ],
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        },
+        {
+          "name": "NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": []
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_NTZ >= :1 ORDER BY ID",
+      "params": [
+        {
+          "$datetime": "2026-01-02T00:00:00+00:00"
+        }
+      ],
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_TZ >= :1 ORDER BY ID",
+      "params": [
+        {
+          "$datetime": "2026-01-02T01:00:00+00:00"
+        }
+      ],
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": []
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_LTZ >= :1 ORDER BY ID",
+      "params": [
+        {
+          "$datetime": "2026-01-02T03:00:00+00:00"
+        }
+      ],
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": []
+    },
+    {
+      "sql": "SELECT :1 AS A, :2 AS B",
+      "params": [
+        "only one"
+      ],
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL compilation error: error line 1 at position 16\nBind variable :2 not set.",
+        "errno": 2049,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT 1 AS ONE",
+      "params": [
+        "unused"
+      ],
+      "description": [
+        {
+          "name": "ONE",
+          "type_code": 0,
+          "precision": 1,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT :1::NUMBER AS N",
+      "params": [
+        "abc"
+      ],
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "Numeric value 'abc' is not recognized",
+        "errno": 100038,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT * FROM :1",
+      "params": [
+        "TIM_RECORDING.PUBLIC.EVERY_TYPE"
+      ],
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL compilation error:\nsyntax error line 1 at position 14 unexpected ':'.",
+        "errno": 1003,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT :name AS V",
+      "params": [
+        "x"
+      ],
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL compilation error: error line 1 at position 7\nBind variable :name not set.",
+        "errno": 2049,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "a": 1
+        }
+      ],
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "Binding data in type (dict) is not supported. Convert the value to a supported Python type (str, int, float, bool, bytes, date/datetime/time/timedelta) before binding it.",
+        "errno": 255001,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        [
+          1,
+          2
+        ]
+      ],
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL compilation error: error line 1 at position 7\nBind variable :1 not set.",
+        "errno": 2049,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "params": [
+        {
+          "$datetime": "2026-01-02T03:04:05.123456+00:00"
+        }
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "V",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "T",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          },
+          "TIMESTAMP_NTZ(9)[SB16]"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_TZ >= :1 ORDER BY ID",
+      "params": [
+        {
+          "$datetime": "2026-01-02T01:00:00+00:00"
+        }
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_LTZ >= :1 ORDER BY ID",
+      "params": [
+        {
+          "$datetime": "2026-01-02T03:00:00+00:00"
+        }
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ]
+      ]
+    }
+  ]
+}
