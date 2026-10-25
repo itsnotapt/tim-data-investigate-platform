@@ -1,5 +1,5 @@
 # Every optional feature on: in-cluster PostgreSQL, HPA, licence key, workload identity, image
-# tag and digest overrides.
+# tag and digest overrides, action files, connections and labels.
 config:
   publicUrl: https://tim.example.com
   auth:
@@ -27,6 +27,27 @@ api:
   autoscaling:
     enabled: true
     targetMemoryUtilizationPercentage: 80
+actions:
+  files:
+    storms.yaml: |
+      type: kql_query
+      key: acme.storm_count
+      name: Storm count
+      pivot: none
+      connection: samples
+      database: Samples
+      kql: |
+        StormEvents | count
+connections:
+  - name: samples
+    title: Samples (help cluster)
+    type: kusto
+    auth: obo
+    cluster: https://help.kusto.windows.net
+    databases: [Samples]
+labels:
+  - {key: malicious, name: Malicious, colour: red, symbol: skull}
+  - {key: benign, name: Benign, colour: green, symbol: check}
 web:
   image:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

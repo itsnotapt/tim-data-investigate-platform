@@ -148,6 +148,33 @@ api:
   # pod-local and are cut off when the pod stops.
   terminationGracePeriodSeconds: 30
 
+# --- Instance files ----------------------------------------------------------------------------
+# Read by the api at startup from /etc/tim (read-only); an error in any file stops startup.
+# Reference: docs/actions.md.
+actions:
+  # Action files by file name (*.yaml or *.yml) → content, rendered into <fullname>-actions. Pods
+  # restart when a file changes. Sets TIM_ACTIONS_DIR=/etc/tim/actions.
+  #   triage.yaml: |
+  #     type: kql_query
+  #     ...
+  files: {}
+  # Or a pre-created ConfigMap of action files, mounted the same way. Pods do not restart when it
+  # changes: run kubectl rollout restart deployment/<fullname>-api. Not with files.
+  existingConfigMap: ""
+
+# connections.yaml, rendered into <fullname>-api-files. Empty = no TIM_CONNECTIONS_FILE.
+#  - name: samples
+#    title: Samples (help cluster)
+#    type: kusto
+#    auth: obo
+#    cluster: https://help.kusto.windows.net
+#    databases: [Samples]
+connections: []
+
+# labels.yaml, rendered into <fullname>-api-files. Empty = no TIM_LABELS_FILE.
+#  - {key: malicious, name: Malicious, colour: red, symbol: skull}
+labels: []
+
 # --- Database migrations ---------------------------------------------------------------------
 # A Job running `alembic upgrade head` with the api image, as a Helm hook: before the api rolls
 # out on upgrade, and before install (external database) or after install (postgresql.enabled).

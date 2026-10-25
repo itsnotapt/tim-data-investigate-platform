@@ -1,0 +1,12 @@
+{{- with .Values.actions.files }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tim.fullname" $ }}-actions
+  labels:
+    {{- include "tim.componentLabels" (list $ "api") | nindent 4 }}
+data:
+  {{- range $name, $content := . }}
+  {{ $name }}: {{ $content | quote }}
+  {{- end }}
+{{- end }}

@@ -167,6 +167,127 @@ jobs:
             exit 1
           fi
 
+      - name: Instance files are mounted under /etc/tim
+        run: |
+          defs='
+            def api_pod: .[] | select(.kind == "Deployment" and .metadata.name == "acme-tim-api") | .spec.template;
+            def api: api_pod.spec.containers[] | select(.name == "api");
+            def configmap($name): [.[] | select(.kind == "ConfigMap" and .metadata.name == $name)];
+            def volume($name): [api_pod.spec.volumes[] | select(.name == $name)];
+            def mounts($name): [api.volumeMounts[] | select(.name == $name)];
+            def env($name): [api.env[] | select(.name == $name) | .value];'
+          # check <failure message> <jq expression over the rendered documents> <helm template args...>
+          check() {
+            local message="$1" expression="$2"
+            shift 2
+            if ! helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" "$@" | yq -o json -I0 . \
+              | jq -s -e "$defs $expression" > /dev/null; then
+              echo "$message" >&2
+              exit 1
+            fi
+          }
+          # annotation <name> <helm template args...>: the api pod's annotation, empty when absent.
+          annotation() {
+            local name="$1"
+            shift
+            helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" "$@" \
+              | yq "select(.kind == \"Deployment\" and .metadata.name == \"acme-tim-api\") | .spec.template.metadata.annotations.\"$name\" // \"\""
+          }
+
+          triage=(--set-string 'actions.files.triage\.yaml=type: kql_query')
+          check "actions.files must render <release>-tim-actions with one key per file" \
+            'configmap("acme-tim-actions") | map(.data) == [{"triage.yaml": "type: kql_query"}]' "${triage[@]}"
+          check "actions.files must be mounted read-only at /etc/tim/actions with TIM_ACTIONS_DIR set" \
+            'volume("actions") == [{"name": "actions", "configMap": {"name": "acme-tim-actions"}}]
+              and mounts("actions") == [{"name": "actions", "mountPath": "/etc/tim/actions", "readOnly": true}]
+              and env("TIM_ACTIONS_DIR") == ["/etc/tim/actions"]' "${triage[@]}"
+          actions="$(annotation checksum/actions "${triage[@]}")"
+          changed="$(annotation checksum/actions --set-string 'actions.files.triage\.yaml=type: kql_query ')"
+          if [ -z "$actions" ] || [ "$actions" = "$changed" ]; then
+            echo "the api pod's checksum/actions must change when an action file changes" >&2
+            exit 1
+          fi
+
+          existing=(--set actions.existingConfigMap=acme-actions)
+          check "actions.existingConfigMap must be mounted at /etc/tim/actions without a chart ConfigMap" \
+            'volume("actions") == [{"name": "actions", "configMap": {"name": "acme-actions"}}]
+              and mounts("actions") == [{"name": "actions", "mountPath": "/etc/tim/actions", "readOnly": true}]
+              and env("TIM_ACTIONS_DIR") == ["/etc/tim/actions"]
+              and configmap("acme-tim-actions") == []' "${existing[@]}"
+          if [ -n "$(annotation checksum/actions "${existing[@]}")" ]; then
+            echo "actions.existingConfigMap must not add a checksum/actions annotation" >&2
+            exit 1
+          fi
+
+          if helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" "${triage[@]}" "${existing[@]}" > /dev/null 2>&1; then
+            echo "actions.files and actions.existingConfigMap together must fail" >&2
+            exit 1
+          fi
+          check "without actions there must be no actions volume, mount, variable or ConfigMap" \
+            'volume("actions") == [] and mounts("actions") == [] and env("TIM_ACTIONS_DIR") == []
+              and configmap("acme-tim-actions") == []'
+
+          connections=(--set-json 'connections=[{"name": "samples", "type": "kusto", "auth": "obo"}]')
+          labels=(--set-json 'labels=[{"key": "malicious", "name": "Malicious"}]')
+          check "connections and labels must render into <release>-tim-api-files" \
+            'configmap("acme-tim-api-files") | map(.data) == [{
+                "connections.yaml": "- auth: obo\n  name: samples\n  type: kusto\n",
+                "labels.yaml": "- key: malicious\n  name: Malicious\n"}]' "${connections[@]}" "${labels[@]}"
+          check "connections and labels must be mounted read-only under /etc/tim with their variables set" \
+            'volume("api-files") == [{"name": "api-files", "configMap": {"name": "acme-tim-api-files"}}]
+              and mounts("api-files") == [
+                {"name": "api-files", "mountPath": "/etc/tim/connections.yaml", "subPath": "connections.yaml", "readOnly": true},
+                {"name": "api-files", "mountPath": "/etc/tim/labels.yaml", "subPath": "labels.yaml", "readOnly": true}]
+              and env("TIM_CONNECTIONS_FILE") == ["/etc/tim/connections.yaml"]
+              and env("TIM_LABELS_FILE") == ["/etc/tim/labels.yaml"]' "${connections[@]}" "${labels[@]}"
+          check "labels alone must render and mount only labels.yaml" \
+            '(configmap("acme-tim-api-files") | map(.data | keys)) == [["labels.yaml"]]
+              and (mounts("api-files") | map(.mountPath)) == ["/etc/tim/labels.yaml"]
+              and env("TIM_CONNECTIONS_FILE") == [] and env("TIM_LABELS_FILE") == ["/etc/tim/labels.yaml"]' "${labels[@]}"
+          check "without connections and labels there must be no api-files volume, mount, variable or ConfigMap" \
+            'volume("api-files") == [] and mounts("api-files") == [] and configmap("acme-tim-api-files") == []
+              and env("TIM_CONNECTIONS_FILE") == [] and env("TIM_LABELS_FILE") == []'
+          files="$(annotation checksum/api-files "${labels[@]}")"
+          changed="$(annotation checksum/api-files --set-json 'labels=[{"key": "benign", "name": "Benign"}]')"
+          if [ -z "$files" ] || [ "$files" = "$changed" ]; then
+            echo "the api pod's checksum/api-files must change when the labels change" >&2
+            exit 1
+          fi
+
+      - name: Derived images need a tag or digest
+        run: |
+          derived=(--set api.image.repository=registry.example.com/acme/tim-backend)
+          if helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" "${derived[@]}" > /dev/null 2>&1; then
+            echo "an api.image.repository other than the default without api.image.tag or digest must fail" >&2
+            exit 1
+          fi
+          images="$(helm template tim "$CHART" -f "$CHART/ci/full-values.yaml" "${derived[@]}" --set api.image.tag=4.0.0-acme.3 \
+            | yq -N 'select(.kind == "Deployment" or .kind == "Job") | .spec.template.spec.containers[] | select(.name == "api" or .name == "migrate") | .image' \
+            | sort | tr '\n' ' ')"
+          if [ "$images" != "registry.example.com/acme/tim-backend:4.0.0-acme.3 registry.example.com/acme/tim-backend:4.0.0-acme.3 " ]; then
+            echo "the api Deployment and the migrations Job must both run the derived image, got: $images" >&2
+            exit 1
+          fi
+
+      - name: The OBO credential is required only for obo connections
+        run: |
+          # renders <helm template args...>: whether production values without an OBO credential render.
+          renders() {
+            helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" --set secrets.authClientSecret= "$@" > /dev/null 2>&1
+          }
+          if ! renders; then
+            echo "without connections the chart must not require an OBO credential" >&2
+            exit 1
+          fi
+          if ! renders --set-json 'connections=[{"name": "warehouse", "type": "snowflake", "auth": "workload_identity"}]'; then
+            echo "without an obo connection the chart must not require an OBO credential" >&2
+            exit 1
+          fi
+          if renders --set-json 'connections=[{"name": "warehouse", "type": "snowflake", "auth": "workload_identity"}, {"name": "samples", "type": "kusto", "auth": "obo"}]'; then
+            echo "an obo connection without an OBO credential must fail" >&2
+            exit 1
+          fi
+
   compose:
     runs-on: ubuntu-latest
 
