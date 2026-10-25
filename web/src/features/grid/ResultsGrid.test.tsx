@@ -34,7 +34,7 @@ describe('ResultsGrid', () => {
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
   });
 
-  it("uses each row's row ordinal as its grid row id", async () => {
+  it("uses each row's row number as its grid row id", async () => {
     const api = await ready();
     expect(api.getRowNode('0')?.data).toEqual(rows[0]);
     expect(api.getRowNode('1')?.data).toEqual(rows[1]);

@@ -2,7 +2,7 @@ import type { ColDef } from 'ag-grid-community';
 
 /** Row as stored (raw column name to value). */
 export type GridRow = Record<string, unknown>;
-/** A grid row with its `row` ordinal, the AG Grid row id. */
+/** A grid row with its row number `row`, the AG Grid row id. */
 export type GridRowWithId = GridRow & { row: number };
 
 /** Text of a cell value: objects as JSON, other values via `String`. */

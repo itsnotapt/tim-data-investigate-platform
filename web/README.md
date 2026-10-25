@@ -328,7 +328,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 - `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows, and `stateKey` keeps per-tab column state (see below).
 - `useRowResults(uuid, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
 - Columns: the union of all row keys.
-- Row id: the row's `row` ordinal.
+- Row id: the row's row number, `row`.
 - Extension points:
   - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, labelling and details.
     It accepts a list of groups: group 0 is followed by "Show details", and later non-empty groups come after a separator;

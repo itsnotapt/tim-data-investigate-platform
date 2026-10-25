@@ -53,7 +53,7 @@ const gridTheme = themeBalham.withParams({
 });
 
 export interface ResultsGridProps {
-  /** The rows, each with its `row` ordinal, the grid row id. */
+  /** The rows, each with its row number `row`, the grid row id. */
   rows: readonly GridRowWithId[];
   /** Column definitions to use instead of those built from the rows. */
   columnDefs?: ColDef[];
