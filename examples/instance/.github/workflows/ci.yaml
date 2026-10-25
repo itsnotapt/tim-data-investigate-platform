@@ -1,0 +1,28 @@
+# The instance's CI: the tests in the image, the image build, `tim-api check` on config/ and the
+# committed schema (ci.sh). TIM's own CI runs ci.sh too, against each PR's backend image.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  # The TIM version the instance runs on. Change it with the image tag in deploy/.
+  TIM_BACKEND_IMAGE: ghcr.io/itsnotapt/tim-data-investigate-platform/backend:5.0.0
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Check the instance
+        run: ./ci.sh "$TIM_BACKEND_IMAGE"

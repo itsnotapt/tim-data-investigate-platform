@@ -1,54 +1,66 @@
 # Actions
 
-The guide for operators and action authors. It covers what configures an instance's actions, how to write action files, and how to check them.
+The guide for operators and action authors. It covers what an instance holds, how to write and check its files, how to write action types, connection types and providers, and how to test, build and deploy them. It walks through [`examples/instance/`](../examples/instance/README.md).
 
 - How TIM loads them is in [architecture.md](architecture.md#actions-and-providers).
 - The decisions are [ADR-0017](adr/0017-actions-from-providers.md) and, for connections, [ADR-0018](adr/0018-fixed-connections.md).
 
 ## What an instance holds
 
-- **Providers**, installed packages that add action types, Python actions and action files of their own, found through the `tim.actions` entry-point group.
+- **Providers**, installed packages that add action types, Python actions, connection types with their hooks, and action files of their own, found through the `tim.actions` entry-point group. They are installed in a derived image ([Building and deploying](#building-and-deploying)).
 - **Action files**, YAML in one flat directory, `TIM_ACTIONS_DIR` ([configuration.md](configuration.md#actions)).
 - **The connections file**, YAML, `TIM_CONNECTIONS_FILE` ([configuration.md](configuration.md#connections)).
 - **The labels file**, YAML, `TIM_LABELS_FILE` ([configuration.md](configuration.md#labels-and-annotations)).
 
-All are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
+The three kinds of file are mounted under `/etc/tim`. All are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
 
 ## Action files
 
-An action file holds one or more actions, one YAML document each, with `---` between them. Each action names an installed, file-capable action type in `type`, and gives its `key` and the rest of its configuration. Each document is validated on its own.
+The examples here are from [`examples/instance/`](../examples/instance/README.md), an instance laid out as its own repository. An action file holds one or more actions, one YAML document each, with `---` between them. Each action names an installed, file-capable action type in `type`, and gives its `key` and the rest of its configuration. Each document is validated on its own.
+
+[`config/actions/storm-events.yaml`](../examples/instance/config/actions/storm-events.yaml) holds two `kql_query` actions, shown here without some of their params, columns and KQL:
 
 ```yaml
-# yaml-language-server: $schema=./action-file.schema.json
-type: acme_query                 # an installed action type's type_name
-key: acme.sign_ins               # unique across the instance
-name: Sign-ins
-menu: Identity / Entra           # the New menu's folders, /-separated
-description: Sign-ins for the selected users
-pivot: rows                      # row, rows or none
+# yaml-language-server: $schema=../../schema/actions.schema.json
+type: kql_query
+key: example.storm_events
+name: Storm events
+menu: Weather
+description: Storm events in the selected states
+pivot: rows
+connection: samples
+database: Samples
+kql_file: storm-events.kql
 params:
-  - name: users
+  - name: states
     kind: string
-    title: Users
+    title: States
     many: true
-    from_columns: [UserPrincipalName, Upn]
+    from_columns: [State]
   - name: since
     kind: datetime
-    required: false
-    default: 2026-10-01T00:00:00Z
-id: [CorrelationId, RequestId]
+    title: Since
+    required: false       # left out, the KQL's declared default applies
+id: EventId
 columns:
-  - {name: Timestamp, type: datetime, pinned: left, sort: desc}
-  - {name: IpAddress, type: string, hidden: true}
-query_file: sign_ins.kql         # this type's own field, read from a sidecar
+  - {name: StartTime, type: datetime, title: Start, pinned: left, sort: desc}
+  - {name: EventNarrative, type: string, title: Narrative, hidden: true}
 ---
-type: acme_query
-key: acme.users
-name: Users
-pivot: none
-query: |
-  Users
-  | take 100
+type: kql_query
+key: example.storm_episode
+name: Storm episode
+pivot: row
+connection: samples
+database: Samples
+params:
+  - name: episode
+    kind: number
+    from_columns: [EpisodeId]
+id: EventId
+kql: |
+  declare query_parameters(episode: long);
+  StormEvents
+  | where EpisodeId == episode
 ```
 
 The fields every action file takes:
@@ -62,10 +74,19 @@ The fields every action file takes:
 | `description` | no | A longer description. |
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
-| `id` | no | The column that gives each row its `id`, or a list of alternative columns. Leave it out and the rows have no `id`, so they cannot be annotated. |
+| `id` | no | The column that gives each row its `id`, or a list of alternative columns. |
 | `columns` | no | Declared result columns, below. |
 
 The action type adds fields of its own, such as a connection and a query.
+
+### The `id` of a row
+
+Annotations are kept by `id`, so a row needs one to be annotated.
+
+- `id: EventId` takes the `id` from one column.
+- `id: [CorrelationId, RequestId]` lists alternatives. The first non-empty value wins, and the coalesce skips `null` and `""`.
+- Without `id`, the rows have no `id` and cannot be annotated.
+- A type with a different scheme overrides `row_id` ([Writing action types](#writing-action-types)).
 
 ### Params
 
@@ -120,34 +141,56 @@ The tab's grid uses the declared settings as AG Grid's initial column settings.
 
 A query can be written in one of two places. Give one or the other, not both.
 
-- **Inline:** `query: |`.
-- **In a sidecar file** next to the action file, where an editor highlights it: `query_file: sign_ins.kql`.
+- **Inline:** `kql: |`, as `example.storm_episode` does.
+- **In a sidecar file** next to the action file, where an editor highlights it: `kql_file: storm-events.kql`, as `example.storm_events` does.
   - The action type marks which of its fields take a sidecar. For a `kql_query` it is `kql_file`.
   - The sidecar is a file name in the same directory as the action file, not a path.
 
+The sidecar [`storm-events.kql`](../examples/instance/config/actions/storm-events.kql) declares the params it uses:
+
+```kusto
+declare query_parameters(states: dynamic, since: datetime = datetime(2007-01-01),
+    until: datetime = datetime(2008-01-01));
+StormEvents
+| where State in (states) and StartTime between (since .. until)
+```
+
+Kusto binds each param by name from `declare query_parameters`, and an optional param left out takes the declared default ([How Kusto binds params](#how-kusto-binds-params)).
+
+### Several actions in a file
+
+One file can hold several actions, as `storm-events.yaml` does. Each has its own `key`. A sidecar sits next to the file and can be used by any action in it.
+
 ## Connections file
 
-The connections file lists the instance's **connections**: the fixed endpoints actions run against. It is a YAML list, one entry per connection. Analysts never type an endpoint; they pick a connection by its title.
+The connections file lists the instance's **connections**: the fixed endpoints actions run against. It is a YAML list, one entry per connection. Analysts never type an endpoint; they pick a connection by its title. The example's [`connections.yaml`](../examples/instance/config/connections.yaml) holds a Kusto connection and a `lookup` one:
 
 ```yaml
-# yaml-language-server: $schema=./connections.schema.json
+# yaml-language-server: $schema=../schema/connections.schema.json
 - name: samples                  # lowercase letters, digits and -, unique
   title: Samples (help cluster)
   type: kusto                    # an installed connection type
   auth: obo
   cluster: https://help.kusto.windows.net
   databases: [Samples]           # suggestions only
+# A lookup table runs as TIM, so every analyst sees all of it.
+- name: regions
+  title: US regions
+  type: lookup
+  auth: workload_identity
+  entries:
+    TEXAS: {Region: South, Division: West South Central}
 ```
 
-Every entry has `name`, `title`, `type` and `auth`, and a `scope` for `obo` that some connection types default, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it; an unknown `type` or field stops startup, with the file and line.
+Every entry has `name`, `title`, `type` and `auth`, and a `scope` for `obo` that some connection types default, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it ([Writing connection types and hooks](#writing-connection-types-and-hooks)); an unknown `type` or field stops startup, with the file and line.
 
 `auth` says whose identity the system behind the connection sees.
 
 - **`obo`** runs as the analyst.
   - TIM exchanges the analyst's token for the connection's `scope` ([ADR-0009](adr/0009-obo-token-exchange.md)).
   - An instance that has an `obo` connection needs the OBO credential ([configuration.md](configuration.md#authentication)).
-- **`workload_identity`** runs as TIM, and so gives every analyst TIM's access. A `scope` on it stops startup: the connections file refuses it with "scope is only for auth obo".
-  - The `snowflake` connection type supports it. The `kusto` connection type supports only `obo`.
+- **`workload_identity`** runs as TIM, so every analyst gets TIM's access. The example's `regions` connection is one. A connection type lists the `auth` values it supports; `snowflake` supports both, `kusto` only `obo`.
+  - A `scope` on it stops startup: the connections file refuses it with "scope is only for auth obo".
   - An instance whose connections all use `workload_identity` needs no OBO credential.
 
 Every analyst sees every connection. The system behind it enforces access.
@@ -184,11 +227,14 @@ Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in 
 
 The labels file lists the instance's **labels**: what analysts can mark a row with. It is a YAML list, one entry per label. Without it the instance has Malicious (red, skull), Suspicious (amber, warning) and Benign (green, check).
 
+The example's [`labels.yaml`](../examples/instance/config/labels.yaml):
+
 ```yaml
-# yaml-language-server: $schema=./labels.schema.json
-- {key: malicious, name: Malicious, colour: red, symbol: skull}
-- {key: escalated, name: Escalated, colour: blue, symbol: flag}
-- {key: benign, name: Benign, colour: green, symbol: check}
+# yaml-language-server: $schema=../schema/labels.schema.json
+- {key: damaging, name: Damaging, colour: red, symbol: warning}
+- {key: follow-up, name: Follow up, colour: amber, symbol: flag}
+- {key: reviewed, name: Reviewed, colour: green, symbol: check}
+- {key: duplicate, name: Duplicate, colour: grey, symbol: block}
 ```
 
 | Field | Required | Description |
@@ -245,48 +291,13 @@ A `kql_query` action runs fixed KQL in a database of a fixed `kusto` connection,
 | `database` | yes | The database to query. |
 | `kql` or `kql_file` | one of them | The query, inline or in a sidecar next to the action file. |
 
-```yaml
-type: kql_query
-key: acme.storms
-name: Storms
-menu: Weather
-pivot: rows
-connection: security
-database: Samples
-kql_file: storms.kql
-id: EventId
-params:
-  - name: states
-    kind: string
-    many: true
-    from_columns: [State]
-  - name: since
-    kind: datetime
-    required: false
----
-type: kql_query
-key: acme.storm_count
-name: Storm count
-pivot: none
-connection: security
-database: Samples
-kql: |
-  StormEvents | count
-```
-
-`storms.kql`:
-
-```kusto
-declare query_parameters(states: dynamic, since: datetime = datetime(2007-01-01));
-StormEvents
-| where State in (states) and StartTime >= since
-```
+[Action files](#action-files) shows two `kql_query` actions, one with a sidecar and one inline.
 
 The run's time limit, cancelling and the execution metrics work as for Run KQL.
 
 #### How Kusto binds params
 
-Values are never spliced into the KQL text ([ADR-0019](adr/0019-params-are-bound.md)).
+The sidecar of the example's `storm-events.yaml` declares its params with `declare query_parameters(...)`. Values are never spliced into the KQL text ([ADR-0019](adr/0019-params-are-bound.md)).
 
 - The KQL text is sent unchanged.
 - Each param is sent to Kusto by name as a query parameter.
@@ -334,56 +345,130 @@ docker run --rm <api image> tim-api schema labels > labels.schema.json
 docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connections.yaml:ro" -v "$PWD/labels.yaml:/labels.yaml:ro" <api image> tim-api check --actions /actions --connections /connections.yaml --labels /labels.yaml
 ```
 
-- **In the editor:** commit `action-file.schema.json` next to the files, and point `yaml-language-server` at it.
-  - Point it with a `# yaml-language-server: $schema=./action-file.schema.json` line at the top of each file, or with a `yaml.schemas` setting.
-  - It completes and checks the fields of each document by its `type`.
-  - Do the same with `connections.schema.json` for the connections file and `labels.schema.json` for the labels file.
-  - Regenerate them when the image's providers change.
+- **In the editor:** run `tim-api schema` in the derived image, so the schemas include the providers' types, and commit the output for `yaml-language-server`.
+  - The example's [`schema.sh`](../examples/instance/schema.sh) builds the image and writes `schema/actions.schema.json`, `schema/connections.schema.json` and `schema/labels.schema.json`.
+  - Each file starts with a `# yaml-language-server: $schema=...` line that points at its schema, such as `$schema=../../schema/actions.schema.json`. A `yaml.schemas` setting does the same.
+  - The editor completes and checks the fields of each document by its `type`.
+  - Regenerate the schemas when the image's providers or the TIM version change.
 - **In CI:** run `tim-api check --actions <dir> --connections <file> --labels <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections, <k> labels`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
+  - The example's [`ci.sh`](../examples/instance/ci.sh) runs `tim-api check` on `config/`.
+  - It compares each committed schema with the image's, and fails when one is stale.
+  - It validates each YAML document, those of the package data included, against its schema, as an editor does.
 
-## Building and deploying
+## Writing action types
 
-Files and providers reach an instance as follows.
+An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`. [`storm_summary.py`](../examples/instance/src/example_provider/storm_summary.py) is the example.
 
-- **Providers.** Build a [derived image](deployment.md#derived-images): the backend image with the providers installed. Tag it `<tim version>-<revision>`, and rebuild it on each TIM release.
-- **Compose.** Put the files in `TIM_CONFIG_DIR` and name them with `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` ([deployment.md](deployment.md#instance-files)). Set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` for a derived image.
-- **Helm.** Set `actions.files` (or `actions.existingConfigMap`), `connections` and `labels` in values ([deployment.md](deployment.md#instance-files-under-helm)). For a derived image, set `api.image.repository` and `api.image.tag` or `api.image.digest`.
-- **Before you deploy.** Run `tim-api check` in the image you deploy ([Checking files](#checking-files)).
-- **After a change.** The api reads the files at startup, so restart it. In Helm, a change to `actions.files`, `connections` or `labels` restarts the api pods. A change to an `actions.existingConfigMap` needs `kubectl rollout restart deployment/<release>-tim-api`.
-
-## Writing file-capable action types
-
-An action type can be written as files when it sets `type_name` and a `File` model, a subclass of `tim_actions.ActionDocument` with the action type's own fields. A field annotated `Sidecar()` takes a sidecar.
+- **`Param`** declares a param as data, with the fields of [Params](#params). `Column` declares a result column the same way, with the fields of [Columns](#columns). An invalid declaration fails when it is constructed.
+- **`run(params, ctx)`** is synchronous and yields rows as mappings.
+  - `params` holds the validated values.
+  - `ctx` is the `RunContext`: `analyst`, `deadline`, `hook(name)`, `detail(key, value)` and `declare_columns(columns)`.
+  - Raise `RunError` with a message safe to show the analyst. Any other exception ends the run with a generic message.
+- **`connections()`** returns the fixed connections, each name with the connection type it must be.
 
 ```python
-from typing import Annotated
+class StormSummary(Action):
+    """Storm events counted by state and event type over a time window."""
 
-from tim_actions import Action, ActionDocument, Sidecar
+    type_name = "storm_summary"
+    File = StormSummaryFile
 
+    params: Sequence[Param] = PARAMS
+    connection: ConnectionName
+    database: str
 
-class AcmeQueryFile(ActionDocument):
-    connection: str
-    query: Annotated[str, Sidecar()]
+    def connections(self) -> Mapping[str, str]:
+        return {self.connection: "kusto"}
 
-
-class AcmeQuery(Action):
-    """A fixed query on an Acme connection."""
-
-    type_name = "acme_query"
-    File = AcmeQueryFile
-
-    connection: str
-    query: str
-
-    def run(self, params, ctx):
-        ...
+    def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
+        hook = ctx.hook(self.connection)
+        if not isinstance(hook, KustoHook):
+            raise RunError(f"{self.connection} is not a Kusto connection")
+        result = hook.query(
+            self.database, KQL, deadline=ctx.deadline,
+            parameters=query_parameters(self.params, params),
+        )
+        ctx.declare_columns(result.columns)
+        yield from result.rows
 ```
 
-TIM validates each document against the `File` model, then builds the action with `AcmeQuery.from_file(file)`.
+### File-capable action types
+
+An action type can be written as files when it sets `type_name` and a `File` model, a subclass of `tim_actions.ActionDocument` with the action type's own fields. A field annotated `Sidecar()` takes a sidecar. `StormSummaryFile` has `connection` and `database`, and refuses `params`:
+
+```python
+class StormSummaryFile(ActionDocument):
+    connection: ConnectionName
+    database: str
+
+    @field_validator("params")
+    @classmethod
+    def _no_params(cls, value: tuple[Param, ...]) -> tuple[Param, ...]:
+        if value:
+            raise ValueError("storm_summary declares its own params")
+        return value
+```
+
+TIM validates each document against the `File` model, then builds the action with `StormSummary.from_file(file)`.
 
 - The default passes the file's fields, all but `type`, to the action by name.
-- Override `from_file` when the action's fields differ from the file's.
+- Override `from_file` when the action's fields differ from the file's. `StormSummary` keeps its own params:
+
+  ```python
+  @classmethod
+  def from_file(cls, file: DocumentBase) -> Self:
+      return cls.model_validate(
+          {name: value for name, value in file if name not in ("type", "params")}
+      )
+  ```
+
 - The action type's docstring becomes the type's description in the schema.
+
+The action file [`storm-summary.yaml`](../examples/instance/src/example_provider/actions/storm-summary.yaml) then needs no `params`. A field of the `File` model annotated `Sidecar()` reads `<field>_file:`; `kql_query` does so for `kql`.
+
+### Pivots
+
+An action type can change how a pivot fills the params by overriding two methods of `Action`.
+
+- **`pivot_columns()`** returns the groups of alternative columns a row needs one of each to be offered the action. The default makes each required param's `from_columns` a group.
+- **`resolve(context)`** returns a `tim_actions.Resolved` from a `tim_actions.PivotContext`.
+  - `context.rows` holds the selected rows, and `context.cell` the right-clicked `PivotCell(column, value)`, or `None`.
+  - `Resolved.params` maps param names to wire values.
+  - `Resolved.missing` maps the name of each param it couldn't fill to the reason shown to the analyst, or `None`.
+  - The default takes each param's value from its `from_columns`.
+- **Columns seen.** `resolve()` sees only the columns of `pivot_columns()` and every param's `from_columns`.
+
+`StormSummary` offers the action on rows with a state, a start and an end, and takes the window from the earliest `StartTime` and the latest `EndTime`:
+
+```python
+def pivot_columns(self) -> list[list[str]]:
+    return [["State"], ["StartTime"], ["EndTime"]]
+
+def resolve(self, context: PivotContext) -> Resolved:
+    resolved = super().resolve(context)
+    starts = [row["StartTime"] for row in context.rows if row.get("StartTime")]
+    ends = [row["EndTime"] for row in context.rows if row.get("EndTime")]
+    if starts:
+        resolved.params["since"] = min(starts, key=_instant)
+        resolved.missing.pop("since", None)
+    if ends:
+        resolved.params["until"] = max(ends, key=_instant)
+        resolved.missing.pop("until", None)
+    return resolved
+```
+
+### Row ids
+
+`Action.row_id(params)` returns the `RowId` that gives each row of a run its `id`, or `None` for no `id`.
+
+- The default is `tim_actions.IdColumns` over the action's `id` column or list of alternatives. It takes the first value that isn't `None` or `""`.
+- A `RowId` is called with a row, returns its `id` or `None`, and lists the result `columns` it reads. A missing column adds to the run's `warning` detail and never fails the run.
+- `StormSummary` ids each row by its state, event type and the run's window, so an annotation stays with the window it counted:
+
+  ```python
+  def row_id(self, params: Mapping[str, Any]) -> RowId:
+      return _SummaryId(params["since"], params["until"])
+  ```
 
 ### Checking params
 
@@ -403,46 +488,95 @@ An action type can say how a preset of its actions becomes an action file by ove
 - `Action.has_preset_file` is whether the type overrides it. It becomes `actionFile` in the catalogue.
 - `tim_actions.action_file_yaml(document)` writes the document as the YAML of an action file.
 
-### Sinks
+## Writing connection types and hooks
 
-A sink type subclasses `tim_actions.Sink` instead of `Action`. It writes the rows it is given and returns nothing. Its `File` model is a `SinkDocument`, which has only `type`, `key`, `name`, `menu` and `description`, plus the type's own fields.
+A connection type has two parts: a `Connection` model for its entries in the connections file, and a `Hook` that gives actions access to the system behind the connection. [`lookup.py`](../examples/instance/src/example_provider/lookup.py) is the example.
+
+`Connection` is a subclass of `tim_actions.Connection`. It narrows `type` to the type's name and `auth` to the mechanisms it supports, and adds the type's fields:
 
 ```python
-from tim_actions import Sink, SinkDocument
+class LookupConnection(Connection):
+    """A lookup table: each key's fields. Nothing is behind it, so it runs as TIM."""
 
-
-class AcmeTicketsFile(SinkDocument):
-    queue: str
-
-
-class AcmeTickets(Sink):
-    """Writes the rows to an Acme ticket queue."""
-
-    type_name = "acme_tickets"
-    File = AcmeTicketsFile
-
-    queue: str
-
-    def run(self, columns, rows, ctx):
-        ...
+    type: Literal["lookup"]
+    auth: Literal["workload_identity"]
+    entries: dict[str, dict[str, str]]
 ```
 
-- `columns` lists the names and types of the rows' columns. `rows` are the selected rows, every column of each.
-- Raise `RunError` to end the run in error with a message the analyst sees. Report facts with `ctx.detail`.
-- A sink has no `params`, `pivot`, `columns` or `id`. It is offered on any selected rows, in the Annotate dialog and the grid's context menu ([architecture.md](architecture.md#sinks)).
-- TIM ships no sinks.
+- It also takes `name`, `title` and `scope`.
+- `default_scope()` gives the `obo` scope when the file has none. An `obo` connection without a scope fails validation.
+- `database_suggestions()` gives the databases the browser suggests.
 
-### Pivots
+`Hook` is a subclass of `tim_actions.Hook`, built per run for one connection:
 
-An action type can change how a pivot fills the params by overriding two methods of `Action`.
+```python
+class LookupHook(Hook):
+    """Access to one lookup connection's table."""
 
-- **`pivot_columns()`** returns the groups of alternative columns a row needs one of each to be offered the action. The default makes each required param's `from_columns` a group.
-- **`resolve(context)`** returns a `tim_actions.Resolved` from a `tim_actions.PivotContext`.
-  - `context.rows` holds the selected rows, and `context.cell` the right-clicked `PivotCell(column, value)`, or `None`.
-  - `Resolved.params` maps param names to wire values.
-  - `Resolved.missing` maps the name of each param it couldn't fill to the reason shown to the analyst, or `None`.
-  - The default takes each param's value from its `from_columns`.
-- **Columns seen.** `resolve()` sees only the columns of `pivot_columns()` and every param's `from_columns`.
+    connection_type = "lookup"
+    Connection = LookupConnection
+
+    connection: LookupConnection
+
+    def get_conn(self) -> Mapping[str, Mapping[str, str]]:
+        return self.connection.entries
+
+    def cancel(self) -> None:
+        """Nothing to stop: a lookup returns at once."""
+```
+
+- **`connection_type`** is the `type` of the connections it serves.
+- **`Connection`** is the model that validates those entries.
+- **`editor`** is the kind of editor its queries are written in (`kql`, `sql`), or `None`.
+- **`cancel()`** stops the work in progress. TIM calls it from another thread on timeout or cancel.
+- **`editor_schema(scope)`** gives the `EditorSchema` the editor completes from, or `None`, the default. `scope` holds the values of the editor param's `schema_from` params, without its `connection` param. It raises `RunError` when the schema can't be had.
+- **`token_for`** is the callable the hook is built with. `token_for(scope)` gives a token for the analyst, and the hook never sees the analyst's own token.
+- **`get_conn()`** is not on `Hook`. It is the convention for how a hook hands actions its client: `KustoHook.get_conn()` gives an SDK client, and `LookupHook.get_conn()` its table.
+
+An action reaches the hook with `ctx.hook(name)` and checks its type, as `LookupAction` does:
+
+```python
+hook = ctx.hook(self.connection)
+if not isinstance(hook, LookupHook):
+    raise RunError(f"{self.connection} is not a lookup connection")
+table = hook.get_conn()
+```
+
+## Providers
+
+A provider is what a package adds to TIM. `Provider` takes four lists, all optional. The example's [`__init__.py`](../examples/instance/src/example_provider/__init__.py):
+
+```python
+def provider() -> Provider:
+    return Provider(
+        actions=[STATE_REGIONS],
+        action_types=[StormSummary],
+        hooks=[LookupHook],
+        action_files=files("example_provider") / "actions",
+    )
+```
+
+- **`actions`** are Python actions, instances of an `Action` subclass.
+- **`action_types`** are the file-capable action types.
+- **`hooks`** are the hooks of the connection types the package adds.
+- **`action_files`** is a directory of action files in the package data, read like `TIM_ACTIONS_DIR`. Its files can name any installed action type, not only the package's own.
+
+TIM finds the provider through the `tim.actions` entry-point group. The callable that returns it is named in [`pyproject.toml`](../examples/instance/pyproject.toml):
+
+```toml
+[project]
+dependencies = ["tim-actions[kusto]>=1,<2"]
+
+[project.entry-points."tim.actions"]
+example = "example_provider:provider"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/example_provider"]
+```
+
+- The action files must be in the package's wheel, here as `example_provider/actions/*.yaml`.
+- Depend on `tim-actions` as `>=1,<2`, with the `kusto` extra when the package uses Kusto.
+- TIM's built-in provider registers the same way (`tim_actions.builtin:provider`).
 
 ## Testing
 
@@ -483,57 +617,110 @@ The package registers a `pytest11` plugin, so the fixtures need no import.
   - `calls` lists each query as `SnowflakeCall(connection, sql)`.
   - A query with no answer queued fails the test, and so does reaching a Snowflake account, as the editor schema does.
 
-```python
-from tim_actions.kusto import KqlQuery, KustoConnection
-from tim_actions.testing import Connections, load_actions, run_action
-from tim_actions.testing.kusto import FakeKusto, KustoCall
+The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them.
 
-SECURITY = KustoConnection(
-    name="security", title="Security", type="kusto", auth="obo",
-    cluster="https://help.kusto.windows.net",
-)
-STORMS = """\
-type: kql_query
-key: acme.storms
-name: Storms
-pivot: rows
-connection: security
-database: Samples
-kql: StormEvents | where State in (states)
-id: EventId
-params: [{name: states, kind: string, many: true, from_columns: [State]}]
-"""
+- **A fake Kusto.** `tim_kusto` records the KQL and parameters sent, so a test of `StormSummary` checks that the params are bound by name:
 
+  ```python
+  def test_a_run_binds_the_params_by_name_and_ids_each_row_by_its_window(
+      tim_connections: Connections, tim_kusto: FakeKusto
+  ) -> None:
+      tim_connections.add(KustoConnection(name="samples", title="Samples", type="kusto", auth="obo",
+                                          cluster="https://help.kusto.windows.net"))
+      tim_kusto.respond([{"State": "TEXAS", "EventType": "Hail", "Events": 3}])
 
-def test_the_params_reach_kusto(tmp_path, tim_kusto: FakeKusto, tim_connections: Connections):
-    (tmp_path / "storms.yaml").write_text(STORMS)
-    action = load_actions(tmp_path, [KqlQuery])["acme.storms"]
-    tim_connections.add(SECURITY)
-    tim_kusto.respond([{"EventId": 61032, "State": "TEXAS"}])
-    result = run_action(action, {"states": ["TEXAS"]}, connections=tim_connections)
-    assert tim_kusto.calls == [
-        KustoCall(
-            "security", "Samples", "StormEvents | where State in (states)",
-            {"states": 'dynamic(["TEXAS"])'},
-        )
-    ]
-    assert result.ids == ["61032"]
+      result = run_action(
+          SUMMARY,
+          {"states": ["TEXAS"], "since": "2007-05-04T21:00:00Z", "until": "2007-08-19T00:00:00Z"},
+          connections=tim_connections,
+      )
+
+      [call] = tim_kusto.calls
+      assert call.parameters["states"] == 'dynamic(["TEXAS"])'
+      assert result.ids == ['["TEXAS","Hail","2007-05-04T21:00:00Z","2007-08-19T00:00:00Z"]']
+  ```
+
+- **A hook as it is.** A hook with nothing behind it needs no fake. `Connections.add(connection, hook)` takes the `LookupHook` class itself:
+
+  ```python
+  connections = Connections()
+  connections.add(REGIONS, LookupHook)
+  result = run_action(STATE_REGIONS, {"keys": ["TEXAS", "GUAM"]}, connections=connections)
+  ```
+
+- **A pivot.** `resolve_pivot(SUMMARY, rows)` gives the params a pivot fills, and `.missing` the ones it couldn't.
+- **Action files.** `load_actions(CONFIG / "actions", [KqlQuery])` loads the instance's own files, and a test pivots from a row into one of them. `load_actions(files("example_provider") / "actions", provider().action_types)` loads the provider's package data. A file that breaks a rule, such as `params` on a `storm_summary`, raises `ActionFilesError`.
+
+The tests also run inside the derived image ([Building and deploying](#building-and-deploying)).
+
+## Building and deploying
+
+An instance's providers reach it in a [derived image](deployment.md#derived-images), and its files are mounted under `/etc/tim`.
+
+The example's [`Dockerfile`](../examples/instance/Dockerfile) installs the provider into the backend image against its constraints, and has a `test` stage:
+
+```dockerfile
+ARG BASE
+FROM ${BASE} AS instance
+COPY --chown=tim:tim pyproject.toml /tmp/provider/
+COPY --chown=tim:tim src /tmp/provider/src
+RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/provider
+
+# The tests run against the tim-actions the image ships.
+FROM instance AS test
+RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt pytest
+COPY --chown=tim:tim tests /tmp/provider/tests
+COPY --chown=tim:tim config /tmp/provider/config
+WORKDIR /tmp/provider
+RUN python -m pytest -p no:cacheprovider
+
+FROM instance
 ```
 
-## Providers
+- **Constraints.** A provider can't move TIM's pins.
+- **Tests in the image.** `docker build --build-arg BASE=<backend image> --target test .` runs the tests against the `tim-actions` the image ships. The last stage is the image.
+- **Tags.** Name the image `<tim version>-<revision>`, such as `5.0.0-example.1`, and rebuild it on each TIM release.
+- **Before you deploy.** Run `tim-api check` in the image you deploy ([Checking files](#checking-files)).
 
-A provider lists its file-capable action types in `Provider(action_types=[...])`, and can ship action files as package data in `Provider(action_files=...)`, a directory read like `TIM_ACTIONS_DIR`:
+Then deploy it with Helm or Compose.
+
+- **Helm.** [`deploy/helm/values.yaml`](../examples/instance/deploy/helm/values.yaml) goes on top of the operator's values:
+  - `helm upgrade --install tim oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim --version X.Y.Z -n tim -f <your values> -f values.yaml`.
+  - `api.image.repository` and `api.image.tag` name the derived image. `api.image.digest` also works.
+  - `actions.files` holds the files of `config/actions/`, sidecars included, by file name. `actions.existingConfigMap` is the alternative.
+  - `connections` and `labels` hold the other two files as YAML ([deployment.md](deployment.md#instance-files-under-helm)).
+  - A change to `actions.files`, `connections` or `labels` restarts the api pods. A change to an `actions.existingConfigMap` needs `kubectl rollout restart deployment/<release>-tim-api`.
+- **Compose.** [`deploy/compose/.env`](../examples/instance/deploy/compose/.env) is a second `--env-file`, after the operator's own, for TIM's `deploy/compose.prod.yaml` ([deployment.md](deployment.md#instance-files)):
+  - `docker compose -f deploy/compose.prod.yaml --env-file deploy/.env --env-file <this file> up -d --no-build`.
+  - `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` name the derived image.
+  - `TIM_CONFIG_DIR` is the host directory holding a copy of `config/`, here `/srv/tim-instance/config`. `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` name the files under `/etc/tim` ([deployment.md](deployment.md#instance-files)).
+- **After a change.** The api reads the files at startup, so restart it.
+
+## A sink
+
+A sink type subclasses `tim_actions.Sink` instead of `Action`. It writes the rows it is given and returns nothing. TIM ships no sinks. Its `File` model is a `SinkDocument`, which has only `type`, `key`, `name`, `menu` and `description`, plus the type's own fields.
 
 ```python
-from importlib.resources import files
-
-from tim_actions import Provider
+from tim_actions import Sink, SinkDocument
 
 
-def provider() -> Provider:
-    return Provider(action_types=[AcmeQuery], action_files=files("acme_tim") / "actions")
+class AcmeTicketsFile(SinkDocument):
+    queue: str
+
+
+class AcmeTickets(Sink):
+    """Writes the rows to an Acme ticket queue."""
+
+    type_name = "acme_tickets"
+    File = AcmeTicketsFile
+
+    queue: str
+
+    def run(self, columns, rows, ctx):
+        ...
 ```
 
-The files must be in the package's wheel, as `acme_tim/actions/*.yaml`. A provider's files can name any installed action type, not only its own.
-
-Depend on `tim-actions` as `>=1,<2`. Test the provider with [`tim_actions.testing`](#testing). An instance installs the provider in a derived image ([Building and deploying](#building-and-deploying)).
+- `columns` lists the names and types of the rows' columns. `rows` are the selected rows, every column of each.
+- Raise `RunError` to end the run in error with a message the analyst sees. Report facts with `ctx.detail`.
+- A sink has no `params`, `pivot`, `columns` or `id`. It is offered on any selected rows, in the Annotate dialog and the grid's context menu ([architecture.md](architecture.md#sinks)).
+- Test it with `run_sink` ([Testing](#testing)).

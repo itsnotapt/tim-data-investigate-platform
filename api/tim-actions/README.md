@@ -1,32 +1,7 @@
 # tim-actions
 
-The interface TIM providers build against, released on its own semver (`tim-actions-vX.Y.Z`). Providers declare `tim-actions>=1,<2`.
+The interface TIM providers build against: the base classes of action types, connection types and hooks, `Provider`, and `tim_actions.testing`. It is released on its own semver (`tim-actions-vX.Y.Z`). Providers declare `tim-actions>=1,<2`.
 
-- `Action`: the base of a query action type. Subclass it, add your configuration fields and implement `run(params, ctx)`; each instance is one action, with its `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`.
-- `RunContext`: what `run` is given: `analyst`, `deadline`, `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
-  - `run` is synchronous, and yields rows as mappings.
-  - Raise `RunError` with a message safe to show the analyst. Any other exception ends the run with a generic message.
-- `PivotContext`, `PivotCell`, `Resolved` and `resolve_pivot`: a pivot from result rows.
-  - `Action.resolve(context)` returns the `Resolved` params of a pivot, and the params it couldn't fill with the reason or `None`. The default reads each param's `from_columns`.
-  - `Action.pivot_columns()` returns the column groups a row needs one of each from to be offered the action. The default makes each required param's `from_columns` a group.
-  - `resolve_pivot(action, rows, cell)` trims the rows to those columns and the params' `from_columns`, then calls `resolve()`.
-- `RowId` and `IdColumns`: how a row's `id` is taken from it. `Action.row_id(params)` returns `IdColumns` over the action's `id` column or list of alternatives by default, which takes the first that isn't `None` or `""`; override it for anything else.
-- `Param` and `Column`: params and result columns, declared as data. An invalid declaration fails when it is constructed. A `Column` named in `TIM_COLUMNS` (`tim:label`, `tim:tags`, `tim:commentText`, `tim:comments`) only sets up that grid column of TIM's: it is not one of the run's columns.
-- `validate_params(params, values, connections=...)`: validates and converts param values, raising `ParamsError` with errors keyed `params.<name>`.
-- `Hook`: access to a connection type's backend, with `cancel()` and `editor_schema(scope)`.
-- `ActionDocument` and `Sidecar`:
-  - A file-capable action type sets `type_name`, and a `File` model subclassing `ActionDocument`, so YAML action files can configure its actions.
-  - `Action.from_file` builds the action from the validated file.
-  - A `str` field annotated `Sidecar()` can be read from a file next to the action file instead (`<field>_file:`).
-- `tim_actions.testing`: runs actions, sinks, pivots and action files as TIM does, for provider authors' tests.
-  - `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`.
-  - A `pytest11` plugin adds the fixtures `tim_analyst`, `tim_connections`, `tim_kusto` and `tim_snowflake` (the last two need the `kusto` and `snowflake` extras).
-  - Guide: [actions.md](../../docs/actions.md#testing).
-- `Provider(actions, action_types, hooks, action_files)`: what a package adds; `action_files` is a directory of action files in the package's data. Expose a callable returning one in the `tim.actions` entry-point group:
-
-  ```toml
-  [project.entry-points."tim.actions"]
-  acme = "acme_tim:provider"
-  ```
-
-TIM's own built-in provider registers the same way (`tim_actions.builtin:provider`). How TIM loads providers: [architecture.md](../../docs/architecture.md#actions-and-providers). Writing action files and checking them: [actions.md](../../docs/actions.md).
+- Writing action types, connection types and hooks, providers and tests: [docs/actions.md](../../docs/actions.md#writing-action-types) (sections Writing action types to Testing).
+- A working provider with its tests, files and deployment: [examples/instance/](../../examples/instance/README.md).
+- How TIM loads providers: [architecture.md](../../docs/architecture.md#actions-and-providers).

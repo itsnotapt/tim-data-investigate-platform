@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TIM connections file",
+  "$defs": {
+    "kusto": {
+      "additionalProperties": false,
+      "description": "A Kusto cluster. ``cluster`` is normalised to ``https://<host>``; ``databases`` are\nsuggestions for the analyst, not a restriction. The ``obo`` scope defaults to\n``{cluster}/.default``.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "type": {
+          "const": "kusto",
+          "title": "Type",
+          "type": "string"
+        },
+        "auth": {
+          "const": "obo",
+          "title": "Auth",
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope"
+        },
+        "cluster": {
+          "title": "Cluster",
+          "type": "string"
+        },
+        "databases": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Databases"
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "type",
+        "auth",
+        "cluster"
+      ],
+      "title": "kusto",
+      "type": "object"
+    },
+    "lookup": {
+      "additionalProperties": false,
+      "description": "A lookup table: each key's fields. Nothing is behind it, so it runs as TIM.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "type": {
+          "const": "lookup",
+          "title": "Type",
+          "type": "string"
+        },
+        "auth": {
+          "const": "workload_identity",
+          "title": "Auth",
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope"
+        },
+        "entries": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Entries",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "type",
+        "auth",
+        "entries"
+      ],
+      "title": "lookup",
+      "type": "object"
+    }
+  },
+  "items": {
+    "discriminator": {
+      "mapping": {
+        "kusto": "#/$defs/kusto",
+        "lookup": "#/$defs/lookup"
+      },
+      "propertyName": "type"
+    },
+    "oneOf": [
+      {
+        "$ref": "#/$defs/kusto"
+      },
+      {
+        "$ref": "#/$defs/lookup"
+      }
+    ]
+  },
+  "type": "array"
+}

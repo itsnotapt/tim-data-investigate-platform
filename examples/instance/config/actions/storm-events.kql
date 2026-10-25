@@ -1,0 +1,8 @@
+declare query_parameters(states: dynamic, since: datetime = datetime(2007-01-01),
+    until: datetime = datetime(2008-01-01));
+StormEvents
+| where State in (states) and StartTime between (since .. until)
+| project StartTime, EndTime, State, EventType, EventId, EpisodeId, DamageProperty,
+    DeathsDirect, EventNarrative
+| order by StartTime desc
+| take 1000

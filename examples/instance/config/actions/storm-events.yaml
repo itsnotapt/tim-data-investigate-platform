@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../../schema/actions.schema.json
+# kql_query actions over Samples.StormEvents: one with its KQL in a sidecar, one inline.
+type: kql_query
+key: example.storm_events
+name: Storm events
+menu: Weather
+description: Storm events in the selected states
+pivot: rows
+connection: samples
+database: Samples
+kql_file: storm-events.kql
+params:
+  - name: states
+    kind: string
+    title: States
+    many: true
+    from_columns: [State]
+  - name: since
+    kind: datetime
+    title: Since
+    required: false       # left out, the KQL's declared default applies
+  - name: until
+    kind: datetime
+    title: Until
+    required: false
+id: EventId
+columns:
+  - {name: StartTime, type: datetime, title: Start, pinned: left, sort: desc}
+  - {name: State, type: string, width: 160}
+  - {name: EventType, type: string, title: Event type}
+  - {name: EventNarrative, type: string, title: Narrative, hidden: true}
+---
+type: kql_query
+key: example.storm_episode
+name: Storm episode
+menu: Weather
+description: Every event in the episode of the selected event
+pivot: row
+connection: samples
+database: Samples
+params:
+  - name: episode
+    kind: number
+    title: Episode
+    from_columns: [EpisodeId]
+id: EventId
+kql: |
+  declare query_parameters(episode: long);
+  StormEvents
+  | where EpisodeId == episode
+  | project StartTime, EndTime, State, EventType, EventId, EpisodeId, EventNarrative
+  | order by StartTime asc
