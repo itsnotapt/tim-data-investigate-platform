@@ -12,7 +12,6 @@ import type {
 import type { CustomCellRendererProps } from 'ag-grid-react';
 import type { ComponentType } from 'react';
 import { DeterminationSymbol } from './DeterminationSymbol';
-import { ExecutionStatusPanel } from './ExecutionStatusPanel';
 import { aggFuncs } from './aggregation';
 import { ROW_ID_FIELD, scalarText } from './columns';
 import type { GridRowWithId } from './columns';
@@ -21,9 +20,8 @@ import { rowClassRules } from './rowClasses';
 /** Side bar (screens 17, 18): Columns and Filters tool panels. */
 export const SIDE_BAR: SideBarDef['toolPanels'] & string[] = ['columns', 'filters'];
 
-/** Screen 15: execution stats on the left, then total / filtered / selected counts. */
+/** Total, filtered and selected counts. */
 export const STATUS_PANELS: StatusPanelDef[] = [
-  { statusPanel: ExecutionStatusPanel, align: 'left' },
   { statusPanel: 'agTotalRowCountComponent' },
   { statusPanel: 'agFilteredRowCountComponent' },
   { statusPanel: 'agSelectedRowCountComponent' },

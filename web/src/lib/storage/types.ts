@@ -21,34 +21,34 @@ export interface DisplayComponentState {
   error: StoredError | null;
   rowCount: number | null;
   isExecuting: boolean;
-  /** Action tabs only: the envelope of the latest run, picked up again by `runId`. */
+  /** The envelope of the latest run, picked up again by `runId`. */
   run?: Run | null;
-  /** Action tabs only: a cancel was asked for and the run has not ended yet. */
+  /** A cancel was asked for and the run has not ended yet. */
   cancelling?: boolean;
-  /** Action tabs only: why each param was refused when the run could not start, by name. */
+  /** Why each param was refused when the run could not start, by name. */
   paramErrors?: ParamErrors | null;
-  /** Action tabs only: the plain params the latest run started with. */
+  /** The plain params the latest run started with. */
   runParams?: Record<string, unknown> | null;
-  /** Action tabs only: the run whose rows are in `row_results`. */
+  /** The run whose rows are in `row_results`. */
   resultsRunId?: string | null;
-  /** Action tabs only: the columns of that run. */
+  /** The columns of that run. */
   resultColumns?: RunColumn[] | null;
-  /** Action tabs only: when that run started. */
+  /** When that run started. */
   resultsStartedAt?: string | null;
   /**
-   * Action tabs only: the params a pivot left missing, by name, each with the reason or `null`.
+   * The params a pivot left missing, by name, each with the reason or `null`.
    * Cleared when a run starts.
    */
   pivotMissing?: Record<string, string | null> | null;
   /**
-   * Action tabs only: the column and filter sections of the tab's grid state, as the analyst last
+   * The column and filter sections of the tab's grid state, as the analyst last
    * left them, in the shape of a column view's state.
    */
   gridState?: GridState | null;
-  /** Action tabs only: the column view the tab started from or last picked. */
+  /** The column view the tab started from or last picked. */
   columnView?: TabColumnView | null;
   /**
-   * Action tabs only: the row a share link named, focused with its History open once the run's
+   * The row a share link named, focused with its History open once the run's
    * rows show. Cleared then, and also when the run ends without success, when the stored rows
    * lack that row, or when a new run of the tab starts.
    */
@@ -95,7 +95,7 @@ export type DisplayComponent = ActionDisplayComponent;
 /** One stored row: an action run row `{row, id, data}`. */
 export type RowResult = Record<string, unknown>;
 
-/** Global named AG Grid column state, for Kusto tabs. */
+/** A named AG Grid column state, global to the analyst's browser, offered by the column-view bar. */
 export interface ColumnView {
   /** Key (store `column_views`). */
   uuid: string;

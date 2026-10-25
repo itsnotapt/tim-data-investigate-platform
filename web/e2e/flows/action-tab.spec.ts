@@ -2,49 +2,47 @@ import type { Page } from '@playwright/test';
 import { grid, openAction } from '../actionTab';
 import { test, expect } from '../realApi';
 
-test(
-  'an action opened from the New menu runs with a pill’s value, and its rows survive a reload and the run’s expiry',
-  { tag: '@smoke' },
-  async ({ page }) => {
-    await openAction(page, ['Development', 'Rows', 'Sign-ins']);
-    await expect(page).toHaveURL(/\/view\//);
-    await expect(page.getByRole('heading', { name: 'Sign-ins' })).toBeVisible();
+test('an action opened from the New menu runs with a pill’s value, and its rows survive a reload and the run’s expiry', async ({
+  page,
+}) => {
+  await openAction(page, ['Development', 'Rows', 'Sign-ins']);
+  await expect(page).toHaveURL(/\/view\//);
+  await expect(page.getByRole('heading', { name: 'Sign-ins' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Users: not set' }).click();
-    const users = page.getByRole('textbox', { name: 'Add Users' });
-    await users.fill('alice@example.com');
-    await users.press('Enter');
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('button', { name: 'Users: alice@example.com' })).toBeVisible();
+  await page.getByRole('button', { name: 'Users: not set' }).click();
+  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await users.fill('alice@example.com');
+  await users.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Users: alice@example.com' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Run' }).click();
-    await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
-    await expect(grid(page).getByText('c-1')).toBeVisible();
-    await expect(grid(page).getByText('c-3')).toBeVisible();
-    await expect(grid(page).getByText('bob@example.com')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
+  await expect(grid(page).getByText('c-1')).toBeVisible();
+  await expect(grid(page).getByText('c-3')).toBeVisible();
+  await expect(grid(page).getByText('bob@example.com')).toHaveCount(0);
 
-    await page.reload();
-    await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
-    await expect(grid(page).getByText('c-3')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
+  await expect(grid(page).getByText('c-3')).toBeVisible();
 
-    // The run has expired: the server no longer knows it. The rows come from IndexedDB.
-    await page.route('**/api/runs/**', (route) =>
-      route.fulfill({
+  // The run has expired: the server no longer knows it. The rows come from IndexedDB.
+  await page.route('**/api/runs/**', (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({
+        type: 'urn:tim:problem:not-found',
+        title: 'Not found',
         status: 404,
-        contentType: 'application/problem+json',
-        body: JSON.stringify({
-          type: 'urn:tim:problem:not-found',
-          title: 'Not found',
-          status: 404,
-        }),
       }),
-    );
-    await page.reload();
-    await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
-    await expect(grid(page).getByText('c-1')).toBeVisible();
-    await expect(page.getByRole('alert')).toHaveCount(0);
-  },
-);
+    }),
+  );
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
+  await expect(grid(page).getByText('c-1')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
 
 test('a long run is picked up again after a reload', async ({ page }) => {
   await openAction(page, ['Development', 'Runs', 'Delayed']);

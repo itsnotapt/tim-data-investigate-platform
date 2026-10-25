@@ -822,7 +822,7 @@ An action reaches a connection only through `ctx.hook(name)`. It refuses a conne
 
 The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fields `cluster`, `databases` (optional) and `scope` (optional), and the auth `obo`:
 
-- `cluster` gets the URL shape checks and normalisation to `https://<host>` ([configuration.md](configuration.md#connections)) when the file is read. There is no allow-list: the operator names each cluster.
+- `cluster` gets the URL shape checks and normalisation to `https://<host>` ([configuration.md](configuration.md#connections)) when the file is read.
 - `scope` defaults to `{cluster}/.default`.
 - `databases` are suggestions the browser offers for the `database` param. They don't restrict it.
 

@@ -88,7 +88,6 @@ A `cluster` is checked when the file is read. A rejected value stops startup wit
 - It has no credentials, query, fragment or path (a trailing `/` is accepted), and no IP address literal.
 - Its port is omitted or `443`.
 - Its host is a valid domain name; an internationalised name is converted to punycode.
-- No list of allowed hosts applies: the operator names each cluster.
 
 ```yaml
 - name: samples

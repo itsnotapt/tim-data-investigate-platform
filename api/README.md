@@ -210,7 +210,7 @@ Rules:
 
 The task:
 
-- waits for a slot of the semaphore (`app.state.run_slots`);
+- waits for a slot of the semaphore (`Runner`'s `slots`, sized by `max_concurrent_runs`);
 - runs the action's synchronous `run(params, ctx)` in a daemon thread named `tim-run-<runId>`.
 
 `ctx` (`_Context`) implements `tim_actions.RunContext`.

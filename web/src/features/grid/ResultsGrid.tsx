@@ -36,8 +36,6 @@ import {
   staticGridOptions,
 } from './gridOptions';
 import type { ExtraMenuItems, GetExtraContextMenuItems } from './gridOptions';
-import { createStatsStore } from './status';
-import type { ExecutionStats, StatsStore } from './status';
 import './grid.css';
 
 // Registers modules and applies the licence key before any grid renders (this chunk is lazy).
@@ -65,7 +63,6 @@ export interface ResultsGridProps {
   columnId?: string | null;
   /** Column definitions to use instead of those built from the rows. */
   columnDefs?: ColDef[];
-  stats?: ExecutionStats;
   /**
    * Extra context menu items, placed above copy / export. An array is a list of groups: the first
    * group is followed by "Show details" (tagging), each later non-empty group comes after a
@@ -102,9 +99,9 @@ export interface ResultsGridProps {
   onCellFocused?: (event: CellFocusedEvent<GridRowWithId>) => void;
   /** The side bar, instead of Columns and Filters. */
   sideBar?: SideBarDef;
-  /** Status bar panels after the execution stats, before the counts. */
+  /** Status bar panels before the counts. */
   statusPanels?: StatusPanelDef[];
-  /** More of the grid's `context`, beside the execution stats, for custom panels. */
+  /** The grid's `context`, for custom panels. */
   context?: Record<string, unknown>;
   /** The grid's state changed while it's shown (not while its tab is hidden). */
   onStateUpdated?: (event: StateUpdatedEvent<GridRowWithId>) => void;
@@ -114,7 +111,6 @@ export function ResultsGrid({
   rows,
   columnId,
   columnDefs: givenColumnDefs,
-  stats,
   getContextMenuItems,
   getMainMenuItems,
   onGridReady,
@@ -145,13 +141,10 @@ export function ResultsGrid({
     detailOpenRef.current = detailOpen;
   }, [detailOpen]);
 
-  const [statsStore] = useState<StatsStore>(() => createStatsStore());
-  statsStore.set(stats ?? {});
-  const context = useMemo(() => ({ ...extraContext, statsStore }), [extraContext, statsStore]);
   const statusBar = useMemo(
     () =>
       statusPanels && {
-        statusPanels: [STATUS_PANELS[0]!, ...statusPanels, ...STATUS_PANELS.slice(1)],
+        statusPanels: [...statusPanels, ...STATUS_PANELS],
       },
     [statusPanels],
   );
@@ -258,7 +251,7 @@ export function ResultsGrid({
           selectionColumnDef={selectionColumnDef}
           rowData={rowData}
           columnDefs={columnDefs}
-          context={context}
+          context={extraContext}
           quickFilterText={quick}
           getContextMenuItems={menu}
           getMainMenuItems={getMainMenuItems}

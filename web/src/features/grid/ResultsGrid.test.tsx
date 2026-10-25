@@ -3,7 +3,6 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
-import { ExecutionStatusView } from './ExecutionStatusPanel';
 import { ResultsGrid } from './ResultsGrid';
 import { initAgGrid } from './agGridSetup';
 import { useDeterminationSymbols } from './determinationSymbols';
@@ -14,25 +13,6 @@ const rows = [
   { EventId: 'b', Name: 'beta', Extra: 1 },
   { EventId: 'c', Name: 'gamma', TagEvent: { Determination: 'malicious' } },
 ];
-
-describe('ExecutionStatusView', () => {
-  it('renders time, CPU and memory MB', () => {
-    render(
-      <ExecutionStatusView
-        stats={{ executionTime: 0.42, cpuUsage: '00:00:00.1', memoryUsage: 3 * 1048576 }}
-      />,
-    );
-    expect(screen.getByText('Execution Time:')).toBeInTheDocument();
-    expect(screen.getByText('0.42')).toBeInTheDocument();
-    expect(screen.getByText('00:00:00.1')).toBeInTheDocument();
-    expect(screen.getByText('3MB')).toBeInTheDocument();
-  });
-  it('hides absent stats', () => {
-    render(<ExecutionStatusView stats={{ executionTime: 1 }} />);
-    expect(screen.queryByText('CPU Time:')).toBeNull();
-    expect(screen.queryByText('Memory:')).toBeNull();
-  });
-});
 
 describe('ResultsGrid', () => {
   it('initAgGrid works without a licence key', () => {
