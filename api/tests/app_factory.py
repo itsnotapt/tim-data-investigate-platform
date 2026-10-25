@@ -13,7 +13,7 @@ from tim_actions import Provider
 from tim_api.auth import TokenValidator, get_token_validator
 from tim_api.config import Settings, get_settings
 from tim_api.main import create_app
-from tim_api.query_runs.runner import RACE_SECONDS
+from tim_api.runs.runner import RACE_SECONDS
 from tim_api.storage import MemoryStorage, Storage
 
 

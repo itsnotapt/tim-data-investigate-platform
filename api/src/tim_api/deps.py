@@ -8,7 +8,6 @@ from tim_api.storage import (
     AnnotationStore,
     ColumnViewStore,
     PresetStore,
-    QueryRunStore,
     RunStore,
     Storage,
 )
@@ -17,10 +16,6 @@ from tim_api.storage import (
 def get_storage(request: Request) -> Storage:
     storage: Storage = request.app.state.storage
     return storage
-
-
-def get_query_run_store(request: Request) -> QueryRunStore:
-    return get_storage(request).query_runs
 
 
 def get_run_store(request: Request) -> RunStore:

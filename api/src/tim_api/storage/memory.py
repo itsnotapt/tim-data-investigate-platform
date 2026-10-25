@@ -23,7 +23,6 @@ from tim_api.annotations.models import (
 )
 from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
-from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
     AlreadyExistsError,
@@ -35,82 +34,9 @@ from tim_api.storage.base import (
     ColumnViewStore,
     NotFoundError,
     PresetStore,
-    QueryRunStore,
     RunStore,
     Storage,
 )
-
-
-class MemoryQueryRunStore(QueryRunStore):
-    def __init__(self) -> None:
-        self._items: dict[UUID, KustoQueryRun] = {}
-        self._lock = asyncio.Lock()
-
-    async def create(self, run: KustoQueryRun) -> KustoQueryRun:
-        async with self._lock:
-            if run.query_run_id in self._items:
-                raise AlreadyExistsError(str(run.query_run_id))
-            self._items[run.query_run_id] = run.model_copy(deep=True)
-            return run.model_copy(deep=True)
-
-    async def get_for_owner(self, run_id: UUID, owner: str, now: datetime) -> KustoQueryRun | None:
-        async with self._lock:
-            run = self._items.get(run_id)
-            if run is None or run.kusto_query.requested_by != owner or run.expires_at <= now:
-                return None
-            return run.model_copy(deep=True)
-
-    async def update_result(
-        self,
-        run_id: UUID,
-        *,
-        status: QueryRunStatus,
-        expires_at: datetime,
-        result_data: list[dict[str, Any]] | None = None,
-        execution_metrics: KustoQueryStats | None = None,
-        main_error: str | None = None,
-    ) -> KustoQueryRun:
-        async with self._lock:
-            run = self._items.get(run_id)
-            if run is None:
-                raise NotFoundError(str(run_id))
-            new = run.model_copy(
-                deep=True,
-                update={
-                    "status": status,
-                    "expires_at": expires_at,
-                    "result_data": result_data,
-                    "execution_metrics": execution_metrics,
-                    "main_error": main_error,
-                },
-            )
-            new = new.model_copy(deep=True)  # detach from the caller's argument objects
-            self._items[run_id] = new
-            return new.model_copy(deep=True)
-
-    async def delete_expired(self, now: datetime) -> int:
-        async with self._lock:
-            expired = [k for k, r in self._items.items() if r.expires_at <= now]
-            for key in expired:
-                del self._items[key]
-            return len(expired)
-
-    async def mark_stale_created_as_error(
-        self, before: datetime, *, message: str, expires_at: datetime
-    ) -> int:
-        async with self._lock:
-            count = 0
-            for key, run in self._items.items():
-                if run.status == QueryRunStatus.CREATED and run.execute_date_time_utc < before:
-                    self._items[key] = run.model_copy(
-                        update={
-                            "status": QueryRunStatus.ERROR,
-                            "main_error": message,
-                            "expires_at": expires_at,
-                        }
-                    )
-                    count += 1
-            return count
 
 
 class MemoryRunStore(RunStore):
@@ -464,7 +390,6 @@ class MemoryAnnotationStore(AnnotationStore):
 
 class MemoryStorage(Storage):
     def __init__(self) -> None:
-        self.query_runs = MemoryQueryRunStore()
         self.runs = MemoryRunStore()
         self.presets = MemoryPresetStore()
         self.column_views = MemoryColumnViewStore()

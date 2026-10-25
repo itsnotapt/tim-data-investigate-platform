@@ -1,4 +1,4 @@
-"""Periodic deletion of expired runs and query runs (ADR-0004).
+"""Periodic deletion of expired runs (ADR-0004).
 
 One mechanism for every run, independent of the backing store. Correctness does not depend on
 the loop: reads already treat an expired run as missing. Runs are deleted a few at a time, each
@@ -21,8 +21,8 @@ RUNS_PER_BATCH = 10
 
 
 async def sweep_expired(storage: Storage, now: datetime | None = None) -> int:
-    """Delete expired runs and query runs once; returns how many. Failures are logged and
-    swallowed (retried next tick)."""
+    """Delete expired runs once; returns how many. Failures are logged and swallowed (retried
+    next tick)."""
     now = now or datetime.now(UTC)
     deleted = 0
     try:
@@ -30,15 +30,12 @@ async def sweep_expired(storage: Storage, now: datetime | None = None) -> int:
             deleted += batch
             if batch < RUNS_PER_BATCH:
                 break
-        if deleted:
-            logger.info("Retention sweep deleted %d expired run(s)", deleted)
-        query_runs = await storage.query_runs.delete_expired(now)
     except Exception:
         logger.exception("Retention sweep failed")
         return deleted
-    if query_runs:
-        logger.info("Retention sweep deleted %d expired query run(s)", query_runs)
-    return deleted + query_runs
+    if deleted:
+        logger.info("Retention sweep deleted %d expired run(s)", deleted)
+    return deleted
 
 
 async def _loop(storage: Storage, interval: float) -> None:
