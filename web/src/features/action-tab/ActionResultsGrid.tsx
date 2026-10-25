@@ -307,7 +307,6 @@ export function ActionResultsGrid({
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
       <ResultsGrid
         {...rest}
-        columnViews={false}
         sideBar={ACTION_SIDE_BAR}
         statusPanels={ACTION_STATUS_PANELS}
         context={context}

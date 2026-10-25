@@ -20,7 +20,6 @@ import type {
   StateUpdatedEvent,
   StatusPanelDef,
 } from 'ag-grid-community';
-import { ColumnViewBar } from '../column-views';
 import { DetailPanel } from './DetailPanel';
 import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
@@ -74,12 +73,10 @@ export interface ResultsGridProps {
   /** Exposes the grid api (column state save/restore, transactions). */
   onGridReady?: (event: GridReadyEvent<GridRowWithId>) => void;
   onCellEditRequest?: (event: CellEditRequestEvent<GridRowWithId>) => void;
-  /** Rendered right of the quick filter (column view bar). */
+  /** Rendered right of the quick filter. */
   toolbarExtra?: ReactNode;
   /** CSS height of the grid. */
   height?: string | number;
-  /** Column view bar beside the quick filter. Default on. */
-  columnViews?: boolean;
   /** Detail drawer, "Show details" context menu item, follows the focused cell. Default on. */
   detailPanel?: boolean;
   /**
@@ -117,7 +114,6 @@ export function ResultsGrid({
   onCellEditRequest,
   toolbarExtra,
   height = 'calc(100vh - 200px)',
-  columnViews = true,
   detailPanel = true,
   stateKey,
   rowClassRules,
@@ -131,7 +127,6 @@ export function ResultsGrid({
 }: ResultsGridProps) {
   const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
-  const [gridApi, setGridApi] = useState<GridApi<GridRowWithId> | null>(null);
   const { containerRef, attach, save } = useTabColumnState(stateKey);
 
   const [detailOpen, setDetailOpen] = useState(false);
@@ -240,7 +235,6 @@ export function ResultsGrid({
           }}
         />
         <Box sx={{ flex: 5 }}>
-          {columnViews && <ColumnViewBar api={gridApi} />}
           {toolbarExtra}
         </Box>
       </Box>
@@ -268,7 +262,6 @@ export function ResultsGrid({
           }}
           onGridReady={(e) => {
             apiRef.current = e.api;
-            setGridApi(e.api);
             attach(e.api);
             onGridReady?.(e);
           }}

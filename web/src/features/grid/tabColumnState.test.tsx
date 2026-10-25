@@ -1,7 +1,7 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
-import { tabColumnState } from '../column-views';
+import { tabColumnState } from './tabColumnState';
 import { ResultsGrid } from './ResultsGrid';
 
 const rows = [{ EventId: 'a', Name: 'alpha', Other: 1 }];

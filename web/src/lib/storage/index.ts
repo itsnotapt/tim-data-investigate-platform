@@ -3,7 +3,6 @@ export {
   annotationSyncDao,
   annotationsDao,
   appliedViewsDao,
-  columnViewsDao,
   displayComponentsDao,
   rowResultsDao,
 } from './daos';
