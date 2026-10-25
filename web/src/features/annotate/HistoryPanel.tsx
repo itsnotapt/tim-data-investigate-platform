@@ -17,7 +17,7 @@ import {
   type HistoryEntry,
   type InstanceLabel,
 } from '../../lib/api';
-import { formatUtcDate, formatUtcTime } from '../../lib/time-range';
+import { formatUtcDate, formatUtcTime } from '../../lib/utcFormat';
 import { DetailFields } from '../grid';
 import { shownLabel, type LabelledRow } from '../labels';
 

@@ -4,9 +4,8 @@
 
 import type { GridState } from 'ag-grid-community';
 import type { Run, RunColumn } from '../api/runs';
-import type { TimeRange } from '../time-range';
 
-export type DisplayComponentName = 'KustoQueryResult' | 'ActionResult';
+export type DisplayComponentName = 'ActionResult';
 
 /** Serialisable error only; never store Error instances. */
 export interface StoredError {
@@ -22,11 +21,6 @@ export interface DisplayComponentState {
   error: StoredError | null;
   rowCount: number | null;
   isExecuting: boolean;
-  /** Kusto components only: the picked time range (resolved at run time). Default Last 15 minutes. */
-  timeRange?: TimeRange;
-  executionTime?: number | null;
-  cpuUsage?: string | null;
-  memoryUsage?: string | null;
   /** Action tabs only: the envelope of the latest run, picked up again by `runId`. */
   run?: Run | null;
   /** Action tabs only: a cancel was asked for and the run has not ended yet. */
@@ -70,13 +64,6 @@ export interface TabColumnView {
   baseline: GridState;
 }
 
-/** Custom Kusto query params. */
-export interface KustoQueryParams {
-  query: string;
-  cluster: string;
-  database: string;
-}
-
 /** Action component params: the action's key and plain param values, never re-resolved. */
 export interface ActionParams {
   action: string;
@@ -97,23 +84,15 @@ interface DisplayComponentBase {
   state: DisplayComponentState;
 }
 
-export interface KustoQueryDisplayComponent extends DisplayComponentBase {
-  componentName: 'KustoQueryResult';
-  params: KustoQueryParams;
-}
-
 export interface ActionDisplayComponent extends DisplayComponentBase {
   componentName: 'ActionResult';
   params: ActionParams;
 }
 
 /** A tab node without `children` (the tree is rebuilt in memory). */
-export type DisplayComponent = KustoQueryDisplayComponent | ActionDisplayComponent;
+export type DisplayComponent = ActionDisplayComponent;
 
-/**
- * One stored row: a raw Kusto row (`_id` is client-only and never stored), or for action
- * components a run row `{row, id, data}`.
- */
+/** One stored row: an action run row `{row, id, data}`. */
 export type RowResult = Record<string, unknown>;
 
 /** Global named AG Grid column state, for Kusto tabs. */

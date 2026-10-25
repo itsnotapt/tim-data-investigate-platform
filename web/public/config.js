@@ -13,11 +13,4 @@ window.appConfig = {
   issueUri: 'https://github.com/itsnotapt/tim-data-investigate-platform/issues',
   tagCluster: 'https://help.kusto.windows.net',
   tagDatabase: 'Research',
-  defaultClusters: [
-    {
-      name: 'Example',
-      clusters: ['https://help.kusto.windows.net'],
-      databases: ['Samples'],
-    },
-  ],
 };

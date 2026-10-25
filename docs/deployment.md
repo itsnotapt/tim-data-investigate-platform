@@ -48,7 +48,7 @@ client ── TLS proxy / Ingress ──> web (nginx :8080) ──/api/──> a
 | Redirect URI            | -                                           | `REDIRECT_URI` (`<public URL>/blank.html`) |
 | api address             | -                                           | `BACKEND_URI`                    |
 | Proxy trust             | `FORWARDED_ALLOW_IPS`                       | -                                |
-| Help links, cluster list| -                                           | `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` |
+| Help links              | -                                           | `HELP_WIKI_URI`, `HELP_ISSUE_URI` |
 
 - Compose fills these from `deploy/.env`.
 - Helm fills them from values, and from one Secret whose keys are the variable names.
@@ -107,10 +107,10 @@ To run providers, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` to a [derived imag
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID` | yes | - | Also passed to web |
 | `TIM_AUTH_CLIENT_SECRET` | yes | - | OBO client secret |
 | `TIM_TAG_CLUSTER_URI` | yes | - | https; `TIM_TAG_DATABASE` defaults to `Research` |
-| `TIM_ALLOWED_KUSTO_HOSTS`, `TIM_CORS_ALLOWED_ORIGINS` | no | empty | Comma separated; empty hosts uses the api default `**.kusto.windows.net` |
+| `TIM_CORS_ALLOWED_ORIGINS` | no | empty | Comma separated |
 | `TIM_LOG_LEVEL` | no | `INFO` | |
 | `AGGRID_LICENSE` | no | empty | Empty = AG Grid Enterprise trial mode |
-| `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | no | empty | |
+| `HELP_WIKI_URI`, `HELP_ISSUE_URI` | no | empty | |
 | `WEB_PORT` | no | `8080` | Host port of web |
 | `TIM_SUBNET` | no | `10.89.0.0/24` | Compose network; change if it overlaps a host or VPN range |
 | `FORWARDED_ALLOW_IPS` | no | `TIM_SUBNET` | Addresses the api trusts for `X-Forwarded-*` |
@@ -298,7 +298,7 @@ Other api limits keep their defaults unless set through `api.extraEnv` (see [con
 - `TIM_MAX_REQUEST_BYTES`, `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`;
 - `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_CONCURRENT_RUNS`, `TIM_ROWS_PAGE_SIZE`, `TIM_MAX_PIVOT_ROWS`;
 - `TIM_RUN_RETENTION_SECONDS`, `TIM_RUN_RETENTION_SWEEP_SECONDS`;
-- `TIM_AUTH_AUTHORITY_HOST`, `TIM_KUSTO_OBO_SCOPE`, `TIM_TAG_INGEST_URL`.
+- `TIM_AUTH_AUTHORITY_HOST`, `TIM_TAG_INGEST_URL`.
 
 ### Instance files under Helm
 
@@ -380,11 +380,9 @@ helm uninstall tim -n tim
 | `<component>.extraEnv` / `extraEnvFrom` | empty | Further variables, e.g. `TIM_RUN_TIMEOUT_SECONDS` |
 | `<component>.podLabels`, `podAnnotations`, `nodeSelector`, `tolerations`, `affinity`, `topologySpreadConstraints` | empty | Scheduling and metadata |
 | `api.logLevel` | `INFO` | `TIM_LOG_LEVEL` |
-| `api.allowedKustoHosts` | empty (api default `**.kusto.windows.net`) | `TIM_ALLOWED_KUSTO_HOSTS` |
 | `api.corsAllowedOrigins` | empty | `TIM_CORS_ALLOWED_ORIGINS` |
 | `api.forwardedAllowIps` | `*` | `FORWARDED_ALLOW_IPS`; the api Service is cluster-internal, narrow to the pod CIDR if needed |
 | `web.helpWikiUri` / `helpIssueUri` | empty | `HELP_WIKI_URI` / `HELP_ISSUE_URI` |
-| `web.defaultClusters` | empty | `DEFAULT_CLUSTERS` (list, rendered as JSON) |
 | `web.apiBasePath` | empty | `API_BASEPATH`; leave empty |
 | `clusterDomain` | `cluster.local` | `BACKEND_URI` = `http://<release>-tim-api.<namespace>.svc.<clusterDomain>:8080` |
 | `serviceAccount.create` / `name` / `annotations` | `true` / `<release>-tim` / empty | Shared by api and web; token not mounted |

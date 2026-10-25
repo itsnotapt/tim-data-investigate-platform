@@ -17,7 +17,7 @@ Analysts used to type any Kusto cluster, checked against an allow-list, and acti
 - **Actions declare their connections.** That covers fixed connection fields and `kind="connection"` params. `ctx.hook()` refuses any other connection.
 - **No gating.** Every analyst sees every connection, and the system behind the connection enforces access. A `workload_identity` connection gives every analyst TIM's access, which is the operator's explicit choice.
 - **The browser** sees a connection's name, title, type, editor and `databases`, never its URL or auth.
-- **URL checks.** The Kusto `Connection` model keeps the URL shape checks and normalisation of the old allow-list, run at startup.
+- **URL checks.** The Kusto `Connection` model checks the shape of the cluster URL and normalises it, at startup.
 
 Decided by the user. Related: [0005](0005-auth-entra-popup-obo.md), [0009](0009-obo-token-exchange.md), [0017](0017-actions-from-providers.md), [configuration](../configuration.md), [deployment](../deployment.md).
 

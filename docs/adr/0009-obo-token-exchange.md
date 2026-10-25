@@ -9,7 +9,7 @@ date: 2026-10-06
 
 The open questions were which scope, how many MSAL apps, which credential, and how failures reach the client. The code is `api/src/tim_api/auth/obo.py`, with error mapping in `api/src/tim_api/errors.py`.
 
-- **Scope comes from the connection.** Each `obo` connection has a `scope` ([0018](0018-fixed-connections.md)). Kusto's defaults to `{cluster}/.default` with the connection's normalised cluster URL. Hooks get tokens through `token_for(scope)`. The free-text Kusto tab still uses `TIM_KUSTO_OBO_SCOPE`, which defaults to `{cluster}/.default`, with `{cluster}` replaced by the validated and normalised cluster URL (see [0010](0010-kusto-cluster-allow-list.md)). Sovereign clouds change the scope and `TIM_AUTH_AUTHORITY_HOST`.
+- **Scope comes from the connection.** Each `obo` connection has a `scope` ([0018](0018-fixed-connections.md)). Kusto's defaults to `{cluster}/.default` with the connection's normalised cluster URL. Hooks get tokens through `token_for(scope)`. Sovereign clouds change the scope and `TIM_AUTH_AUTHORITY_HOST`.
 - **One `msal.ConfidentialClientApplication` per process**, built lazily on first use under a lock. All calls share MSAL's in-memory token cache, so repeat calls for the same user and cluster are served from cache. MSAL is blocking, so each call runs in a worker thread.
 - **Credential, resolved at startup:**
   1. `TIM_AUTH_CLIENT_SECRET` if set.

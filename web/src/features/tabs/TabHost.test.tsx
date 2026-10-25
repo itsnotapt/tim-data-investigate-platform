@@ -24,7 +24,6 @@ function useMountLog(kind: string, uuid: string) {
   }, [kind, uuid]);
 }
 const registry: TabRegistry = {
-  KustoQueryResult: (p: TabComponentProps) => <Probe kind="kusto" uuid={p.uuid} />,
   ActionResult: (p: TabComponentProps) => <Probe kind="action" uuid={p.uuid} />,
 };
 
@@ -40,13 +39,13 @@ function renderAt(entry: string) {
   return router;
 }
 
-const kusto = (componentUuid: string, title = componentUuid) =>
+const action = (componentUuid: string, title = componentUuid) =>
   ({
     componentUuid,
-    componentName: 'KustoQueryResult',
+    componentName: 'ActionResult',
     parentUuid: null,
     title,
-    params: { query: 'T', cluster: '', database: '' },
+    params: { action: 'acme.sign_ins', params: {} },
   }) as const;
 
 beforeEach(async () => {
@@ -78,10 +77,10 @@ describe('TabHost', () => {
     // Not loaded yet: no redirect, nothing rendered.
     expect(router.state.location.pathname).toBe('/view/a');
     act(() => {
-      useTabsStore.getState().createTab(kusto('a', 'Alpha'));
+      useTabsStore.getState().createTab(action('a', 'Alpha'));
       useTabsStore.setState({ loaded: true });
     });
-    expect(await screen.findByText('kusto:Alpha')).toBeVisible();
+    expect(await screen.findByText('action:Alpha')).toBeVisible();
     expect(router.state.location.pathname).toBe('/view/a');
     expect(useTabsStore.getState().tabs['a']?.state.isVisited).toBe(true);
   });
@@ -95,32 +94,32 @@ describe('TabHost', () => {
   });
 
   it('keeps visited tabs mounted and hidden, without remounting', async () => {
-    useTabsStore.getState().createTab(kusto('a'));
-    useTabsStore.getState().createTab(kusto('b'));
+    useTabsStore.getState().createTab(action('a'));
+    useTabsStore.getState().createTab(action('b'));
     useTabsStore.setState({ loaded: true });
     const router = renderAt('/view/a');
-    expect(await screen.findByText('kusto:a')).toBeVisible();
+    expect(await screen.findByText('action:a')).toBeVisible();
     await act(() => router.navigate('/view/b'));
-    expect(screen.getByText('kusto:b')).toBeVisible();
-    expect(screen.getByText('kusto:a')).not.toBeVisible();
+    expect(screen.getByText('action:b')).toBeVisible();
+    expect(screen.getByText('action:a')).not.toBeVisible();
     await act(() => router.navigate('/view/a'));
-    expect(screen.getByText('kusto:a')).toBeVisible();
-    expect(screen.getByText('kusto:b')).not.toBeVisible();
+    expect(screen.getByText('action:a')).toBeVisible();
+    expect(screen.getByText('action:b')).not.toBeVisible();
     expect(mounts.mock.calls).toEqual([
-      ['kusto', 'a'],
-      ['kusto', 'b'],
+      ['action', 'a'],
+      ['action', 'b'],
     ]);
   });
 
   it('drops a removed tab from the mounted set', async () => {
-    useTabsStore.getState().createTab(kusto('a'));
-    useTabsStore.getState().createTab(kusto('b'));
+    useTabsStore.getState().createTab(action('a'));
+    useTabsStore.getState().createTab(action('b'));
     useTabsStore.setState({ loaded: true });
     const router = renderAt('/view/a');
-    await screen.findByText('kusto:a');
+    await screen.findByText('action:a');
     await act(() => router.navigate('/view/b'));
     await act(() => useTabsStore.getState().removeTab('a'));
-    expect(screen.queryByText('kusto:a')).not.toBeInTheDocument();
-    expect(screen.getByText('kusto:b')).toBeVisible();
+    expect(screen.queryByText('action:a')).not.toBeInTheDocument();
+    expect(screen.getByText('action:b')).toBeVisible();
   });
 });

@@ -4,17 +4,17 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { selectAllInOrder } from '../tabs';
 import { toggleChecked, useTreeSelection } from './useTreeSelection';
-import { kusto, newTestStore } from '../../test/tabsTestUtils';
+import { newTestStore, tab } from '../../test/tabsTestUtils';
 
 function tree() {
   const store = newTestStore();
   const s = store.getState();
   // a -> b -> c ; a -> d ; e
-  s.createTab(kusto('a'));
-  s.createTab(kusto('b', 'a'));
-  s.createTab(kusto('c', 'b'));
-  s.createTab(kusto('d', 'a'));
-  s.createTab(kusto('e'));
+  s.createTab(tab('a'));
+  s.createTab(tab('b', 'a'));
+  s.createTab(tab('c', 'b'));
+  s.createTab(tab('d', 'a'));
+  s.createTab(tab('e'));
   return store;
 }
 const data = (store: ReturnType<typeof tree>) => store.getState();

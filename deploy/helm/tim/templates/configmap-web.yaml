@@ -15,6 +15,3 @@ data:
   API_BASEPATH: {{ .Values.web.apiBasePath | quote }}
   HELP_WIKI_URI: {{ .Values.web.helpWikiUri | quote }}
   HELP_ISSUE_URI: {{ .Values.web.helpIssueUri | quote }}
-  {{- with .Values.web.defaultClusters }}
-  DEFAULT_CLUSTERS: {{ toJson . | quote }}
-  {{- end }}

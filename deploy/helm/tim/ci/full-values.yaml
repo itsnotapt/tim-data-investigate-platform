@@ -18,7 +18,6 @@ imagePullSecrets:
 api:
   image:
     tag: 0.2.0
-  allowedKustoHosts: [help.kusto.windows.net]
   podLabels:
     azure.workload.identity/use: "true"
   extraEnv:
@@ -53,10 +52,6 @@ web:
   image:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
   helpWikiUri: https://wiki.example.com/tim
-  defaultClusters:
-    - name: Research
-      clusters: [https://help.kusto.windows.net]
-      databases: [Samples]
   autoscaling:
     enabled: true
 ingress:

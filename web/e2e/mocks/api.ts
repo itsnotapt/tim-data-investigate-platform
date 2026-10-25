@@ -1,5 +1,4 @@
 import type { Page, Route } from '@playwright/test';
-import { executionMetrics, kustoSchema, rows, type MockRow } from './data';
 
 /** Every API call the app made, for assertions. */
 interface ApiCall {
@@ -11,9 +10,6 @@ interface ApiCall {
 }
 
 export interface ApiMockOptions {
-  rows?: readonly MockRow[];
-  /** Polls answered 202 before a run completes (0 = POST answers 200 directly). */
-  pendingPolls?: number;
   /** Per-test route overrides, tried before the defaults. Return true when handled. */
   handlers?: readonly ApiHandler[];
 }
@@ -26,9 +22,7 @@ export interface ApiMock {
   callsTo: (method: string, path: string | RegExp) => ApiCall[];
 }
 
-const RUN_ID = 'c1b7f1f6-9a34-4a52-8c1e-5f2e0f7b2a90';
-
-/** An instance with no actions: the mocked flows use Kusto tabs. */
+/** An instance with no actions: the mocked flows open no action. */
 const instance = {
   version: 'e2e',
   actions: [],
@@ -63,15 +57,9 @@ export const problem = (
     }),
   });
 
-/**
- * Intercepts every `/api/**` request (no real api needed). Query runs follow the contract:
- * POST -> 202 `created` (or 200 when `pendingPolls` is 0), GET poll -> 202 ... -> 200 `completed`.
- */
+/** Intercepts every `/api/**` request (no real api needed). */
 export async function mockApi(page: Page, options: ApiMockOptions = {}): Promise<ApiMock> {
   const calls: ApiCall[] = [];
-  const data = options.rows ?? rows;
-  const pendingPolls = options.pendingPolls ?? 1;
-  const polls = new Map<string, number>();
 
   await page.route(
     (url) => url.pathname.startsWith('/api/'),
@@ -90,33 +78,7 @@ export async function mockApi(page: Page, options: ApiMockOptions = {}): Promise
         if (await handler(route, call)) return;
       }
       const { method, path } = call;
-      const run = (status: string) => ({
-        kustoQuery: call.body ?? {},
-        executeDateTimeUtc: '2026-09-29T10:00:00.000Z',
-        queryRunId: RUN_ID,
-        status,
-        resultData: status === 'completed' ? data : null,
-        executionMetrics: status === 'completed' ? executionMetrics : null,
-        mainError: null,
-        expiresAt: '2026-09-30T10:00:00.000Z',
-      });
-
       if (path === '/api/instance' && method === 'GET') return json(route, instance);
-      if (path === '/api/kusto/schema' && method === 'POST') return json(route, kustoSchema);
-      if (path === '/api/kusto/query' && method === 'POST') {
-        polls.set(RUN_ID, 0);
-        return pendingPolls === 0
-          ? json(route, run('completed'))
-          : json(route, run('created'), 202);
-      }
-      if (path.startsWith('/api/kusto/query/') && method === 'GET') {
-        const n = (polls.get(RUN_ID) ?? 0) + 1;
-        polls.set(RUN_ID, n);
-        return n > pendingPolls ? json(route, run('completed')) : json(route, run('created'), 202);
-      }
-      if (path.startsWith('/api/taggedevents/') && method === 'POST') {
-        return route.fulfill({ status: 204 });
-      }
       return problem(route, 404, 'not-found', `e2e: no mock for ${method} ${path}`);
     },
   );

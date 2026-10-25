@@ -3,20 +3,10 @@ import { z } from 'zod';
 const DEFAULT_WIKI_URI = 'https://github.com/itsnotapt/tim-data-investigate-platform/wiki';
 const DEFAULT_ISSUE_URI = 'https://github.com/itsnotapt/tim-data-investigate-platform/issues';
 
-const DEFAULT_CLUSTERS = [
-  { name: 'Example', clusters: ['https://help.kusto.windows.net'], databases: ['Samples'] },
-];
-
 /** `$VAR` / `${VAR}` left behind by an envsubst that had no value. */
 const PLACEHOLDER = /^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$/;
 
 const httpUrl = z.url({ protocol: /^https?$/, error: 'must be an http(s) URL' });
-
-const clusterGroup = z.object({
-  name: z.string().min(1),
-  clusters: z.array(z.string().min(1)).min(1),
-  databases: z.array(z.string().min(1)),
-});
 
 const configSchema = z.object({
   auth: z.object({
@@ -35,7 +25,6 @@ const configSchema = z.object({
   issueUri: httpUrl.default(DEFAULT_ISSUE_URI),
   tagCluster: httpUrl,
   tagDatabase: z.string().min(1).default('Research'),
-  defaultClusters: z.array(clusterGroup).default(DEFAULT_CLUSTERS),
 });
 
 export type RuntimeConfig = z.infer<typeof configSchema>;
@@ -65,25 +54,6 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/** Drops cluster groups whose only clusters were unsubstituted placeholders. */
-function dropEmptyGroups(value: unknown): unknown {
-  if (!Array.isArray(value)) return value;
-  const kept = value.filter((g) => {
-    const clusters = asRecord(g)['clusters'];
-    return !(Array.isArray(clusters) && clusters.length === 0);
-  });
-  return kept.length > 0 ? kept : undefined;
-}
-
-function parseJsonEnv(raw: unknown): { value?: unknown; error?: string } {
-  if (typeof raw !== 'string') return { value: raw };
-  try {
-    return { value: JSON.parse(raw) };
-  } catch {
-    return { error: 'VITE_DEFAULT_CLUSTERS is not valid JSON' };
-  }
-}
-
 /**
  * Pure: merges `windowConfig` over `env` (`VITE_*`) per key, then validates.
  * Throws one Error listing every missing or invalid key.
@@ -94,8 +64,6 @@ export function loadRuntimeConfig(windowConfig: unknown, env: EnvSource): Runtim
   const e = asRecord(clean(env));
 
   const problems: string[] = [];
-  const envClusters = parseJsonEnv(e['VITE_DEFAULT_CLUSTERS']);
-  if (envClusters.error) problems.push(envClusters.error);
 
   const merged = {
     auth: {
@@ -109,7 +77,6 @@ export function loadRuntimeConfig(windowConfig: unknown, env: EnvSource): Runtim
     issueUri: w['issueUri'] ?? e['VITE_HELP_ISSUE_URI'],
     tagCluster: w['tagCluster'] ?? e['VITE_TAG_CLUSTER'],
     tagDatabase: w['tagDatabase'] ?? e['VITE_TAG_DATABASE'],
-    defaultClusters: dropEmptyGroups(w['defaultClusters'] ?? envClusters.value),
   };
 
   const result = configSchema.safeParse(merged);

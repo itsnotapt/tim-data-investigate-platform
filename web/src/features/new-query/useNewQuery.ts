@@ -3,15 +3,10 @@ import { useNavigate } from 'react-router';
 import type { CatalogueAction, Preset } from '../../lib/api';
 import { initialParams } from '../action-tab/paramValues';
 import { useInstanceStore } from '../instance';
-import { defaultNewQuery } from '../kusto-query/defaultQuery';
 import { presetTabParams } from '../presets';
 import { useTabsStore, type TabsStore } from '../tabs';
 
-const NEW_QUERY_TITLE = 'New query';
-
 export interface NewQueryActions {
-  /** New root ad-hoc query with the default KQL; navigates to it. Returns the new uuid. */
-  createAdHoc: () => string;
   /**
    * New root action tab with the action's defaults as its params, and the connection of each
    * connection param that has only one (not run).
@@ -27,17 +22,6 @@ export interface NewQueryActions {
 /** Creates tabs from the New menu (W1) and navigates to them. */
 export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
   const navigate = useNavigate();
-  const createAdHoc = useCallback(() => {
-    const uuid = store.getState().createTab({
-      componentName: 'KustoQueryResult',
-      parentUuid: null,
-      title: NEW_QUERY_TITLE,
-      params: { query: defaultNewQuery(), cluster: '', database: '' },
-    });
-    void navigate(`/view/${uuid}`);
-    return uuid;
-  }, [store, navigate]);
-
   const createFromAction = useCallback(
     (action: CatalogueAction) => {
       const connections = useInstanceStore.getState().instance?.connections ?? [];
@@ -70,5 +54,5 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
     },
     [store, navigate],
   );
-  return { createAdHoc, createFromAction, createFromPreset };
+  return { createFromAction, createFromPreset };
 }

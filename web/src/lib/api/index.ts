@@ -1,7 +1,5 @@
 export * from './client';
 export * from './errors';
-export * from './kustoSchema';
-export * from './queryRuns';
 export * from './taggedEvents';
 export * from './instance';
 export * from './runs';
