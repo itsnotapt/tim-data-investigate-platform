@@ -12,7 +12,7 @@ import type {
 import type { CustomCellRendererProps } from 'ag-grid-react';
 import type { ComponentType } from 'react';
 import { aggFuncs } from './aggregation';
-import { scalarText } from './columns';
+import { gridRowId, scalarText } from './columns';
 import type { GridRowWithId } from './columns';
 
 /** Side bar (screens 17, 18): Columns and Filters tool panels. */
@@ -120,7 +120,7 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
   // the analyst add their own from the column menu.
   calculatedColumns: true,
   defaultColDef,
-  getRowId: (p) => String(p.data.row),
+  getRowId: (p) => gridRowId(p.data),
   groupDisplayType: 'groupRows',
   groupRowRendererParams: { checkbox: true },
   maintainColumnOrder: true,

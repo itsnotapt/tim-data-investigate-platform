@@ -5,6 +5,9 @@ export type GridRow = Record<string, unknown>;
 /** A grid row with its row number `row`, the AG Grid row id. */
 export type GridRowWithId = GridRow & { row: number };
 
+/** The AG Grid row id of a row: its row number. */
+export const gridRowId = (row: { row: number }): string => String(row.row);
+
 /** Text of a cell value: objects as JSON, other values via `String`. */
 export function scalarText(value: unknown): string {
   if (value === null || value === undefined) return '';
