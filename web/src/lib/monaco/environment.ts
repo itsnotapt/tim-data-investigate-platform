@@ -10,7 +10,7 @@ function createMonacoWorker(label: string): Worker {
     case 'json':
       return new JsonWorker();
     default:
-      // editor worker also serves yaml / plaintext (no language service).
+      // editor worker also serves plaintext (no language service).
       return new EditorWorker();
   }
 }

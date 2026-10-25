@@ -35,15 +35,6 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
         {"200", "204"},
         {"400", "401", "403", "404", "422", "500", "502", "503"},
     ),
-    ("post", "/api/kusto/schema", "getSchema", {"200"}, {"400", "401", "403", "422", "500", "502"}),
-    (
-        "post",
-        "/api/kusto/query",
-        "runQuery",
-        {"200", "202"},
-        {"400", "401", "403", "422", "500", "502", "503"},
-    ),
-    ("get", "/api/kusto/query/{queryRunId}", "getQueryRun", {"200"}, {"401", "404", "422", "500"}),
     (
         "post",
         "/api/runs",
@@ -118,36 +109,6 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
         "delete",
         "/api/columnViews/{viewId}/hidden",
         "unhideColumnView",
-        {"204"},
-        {"401", "404", "422", "500"},
-    ),
-    ("get", "/api/templates/queries", "listTemplates", {"200"}, {"401", "422", "500"}),
-    ("get", "/api/templates/queries/{uuid}", "getTemplate", {"200"}, {"401", "404", "422", "500"}),
-    (
-        "post",
-        "/api/templates/queries",
-        "createTemplate",
-        {"201"},
-        {"400", "401", "409", "422", "500"},
-    ),
-    (
-        "put",
-        "/api/templates/queries/{uuid}",
-        "replaceTemplate",
-        {"200"},
-        {"400", "401", "404", "422", "500"},
-    ),
-    (
-        "patch",
-        "/api/templates/queries/{uuid}",
-        "patchTemplate",
-        {"200"},
-        {"400", "401", "404", "422", "500"},
-    ),
-    (
-        "delete",
-        "/api/templates/queries/{uuid}",
-        "deleteTemplate",
         {"204"},
         {"401", "404", "422", "500"},
     ),
@@ -247,24 +208,10 @@ def test_request_and_response_schemas(spec: dict[str, Any]) -> None:
         ]["schema"]
         return schema
 
-    assert body_ref("/api/kusto/schema", "post").endswith("/KustoClusterDatabase")
-    assert body_ref("/api/kusto/query", "post").endswith("/KustoQueryRequest")
-    assert body_ref("/api/templates/queries", "post").endswith("/QueryTemplateCreate")
-    assert body_ref("/api/templates/queries/{uuid}", "put").endswith("/QueryTemplateReplace")
-    assert body_ref("/api/templates/queries/{uuid}", "patch").endswith("/PatchOperation")
     assert body_ref("/api/taggedevents/savedEvents", "post").endswith("/SavedEvent")
     assert body_ref("/api/taggedevents/tags", "post").endswith("/EventTag")
     assert body_ref("/api/taggedevents/comments", "post").endswith("/EventComment")
 
-    assert ok_schema("/api/kusto/query", "post", "200")["$ref"].endswith("/KustoQueryRun")
-    assert ok_schema("/api/kusto/query", "post", "202")["$ref"].endswith("/KustoQueryRun")
-    assert ok_schema("/api/kusto/query/{queryRunId}", "get", "200")["$ref"].endswith(
-        "/KustoQueryRun"
-    )
-    assert ok_schema("/api/templates/queries", "get", "200")["items"]["$ref"].endswith(
-        "/QueryTemplate"
-    )
-    assert ok_schema("/api/kusto/schema", "post", "200")["$ref"].endswith("/SchemaResponse")
     assert ok_schema("/api/instance", "get", "200")["$ref"].endswith("/Instance")
     assert body_ref("/api/runs", "post").endswith("/StartRun")
     assert ok_schema("/api/runs", "post", "202")["$ref"].endswith("/Run")
@@ -289,29 +236,25 @@ def test_action_defined_content_is_open_json(spec: dict[str, Any]) -> None:
 
 def test_json_names_are_camel_case(spec: dict[str, Any]) -> None:
     schemas = spec["components"]["schemas"]
-    # Kusto stats keys are data, returned as Kusto spells them.
-    skip = {"KustoQueryStats"}
     for name, schema in schemas.items():
-        if name in skip:
-            continue
         for prop in schema.get("properties", {}):
             assert "_" not in prop, f"{name}.{prop}"
     assert {"traceId", "errors"} <= set(schemas["ProblemDetails"]["properties"])
-    assert "queryRunId" in schemas["KustoQueryRun"]["properties"]
-    assert {"includeDeleted", "since"} == {
-        p["name"] for p in spec["paths"]["/api/templates/queries"]["get"]["parameters"]
+    assert "runId" in schemas["Run"]["properties"]
+    assert {"runId", "startRow", "endRow"} == {
+        p["name"] for p in spec["paths"]["/api/runs/{runId}/rows"]["get"]["parameters"]
     }
 
 
 def test_enums_match_contract(spec: dict[str, Any]) -> None:
     schemas = spec["components"]["schemas"]
-    assert schemas["QueryType"]["enum"] == ["view", "query"]
-    assert schemas["QueryRunStatus"]["enum"] == ["created", "completed", "error", "timedOut"]
-
-
-def test_create_template_documents_location_header(spec: dict[str, Any]) -> None:
-    response = spec["paths"]["/api/templates/queries"]["post"]["responses"]["201"]
-    assert "Location" in response["headers"]
+    assert schemas["RunStatus"]["enum"] == [
+        "running",
+        "succeeded",
+        "error",
+        "timedOut",
+        "cancelled",
+    ]
 
 
 def test_preset_inputs_are_told_apart_by_a_boolean(spec: dict[str, Any]) -> None:

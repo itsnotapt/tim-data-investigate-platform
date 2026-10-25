@@ -244,13 +244,6 @@
             "DEBUG"
           ]
         },
-        "allowedKustoHosts": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
         "corsAllowedOrigins": {
           "type": "array",
           "items": {
@@ -410,35 +403,32 @@
         },
         "apiBasePath": {
           "type": "string"
-        },
-        "defaultClusters": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "name",
-              "clusters"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "clusters": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "databases": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
-          }
         }
       }
+    },
+    "actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[-._a-zA-Z0-9]+$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "existingConfigMap": {
+          "type": "string"
+        }
+      }
+    },
+    "connections": {
+      "type": "array"
+    },
+    "labels": {
+      "type": "array"
     },
     "migrations": {
       "type": "object",

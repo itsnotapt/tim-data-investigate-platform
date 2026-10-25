@@ -68,11 +68,6 @@ api:
 
   # TIM_LOG_LEVEL
   logLevel: INFO
-  # TIM_ALLOWED_KUSTO_HOSTS (comma separated patterns). Empty list = api default
-  # (**.kusto.windows.net). Pattern kinds: exact host (help.kusto.windows.net),
-  # "*.domain" (exactly one label before the domain), "**.domain" (one or more labels).
-  # Fabric is opt-in: add "**.kusto.fabric.microsoft.com".
-  allowedKustoHosts: []
   # TIM_CORS_ALLOWED_ORIGINS (comma separated). Not needed when the SPA is served by web.
   corsAllowedOrigins: []
   # FORWARDED_ALLOW_IPS: addresses uvicorn trusts for X-Forwarded-*. The api Service is
@@ -148,6 +143,33 @@ api:
   # pod-local and are cut off when the pod stops.
   terminationGracePeriodSeconds: 30
 
+# --- Instance files ----------------------------------------------------------------------------
+# Read by the api at startup from /etc/tim (read-only); an error in any file stops startup.
+# Reference: docs/actions.md.
+actions:
+  # Action files (*.yaml, *.yml) and their sidecars by file name → content, rendered into
+  # <fullname>-actions. Pods restart when a file changes. Sets TIM_ACTIONS_DIR=/etc/tim/actions.
+  #   triage.yaml: |
+  #     type: kql_query
+  #     ...
+  files: {}
+  # Or a pre-created ConfigMap of action files, mounted the same way. Pods do not restart when it
+  # changes: run kubectl rollout restart deployment/<fullname>-api. Not with files.
+  existingConfigMap: ""
+
+# connections.yaml, rendered into <fullname>-api-files. Empty = no TIM_CONNECTIONS_FILE.
+#  - name: samples
+#    title: Samples (help cluster)
+#    type: kusto
+#    auth: obo
+#    cluster: https://help.kusto.windows.net
+#    databases: [Samples]
+connections: []
+
+# labels.yaml, rendered into <fullname>-api-files. Empty = no TIM_LABELS_FILE.
+#  - {key: malicious, name: Malicious, colour: red, symbol: skull}
+labels: []
+
 # --- Database migrations ---------------------------------------------------------------------
 # A Job running `alembic upgrade head` with the api image, as a Helm hook: before the api rolls
 # out on upgrade, and before install (external database) or after install (postgresql.enabled).
@@ -179,11 +201,6 @@ web:
   # HELP_WIKI_URI, HELP_ISSUE_URI
   helpWikiUri: ""
   helpIssueUri: ""
-  # DEFAULT_CLUSTERS, rendered as a JSON array. Empty = one entry built from config.tags.
-  #  - name: Research
-  #    clusters: [https://<cluster>.kusto.windows.net]
-  #    databases: [Research]
-  defaultClusters: []
   # API_BASEPATH. Leave empty: the SPA calls /api on its own origin.
   apiBasePath: ""
   extraEnv: []

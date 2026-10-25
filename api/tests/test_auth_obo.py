@@ -18,7 +18,7 @@ from tim_api.config import Settings
 
 PRINCIPAL = Principal(oid="o", name="u@example.com", tenant_id="t", token=SecretStr("user-jwt"))
 APP_SECRET = "app-secret"  # noqa: S105
-CLUSTER = "https://c1.westeurope.kusto.windows.net"
+SCOPE = "https://c1.westeurope.kusto.windows.net/.default"
 
 
 class FakeApp:
@@ -52,25 +52,15 @@ def _provider(settings: Settings) -> tuple[MsalOboTokenProvider, FakeApp]:
     return MsalOboTokenProvider(settings, app_factory=factory), app
 
 
-async def test_scope_per_cluster_and_user_assertion(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scope_and_user_assertion_are_passed_through(monkeypatch: pytest.MonkeyPatch) -> None:
     provider, app = _provider(_settings(monkeypatch))
-    other = "https://c2.kusto.windows.net/"
-    assert await provider.get_token(PRINCIPAL, CLUSTER) == "kusto-token"
-    await provider.get_token(PRINCIPAL, other)
-    assert app.calls == [
-        ("user-jwt", [f"{CLUSTER}/.default"]),
-        ("user-jwt", ["https://c2.kusto.windows.net/.default"]),
-    ]
+    other = "api://other/.default"
+    assert provider.token_for(PRINCIPAL, SCOPE) == "kusto-token"
+    provider.token_for(PRINCIPAL, other)
+    assert app.calls == [("user-jwt", [SCOPE]), ("user-jwt", [other])]
 
 
-async def test_custom_scope_template(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TIM_KUSTO_OBO_SCOPE", "https://kusto.example/.default")
-    provider, app = _provider(_settings(monkeypatch))
-    await provider.get_token(PRINCIPAL, CLUSTER)
-    assert app.calls[0][1] == ["https://kusto.example/.default"]
-
-
-async def test_app_created_once_and_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_app_created_once_and_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     created = 0
 
     def factory(**kwargs: Any) -> FakeApp:
@@ -80,50 +70,50 @@ async def test_app_created_once_and_configured(monkeypatch: pytest.MonkeyPatch) 
 
     provider = MsalOboTokenProvider(_settings(monkeypatch), app_factory=factory)
     for _ in range(3):
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
     assert created == 1
 
     provider, app = _provider(_settings(monkeypatch))
-    await provider.get_token(PRINCIPAL, CLUSTER)
+    provider.token_for(PRINCIPAL, SCOPE)
     assert app.init_kwargs["client_id"] == "client-id"
     assert app.init_kwargs["client_credential"] == "app-secret"
     assert app.init_kwargs["authority"] == "https://login.microsoftonline.com/tenant-id"
 
 
 @pytest.mark.parametrize("error", ["invalid_grant", "interaction_required"])
-async def test_reauth_errors_map_to_auth_error(monkeypatch: pytest.MonkeyPatch, error: str) -> None:
+def test_reauth_errors_map_to_auth_error(monkeypatch: pytest.MonkeyPatch, error: str) -> None:
     provider, app = _provider(_settings(monkeypatch))
     app.result = {"error": error, "error_description": "AADSTS65001 secret-detail"}
     with pytest.raises(OboAuthError) as info:
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
     assert "secret-detail" not in str(info.value)
 
 
-async def test_other_error_dict_maps_to_upstream(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_other_error_dict_maps_to_upstream(monkeypatch: pytest.MonkeyPatch) -> None:
     provider, app = _provider(_settings(monkeypatch))
     app.result = {"error": "temporarily_unavailable", "error_description": "503"}
     with pytest.raises(OboUpstreamError):
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
     app.result = {}
     with pytest.raises(OboUpstreamError):
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
 
 
-async def test_exception_maps_to_upstream_without_leaking(
+def test_exception_maps_to_upstream_without_leaking(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     provider, app = _provider(_settings(monkeypatch))
     app.result = ConnectionError("boom user-jwt")
     with pytest.raises(OboUpstreamError) as info:
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
     assert "user-jwt" not in str(info.value)
     assert "user-jwt" not in caplog.text
 
 
-async def test_missing_user_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_user_token(monkeypatch: pytest.MonkeyPatch) -> None:
     provider, _ = _provider(_settings(monkeypatch))
     with pytest.raises(OboUnavailableError):
-        await provider.get_token(PRINCIPAL.model_copy(update={"token": None}), CLUSTER)
+        provider.token_for(PRINCIPAL.model_copy(update={"token": None}), SCOPE)
 
 
 def test_missing_credential_fails_clearly(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,15 +122,15 @@ def test_missing_credential_fails_clearly(monkeypatch: pytest.MonkeyPatch) -> No
         build_obo_provider(settings)
 
 
-async def test_without_a_credential_obo_is_unavailable_when_not_required(
+def test_without_a_credential_obo_is_unavailable_when_not_required(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider = build_obo_provider(_settings(monkeypatch, secret=None), credential_required=False)
     with pytest.raises(OboUnavailableError, match="No client credential"):
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
 
 
-async def test_federated_assertion_used_without_secret(
+def test_federated_assertion_used_without_secret(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     settings = _settings(monkeypatch, secret=None)
@@ -148,7 +138,7 @@ async def test_federated_assertion_used_without_secret(
     token_file.write_text("fed-1\n")
     monkeypatch.setenv("AZURE_FEDERATED_TOKEN_FILE", str(token_file))
     provider, app = _provider(settings)
-    await provider.get_token(PRINCIPAL, CLUSTER)
+    provider.token_for(PRINCIPAL, SCOPE)
     credential = app.init_kwargs["client_credential"]
     assert credential["client_assertion"]() == "fed-1"
     token_file.write_text("fed-2")
@@ -162,13 +152,13 @@ def test_federated_file_must_exist(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         build_obo_provider(settings)
 
 
-async def test_auth_disabled_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_auth_disabled_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TIM_ENVIRONMENT", "development")
     monkeypatch.setenv("TIM_AUTH_DISABLED", "true")
     provider = build_obo_provider(Settings())
     assert isinstance(provider, DisabledOboTokenProvider)
     with pytest.raises(OboUnavailableError, match="AUTH_DISABLED"):
-        await provider.get_token(PRINCIPAL, CLUSTER)
+        provider.token_for(PRINCIPAL, SCOPE)
 
 
 def test_default_factory_builds_real_msal_app(monkeypatch: pytest.MonkeyPatch) -> None:

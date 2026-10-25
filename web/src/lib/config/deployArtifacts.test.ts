@@ -49,7 +49,6 @@ describe.skipIf(!hasTools)('web container entrypoint', () => {
       AUTH_CLIENT_ID: evil,
       AGGRID_LICENSE: evil,
       HELP_WIKI_URI: `https://w.example/"${evil}`,
-      DEFAULT_CLUSTERS: JSON.stringify([{ name: evil, clusters: ['https://c'], databases: [] }]),
     });
     expect(status).toBe(0);
     expect(config.toLowerCase()).not.toContain('</script');

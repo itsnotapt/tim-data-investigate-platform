@@ -50,9 +50,9 @@ Neither server is reused; to run several checkouts at once, see [development.md]
   - `idPrefix` is a random per-test prefix for `id`s.
 - **Mocked flows** import `e2e/fixtures.ts`, which intercepts every `/api/**` call (`e2e/mocks/api.ts`, data in `e2e/mocks/data.ts`).
   - They sign in as the stub's default account (token `dev:dev.user@example.com`).
-  - Query runs go POST 202, poll 202, then 200.
-  - Override per file with `test.use({ apiOptions: { rows, templates, pendingPolls, handlers } })`.
-  - Inspect requests with the `api` fixture, for example `api.callsTo('POST', '/api/kusto/query')`.
+  - A run starts with 202 while `running`, is polled as `running`, then ends `succeeded`.
+  - Override per file with `test.use({ apiOptions: { rows, pendingPolls, handlers } })`.
+  - Inspect requests with the `api` fixture, for example `api.callsTo('POST', '/api/runs')`.
 
 Each test gets a fresh browser context, so IndexedDB starts empty.
 
@@ -66,7 +66,6 @@ Each test gets a fresh browser context, so IndexedDB starts empty.
   - It emulates the OS scheme with `page.emulateMedia`.
   - It reaches the config error page by serving a `/config.js` without `auth`.
   - The colour contrast sweep walks several screens on one page through hash routes.
-  - The sweep's Export / Import step comes last, so the snackbar fading out never overlaps an axe run.
   - The rest of the suite runs light, because Playwright emulates a light OS.
 
 ## Layout
@@ -82,7 +81,7 @@ The source has four parts:
 
 ## Routes (hash)
 
-`#/`, `#/queries` (Query Manager), `#/view/:uuid` (tab), `#/share/:uuid`, `#/exportimport`.
+`#/`, `#/view/:uuid` (tab), `#/runs/:runId` (a share link to a run).
 
 ## Runtime config
 
@@ -103,7 +102,6 @@ The source has four parts:
 | `agGridLicenseKey`                | `VITE_AGGRID_LICENSE_KEY`                    | optional; empty = AG Grid trial                             |
 | `wikiUri`, `issueUri`             | `VITE_HELP_WIKI_URI`, `VITE_HELP_ISSUE_URI`  | default GitHub URLs                                         |
 | `tagCluster`, `tagDatabase`       | `VITE_TAG_CLUSTER`, `VITE_TAG_DATABASE`      | cluster required; database defaults to `Research`           |
-| `defaultClusters`                 | `VITE_DEFAULT_CLUSTERS` (JSON)               | default: help.kusto.windows.net sample                      |
 
 ## Auth
 
@@ -153,7 +151,7 @@ The root filesystem can be read-only. Only `/tmp` must be writable.
 - Proxying: nginx sends `/api/` to `BACKEND_URI` and keeps the `/api` path, so an ingress must not strip it. It resolves the backend at request time.
 - Headers: nginx sends gzip, and the security headers: CSP, `X-Frame-Options: SAMEORIGIN`, nosniff, Referrer-Policy, and HSTS when `X-Forwarded-Proto` is `https`.
 - Caching: `config.js` and `index.html` are served with `no-cache`.
-- CSP: it allows `'unsafe-eval'`, for Handlebars and the Kusto worker. A cross-origin `API_BASEPATH` origin is added to `connect-src` automatically.
+- CSP: it allows `'unsafe-eval'`, for the Kusto worker. A cross-origin `API_BASEPATH` origin is added to `connect-src` automatically.
 - `GET /healthz` returns 200.
 
 | Env var                            | Required | Maps to / notes                                                                  |
@@ -161,13 +159,12 @@ The root filesystem can be read-only. Only `/tmp` must be writable.
 | `BACKEND_URI`                      | yes      | nginx upstream, `http(s)://host[:port]`, no path (trailing `/` stripped)         |
 | `REDIRECT_URI`                     | yes      | `redirectUri`; must be registered in Entra                                       |
 | `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` | yes      | `auth.clientId`; `auth.authority` = `https://login.microsoftonline.com/<tenant>` |
-| `TAG_CLUSTER`                      | yes      | `tagCluster` (also the default cluster)                                          |
+| `TAG_CLUSTER`                      | yes      | `tagCluster`                                                                     |
 | `AGGRID_LICENSE`                   | no       | `agGridLicenseKey`; empty = trial                                                |
 | `TIM_ENVIRONMENT`                  | no       | `production` (default) or `development`; does not affect `AGGRID_LICENSE`        |
 | `TAG_DATABASE`                     | no       | default `Research`                                                               |
 | `API_BASEPATH`                     | no       | `apiEndpoint`, default empty (same origin; paths already start `/api`)           |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`  | no       | omitted when empty (app defaults apply)                                          |
-| `DEFAULT_CLUSTERS`                 | no       | JSON array; default is one group from `TAG_CLUSTER`/`TAG_DATABASE`               |
 | `NGINX_RESOLVER`                   | no       | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`   |
 
 The entrypoint also honours three variables, for testing without Docker:
@@ -180,20 +177,10 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `appliedViewsDao`, `queryOptionsDao`, `annotationsDao` and `annotationSyncDao`.
+- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `appliedViewsDao`, `annotationsDao` and `annotationSyncDao`.
 - Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
-
-## Time ranges
-
-`src/lib/time-range` is pure logic.
-
-- `TimeRange` is JSON data. An `absolute` range has an ISO start and end. A `relative` range has start and end "ago" offsets, and an end of `null` means now.
-- `resolveTimeRange(range, now?)` gives UTC `{start, end}`. Call it at execution time.
-- `TIME_RANGE_PRESETS` defines the presets and `DEFAULT_TIME_RANGE` is Last 15 minutes. Labels keep the wording "Last 1 hours".
-- `parseCustomPeriod` rejects NaN, empty, zero and negative amounts. It also rejects a start at or after the end.
-- `parseCustomDateRange` takes a UTC `YYYY-MM-DD` date and an `HH:MM[Z]` time.
 
 ## API types and client
 
@@ -213,28 +200,23 @@ The entrypoint also honours three variables, for testing without Docker:
   - It carries `status`, `type`, `title`, `detail`, `traceId` (from the body or `x-trace-id`) and `errors`.
   - Client-side failures have status 0, and a `type` of `urn:tim:client:timeout`, `urn:tim:client:network` or `urn:tim:client:invalid-response`.
 - 401: one 401 triggers one token re-acquisition and one retry.
-- Endpoint modules: `templates`, `kustoSchema`, `queryRuns`, `taggedEvents`, `instance` and `runs`.
-  - The `templates`, `kustoSchema`, `queryRuns` and `taggedEvents` functions take `{client?, signal?, timeoutMs?}`.
-  - They strip the server-owned fields from bodies: `requestedBy`, `createdBy`, `updatedBy`, `updated` and `dateTimeUtc`.
-- `runQuery(request, {signal, onPoll})`: POSTs, then polls on 202, as described in [architecture.md](../docs/architecture.md#data-flow-run-poll-pivot-tag).
-  - It resolves `{rows, stats}`.
-  - It throws `QueryRunError` (the run's `error`), `QueryTimeoutError` or the abort reason.
-  - `QueryTimeoutError.source` is `server` for `timedOut`, and `client` when polling gave up.
-- `formatCluster`: prepends `https://` and strips trailing slashes. It never appends `.kusto.windows.net`. The ad-hoc form re-exports it as `normalizeClusterUrl`.
+- Endpoint modules: `taggedEvents`, `instance`, `connections` and `runs`.
+  - The `taggedEvents` functions take `{client?, signal?, timeoutMs?}`.
+  - `taggedEvents` strips the server-owned fields from bodies: `requestedBy`, `createdBy` and `dateTimeUtc`.
 
 Tests use the shared MSW server.
 
 - Call `setupMswServer()` from `src/test/msw/server.ts`.
-- Add `server.use(...)` handlers, with the helpers in `src/test/msw/handlers.ts`: `apiUrl`, `problemResponse`, `makeRun` and `queryRunHandlers`.
+- Add `server.use(...)` handlers, with the helpers in `src/test/msw/handlers.ts`: `apiUrl`, `problemResponse` and `makeRun`.
 - Build clients with `baseUrl: TEST_API`.
 
 ## Shell, notifications, dialogs
 
 - `lib/uuid`: `generateUuid`, which wraps `crypto.randomUUID`.
 - `lib/isEmpty`: tells whether a value, array or object is empty.
-- `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are Query Manager, a TIM link, Help (Wiki Page and Report a bug, from config, in a new tab), Settings (Appearance, Export / Import) and Account (Sign in, Sign out).
+- `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are a TIM link, Help (Wiki Page and Report a bug, from config, in a new tab), Settings (Appearance) and Account (Sign in, Sign out).
 - `app/AuthGate`: wraps the routes. Signed out shows "You must sign-in first.", loading shows progress, and an error shows its message with Retry.
-- `SideTree`: rendered inside `AuthGate`. The main content is offset by `SIDE_TREE_COLLAPSED_WIDTH`. A failed "Reload templates" shows a snackbar.
+- `SideTree`: rendered inside `AuthGate`. The main content is offset by `SIDE_TREE_COLLAPSED_WIDTH`.
 - `components/SnackbarHost` and `useNotify()`: show one message at a time, first in first out.
   - A message shows for 5000 ms by default, with a 200 ms pause between messages.
   - A message can have a link button. Dismiss hides it.
@@ -271,10 +253,9 @@ Choosing the scheme:
 `useBootstrap(steps?)` in `src/app/useBootstrap.ts` is used by `AuthGate`. It signs in, then runs these steps in order:
 
 1. The instance: `useInstanceStore.load`.
-2. The templates: `useTemplatesStore.load`.
-3. The column views of template and Kusto tabs (`src/app/columnViewsState.ts`), then the analyst's applied column views (`loadAppliedViews`).
-4. The tabs: `useTabsStore.load`.
-5. `resumeActionRuns`, which picks up the runs the tabs were following.
+2. The column views of the column-view bar (`src/app/columnViewsState.ts`), then the analyst's applied column views (`loadAppliedViews`).
+3. The tabs: `useTabsStore.load`.
+4. `resumeActionRuns`, which picks up the runs the tabs were following.
 
 Once loaded, the instance is refetched on window focus (`refreshInstanceOnFocus`).
 
@@ -282,25 +263,23 @@ Once loaded, the instance is refetched on window focus (`refreshInstanceOnFocus`
 - `retry` starts a fresh sign-in after a sign-in failure, and re-runs the load steps after a data failure.
 - `steps` can be injected for tests. Tests that render the shell call `stubBootstrap()` from `src/test/stubBootstrap.ts`.
 
-Two more pieces live beside it.
+One more piece lives beside it.
 
-- `useTemplatesStore` (`src/features/templates`): holds the non-deleted templates from the API and the per-template `queryOptions`. Its actions are `load()` (runs once), `reload()`, `upsert`, `remove` and `setQueryOption`.
 - `TabHost` (`src/features/tabs/TabHost.tsx`): renders the active tab at `/view/:uuid` through `tabRegistry`, which maps each tab kind to a component that takes `{uuid}`.
 
 `TabHost` keeps visited tabs mounted, hidden with `display:none`.
 
 - It keeps up to 100. The least recently visited are dropped.
-- The key is `uuid:componentName`, so a convert remounts the tab.
 - An unknown uuid redirects to `/`, but only once the tabs have loaded.
 
 ## Tab store (`src/features/tabs`)
 
 `useTabsStore` holds the open tabs; see [architecture.md](../docs/architecture.md#state-and-tab-model). Tests use `createTabsStore({persistence, debounceMs})` and call `store.reset()` to empty it.
 
-- State: normalised tabs `{[uuid]: Tab}` plus `order`. `Tab` is a union on `componentName`: `KustoQueryResult`, `TemplateQueryResult` or `ActionResult`.
+- State: normalised tabs `{[uuid]: Tab}` plus `order`. `Tab` is an `ActionResult`.
 - `selectors.ts`: `children` is derived, never stored. The selectors are `selectRoots`, `selectChildrenOf`, `selectAncestors` and `selectSubtreeUuids`.
 - `load()`: reads IndexedDB sorted by `displayComponentIndex`, renumbers, and saves again. A tab whose parent is missing becomes a root.
-- Writes: create, update, convert, trigger and visited changes are debounced per tab (300 ms) and serialised with deletes. `flush()` forces them.
+- Writes: create, update, trigger and visited changes are debounced per tab (300 ms) and serialised with deletes. `flush()` forces them.
 - `removeTab(uuid)`: removes the whole subtree and the `row_results` of every removed tab.
 - Errors: reduced to `{message, code?}` on write and on load.
 - `triggerRowData(uuid)`: sets a strictly increasing `rowDataTrigger`. Grids subscribe to it.
@@ -310,19 +289,18 @@ Two more pieces live beside it.
 
 `features/tree` holds the side tree.
 
-- `SideTree`: `<SideTree templates queryOptions onReloadTemplates store? />` is the permanent left drawer.
+- `SideTree`: `<SideTree store? />` is the permanent left drawer.
   - It is 56 px wide, and 700 px while hovered.
   - It reads the tab store, and takes the active node from the route with `useMatch('/view/:uuid')`.
   - Clicking a node marks the tab visited, and navigates to `/view/:uuid`.
 - Node labels: `[draft]` and `[new]` prefixes.
 - Node icons: a spinner, an error, a ringed 0, a row-count badge ("9+" above nine) or a faded folder. The ringed 0 is an action tab whose run succeeded with no rows (`nodeStatus.ts`).
-- Header: the New menu, "Reload templates" and "Remove selected". "Reload templates" calls `onReloadTemplates` and ignores its rejections, so the callback must notify.
+- Header: the New menu and "Remove selected".
 - `useTreeSelection(activeUuid)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
 - Remove selected: calls `removeTab`, which cascades, then navigates to `/` with replace if the active tab is gone.
 
-`features/new-query` holds the New menu: `<NewQueryMenu templates queryOptions? actions? ariaLabel? store? presetsStore? analyst?>label</NewQueryMenu>`. Choosing an entry creates a root tab and navigates to it.
+`features/new-query` holds the New menu: `<NewQueryMenu actions? ariaLabel? store? presetsStore? analyst?>label</NewQueryMenu>`. Choosing an entry creates a root tab and navigates to it.
 
-- "New query": a `KustoQueryResult` draft titled "New query", with `DEFAULT_QUERY_EXAMPLE` from `features/kusto-query/defaultQuery.ts`.
 - Actions and presets submenu: one tree of folders (`buildNewMenuTree`), where each folder shows its item count.
   - An action makes a root `ActionResult` tab (`createFromAction`), nested by its `menuPath`. The title is the action's name and the params are the defaults. It is not run.
   - A preset makes a root `ActionResult` tab (`createFromPreset`), nested by its `menuPath`. The title is the preset's name, and the params keep `presetId`. It is not run.
@@ -337,26 +315,19 @@ Two more pieces live beside it.
     - The preview lists every param of the action. With query parameters it shows the declare line before the query, and a line per query parameter. A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
     - After saving on an action tab of Run KQL, the tab takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
     - A Query parameters section adds a parameter (its name suggested from names in the query), picks its type, and makes it Fixed with a value or From row with columns.
-- Views and Queries submenus: a root `TemplateQueryResult`. It is not run.
-  - Folders are keyed by the full path (`buildTemplateMenuTree`). `SubMenu` renders them. Both builders are in `menuTree.ts`.
-  - The title is the template's summary.
-  - The params come from `getDefaultParams`, and `state.editQuery` is `true`.
-- Search: case-insensitive over menu and summary. For actions it matches name, folders and key; for presets, name, folders, action, owner and From columns. It expands the groups.
-- Hidden templates: `queryOptions[uuid].hide` leaves a template out.
+- Search: case-insensitive. For actions it matches name, folders and key; for presets, name, folders, action, owner and From columns. It expands the groups.
 - The Welcome page's "Get Started" button is a `NewQueryMenu`.
 
 ## Code editor (Monaco)
 
-`src/components/CodeEditor` wraps `@monaco-editor/react` around the locally bundled `monaco-editor`, with no CDN. Its `language` is `kusto`, `yaml`, `json` or `plaintext`, and suggestions are on.
+`src/components/CodeEditor` wraps `@monaco-editor/react` around the locally bundled `monaco-editor`, with no CDN. Its `language` is `kusto`, `json` or `plaintext`, and suggestions are on.
 
-- `src/lib/monaco`: loads Monaco lazily, with the yaml and json languages, and `@kusto/monaco-kusto` for `language="kusto"`.
+- `src/lib/monaco`: loads Monaco lazily, with the json language, and `@kusto/monaco-kusto` for `language="kusto"`.
   - Workers come from Vite `?worker` imports, in `environment.ts` and `kusto.worker.ts`.
   - `vite.config.ts` sets `worker.format` to `es`.
 - `useCodeEditor()`: returns `onMount`, `getEditor` and `getKustoWorker()`, which `setSchemaFromShowSchema` needs. Models and editors are disposed on unmount.
 - Build output: the production build emits `editor.worker`, `json.worker` and `kusto.worker` chunks. The Kusto worker is about 8 MB.
 - Pins: `package.json` `overrides` pins `dompurify`, which monaco-editor 0.55 bundles, to `^3.4.15`. `@kusto/monaco-kusto` 15.0.1 peers on `monaco-editor@^0.55`.
-
-`features/kusto-query/QueryHelperDialog` is the "Query Help" dialog. Its sample KQL is in `queryHelperSamples.ts`.
 
 ## Results grid (`src/features/grid`)
 
@@ -366,19 +337,20 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - Without a key, the grid runs as a trial, with a watermark.
   - `ResultsGrid` calls `initAgGridFromConfig()` when it is imported, so the grid works in tests without extra setup.
   - `src/app/main.tsx` must not import AG Grid.
-- `ResultsGrid`: takes `rows`, `templateColumns`, `columnId` and `stats`. `columnDefs` replaces the columns built from the rows, and `stateKey` keeps per-tab column state (see below).
-- `TabResultsGrid`: takes a tab `uuid`. It reads rows from IndexedDB and reloads them on `rowDataTrigger`. A tab with no stored rows gives an empty grid.
-- Columns: the union of all row keys. A template's `columns` override per column name, and `default` applies to the rest.
+- `ResultsGrid`: takes `rows`, `columnId` and `stats`. `columnDefs` replaces the columns built from the rows, and `stateKey` keeps per-tab column state (see below).
+- `useRowResults(uuid, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
+- Columns: the union of all row keys.
 - Row id: `_id`, taken from the `columnId` column (default `EventId`), else `row-index-N`.
 - Extension points:
-  - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, tagging and details;
+  - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, tagging and details.
+    It accepts a list of groups: group 0 is followed by "Show details", and later non-empty groups come after a separator;
   - `onGridReady` exposes the grid api;
   - `toolbarExtra` sits beside the quick filter.
 - Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters, row grouping with a `dcount` aggregation, and a status bar.
   - The status bar shows execution time, CPU, memory in MB, and total, filtered and selected counts. An action tab adds "View: name" after the execution stats.
   - `ResultsGrid` takes `sideBar`, `statusPanels`, `context` and `onStateUpdated` for that. `onStateUpdated` is not called while the tab is hidden.
 
-### Column views of template and Kusto tabs (`src/features/column-views`)
+### Column-view bar (`src/features/column-views`)
 
 Action tabs don't use these. They have the column views saved to the API, below.
 
@@ -386,7 +358,7 @@ Action tabs don't use these. They have the column views saved to the API, below.
 - Apply calls `applyColumnState({state, applyOrder: true})`. Save overwrites the view with the live state, and creating a view captures it.
 - `useColumnViewsStore`: a zustand store persisted through `columnViewsDao`. Its state updates after the write succeeds. `app/columnViewsState.ts` re-exports it for bootstrap.
 - The selected view belongs to one grid instance and is not persisted.
-- Per-tab column state for template and Kusto tabs: pass `stateKey`. `TabResultsGrid` uses the tab uuid. The state is kept in memory only, in `tabColumnState`.
+- Per-tab column state: pass `stateKey`, the tab uuid. The state is kept in memory only, in `tabColumnState`.
 - It is saved on AG Grid `stateUpdated`, when the tab is hidden, and on unmount. A `ResizeObserver` detects hiding: the container size drops to 0.
 - It is restored when the tab is shown again and when the grid is re-created.
 
@@ -412,106 +384,12 @@ Action tabs don't use these. They have the column views saved to the API, below.
   - While open, the panel follows the focused cell's row.
 - `ResultsGrid` props `columnViews` and `detailPanel` both default to true. Set one to false to turn that feature off.
 
-## Ad-hoc query tab, time range and cluster pickers
-
-`features/kusto-query/KustoQueryTab` is registered for `KustoQueryResult` in `tabRegistry`.
-
-- Modes: it opens in edit mode, also after a reload. Edits live in a local draft.
-- Toolbar: the New menu, `TimeRangePicker`, Run Query, Clone, and Edit Query, Save Changes & Run, Save Changes and Cancel. Clone makes a root tab titled "Copy of <title>" and navigates to it.
-- Save: needs a cluster and database. After a failed submit, `ClusterSelect` shows the required errors.
-- Editor: Query Help opens `QueryHelperDialog`. The Kusto `CodeEditor` has a per-tab model path.
-- Running: `onRun` defaults to `useRunKustoQuery()`. The results render in `PivotResultsGrid` once the tab has a `rowDataTrigger`.
-
-Shared pickers in `src/components`:
-
-- `TimeRangePicker`: wraps `lib/time-range`.
-  - `CustomDateRangeDialog` and `CustomPeriodDialog` are in `TimeRangePickerDialogs.tsx`. Both are `DraggableDialog`s, and reset their forms on open.
-  - The range is stored in the tab's `state.timeRange`. The default is Last 15 minutes.
-- `ClusterSelect`: two freeSolo autocompletes, fed by `defaultClusters`.
-  - Clusters are grouped by group name.
-  - The database options are the databases of the group that lists the typed cluster.
-- `clusterSelection.ts`: `validateClusterSelection` and `databasesFor`.
-- `clusterUrl.ts`: `normalizeClusterUrl`, which is `formatCluster` from `lib/api`. `ClusterSelect` applies it on blur and on selection.
-
-## Kusto schema and ad-hoc run (`src/features/kusto-query`)
-
-- `useKustoSchema(cluster, database, editor)`: runs when the editor instance exists and both cluster and database are set, including on first mount.
-  - It fetches `getKustoSchema`, then calls `setSchemaFromShowSchema(schema, formattedCluster, database)` on the worker from `getKustoWorkerFor`.
-  - Effect cleanup marks the run stale, so late responses are ignored.
-  - Errors go to the snackbar.
-- `kustoSchema.ts`: caches schemas per formatted cluster and database.
-  - A call in flight is shared. Failures are not cached.
-  - `normalizeSchema` accepts the parsed document, or a `ClusterSchema`, `DatabaseSchema`, `schema` or `data` wrapper. Each can be an object, a JSON string or a row list.
-- The tab passes the draft cluster and database while editing, and the editor from the `CodeEditor` `onMount`.
-- `runKustoQuery(uuid, timeRange?, {store?, signal?})`: runs the tab's saved query through `runTabQuery` in `runPipeline.ts`, with the given time range or the tab's own. It never rejects.
-- `runPipeline.ts`, on a run:
-  1. sets the tab executing and unvisited, and clears its error;
-  2. calls `runQuery`, with `startTime` and `endTime` (ISO strings from `resolveTimeRange`) when there is a time range;
-  3. writes the rows to `rowResultsDao`, sets `rowCount` and `executionTime`, and sets `cpuUsage` and `memoryUsage` as strings;
-  4. calls `triggerRowData`.
-- Failure: the error is stored through `toStoredError`, the rows are deleted, and row data is triggered.
-- Abort: the run aborts when the tab leaves the store or a newer run starts on the same tab. Nothing is written after an abort.
-- `useRunKustoQuery()`: adds the "Executing query..." snackbar. It needs a `SnackbarHost`.
-
-## KQL templates (`lib/kql-templates`)
-
-Pure functions: `getDefaultParams`, `buildParams(template, row, selectedRows)`, `isDataComplete`, `buildSummary`, `buildCluster` and `buildQuery`. The engine is described in [architecture.md](../docs/architecture.md#template-engine).
-
-- `createTemplateEngine({tagCluster, tagDatabase})` makes an explicit engine.
-- The default engine reads runtime config lazily.
-
-Rendering uses an isolated `Handlebars.create()` environment with `noEscape`, because the output is KQL, not HTML.
-
-Escaping rules:
-
-- `{{array xs}}` renders `@'a','b'`.
-  - Inside a verbatim literal, only `'` needs escaping. So quotes are doubled: `O'Neil` becomes `@'O''Neil'`.
-  - Backslashes and `"` are literal.
-- `{{str x}}` is a single `@'x'` literal with quotes doubled.
-- `{{kql x}}` is a regular `'x'` literal, with backslash, quotes and newlines escaped.
-- A raw `{{x}}` is substituted unchanged, so template authors should wrap user-controlled values in a helper.
-- Values are never evaluated as template source, and Handlebars' prototype-access protection stays on.
-- `{{> getTagEvents}}` renders the tag-events KQL from `getTagEvents.kql`. The configured tag cluster and database have their quotes doubled.
-
-Edge cases:
-
-- Falsy defaults (`false`, `0`) are kept by both `getDefaultParams` and `buildParams`. A missing default is `''`.
-- A `match` param needs exactly one matching column to be complete.
-- An invalid `regex` matches nothing instead of throwing.
-
-## Template tab form (`src/features/template-query`)
-
-`TemplateQueryTab` is registered for `TemplateQueryResult`. Edit mode is the persisted `state.editQuery`, and edits live in a local draft.
-
-- Toolbar: the New menu, Run Query, Clone, Convert (with a confirm dialog), Edit and Share Link. While editing it shows Save & Run, Save and Cancel.
-- Actions: run, clone, convert and share call the `onRun`, `onClone`, `onConvert` and `onShare` props. Their defaults are in `useTemplateTabActions.ts`.
-- `runTemplateQuery.ts`: `runTemplateQuery` renders cluster, database and query with kql-templates.
-  - It runs them through `runTabQuery` in `kusto-query/runPipeline.ts`, the pipeline `runKustoQuery` also uses, with no time range.
-  - A render error is stored as the tab's error.
-- Clone: makes a sibling with the same parent, titled `Copy of <title>`, in edit mode and not run. It navigates to the copy.
-- Convert: after the dialog, calls `convertToKusto` with the rendered KQL. `TabHost` keys on uuid and kind, so the tab remounts as a `KustoQueryTab`.
-- Results: `PivotResultsGrid` renders them once `rowDataTrigger` is set, with the template's `columns` overrides.
-
-Form pieces:
-
-- `ParamField.tsx`: picks the control by param type.
-  - `array`: a select. With `multiple` it adds Select All and shows "first, (+N others)" above 5 selections.
-  - `match`: a select of the `[{column, value}]` entries found when editing started. It stores a one-element list.
-  - `multiple`: a chips combobox. `,`, `;` and Enter add a chip.
-  - `boolean`: a switch.
-  - Anything else: a trimmed text field.
-- Fields: `params` and `fields` are merged, and fields win. A field is required unless `optional === true`, and shows a red asterisk.
-- `paramRules.ts`: a value is missing when it is blank, whitespace-only or an empty list. Booleans are never required.
-- Validation: errors appear after a failed save. That also shows the snackbar "Unable to save query due to validation errors."
-- Summary: the refresh button uses `buildSummary`. "Preview Query" shows or hides `buildQuery` of the draft in a read-only Kusto `CodeEditor`.
-- Tests: mock `CodeEditor` and use an in-memory tab store, as for `KustoQueryTab`.
-
 ## Action tab (`src/features/action-tab`, `src/features/instance`)
 
 The tab that runs an action. How it behaves is in [architecture.md](../docs/architecture.md#the-tab-and-new-menu); this is where the code is.
 
 - `ActionTab.tsx`: the tab, registered for `ActionResult`.
-  - It has a header with Save… and Clone, and a pills bar with Run, or the running spinner with Cancel.
+  - It has a header with Save…, Clone and Copy link, and a pills bar with Run, or the running spinner with Cancel.
   - Its inner tabs are "Query" (for a `kql` or `sql` param), "Results · N" and "Run · duration".
   - It picks the inner tab, and shows the previous results during a run.
   - It finds its action in `useInstanceStore` by `params.action`. The param values are plain values, in `params.params`.
@@ -528,8 +406,11 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A 422's `params.<name>` error goes to the tab's `paramErrors` when the action declares that param. Otherwise it goes into the "Couldn't start: …" message, as `name: reason`.
   - `cancelActionTab` cancels a run, with `cancelRun` from `lib/api/runs.ts`.
   - `resumeActionRuns` picks runs up again after a reload.
+  - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Share links.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
-- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. `StoredActionResultsGrid` reads `row_results` instead, after a reload.
+- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
+  - Given `linkedRow`, it focuses that row and opens its History once the row has arrived, then calls `onLinkedRowShown`.
+- `StoredActionResultsGrid` (same file) reads `row_results` instead, after a reload.
 - `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.
   - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.
   - Schemas are cached per connection and scope. A failure is not cached.
@@ -539,56 +420,17 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
 - Tests pass `onRun` to `ActionTab` instead of running.
 
-## Pivots (`src/features/pivots`)
+## Share links (`src/features/share-links`)
 
-A pivot opens a template tab from a grid row; see [architecture.md](../docs/architecture.md#data-flow-run-poll-pivot-tag).
+A share link opens a run; see the glossary entry for Share link.
 
-- `PivotResultsGrid`: used by `KustoQueryTab` and `TemplateQueryTab` instead of `TabResultsGrid`.
-  - It adds a context-menu group of the non-hidden `query` templates, nested by `path`.
-  - `menuTree` puts folders first, then items, each sorted by text.
-- `createPivotTab`: runs when a template is chosen. It calls `buildParams` with the clicked row and the selected rows, or the clicked row when none is selected.
-- The new tab is a child `TemplateQueryResult` titled by `buildSummary`. `editQuery` is `!autoExecute || !isDataComplete`. When it auto-runs, `runTemplateQuery` starts.
-- Navigation: the app navigates to the child only when its data is incomplete. A complete pivot stays on the parent.
-- Shift: `usePivotMenu` tracks it with window `keydown` and `keyup` listeners, cleared on blur. Holding it suppresses the run.
-- Menu groups: `ResultsGrid.getContextMenuItems` accepts a list of groups. Group 0 is followed by "Show details", and tagging goes there. Later non-empty groups come after a separator.
-
-## Query Manager (`src/features/templates-admin`)
-
-- `QueryManagerPage`: the routed page, a default export.
-  - It lists templates fetched with `includeDeleted=true`, with localised timestamps. The list is sortable, filterable and paged.
-  - After any change, it reloads its list and calls `useTemplatesStore.reload()`.
-- Delete: disabled when nothing deletable is selected or any selected template is managed.
-- Restore: shown only with "Show deleted". Its enabled state follows the number of selected deleted rows. It uses `restoreTemplate`, a PATCH.
-- `TemplateDialog`: creates a template (POST, with a new uuid) or edits one (PUT). `createdBy` is never sent.
-- YAML fields: Params, Fields and Column customisation are YAML `CodeEditor`s, parsed with `js-yaml`.
-  - An empty editor means not set.
-  - A parse error, or a document that is not a mapping, shows under the editor.
-  - Fields are required for the `query` type.
-- Managed templates: read-only, including Fields.
-- Save errors: show `ApiError.detail` plus field errors, network failures included.
-- Tests: both components take optional `client` and `store` props. Tests mock `components/CodeEditor` with `testUtils.fakeCodeEditorModule`.
-
-## Export / Import (`src/features/export-import`)
-
-`ExportImportPage`, routed at `#/exportimport`, exports and imports only this app's tabs: `display_components` in the `tim` DB, as a JSON array. Row results, column views, applied column views and query options are not included.
-
-- Export: flushes pending tab writes, fills the textarea and copies the text to the clipboard.
-- Import: disabled while the text is empty, is not JSON, or fails the zod `exportSchema`. The message shows under the field.
-- Import writes the tabs, then calls `useTabsStore.load()`, so the tabs show in the tree at once.
-  - A tab with the same uuid is overwritten.
-  - `isExecuting` is reset.
-  - `displayComponentIndex` is rebased after the existing tabs.
-
-## Share (`src/features/share`)
-
-A share link opens a template tab with given params; see the glossary entry for Share link.
-
-- `buildShareUrl(templateUuid, inParams)`: makes `<origin><path>#/share/<uuid>?p=<base64url of UTF-8 JSON>&execute=0`. `decodeShareParams` reads the same format.
-- Share Link button: `useShareTemplateQuery` copies the URL and shows "Shared link has been saved to the clipboard.".
-- `ShareQueryPage`: routed at `#/share/:uuid`, after bootstrap so the templates are loaded. It shows "This query was not found.", "Parameters are missing." or "Parameters are invalid." when the link is bad.
-- Otherwise `sanitizeShareParams` keeps declared params only, over the defaults, and converts a string `match`. The page creates a root `TemplateQueryResult` titled with `buildSummary` and navigates to it.
-- `execute=1`: runs the tab at once, unless required data is missing. Then it opens in edit mode.
-- `execute=0`: always opens in edit mode.
+- `shareLink(runId, row?)`: makes `<origin><path>#/runs/<runId>`, with `?row=<n>` for a row. `rowParam` reads the `row` value, or `null` unless it is a row number.
+- `copyShareLink(runId, row, notify)`: copies the link and says "Copied a link to this result" or "Copied a link to this row". A failed copy says "Couldn't copy the link".
+- The action tab's header Copy link button is disabled before the tab has a run. The row context menu's Copy link is its last group of items.
+- `ShareLinkPage`: routed at `#/runs/:runId`. It waits until the tabs are loaded. It reads the run with `getRun`, and a succeeded run with rows also its first rows page.
+  - A `404` or `410` shows only "This result is no longer available".
+  - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<uuid>`.
+  - For an action the instance doesn't know, the rows still show and Run is disabled.
 
 ## Tagging (`src/features/tagging`)
 
@@ -596,7 +438,7 @@ Tagging saves events and attaches determinations, comments and tags to them; see
 
 ### Quick tag
 
-- Menu: the grid's first context-menu group is a "Tag Events" submenu, built by `useTaggingMenu` and composed by `PivotResultsGrid`.
+- Menu: the grid's first context-menu group is a "Tag Events" submenu, built by `useTaggingMenu`.
   - It has "Quick - Malicious", "Quick - Suspicious" and "Quick - Benign", before "Show details".
 - Targets: the selected rows, or the clicked row. The submenu and its items are disabled unless every target has `EventId` and `EventTime`.
 - `quickTag`: never rejects. It calls `saveEvents` for unsaved rows, then `commentEvents` with `{eventId, determination (lower case), isDeleted: false}` and no comment.
@@ -609,8 +451,8 @@ Tagging saves events and attaches determinations, comments and tags to them; see
 
 ### Customise dialog
 
-- `TagDialogProvider`: mounted by `PivotResultsGrid`. It owns one `TagDialog`, and exposes `TagDialogContext`.
-  - `useTaggingMenu` calls the context's `openDialog({rows, api, uuid, columnId})` with the selected or clicked rows.
+- `TagDialogProvider`: owns one `TagDialog`, and exposes `TagDialogContext`.
+  - `useTaggingMenu` calls the context's `openDialog({rows, api, uuid})` with the selected or clicked rows.
 - `TagDialog`: a `DraggableDialog` titled "Customise Tag Events", with "N event(s) selected".
   - It has determination, comment and tags, each with an action select.
   - The tags field is a chips autocomplete, with "Exists in N event(s)" hints. Free text is added with Enter or on blur, except when removing.
@@ -635,10 +477,10 @@ This is pure code with no React.
 ### Inline comment edit (`tagging/commentEdit.ts`)
 
 - Columns, in `features/grid/columns.ts`:
-  - `defaultColDef.editable` is false, and `buildColumnDefs` forces `editable` on every column. So template `editable` overrides are ignored.
+  - `defaultColDef.editable` is false, and `buildColumnDefs` sets `editable` on every column.
   - Only `TagEvent.Comment` is editable, and only on rows where `isCommentEditable` holds: `TagEvent.IsSaved === true`, `EventId` set, and `TagEvent.Determination` set.
 - Grid option: the grid keeps `readOnlyEdit`. So an edit arrives as `onCellEditRequest`, and AG Grid does not change the cell value.
-- Wiring: `TabResultsGrid` wires `useCommentEdit(uuid, columnId)` by default. A caller's own `onCellEditRequest` wins. `PivotResultsGrid` needs no change.
+- Wiring: The grid wires `useCommentEdit(uuid)` by default. A caller's own `onCellEditRequest` wins.
 - `commentEdit(event, {uuid, notify, call})`: never rejects, and returns whether it saved. It ignores other columns, ineditable rows and unchanged values.
 - Saving:
   1. shows "Quick saving comment...";

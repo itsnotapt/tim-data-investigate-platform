@@ -19,7 +19,6 @@ beforeEach(() => {
     tagCluster: 'https://tags.kusto.windows.net',
     wikiUri: 'https://wiki.example/tim',
     issueUri: 'https://issues.example/new',
-    defaultClusters: [],
   };
   resetConfigCache();
 });
@@ -69,7 +68,7 @@ describe('AppShell / AuthGate', () => {
 
   it('loading: shows progress', () => {
     renderShell(fakeClient({ getAccount: vi.fn().mockReturnValue(new Promise(() => undefined)) }));
-    expect(screen.getByText('Authenticating and loading queries...')).toBeInTheDocument();
+    expect(screen.getByText('Authenticating and loading...')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
     expect(screen.queryByText('routes ok')).not.toBeInTheDocument();
   });
@@ -119,27 +118,16 @@ describe('AppShell / AuthGate', () => {
     }
   });
 
-  it('menus link to Query Manager, home and Export / Import', async () => {
+  it('the title links home', () => {
     renderShell(fakeClient());
     expect(screen.getByRole('link', { name: 'TIM' })).toHaveAttribute('href', '/');
-    await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
-    expect(screen.getByRole('menuitem', { name: 'Query Manager' })).toHaveAttribute(
-      'href',
-      '/queries',
-    );
-    await userEvent.keyboard('{Escape}');
-    await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    expect(screen.getByRole('menuitem', { name: 'Export / Import' })).toHaveAttribute(
-      'href',
-      '/exportimport',
-    );
   });
 
-  it('Settings lists Appearance above Export / Import', async () => {
+  it('Settings lists Appearance', async () => {
     renderShell(fakeClient());
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual(['Appearance', 'Export / Import']);
+    expect(items.map((i) => i.textContent)).toEqual(['Appearance']);
     expect(items[0]).toHaveAttribute('aria-haspopup', 'menu');
   });
 });

@@ -13,9 +13,9 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | Base path | All routes start with `/api`. nginx forwards `/api/` unchanged. |
 | Authentication | `Authorization: Bearer <Entra access token>` for the audience `api://<clientId>` on every route except the health checks. A missing or invalid token gives `401` with `WWW-Authenticate: Bearer`. |
 | Identity | The caller's name comes from the token. Identity fields in request bodies (`requestedBy`, `createdBy`, `updatedBy`, `updated`, `dateTimeUtc`) are ignored. |
-| JSON | UTF-8. TIM's own property names are camelCase; unknown request properties are ignored. Names an action defines, such as its param names and their values, pass through verbatim, and in OpenAPI that content is an open JSON value. Exception: keys inside `executionMetrics` are Kusto's snake_case. |
+| JSON | UTF-8. TIM's own property names are camelCase; unknown request properties are ignored. Names an action defines, such as its param names and their values, pass through verbatim, and in OpenAPI that content is an open JSON value. |
 | Timestamps | ISO 8601 UTC with `Z`, with milliseconds only when non-zero. Input with an offset is converted to UTC; input without an offset is read as UTC. |
-| Status codes | `200`/`201` with a body, `202` while a newly started run or a query run is pending, `204` without a body. |
+| Status codes | `200`/`201` with a body, `202` while a newly started run is pending, `204` without a body. |
 | Errors | RFC 9457 problem details (`application/problem+json`), see [Errors](#errors). |
 | Trace id | Every response has `x-trace-id`. The server accepts a W3C `traceparent` or an `x-request-id` (`[A-Za-z0-9._-]`, up to 128 characters) and otherwise generates one. |
 | Headers | Responses carry `x-content-type-options: nosniff` and `cache-control: no-store`. |
@@ -31,23 +31,14 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
 | POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
-| GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run. |
-| POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (idempotent). |
-| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations. |
+| GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run (any signed-in analyst with the `runId`). |
+| POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (owner only; idempotent). |
+| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations (any signed-in analyst with the `runId`). |
 | PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and comments of `id`s. |
 | GET | `/api/annotations/changes` | 200 | 401, 422 | The change feed: the `id`s changed after a version. |
 | GET | `/api/annotations/history` | 200 | 401, 422 | The history of an `id`: its label changes and comments, newest first. |
 | GET | `/api/tags/suggestions` | 200 | 401, 422 | Tags that start with a prefix: the caller's recent ones, then the most used. |
 | POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 422, 502, 503 | The editor schema of a connection, from its connection type's hook. |
-| POST | `/api/kusto/schema` | 200 | 400, 401, 403, 422, 502 | `.show schema as json` for a cluster database. |
-| POST | `/api/kusto/query` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a query run. |
-| GET | `/api/kusto/query/{queryRunId}` | 200 or 202 | 401, 404, 422 | Read a query run. |
-| GET | `/api/templates/queries` | 200 | 401, 422 | List templates. |
-| GET | `/api/templates/queries/{uuid}` | 200 | 401, 404, 422 | Get one template (soft-deleted included). |
-| POST | `/api/templates/queries` | 201 | 400, 401, 409, 422 | Create a template. `Location: /api/templates/queries/{uuid}`. |
-| PUT | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404, 422 | Replace the editable fields. |
-| PATCH | `/api/templates/queries/{uuid}` | 200 | 400, 401, 404, 422 | Apply a JSON Patch (RFC 6902). |
-| DELETE | `/api/templates/queries/{uuid}` | 204 | 401, 404, 422 | Soft delete (idempotent). |
 | GET | `/api/presets` | 200 | 401 | List your presets and the shared ones. |
 | GET | `/api/presets/{presetId}/actionFile` | 200 | 401, 404, 409, 422 | A preset as an action file, in YAML. |
 | POST | `/api/presets` | 201 | 400, 401, 422 | Create a preset. |
@@ -87,19 +78,17 @@ Every non-2xx response has this body:
 | Status | `type` slug | Cause |
 |---|---|---|
 | 400 | `bad-request` | Malformed JSON (`errors.body`). |
-| 400 | `cluster-not-allowed` | Cluster URL rejected, `errors.cluster` has the reason. |
 | 401 | `unauthorized` | Missing, malformed, expired or otherwise invalid token. |
-| 403 | `consent-required` | The token cannot be exchanged for a connection's scope or the cluster (sign-in or consent needed). The SPA prompts again. |
+| 403 | `consent-required` | The token cannot be exchanged for a connection's scope (sign-in or consent needed). The SPA prompts again. |
 | 403 | `forbidden` | Kusto denied the user access to the cluster or database. Or a change to a preset or column view the caller does not own. |
-| 404 | `not-found` | Unknown template or action, or a run or query run that is unknown, expired or owned by someone else. An unknown preset or column view, or someone else's private one. |
-| 409 | `conflict` | A template with that `uuid` already exists (including soft-deleted). |
+| 404 | `not-found` | Unknown action, or a run that is unknown or expired, or a cancel of someone else's run. An unknown preset or column view, or someone else's private one. |
 | 409 | `run-not-succeeded` | Rows were requested for a run that isn't `succeeded`. |
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); NUL character in `query` or `database`; `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
-| 502 | `upstream` | Entra unreachable, token exchange failure, Kusto schema failure, or tag ingestion failure. |
+| 502 | `upstream` | Entra unreachable, token exchange failure, editor schema failure, or tag ingestion failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
 
 ## Instance
@@ -164,7 +153,7 @@ Errors:
 
 ## Runs
 
-A run is one execution of an action by the server ([architecture.md](architecture.md#runs-and-rows)). Only its owner can read or cancel it.
+A run is one execution of an action by the server ([architecture.md](architecture.md#runs-and-rows)). Any signed-in analyst who holds its `runId` can read it and its rows. Only its owner can cancel it.
 
 ### POST /api/runs
 
@@ -210,11 +199,11 @@ Otherwise the response is the [Run](#run):
 
 ### GET /api/runs/{runId}
 
-Returns the run with `200`, whatever its status. Poll it until `status` is no longer `running`.
+Returns the run with `200`, whatever its status. Poll it until `status` is no longer `running`. `404` means the run is unknown or expired.
 
 ### POST /api/runs/{runId}/cancel
 
-Cancels a `running` run and returns it with `200`. The run turns `cancelled` once the action's connections have stopped, which may be after the response; poll for it. A run that has already ended comes back unchanged. Any replica can take the request.
+Only the owner can cancel; anyone else gets the same `404` as for an unknown run. Cancels a `running` run and returns it with `200`. The run turns `cancelled` once the action's connections have stopped, which may be after the response; poll for it. A run that has already ended comes back unchanged. Any replica can take the request.
 
 ### GET /api/runs/{runId}/rows
 
@@ -263,12 +252,12 @@ Failure messages: the action's own message; `Result exceeds limit of N rows` or 
 | Rows per page | 10,000 | `TIM_ROWS_PAGE_SIZE` |
 | Execution time | 600 s | `TIM_RUN_TIMEOUT_SECONDS` |
 | Run retention | 86,400 s | `TIM_RUN_RETENTION_SECONDS` |
-| Concurrent runs and query runs per process | 16 | `TIM_MAX_CONCURRENT_RUNS` |
+| Concurrent runs per process | 16 | `TIM_MAX_CONCURRENT_RUNS` |
 | Distinct `id`s in one annotations change | 10,000 | `TIM_MAX_ANNOTATION_IDS` |
 | Request body | 64 MiB | `TIM_MAX_REQUEST_BYTES` |
 | Rows in a pivot | 100 | `TIM_MAX_PIVOT_ROWS` |
 
-A result over a row or size limit makes the run `error`; it is not truncated. A [query run](#kustoqueryrun) is capped at 100,000 rows and 64 MiB, or the two settings when they are lower; the other limits apply to it as they are.
+A result over a row or size limit makes the run `error`; it is not truncated.
 
 ## Annotations
 
@@ -416,97 +405,6 @@ Errors:
 - `404` for an unknown connection.
 - The connection's `obo` token is got before the hook runs. So `403 consent-required`, `502` and `503` answer as on `POST /api/runs`.
 - `502` with the hook's message when the hook fails, for example on a Kusto or Snowflake error or an unrecognised result.
-
-## Kusto
-
-### POST /api/kusto/schema
-
-Body: `{ "cluster": "https://...", "database": "..." }`. Validates the cluster, exchanges the token, runs `.show schema as json` and returns `{ "schema": { ... } }` with the parsed schema document unchanged. `403` when Kusto denies access, `502` when Kusto fails or returns an unrecognised result.
-
-### POST /api/kusto/query
-
-Request (`KustoQueryRequest`):
-
-| Field | Type | Rules |
-|---|---|---|
-| `cluster` | string | Required; see [Cluster validation](#cluster-validation). |
-| `database` | string | Required, 1 to 256 characters. |
-| `query` | string | Required, not blank, at most 100,000 characters. |
-| `startTime`, `endTime` | datetime | Optional; `endTime` must not be earlier than `startTime`. Passed to Kusto as the query parameters `StartTime` and `EndTime`. |
-
-Token errors (`401`, `403`, `502`, `503`) are returned before a run exists. Otherwise the response is the run: `200` if it finished within about one second, else `202` with `status: "created"`; poll the GET route.
-
-### GET /api/kusto/query/{queryRunId}
-
-Returns `202` while the run is `created`, including while it waits for a free slot, and `200` once it is `completed`, `error` or `timedOut`. Only the owner can read a run. Runs expire `TIM_RUN_RETENTION_SECONDS` (default 24 h) after their last update.
-
-### KustoQueryRun
-
-| Field | Type | Notes |
-|---|---|---|
-| `queryRunId` | uuid | |
-| `status` | `created` \| `completed` \| `error` \| `timedOut` | |
-| `kustoQuery` | object | Echo of the request: `cluster` (normalised), `database`, `query`, `startTime`, `endTime`, and `requestedBy` (the token identity). |
-| `executeDateTimeUtc` | datetime | When the run was created. |
-| `expiresAt` | datetime | |
-| `resultData` | array of objects \| null | Rows as column-name to value objects; only when `completed`. Kusto `datetime` values are ISO strings with `Z`, `timespan` is `[-][d.]hh:mm:ss[.fffffff]`, `dynamic` is parsed JSON, `guid` is a string, `decimal` is a number when exact else a string. |
-| `executionMetrics` | object \| null | Kusto `QueryCompletionInformation` stats: `execution_time`, `resource_usage`, `input_dataset_statistics`, `dataset_statistics`, plus other keys Kusto sends. |
-| `mainError` | string \| null | User-safe message when `error` or `timedOut`. |
-
-Failure messages:
-
-- Kusto's own error text, with stack-trace lines removed, at most 2000 characters;
-- `Result exceeds limit of N rows` or `N bytes` (see [Limits](#limits));
-- `Query exceeded the execution time limit of N seconds` (`timedOut`);
-- `Run interrupted by server restart`;
-- `The query failed unexpectedly`.
-
-### Cluster validation
-
-Applied to `cluster` before any token exchange. On success the value is normalised to `https://<lowercase ascii host>`; otherwise `400 cluster-not-allowed`.
-
-- Absolute `https://` URL, no whitespace or control characters.
-- No credentials, query, fragment or path (a trailing `/` is accepted); no IP address literals.
-- Port omitted or `443`.
-- Host is a valid domain name (internationalised names are converted to punycode).
-- The host must match a pattern in `TIM_ALLOWED_KUSTO_HOSTS` (exact host, `*.domain` or `**.domain`; default `**.kusto.windows.net`; see [configuration](configuration.md#cluster-allow-list)). Otherwise the reason is `Invalid cluster URL: host is not in the allowed cluster list.`
-
-## Templates
-
-Base path `/api/templates/queries`. Templates are shared by all users.
-
-### GET /api/templates/queries
-
-Query parameters: `since` (datetime; only templates with `updated` strictly after it) and `includeDeleted` (boolean, default `false`). Ordered by `updated`, then `uuid`. Returns an array of `QueryTemplate`.
-
-### POST, PUT, PATCH, DELETE
-
-- `POST` body is `QueryTemplateCreate`: the editable fields plus `uuid` (client-generated); `isDeleted` must be absent or `false`. `409` if the `uuid` exists. The server sets `createdBy`, `updatedBy` and `updated`.
-- `PUT` body is `QueryTemplateReplace`: the editable fields plus `uuid`, which must equal the path (else `422`). Never creates (`404` if missing). `createdBy` and `isDeleted` are preserved.
-- `PATCH` body is a non-empty JSON array of `{ "op", "path", "value" }`.
-  - `op` is one of `add`, `replace`, `remove`, `test`. `move` and `copy` are rejected.
-  - The patch is applied to the stored template's JSON. The result must be a valid `QueryTemplate`.
-  - Patching `/uuid`, `/createdBy`, `/updatedBy`, `/updated` (or children) is `422`.
-  - `/isDeleted` is allowed, so `[{"op":"replace","path":"/isDeleted","value":false}]` restores a deleted template.
-- `DELETE` sets `isDeleted` and is idempotent. Soft-deleted templates stay readable by `GET /{uuid}`.
-
-### QueryTemplate
-
-| Field | Type | Rules |
-|---|---|---|
-| `uuid` | uuid | |
-| `name`, `menu`, `summary`, `database`, `query` | string | Not blank. Handlebars sources for `summary`, `cluster`, `database` and `query` are rendered in the browser. |
-| `isManaged` | boolean | Default `false`. |
-| `queryType` | `view` \| `query` | |
-| `path` | string[] | Menu path. |
-| `cluster` | string | May be empty or a Handlebars expression; not validated as a cluster URL here. |
-| `columnId` | string \| null | Row identity column. |
-| `params` | map of `QueryParam` \| null | `{type, default?, optional?, multiple?, hint?, values?}`; `values` is required and non-empty when `type` is `array`. |
-| `fields` | map of `QueryField` \| null | `{type, from?, regex?}`; required and non-empty when `queryType` is `query`. `from` is required for `type: multiple`; `regex` is required and must compile for `type: match`. |
-| `columns` | map \| null | AG Grid column definition overrides by column name; `default` applies to all other columns. |
-| `isDeleted` | boolean | Read-only except through PATCH. |
-| `updated` | datetime | Server-set, millisecond precision. |
-| `createdBy`, `updatedBy` | string | Server-set. |
 
 ## Presets
 

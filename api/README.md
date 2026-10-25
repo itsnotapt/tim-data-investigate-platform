@@ -40,12 +40,10 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs`, `column_views` and `annotations`:
+`tim_api.storage` defines the persistence ports, bundled as `Storage` with `presets`, `runs`, `column_views` and `annotations`:
 
-- `TemplateStore`;
 - `PresetStore`, for presets and each analyst's hidden marks;
 - `RunStore`, for runs and their rows;
-- `QueryRunStore`, for Kusto query runs;
 - `ColumnViewStore`, for column views (`column_views`) and each analyst's hidden marks (`column_view_hidden`);
 - `AnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
 
@@ -54,7 +52,7 @@ There are two implementations:
 - `PostgresStorage`: SQLAlchemy 2 async with asyncpg (ADR-0004);
 - an in-memory store (`TIM_DATABASE_URL=memory://`): development only, rejected in production.
 
-Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store`, `get_query_run_store` and `get_column_view_store`.
+Endpoints get stores through `tim_api.deps.get_preset_store`, `get_run_store` and `get_column_view_store`.
 
 **Migrations (Alembic).** The schema lives in `migrations/`. `tim_api.storage.postgres.metadata` is the model definition.
 
@@ -74,7 +72,6 @@ Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_stor
 - A background task, started in the lifespan, deletes expired runs every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300).
   - It deletes runs ten at a time (`RUNS_PER_BATCH`), each with its rows.
   - It skips runs that another replica's sweep has locked.
-  - Then it deletes the expired query runs.
 
 **Tests.** `tests/storage_contract.py` runs against both stores, through the `storage` fixture in `tests/conftest.py`.
 
@@ -113,7 +110,6 @@ Tests override the `get_token_validator` dependency with a `TokenValidator` buil
 
 - It blocks, so call it from a worker thread.
 - Runs use it for each `obo` connection's scope. Hooks get it as a `token_for(scope)` callable, never the user's token.
-- `get_token(principal, cluster_url)` serves the Kusto tab. It takes a cluster already normalised by `validate_cluster_url`. Its scope is `TIM_KUSTO_OBO_SCOPE`, with `{cluster}` substituted.
 - There is one `msal.ConfidentialClientApplication`, built lazily and once, with MSAL's shared in-memory token cache.
 
 The credential is `TIM_AUTH_CLIENT_SECRET`, else a client assertion re-read from `AZURE_FEDERATED_TOKEN_FILE`.
@@ -129,7 +125,7 @@ Errors for endpoints to map:
 | `OboUpstreamError` | 502 |
 | `OboUnavailableError` (auth disabled, or no token) | 503 |
 
-With `TIM_AUTH_DISABLED=true`, the provider always raises `OboUnavailableError`. So Kusto calls need real auth, even in dev.
+With `TIM_AUTH_DISABLED=true`, the provider always raises `OboUnavailableError`. So runs on `obo` connections need real auth, even in dev.
 
 For local work and tests, set `TIM_ENVIRONMENT=development` and `TIM_AUTH_DISABLED=true`.
 
@@ -189,53 +185,15 @@ The build is multi-stage, on `python:3.12-slim-trixie` (Debian 13, from `mirror.
 Pydantic v2 models mirror the schemas in [api.md](../docs/api.md).
 
 - They use camelCase aliases, ignore unknown input fields, and serialise by alias.
-- They are in `actions/models.py`, `templates/models.py`, `presets/models.py`, `runs/models.py`, `query_runs/models.py`, `tagged_events/models.py` and `kusto/models.py`.
+- They are in `actions/models.py`, `presets/models.py`, `runs/models.py` and `tagged_events/models.py`.
 - The shared base and UTC datetime type are in `models_common.py`.
 
 Rules:
 
-- **Request and response models are separate:** `QueryTemplateCreate` (POST), `QueryTemplateReplace` (PUT) and `QueryTemplate` (stored and returned; it also validates PATCH results).
-  - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `createdBy`, `updatedBy`, `updated`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
+- **Request and response models are separate:** `PresetFields` (POST and PUT), `StoredPreset` (stored) and `Preset` (returned).
+  - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `presetId`, `owner`, `createdAt`, `updatedAt`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
 - **Datetimes:** input without an offset is UTC, and offsets are converted. Output is `...Z`, with milliseconds only when the value has a sub-second part.
-- **Validation error locs** use Python attribute names when a value is missing and defaulted: `QueryField.from` appears as `from_`. The error handler (422 problem envelope) must map it back to `from`.
 - **Batch types** (`SavedEventBatch`, ...) enforce 1 to 1000 items.
-- **Cluster policy** is not in the models. It lives in `kusto/validation.py`: `validate_cluster_url`, which raises `InvalidClusterError`.
-  - https only;
-  - no userinfo, port, path, query or IP literal;
-  - host patterns from `TIM_ALLOWED_KUSTO_HOSTS`, default `DEFAULT_ALLOWED_KUSTO_HOSTS`.
-- **`KustoQueryStats`** allows extra Kusto keys.
-
-## Kusto query client
-
-`kusto/query_client.py` holds:
-
-- the `KustoQueryClient` protocol: `execute(cluster_url, database, query, token, start, end, limits) -> QueryResult`;
-- the `get_kusto_client` dependency;
-- `AzureKustoQueryClient`: the sync `azure-kusto-data` client, in `asyncio.to_thread`. The aio client would need the extra `aiohttp` dependency.
-
-Behaviour:
-
-- Parsing is a pure function, `parse_v2_frames`, over raw V2 frames. Fixtures are in `tests/fixtures/kusto/`.
-- `StartTime` and `EndTime` are sent as ISO-8601 query parameters. The KQL must declare them.
-- `servertimeout` comes from `TIM_RUN_TIMEOUT_SECONDS`.
-- Exceeding the row or byte cap it is given raises `KustoResultLimitError`. There is no truncation (see [docs/api.md](../docs/api.md)).
-- Kusto failures raise `KustoQueryError`, with a sanitised message.
-- Progressive frames raise `KustoUnexpectedFrameError`.
-- Cancelling the awaiting task does not stop the worker thread. The server timeout bounds it.
-
-## Kusto schema
-
-`POST /api/kusto/schema`:
-
-1. validates the cluster: 400 `cluster-not-allowed`, before any token exchange;
-2. gets an OBO token for the normalised cluster;
-3. calls `KustoQueryClient.show_schema`: the management command `.show schema as json`, with the database as context;
-4. parses the JSON column (`ClusterSchema`, `DatabaseSchema` or the single column), and returns it as `{schema: <object>}`.
-
-Errors:
-
-- A Kusto 403 gives 403 `forbidden`.
-- Other Kusto errors, or an unrecognised result, give 502 `upstream`, with a fixed detail.
 
 ## Runs
 
@@ -252,7 +210,7 @@ Errors:
 
 The task:
 
-- waits for a slot of the semaphore shared with query runs (`app.state.run_slots`);
+- waits for a slot of the semaphore (`Runner`'s `slots`, sized by `max_concurrent_runs`);
 - runs the action's synchronous `run(params, ctx)` in a daemon thread named `tim-run-<runId>`.
 
 `ctx` (`_Context`) implements `tim_actions.RunContext`.
@@ -296,69 +254,16 @@ Tests:
 - The built-ins' action tests live in `api/tim-actions/tests`, on `tim_actions.testing` ([actions.md](../docs/actions.md#testing)).
 - `tests/test_run_kql.py` covers Run KQL. Its live test needs `TIM_TEST_KUSTO_CLUSTER` (see [development.md](../docs/development.md)).
 
-## Query runs
-
-`POST /api/kusto/query`:
-
-1. validates the cluster: 400 `cluster-not-allowed`, before any token use;
-2. validates the body: `startTime <= endTime`, and NUL in `query` or `database` is 422;
-3. gets the OBO token synchronously, so 401, 403, 502 and 503 are real HTTP errors;
-4. stores the run as `created`. The owner is the token name, and a client `requestedBy` is ignored. `expiresAt` is now + `TIM_RUN_RETENTION_SECONDS`;
-5. starts a tracked asyncio task (`query_runs/runner.py`, `RunManager`);
-6. waits 1 s (`RACE_SECONDS`): 200 when finished, else 202 with the `created` run.
-
-There is no `Location` header. Clients poll `GET /api/kusto/query/{queryRunId}`, which returns 202 while `created` and 200 once terminal.
-
-- A malformed guid is 422.
-- An unknown, expired or foreign run is 404 (`get_for_owner`).
-
-Outcomes are persisted before anything can observe them, and `expiresAt` is refreshed:
-
-| Outcome | Status |
-|---|---|
-| Success | `completed` |
-| `KustoQueryError` | `error`, with the sanitised message |
-| `KustoResultLimitError` | `error` ("Result exceeds limit of ...") |
-| `TIM_RUN_TIMEOUT_SECONDS` exceeded (`asyncio.timeout`) | `timedOut`, with a `mainError` |
-| Any other exception | `error` "The query failed unexpectedly". The traceback is logged with the trace id |
-
-Tasks and restarts:
-
-- Tasks are referenced from `app.state.run_tasks`, and cancelled on shutdown. A cancelled run is marked `error` "Run interrupted by server restart".
-- At startup, `mark_stale_runs` marks runs still `created` for longer than the query timeout as `error`, with the same message.
-- Younger runs, which belong to other replicas, are left alone.
-
-PostgreSQL JSONB and TEXT cannot store U+0000.
-
-- So NUL characters in result data (keys and values) and in `mainError` are replaced with U+FFFD before persisting (`sanitise_nul`).
-- This applies to both stores, for identical behaviour.
-
-Tests run the flow against memory and PostgreSQL (the `storage` fixture).
-
 ### Limits
 
 | Setting | Default | Behaviour when exceeded |
 |---|---|---|
-| `TIM_MAX_RESULT_ROWS` | 1 000 000 | capped at 100 000 here (`MAX_ROWS`, the lower wins): run ends `error`, `resultData: null`, `mainError` "Result exceeds limit of N rows". Never truncated. |
-| `TIM_MAX_RESULT_BYTES` | 512 MiB | capped at 64 MiB here (`MAX_BYTES`): same, "... N bytes" (size of the compact JSON of all rows) |
+| `TIM_MAX_RESULT_ROWS` | 1 000 000 | the run ends `error`, "Result exceeds limit of N rows". Never truncated. |
+| `TIM_MAX_RESULT_BYTES` | 512 MiB | the same, "... N bytes" (size of the compact JSON of all rows) |
 | `TIM_RUN_TIMEOUT_SECONDS` | 600 | `timedOut` |
 | `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
-| `TIM_MAX_CONCURRENT_RUNS` | 16 | per process, shared with `/api/runs`; extra runs wait in `created` (the timeout starts when execution starts), so a `created` run may outlive 11 min only under sustained overload |
+| `TIM_MAX_CONCURRENT_RUNS` | 16 | per process; extra runs wait as `running` (the timeout starts when execution starts) |
 | `TIM_MAX_REQUEST_BYTES` | 67108864 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
-
-How the caps are checked:
-
-- The row cap is checked per result table, before any row is converted.
-- The byte cap is checked while rows are converted. Conversion stops at the first row that crosses it.
-- `GET` returns at most the byte cap of rows, so the response is bounded.
-- The synchronous Azure SDK materialises the raw response before parsing, which the caps cannot prevent. Server-side `set truncationmaxrecords` or `truncationmaxsize` could; they are not applied.
-
-The memory budget is checked by `tests/test_query_runs_load.py`.
-
-- Converting and sanitising a result peaks below 3x its serialised size, on top of the raw frames.
-- It measured about 2.3x for 100 000 rows x 10 columns, including dynamic, with a 37 MB payload.
-- `sanitise_nul` returns clean data without copying it.
-- The 100k case is marked `slow`, and skipped by default. Run it with `uv run pytest -m slow`.
 
 ## Tagged events
 
@@ -411,7 +316,7 @@ It is safe to re-run.
 | Handler | Answer |
 |---|---|
 | `HTTPException` | Its status, with headers kept, so `WWW-Authenticate` survives. Unknown statuses get `urn:tim:problem:http-<status>` |
-| `RequestValidationError` | 422 `validation`, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Malformed JSON (a `json_invalid` error) gives 400 `bad-request` with `{"body": ["Malformed JSON"]}` |
+| `RequestValidationError` | 422 `validation`, with `errors` keyed by camelCase JSON path. Malformed JSON (a `json_invalid` error) gives 400 `bad-request` with `{"body": ["Malformed JSON"]}` |
 | `NotFoundError` | 404 |
 | `AlreadyExistsError` | 409 |
 | `StorageUnavailableError` | 503 |
@@ -441,18 +346,6 @@ Details are fixed strings. Exception messages are never echoed.
 - `_check` requires `action` in the catalogue, each param input to be a param of it with `from_columns`, and each query parameter input to be on an action that takes them (`Action.takes_query_parameters`), with a unique name that matches `PARAM_NAME`. Failures are `422` with `errors` keys `action`, `inputs.<i>.name` and `inputs.<i>.source`.
 - `presets/action_file.py` builds the actionFile response with the action's `preset_file`. `NoActionFileError` is `409` `no-action-file`; it also answers a Run KQL preset without a connection, database or query, for which `RunKql.preset_file` returns `None`. The file pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 - `_visible` answers `404` for an unknown preset or someone else's private one. `_owned` adds `403` for a change by a non-owner.
-
-## Template endpoints
-
-`templates/router.py` implements `/api/templates/queries`: list, get, POST 201, PUT (update only), PATCH, and soft DELETE 204.
-
-- Audit fields come from the principal and the clock. The clock is truncated to milliseconds, so `since=<updated>` round-trips.
-- PATCH uses the `jsonpatch` library on the stored JSON form.
-  - `/uuid`, `/createdBy`, `/updatedBy` and `/updated` are protected.
-  - `move`, `copy` and empty patches are rejected.
-  - The result is re-validated with `QueryTemplate`.
-  - All of these 400s use the `errors` envelope.
-- Restore is `replace /isDeleted false`.
 
 ## OpenAPI export and contract test
 

@@ -12,7 +12,7 @@ from conftest import migrate
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
-from storage_contract import T0, make_query_run, make_template
+from storage_contract import T0, make_run
 
 from tim_api.storage import PostgresStorage, StorageUnavailableError, sweep_expired
 from tim_api.storage.postgres import metadata
@@ -56,8 +56,6 @@ def _tables(dsn: str) -> set[str]:
 
 
 ALL_TABLES = {
-    "query_templates",
-    "query_runs",
     "runs",
     "run_rows",
     "presets",
@@ -79,14 +77,10 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
 
     def indexes(conn: Connection) -> set[str]:
         insp = inspect(conn)
-        return {str(i["name"]) for t in ALL_TABLES for i in insp.get_indexes(t)}
+        return {str(i["name"]) for t in insp.get_table_names() for i in insp.get_indexes(t)}
 
     found = asyncio.run(_with_conn(scratch_dsn, indexes))
     assert {
-        "ix_query_templates_updated_uuid",
-        "ix_query_runs_requested_by",
-        "ix_query_runs_expires_at",
-        "ix_query_runs_created_executed",
         "ix_runs_expires_at",
         "ix_runs_running_started",
         "ix_presets_created_id",
@@ -96,6 +90,18 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
     } <= found
 
     migrate(scratch_dsn)  # idempotent
+    migrate(scratch_dsn, "0006", down=True)
+    assert _tables(scratch_dsn) == ALL_TABLES | {"query_runs"}
+
+    found = asyncio.run(_with_conn(scratch_dsn, indexes))
+    assert {
+        "ix_query_runs_requested_by",
+        "ix_query_runs_expires_at",
+        "ix_query_runs_created_executed",
+    } <= found
+
+    migrate(scratch_dsn, "0005", down=True)
+    assert _tables(scratch_dsn) == ALL_TABLES | {"query_runs", "query_templates"}
     migrate(scratch_dsn, "0002", down=True)
     assert _tables(scratch_dsn) == {"query_templates", "query_runs", "runs", "run_rows"}
     migrate(scratch_dsn, "0001", down=True)
@@ -133,23 +139,13 @@ def test_migration_matches_table_definitions(scratch_dsn: str) -> None:
 async def test_python_none_is_sql_null(postgres_dsn: str) -> None:
     storage = PostgresStorage(postgres_dsn)
     try:
-        template = make_template()
-        await storage.templates.create(template.model_copy(update={"params": None}))
-        run = make_query_run()
-        await storage.query_runs.create(run)
+        await storage.runs.create(make_run())
 
         async def rows(conn: Any) -> Any:
-            t = await conn.execute(
-                text("SELECT params IS NULL FROM query_templates WHERE uuid = :u"),
-                {"u": template.uuid},
-            )
-            r = await conn.execute(
-                text("SELECT result_data IS NULL, execution_metrics IS NULL FROM query_runs")
-            )
-            return t.scalar_one(), r.one()
+            r = await conn.execute(text("SELECT columns IS NULL FROM runs"))
+            return r.scalar_one()
 
-        tnull, (rnull, mnull) = await _with_conn(postgres_dsn, rows, autocommit=True)
-        assert tnull and rnull and mnull
+        assert await _with_conn(postgres_dsn, rows, autocommit=True) is True
     finally:
         await storage.aclose()
 
@@ -159,9 +155,7 @@ async def test_unreachable_database() -> None:
     try:
         assert await storage.health() is False
         with pytest.raises(StorageUnavailableError):
-            await storage.templates.get(uuid.uuid4())
-        with pytest.raises(StorageUnavailableError):
-            await storage.query_runs.get_for_owner(uuid.uuid4(), "alice", T0)
+            await storage.runs.get(uuid.uuid4(), T0)
         assert await sweep_expired(storage) == 0  # logged, not raised
     finally:
         await storage.aclose()

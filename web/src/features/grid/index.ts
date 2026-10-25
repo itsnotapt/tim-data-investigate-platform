@@ -1,6 +1,5 @@
 export { DetailFields } from './DetailPanel';
 export { ResultsGrid } from './ResultsGrid';
-export { TabResultsGrid } from './TabResultsGrid';
 export { buildColumnDefs, prepareRows } from './columns';
 export type { GridRowWithId } from './columns';
 export { SIDE_BAR, STATUS_PANELS } from './gridOptions';

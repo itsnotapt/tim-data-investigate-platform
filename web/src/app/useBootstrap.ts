@@ -5,7 +5,6 @@ import { resumeActionRuns } from '../features/action-tab';
 import { refreshInstanceOnFocus, useInstanceStore } from '../features/instance';
 import { resumeSinkRuns } from '../features/sinks';
 import { useTabsStore } from '../features/tabs';
-import { useTemplatesStore } from '../features/templates';
 import { startAnnotationSync } from '../lib/annotations';
 import { useAuth } from '../lib/auth';
 import { loadColumnViews } from './columnViewsState';
@@ -14,8 +13,7 @@ type BootstrapStatus = 'signedOut' | 'loading' | 'loaded' | 'error';
 
 export interface BootstrapSteps {
   loadInstance: () => Promise<void>;
-  loadTemplates: () => Promise<void>;
-  /** The template and Kusto tabs' column views, and the analyst's applied views. */
+  /** The column views, and the analyst's applied views. */
   loadColumnViews: (analyst: string) => Promise<void>;
   loadTabs: () => Promise<void>;
   /** Picks up the runs the loaded tabs were following. */
@@ -37,7 +35,6 @@ async function loadTabs(): Promise<void> {
 
 const defaultSteps: BootstrapSteps = {
   loadInstance: () => useInstanceStore.getState().load(),
-  loadTemplates: () => useTemplatesStore.getState().load(),
   loadColumnViews: async (analyst) => {
     await loadColumnViews();
     await loadAppliedViews(analyst);
@@ -61,7 +58,7 @@ export interface UseBootstrap {
 }
 
 /**
- * Startup sequence: sign in, then the instance, templates, column views and tabs, then the tabs'
+ * Startup sequence: sign in, then the instance, column views and tabs, then the tabs'
  * runs and the sink runs are picked up again.
  * A failed attempt leaves the app retryable.
  */
@@ -84,7 +81,6 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
     void (async () => {
       try {
         await steps.loadInstance();
-        await steps.loadTemplates();
         await steps.loadColumnViews(analyst);
         await steps.loadTabs();
         if (!cancelled) steps.resumeRuns();

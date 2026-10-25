@@ -24,9 +24,9 @@ from tim_api.errors import PROBLEM_CONTENT_TYPE, ProblemDetails
 BEARER = "bearerAuth"
 
 _DESCRIPTIONS = {
-    400: "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`).",
+    400: "Malformed JSON (`bad-request`).",
     401: "Missing, invalid or expired token (`unauthorized`).",
-    403: "Consent required or Kusto denied the user (`consent-required` / `forbidden`).",
+    403: "Consent required, or only the owner may change it (`consent-required` / `forbidden`).",
     404: "Not found (`not-found`).",
     409: (
         "Already exists, the run has not succeeded, or the preset has no action file "
@@ -48,10 +48,6 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("post", "/api/actions/{key}/resolve"): ("resolvePivot", (404,)),
     # The connection's obo token is got first, hence 403/502/503; 502 also when the hook fails.
     ("post", "/api/connections/{name}/schema"): ("getEditorSchema", (403, 404, 502, 503)),
-    ("post", "/api/kusto/schema"): ("getSchema", (403, 502)),
-    # Token exchange failures happen before the run exists, hence 403/502/503 here.
-    ("post", "/api/kusto/query"): ("runQuery", (403, 502, 503)),
-    ("get", "/api/kusto/query/{queryRunId}"): ("getQueryRun", (404,)),
     # Each obo connection's token is got before the run exists, hence 403/502/503 here.
     ("post", "/api/runs"): ("startRun", (403, 502, 503)),
     ("get", "/api/runs/{runId}"): ("getRun", (404,)),
@@ -70,12 +66,6 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("delete", "/api/columnViews/{viewId}"): ("deleteColumnView", (403, 404)),
     ("put", "/api/columnViews/{viewId}/hidden"): ("hideColumnView", (404,)),
     ("delete", "/api/columnViews/{viewId}/hidden"): ("unhideColumnView", (404,)),
-    ("get", "/api/templates/queries"): ("listTemplates", ()),
-    ("get", "/api/templates/queries/{uuid}"): ("getTemplate", (404,)),
-    ("post", "/api/templates/queries"): ("createTemplate", (409,)),
-    ("put", "/api/templates/queries/{uuid}"): ("replaceTemplate", (404,)),
-    ("patch", "/api/templates/queries/{uuid}"): ("patchTemplate", (404,)),
-    ("delete", "/api/templates/queries/{uuid}"): ("deleteTemplate", (404,)),
     ("post", "/api/taggedevents/savedEvents"): ("saveEvents", (502,)),
     ("post", "/api/taggedevents/tags"): ("tagEvents", (502,)),
     ("post", "/api/taggedevents/comments"): ("commentEvents", (502,)),
@@ -132,13 +122,6 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
                 operation["security"] = [{BEARER: []}]
             for status in statuses:
                 responses[str(status)] = _problem_response(status)
-            if operation_id == "createTemplate":
-                responses["201"]["headers"] = {
-                    "Location": {
-                        "description": "`/api/templates/queries/{uuid}`",
-                        "schema": {"type": "string"},
-                    }
-                }
     return spec
 
 

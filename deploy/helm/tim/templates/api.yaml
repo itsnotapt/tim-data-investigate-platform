@@ -16,6 +16,12 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap-api.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- if .Values.actions.files }}
+        checksum/actions: {{ include (print $.Template.BasePath "/configmap-actions.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if include "tim.apiFilesConfigMap" . }}
+        checksum/api-files: {{ include (print $.Template.BasePath "/configmap-api-files.yaml") . | sha256sum }}
+        {{- end }}
         {{- with .Values.api.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -58,6 +64,18 @@ spec:
                   name: {{ include "tim.secretName" . }}
                   key: TIM_AUTH_CLIENT_SECRET
                   optional: true
+            {{- if include "tim.actionsConfigMap" . }}
+            - name: TIM_ACTIONS_DIR
+              value: /etc/tim/actions
+            {{- end }}
+            {{- if .Values.connections }}
+            - name: TIM_CONNECTIONS_FILE
+              value: /etc/tim/connections.yaml
+            {{- end }}
+            {{- if .Values.labels }}
+            - name: TIM_LABELS_FILE
+              value: /etc/tim/labels.yaml
+            {{- end }}
             {{- with .Values.api.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -70,9 +88,36 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if include "tim.actionsConfigMap" . }}
+            - name: actions
+              mountPath: /etc/tim/actions
+              readOnly: true
+            {{- end }}
+            {{- if .Values.connections }}
+            - name: api-files
+              mountPath: /etc/tim/connections.yaml
+              subPath: connections.yaml
+              readOnly: true
+            {{- end }}
+            {{- if .Values.labels }}
+            - name: api-files
+              mountPath: /etc/tim/labels.yaml
+              subPath: labels.yaml
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- with include "tim.actionsConfigMap" . }}
+        - name: actions
+          configMap:
+            name: {{ . }}
+        {{- end }}
+        {{- with include "tim.apiFilesConfigMap" . }}
+        - name: api-files
+          configMap:
+            name: {{ . }}
+        {{- end }}
       {{- with .Values.api.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

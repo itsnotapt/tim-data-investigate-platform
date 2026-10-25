@@ -1,9 +1,7 @@
 import SearchIcon from '@mui/icons-material/Search';
 import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
 import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -22,21 +20,10 @@ import {
 import type { TabsStore } from '../tabs';
 import { PresetMoreMenu } from './PresetMoreMenu';
 import { SubMenu } from './SubMenu';
-import {
-  buildNewMenuTree,
-  buildTemplateMenuTree,
-  entryCaption,
-  type NewMenuEntry,
-  type NewMenuFilter,
-} from './menuTree';
-import type { QueryOptions, QueryTemplate } from './types';
+import { buildNewMenuTree, entryCaption, type NewMenuEntry, type NewMenuFilter } from './menuTree';
 import { useNewQuery } from './useNewQuery';
 
 export interface NewQueryMenuProps {
-  /** Non-deleted templates (templates store). */
-  templates: QueryTemplate[];
-  /** Per-template options; `hide: true` removes a template from the menu. */
-  queryOptions?: QueryOptions;
   /** The instance's actions; defaults to the instance store's. */
   actions?: readonly CatalogueAction[];
   /** Button content; default "New". */
@@ -61,13 +48,10 @@ const FILTERS: readonly [NewMenuFilter, string][] = [
 ];
 
 /**
- * "New query" button + menu: a Kusto tab, search, the presets filter, then actions and presets in
- * one tree of folders, and the Views and Queries submenus (screens 05, 06, 31). The presets are
- * refetched each time the menu opens.
+ * "New query" button + menu: search, the presets filter, then actions and presets in one tree of
+ * folders (screens 05, 06, 31). The presets are refetched each time the menu opens.
  */
 export function NewQueryMenu({
-  templates,
-  queryOptions,
   actions,
   children = 'New',
   ariaLabel,
@@ -80,8 +64,7 @@ export function NewQueryMenu({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<NewMenuFilter>('all');
   const [editing, setEditing] = useState<{ preset: Preset; action: CatalogueAction } | null>(null);
-  const { createAdHoc, createFromTemplate, createFromAction, createFromPreset } =
-    useNewQuery(store);
+  const { createFromAction, createFromPreset } = useNewQuery(store);
   const instanceActions = useInstanceStore((s) => s.instance?.actions ?? NO_ACTIONS);
   const presets = presetsStore((s) => s.presets);
   const notify = useContext(NotifyContext);
@@ -90,14 +73,6 @@ export function NewQueryMenu({
   const actionNodes = useMemo(
     () => buildNewMenuTree(actions ?? instanceActions, presets, { search, filter }),
     [actions, instanceActions, presets, search, filter],
-  );
-  const views = useMemo(
-    () => buildTemplateMenuTree(templates, { queryType: 'view', search, queryOptions }),
-    [templates, search, queryOptions],
-  );
-  const queries = useMemo(
-    () => buildTemplateMenuTree(templates, { queryType: 'query', search, queryOptions }),
-    [templates, search, queryOptions],
   );
   const searching = search.trim() !== '';
 
@@ -171,15 +146,6 @@ export function NewQueryMenu({
         {children}
       </Button>
       <Menu anchorEl={anchor} open={anchor !== null} onClose={close} autoFocus={false}>
-        <MenuItem
-          onClick={() => {
-            createAdHoc();
-            close();
-          }}
-        >
-          New query
-        </MenuItem>
-        <Divider component="li" />
         <li style={{ padding: '4px 16px' }}>
           <TextField
             size="small"
@@ -230,24 +196,6 @@ export function NewQueryMenu({
             />
           </li>
         )}
-        {[
-          { title: 'Views', nodes: views },
-          { title: 'Queries', nodes: queries },
-        ]
-          .filter((g) => g.nodes.length > 0)
-          .map((g) => (
-            <li key={g.title}>
-              <SubMenu
-                title={g.title}
-                nodes={g.nodes}
-                forceOpen={searching}
-                onSelect={(t) => {
-                  createFromTemplate(t);
-                  close();
-                }}
-              />
-            </li>
-          ))}
       </Menu>
       {editing && (
         <SavePresetDialog

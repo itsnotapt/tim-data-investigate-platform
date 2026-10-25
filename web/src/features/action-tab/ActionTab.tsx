@@ -1,5 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import LinkIcon from '@mui/icons-material/Link';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import Alert from '@mui/material/Alert';
@@ -10,17 +11,18 @@ import Divider from '@mui/material/Divider';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
+import { NotifyContext } from '../../components/notifyContext';
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
 import type { EditorLanguage } from '../../lib/monaco';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
 import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
+import { copyShareLink } from '../share-links';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
-import { useTemplatesStore } from '../templates';
 import { useActionPivotMenu } from '../action-pivots';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
@@ -130,11 +132,12 @@ function QueryEditor({
 }
 
 /**
- * An action tab: the header (menu path, action and title) with Clone, the pills bar with Run or
- * the run going, and the inner tabs: the query of an action with a `kql` or `sql` param, the
- * results of the last run that succeeded, and the latest run's details. An action with a query
- * never switches inner tabs: a status line above the editor says how the latest run went. A pivot
- * that left params missing waits for them, with its reasons.
+ * An action tab: the header (menu path, action and title) with Save…, Clone and Copy link, the
+ * pills bar with Run or the run going, and the inner tabs: the query of an action with a `kql` or
+ * `sql` param, the results of the last run that succeeded, and the latest run's details. An action
+ * with a query never switches inner tabs: a status line above the editor says how the latest run
+ * went. A pivot that left params missing waits for them, with its reasons. A share link's row is
+ * shown on the Results tab.
  */
 export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
@@ -143,8 +146,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
   const shown = useRunRows(uuid);
-  const templates = useTemplatesStore((s) => s.templates);
-  const queryOptions = useTemplatesStore((s) => s.queryOptions);
+  const notify = useContext(NotifyContext);
   const actionState = tab?.componentName === 'ActionResult' ? tab.state : undefined;
   const elapsed = useElapsed(
     actionState?.isExecuting && actionState.run?.status === 'running'
@@ -178,7 +180,15 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       ? `Run · ${durationText(duration)}`
       : 'Run';
   const inner: InnerTab =
-    picked?.runKey === runKey ? picked.tab : queryParam ? 'query' : state.error ? 'run' : 'results';
+    state.linkedRow != null
+      ? 'results'
+      : picked?.runKey === runKey
+        ? picked.tab
+        : queryParam
+          ? 'query'
+          : state.error
+            ? 'run'
+            : 'results';
   const pick = (value: InnerTab) => setPicked({ tab: value, runKey });
   // Rows of the run going load into `shown`; any other rows on show are from an earlier run.
   const showingPrevious = state.isExecuting && !(shown && !shown.done);
@@ -204,6 +214,15 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     if (!state.runParams) return;
     useTabsStore.getState().updateParams(uuid, { params: state.runParams });
     useTabsStore.getState().updateState(uuid, { paramErrors: null });
+  };
+  // The run going, else the one whose results show.
+  const linkRunId =
+    state.run?.status === 'running' || state.run?.status === 'succeeded'
+      ? state.run.runId
+      : (state.resultsRunId ?? null);
+  const linkedRowShown = () => {
+    pick('results');
+    useTabsStore.getState().updateState(uuid, { linkedRow: null });
   };
   const clone = () => {
     const copy = cloneActionTab(uuid);
@@ -296,7 +315,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
-        <NewQueryMenu templates={templates} queryOptions={queryOptions} size="small">
+        <NewQueryMenu size="small">
           <AddIcon fontSize="small" sx={{ mr: 0.5 }} />
           New
         </NewQueryMenu>
@@ -326,6 +345,15 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         </Button>
         <Button size="small" startIcon={<ContentCopyIcon />} onClick={clone} sx={{ flexShrink: 0 }}>
           Clone
+        </Button>
+        <Button
+          size="small"
+          startIcon={<LinkIcon />}
+          disabled={linkRunId === null}
+          onClick={() => linkRunId !== null && void copyShareLink(linkRunId, null, notify)}
+          sx={{ flexShrink: 0 }}
+        >
+          Copy link
         </Button>
       </Box>
       {saving && 'error' in saving && (
@@ -425,20 +453,26 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             key={shown.runId}
             uuid={uuid}
             action={params.action}
+            runId={shown.runId}
             rows={shown.rows}
             declaredColumns={action?.columns}
             runColumns={shown.columns}
             getContextMenuItems={pivotMenu}
+            linkedRow={state.linkedRow}
+            onLinkedRowShown={linkedRowShown}
           />
         )}
         {!shown && hasResults && rowCount !== 0 && (
           <StoredActionResultsGrid
             uuid={uuid}
             action={params.action}
+            runId={state.resultsRunId}
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}
             runColumns={state.resultColumns}
             getContextMenuItems={pivotMenu}
+            linkedRow={state.linkedRow}
+            onLinkedRowShown={linkedRowShown}
           />
         )}
       </Box>

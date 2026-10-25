@@ -37,9 +37,10 @@ describe('App', () => {
     expect(await screen.findByText('Welcome to TIM')).toBeInTheDocument();
   });
 
-  it('renders a placeholder route from the hash', async () => {
+  it('routes from the hash, sending an unknown one home', async () => {
     window.location.hash = '#/queries';
     render(<App authClient={client()} />, { wrapper: AppThemeProvider });
-    expect(await screen.findByText('Query Manager', { selector: 'h2' })).toBeInTheDocument();
+    expect(await screen.findByText('Welcome to TIM')).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/');
   });
 });

@@ -13,13 +13,13 @@ import {
   type TabsStore,
 } from './index';
 
-const kusto = (parentUuid: string | null, title = 't', componentUuid?: string) =>
+const action = (parentUuid: string | null, title = 't', componentUuid?: string) =>
   ({
-    componentName: 'KustoQueryResult',
+    componentName: 'ActionResult',
     parentUuid,
     title,
     componentUuid,
-    params: { query: 'T', cluster: '', database: '' },
+    params: { action: 'acme.sign_ins', params: { limit: 5 } },
   }) as const;
 
 let store: TabsStore;
@@ -47,9 +47,9 @@ async function reload() {
 describe('create', () => {
   it('creates root and child tabs and exposes them through selectors', () => {
     const s = store.getState();
-    const a = s.createTab(kusto(null, 'a'));
-    const b = s.createTab(kusto(a, 'b'));
-    const c = s.createTab(kusto(null, 'c'));
+    const a = s.createTab(action(null, 'a'));
+    const b = s.createTab(action(a, 'b'));
+    const c = s.createTab(action(null, 'c'));
     const st = store.getState();
     expect(selectRoots(st).map((t) => t.componentUuid)).toEqual([a, c]);
     expect(selectChildrenOf(st, a).map((t) => t.componentUuid)).toEqual([b]);
@@ -60,9 +60,9 @@ describe('create', () => {
   });
 
   it('ancestors path is root first', () => {
-    const a = store.getState().createTab(kusto(null));
-    const b = store.getState().createTab(kusto(a));
-    const c = store.getState().createTab(kusto(b));
+    const a = store.getState().createTab(action(null));
+    const b = store.getState().createTab(action(a));
+    const c = store.getState().createTab(action(b));
     expect(selectAncestors(store.getState(), c).map((t) => t.componentUuid)).toEqual([a, b]);
     expect(selectAncestors(store.getState(), a)).toEqual([]);
   });
@@ -77,7 +77,7 @@ describe('persistence', () => {
       idbPut.mock.contexts.filter(
         (store) => (store as IDBObjectStore).name === 'display_components',
       ).length;
-    const a = store.getState().createTab(kusto(null));
+    const a = store.getState().createTab(action(null));
     store.getState().updateTitle(a, 'x');
     store.getState().updateTitle(a, 'y');
     await vi.advanceTimersByTimeAsync(5);
@@ -92,10 +92,10 @@ describe('persistence', () => {
 
   it('reload preserves order, parents, titles and state', async () => {
     const s = store.getState();
-    const a = s.createTab(kusto(null, 'a'));
-    const b = s.createTab(kusto(a, 'b'));
-    const c = s.createTab(kusto(null, 'c'));
-    const d = s.createTab(kusto(b, 'd'));
+    const a = s.createTab(action(null, 'a'));
+    const b = s.createTab(action(a, 'b'));
+    const c = s.createTab(action(null, 'c'));
+    const d = s.createTab(action(b, 'd'));
     s.updateState(c, { rowCount: 5, isVisited: true });
     const fresh = await reload();
     const st = fresh.getState();
@@ -106,7 +106,7 @@ describe('persistence', () => {
     expect(st.tabs[c]?.state).toMatchObject({ rowCount: 5, isVisited: true });
     expect(st.tabs[d]?.displayComponentIndex).toBe(3);
     // New tabs continue after the loaded ones, and a second reload keeps the order.
-    const e = st.createTab(kusto(null, 'e'));
+    const e = st.createTab(action(null, 'e'));
     const again = await (async () => {
       await fresh.getState().flush();
       const f = createTabsStore({ debounceMs: 10 });
@@ -122,12 +122,12 @@ describe('persistence', () => {
       rowDataTrigger: null,
       state: { isVisited: false, error: null, rowCount: null, isExecuting: false },
     };
-    const params = { query: 'T', cluster: '', database: '' };
+    const params = { action: 'acme.sign_ins', params: {} };
     const mk = (id: string, parent: string | null, idx: number) =>
       ({
         ...base,
         componentUuid: id,
-        componentName: 'KustoQueryResult',
+        componentName: 'ActionResult',
         title: id,
         parentUuid: parent,
         displayComponentIndex: idx,
@@ -142,15 +142,37 @@ describe('persistence', () => {
     expect(selectRoots(st).map((t) => t.componentUuid)).toEqual(['early', 'orphan']);
     expect(st.tabs['orphan']?.parentUuid).toBeNull();
   });
+
+  it('load drops a stored tab of an unknown kind with its row results; its children become roots', async () => {
+    const parent = store.getState().createTab(action(null, 'kept'));
+    await store.getState().flush();
+    const raw = (await displayComponentsDao.get(parent))!;
+    await displayComponentsDao.put({
+      ...raw,
+      componentUuid: 'old',
+      componentName: 'KustoQueryResult',
+      parentUuid: null,
+      displayComponentIndex: 0,
+    } as never);
+    await displayComponentsDao.put({ ...raw, componentUuid: 'child', parentUuid: 'old' });
+    await rowResultsDao.put('old', [{ x: 1 }]);
+
+    const fresh = await reload();
+    const st = fresh.getState();
+    expect(st.order.sort()).toEqual([parent, 'child'].sort());
+    expect(st.tabs['child']?.parentUuid).toBeNull();
+    expect(await displayComponentsDao.get('old')).toBeUndefined();
+    expect(await rowResultsDao.get('old')).toEqual([]);
+  });
 });
 
 describe('remove', () => {
   it('cascades to the whole subtree and their row results', async () => {
     const s = store.getState();
-    const a = s.createTab(kusto(null, 'a'));
-    const b = s.createTab(kusto(a, 'b'));
-    const c = s.createTab(kusto(b, 'c'));
-    const other = s.createTab(kusto(null, 'other'));
+    const a = s.createTab(action(null, 'a'));
+    const b = s.createTab(action(a, 'b'));
+    const c = s.createTab(action(b, 'c'));
+    const other = s.createTab(action(null, 'other'));
     await store.getState().flush();
     for (const id of [a, b, c, other]) await rowResultsDao.put(id, [{ x: id }]);
 
@@ -171,9 +193,9 @@ describe('remove', () => {
 
   it('removing a leaf keeps siblings; a pending save does not resurrect a removed tab', async () => {
     const s = store.getState();
-    const a = s.createTab(kusto(null));
-    const b = s.createTab(kusto(a));
-    const c = s.createTab(kusto(a));
+    const a = s.createTab(action(null));
+    const b = s.createTab(action(a));
+    const c = s.createTab(action(a));
     s.updateTitle(b, 'pending'); // save still debounced
     await s.removeTab(b);
     await store.getState().flush();
@@ -196,7 +218,7 @@ describe('errors', () => {
         this.response.circular = this.response;
       }
     }
-    const a = store.getState().createTab(kusto(null));
+    const a = store.getState().createTab(action(null));
     store.getState().updateState(a, { error: new ApiError() });
     const err = store.getState().tabs[a]?.state.error;
     expect(err).toEqual({ message: 'boom', code: 'E_TIMEOUT' });
@@ -220,7 +242,7 @@ describe('errors', () => {
   });
 
   it('sanitises raw errors found in stored data on load', async () => {
-    const a = store.getState().createTab(kusto(null));
+    const a = store.getState().createTab(action(null));
     await store.getState().flush();
     const raw = (await displayComponentsDao.get(a))!;
     await displayComponentsDao.put({
@@ -232,32 +254,9 @@ describe('errors', () => {
   });
 });
 
-describe('convert, trigger, visited', () => {
-  it('converts a template tab to a kusto tab keeping uuid and parent', () => {
-    const p = store.getState().createTab(kusto(null));
-    const t = store.getState().createTab({
-      componentName: 'TemplateQueryResult',
-      parentUuid: p,
-      title: 'tpl',
-      params: { inParams: { a: 1 }, queryTemplate: { query: 'x' } },
-      state: { editQuery: true },
-    });
-    store
-      .getState()
-      .convertToKusto(t, { query: 'Q', cluster: 'c', database: 'd' }, { isVisited: true });
-    const tab = store.getState().tabs[t]!;
-    expect(tab.componentName).toBe('KustoQueryResult');
-    expect(tab.params).toEqual({ query: 'Q', cluster: 'c', database: 'd' });
-    expect(tab.parentUuid).toBe(p);
-    expect(tab.state.editQuery).toBeUndefined();
-    expect(tab.state.isVisited).toBe(true);
-    // Kusto tabs are not converted again.
-    store.getState().convertToKusto(p, { query: 'Z', cluster: '', database: '' });
-    expect(store.getState().tabs[p]?.params).toMatchObject({ query: 'T' });
-  });
-
+describe('trigger, visited', () => {
   it('triggerRowData strictly increases and persists', async () => {
-    const a = store.getState().createTab(kusto(null));
+    const a = store.getState().createTab(action(null));
     const seen: Array<number | null> = [];
     const unsub = store.subscribe((s) => seen.push(s.tabs[a]?.rowDataTrigger ?? null));
     store.getState().triggerRowData(a);
@@ -269,7 +268,7 @@ describe('convert, trigger, visited', () => {
   });
 
   it('marks visited and unvisited, skipping no-op writes', () => {
-    const a = store.getState().createTab(kusto(null));
+    const a = store.getState().createTab(action(null));
     store.getState().markVisited(a);
     expect(store.getState().tabs[a]?.state.isVisited).toBe(true);
     const before = store.getState().tabs;
@@ -280,9 +279,12 @@ describe('convert, trigger, visited', () => {
   });
 
   it('updateParams merges and reset empties the store', () => {
-    const a = store.getState().createTab(kusto(null));
-    store.getState().updateParams(a, { query: 'New' });
-    expect(store.getState().tabs[a]?.params).toEqual({ query: 'New', cluster: '', database: '' });
+    const a = store.getState().createTab(action(null));
+    store.getState().updateParams(a, { params: { limit: 10 } });
+    expect(store.getState().tabs[a]?.params).toEqual({
+      action: 'acme.sign_ins',
+      params: { limit: 10 },
+    });
     act(() => store.reset());
     expect(store.getState().order).toEqual([]);
     expect(store.getState().loaded).toBe(false);

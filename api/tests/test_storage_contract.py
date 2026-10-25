@@ -8,18 +8,8 @@ from storage_contract import (
     ColumnViewContract,
     HealthContract,
     PresetContract,
-    QueryRunContract,
     RunContract,
-    TemplateContract,
 )
-
-
-class TestTemplateStore(TemplateContract):
-    pass
-
-
-class TestQueryRunStore(QueryRunContract):
-    pass
 
 
 class TestRunStore(RunContract):

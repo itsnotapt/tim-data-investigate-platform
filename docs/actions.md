@@ -347,8 +347,9 @@ Files and providers reach an instance as follows.
 
 - **Providers.** Build a [derived image](deployment.md#derived-images): the backend image with the providers installed. Tag it `<tim version>-<revision>`, and rebuild it on each TIM release.
 - **Compose.** Put the files in `TIM_CONFIG_DIR` and name them with `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` ([deployment.md](deployment.md#instance-files)). Set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` for a derived image.
+- **Helm.** Set `actions.files` (or `actions.existingConfigMap`), `connections` and `labels` in values ([deployment.md](deployment.md#instance-files-under-helm)). For a derived image, set `api.image.repository` and `api.image.tag` or `api.image.digest`.
 - **Before you deploy.** Run `tim-api check` in the image you deploy ([Checking files](#checking-files)).
-- **After a change.** The api reads the files at startup, so restart it.
+- **After a change.** The api reads the files at startup, so restart it. In Helm, a change to `actions.files`, `connections` or `labels` restarts the api pods. A change to an `actions.existingConfigMap` needs `kubectl rollout restart deployment/<release>-tim-api`.
 
 ## Writing file-capable action types
 

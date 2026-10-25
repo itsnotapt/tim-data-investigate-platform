@@ -1,18 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { SupportedColorScheme } from '@mui/material/styles';
-import type { Locator, Page } from '@playwright/test';
-import { test, expect } from '../fixtures';
+import type { Page } from '@playwright/test';
+import { grid, openAction } from '../actionTab';
+import { test, expect } from '../realApi';
 import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from '../../src/app/themeKeys';
-import { mockApi } from '../mocks';
-import { runAdhocQuery } from '../mocks/adhoc-grid';
-import { DETERMINATION_SYMBOLS_KEY } from '../../src/features/grid/determinationSymbolsKey';
 import { waitForEditor } from '../mocks/editor';
-import {
-  openRunTemplateTab,
-  shareParams,
-  STORM_UUID,
-  templateStoreHandlers,
-} from '../mocks/templates';
+import { runJsonRows } from '../stormRows';
 
 // Computed colours of the light and dark palettes (web/src/app/theme.ts).
 const LIGHT = {
@@ -31,16 +24,13 @@ const DARK = {
 };
 type Colours = typeof LIGHT;
 
-// Computed results grid colours (`grid`, `divider`, `determination`, `stripe` in theme.ts).
+// Computed results grid colours (`grid`, `divider` in theme.ts).
 const LIGHT_GRID = {
   paper: LIGHT.paper,
   text: LIGHT.text,
   header: 'rgb(245, 247, 247)',
   oddRow: 'rgb(252, 253, 254)',
   border: 'rgb(224, 224, 224)',
-  malicious: { fill: 'rgb(254, 202, 202)', stripe: 'rgb(220, 38, 38)' },
-  suspicious: { fill: 'rgb(253, 230, 138)', stripe: 'rgb(217, 119, 6)' },
-  benign: { fill: 'rgb(187, 247, 208)', stripe: 'rgb(22, 163, 74)' },
 };
 const DARK_GRID = {
   paper: DARK.paper,
@@ -48,9 +38,6 @@ const DARK_GRID = {
   header: 'rgb(38, 38, 38)',
   oddRow: 'rgb(35, 35, 35)',
   border: 'rgb(51, 51, 51)',
-  malicious: { fill: 'rgb(127, 29, 29)', stripe: 'rgb(248, 113, 113)' },
-  suspicious: { fill: 'rgb(113, 63, 18)', stripe: 'rgb(251, 191, 36)' },
-  benign: { fill: 'rgb(20, 83, 45)', stripe: 'rgb(74, 222, 128)' },
 };
 type GridColours = typeof LIGHT_GRID;
 
@@ -105,16 +92,13 @@ async function expectConfigError(page: Page) {
   await expect(page.getByText('auth.clientId: missing (required)')).toBeVisible();
 }
 
-/**
- * The ad hoc results grid (e2e/mocks/data.ts): rows 0 / 5 / 10 are malicious / suspicious / benign,
- * rows 1 and 2 are untagged. Row 5 is odd, so its fill also covers odd rows.
- */
+/** The results grid of an action tab with rows of the development JSON action. */
 async function expectResultsGrid(page: Page, colours: GridColours) {
-  await runAdhocQuery(page);
-  const grid = page.locator('.ag-root-wrapper');
-  await expect(grid).toHaveCSS('background-color', colours.paper);
-  await expect(grid).toHaveCSS('border-top-color', colours.border);
-  const header = page.locator('.ag-header');
+  await runJsonRows(page);
+  const wrapper = grid(page).locator('.ag-root-wrapper');
+  await expect(wrapper).toHaveCSS('background-color', colours.paper);
+  await expect(wrapper).toHaveCSS('border-top-color', colours.border);
+  const header = grid(page).locator('.ag-header');
   await expect(header).toHaveCSS('border-bottom-color', colours.border);
   await expect(header.locator('.ag-grid-scrolling-cells')).toHaveCSS(
     'background-color',
@@ -122,40 +106,10 @@ async function expectResultsGrid(page: Page, colours: GridColours) {
   );
 
   // AG Grid 36 draws one element per row; its pinned cells sit in a wrapper inside the row.
-  const row = (index: number) => page.locator(`.ag-row[row-index="${index}"]`);
+  const row = (index: number) => grid(page).locator(`.ag-row[row-index="${index}"]`);
   await expect(row(1)).toHaveCSS('background-color', colours.oddRow);
   await expect(row(2)).toHaveCSS('background-color', colours.paper);
   await expect(row(2).locator('.ag-cell[col-id="State"]')).toHaveCSS('color', colours.text);
-
-  for (const [index, determination] of [
-    [0, colours.malicious],
-    [5, colours.suspicious],
-    [10, colours.benign],
-  ] as const) {
-    await expect(row(index)).toHaveCSS('background-color', determination.fill);
-    await expect.poll(() => fillerColour(row(index))).toBe(determination.fill);
-    await expect
-      .poll(() => paintedColour(row(index).locator('.ag-grid-pinned-left-cells')))
-      .toBe(determination.fill);
-    await expect(row(index).locator('.ag-cell.ag-column-first')).toHaveCSS(
-      'box-shadow',
-      `${determination.stripe} 5px 0px 0px 0px inset`,
-    );
-  }
-}
-
-/** The row's `::after` fills the space right of the last column. */
-async function fillerColour(row: Locator): Promise<string> {
-  return row.evaluate((el) => getComputedStyle(el, '::after').backgroundColor);
-}
-
-/** The colour a background shows: AG Grid paints pinned cells with a one-colour gradient image. */
-async function paintedColour(element: Locator): Promise<string> {
-  return element.evaluate((el) => {
-    const style = getComputedStyle(el);
-    const gradient = /^linear-gradient\((rgba?\([^)]*\)), \1\)$/.exec(style.backgroundImage);
-    return gradient?.[1] ?? style.backgroundColor;
-  });
 }
 
 /**
@@ -179,7 +133,7 @@ async function waitForAnimations(page: Page) {
 /**
  * axe colour contrast (WCAG 2 AA) on the current page once its animations have ended, so a
  * partly faded-in element is measured at its final colours; "incomplete" results don't fail.
- * Without the wait, the Export / Import snackbar fading in on the light page fails axe.
+ * Without the wait, a snackbar fading in on the light page fails axe.
  */
 async function expectColourContrast(page: Page) {
   await waitForAnimations(page);
@@ -187,64 +141,17 @@ async function expectColourContrast(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
-/** WCAG 2 contrast ratio of two computed `rgb(…)` colours. */
-function contrastRatio(a: string, b: string): number {
-  const luminance = (colour: string) => {
-    const [red, green, blue] = (colour.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map((v) => {
-      const c = Number(v) / 255;
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * (red ?? 0) + 0.7152 * (green ?? 0) + 0.0722 * (blue ?? 0);
-  };
-  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
-}
-
-/**
- * Contrast of each tagged row's text (4.5:1) and symbol (3:1, non-text) against the row's fill.
- */
-async function expectTaggedRowContrast(page: Page) {
-  for (const [index, name] of [
-    [0, 'Malicious'],
-    [5, 'Suspicious'],
-    [10, 'Benign'],
-  ] as const) {
-    const row = page.locator(`.ag-row[row-index="${index}"]`);
-    const fill = await row.evaluate((el) => getComputedStyle(el).backgroundColor);
-    const text = await row
-      .locator('.ag-cell[col-id="State"]')
-      .evaluate((el) => getComputedStyle(el).color);
-    const symbol = await row
-      .getByRole('img', { name })
-      .evaluate((el) => getComputedStyle(el).color);
-    expect(contrastRatio(text, fill), `${name} row text on ${fill}`).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(symbol, fill), `${name} symbol on ${fill}`).toBeGreaterThanOrEqual(3);
-  }
-}
-
-const store = templateStoreHandlers();
-test.use({ apiOptions: { handlers: store.handlers } });
-test.beforeEach(() => store.reset());
-
-/** The KQL editor of a new ad hoc query. */
+/** The KQL editor of the development Editor action. */
 async function expectKqlEditor(page: Page, colours: Colours) {
-  await page.goto('/');
-  await page.getByRole('button', { name: /get started/i }).click();
-  await page.getByRole('menuitem', { name: 'New query' }).click();
+  await openAction(page, ['Development', 'Editor', 'KQL editor']);
+  // The editor starts empty: type a line so it has text to render.
+  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.keyboard.type('SignIns | take 10');
   await waitForEditor(page);
   await expect(page.locator('.monaco-editor').first()).toHaveCSS(
     'background-color',
     colours.editor,
   );
-}
-
-/** The Query Manager edit dialog has YAML and plain text editors only: no Kusto is loaded. */
-async function expectYamlEditor(page: Page, colours: Colours) {
-  await page.goto('/#/queries');
-  await page.getByRole('button', { name: 'Storm events by state' }).click();
-  const params = page.getByRole('dialog', { name: 'Edit Query' }).locator('.monaco-editor').first();
-  await waitForEditor(page, params);
-  await expect(params).toHaveCSS('background-color', colours.editor);
 }
 
 // The results grid and config error page in each scheme are checked in the colour contrast sweep.
@@ -258,18 +165,13 @@ test.describe('with dark mode stored', () => {
     await expectScheme(page, 'dark', DARK);
   });
 
-  test('a YAML editor opened before any KQL editor is dark, and so is the KQL editor', async ({
-    page,
-  }) => {
-    await expectYamlEditor(page, DARK);
-    // `/` from `#/queries` is a full page load, so the YAML editor was the first on its page.
+  test('the KQL editor is dark', async ({ page }) => {
     await expectKqlEditor(page, DARK);
   });
 });
 
 test.describe('with nothing stored', () => {
-  test('the YAML and KQL editors are on the light editor background', async ({ page }) => {
-    await expectYamlEditor(page, LIGHT);
+  test('the KQL editor is on the light editor background', async ({ page }) => {
     await expectKqlEditor(page, LIGHT);
   });
 });
@@ -355,7 +257,6 @@ test.describe('Settings › Appearance', () => {
   test('a second page in the same browser follows the choice', async ({ page, context }) => {
     await expectAppShell(page, LIGHT);
     const other = await context.newPage();
-    await mockApi(other, { handlers: store.handlers });
     await expectAppShell(other, LIGHT);
 
     await pickAppearance(page, 'Dark');
@@ -406,60 +307,16 @@ for (const scheme of ['light', 'dark'] as const) {
       await expectColourContrast(page);
     }
 
-    test('home, Query Manager and Export / Import', async ({ page }) => {
+    test('home', async ({ page }) => {
       await pickScheme(page);
-      await expectContrastInScheme(page);
-
-      await page.goto('/#/queries');
-      await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
-      await expectContrastInScheme(page);
-
-      // Last, so the snackbar fading out never overlaps an axe run.
-      await page.getByRole('button', { name: 'Settings' }).click();
-      await page.getByRole('menuitem', { name: 'Export / Import' }).click();
-      await expect(page).toHaveURL(/#\/exportimport/);
-      await page.getByRole('button', { name: 'Export' }).click();
-      await expect(
-        page.getByText('All settings have been exported and saved to your clipboard.'),
-      ).toBeVisible();
       await expectContrastInScheme(page);
     });
 
-    test('a share link, one with missing params, and its template tab after a reload', async ({
-      page,
-    }) => {
-      await pickScheme(page);
-
-      await page.goto(`/#/share/${STORM_UUID}?p=${shareParams({ State: 'TEXAS' })}&execute=0`);
-      await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
-      await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
-      await expectContrastInScheme(page);
-
-      await page.goto(`/#/share/${STORM_UUID}`);
-      await expect(page.getByText('Parameters are missing.')).toBeVisible();
-      await expectContrastInScheme(page);
-
-      await openRunTemplateTab(page);
-      // Reloading the tab's own URL reopens the template tab, not the share link.
-      await page.reload();
-      await expect(page).toHaveURL(/#\/view\//);
-      await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Share Link' })).toBeVisible();
-      await expectContrastInScheme(page);
-    });
-
-    test('results with tagged rows', async ({ page }) => {
-      await page.addInitScript((key) => localStorage.setItem(key, 'on'), DETERMINATION_SYMBOLS_KEY);
+    test('results', async ({ page }) => {
       await pickScheme(page);
       await expectResultsGrid(page, GRID_COLOURS[scheme]);
       await expectScheme(page, scheme, COLOURS[scheme]);
-      // Rows 0 / 5 / 10 carry the three determinations: their fills and symbols are on screen.
-      for (const name of ['Malicious', 'Suspicious', 'Benign']) {
-        await expect(page.getByRole('img', { name }).first()).toBeVisible();
-      }
       await expectContrastInScheme(page);
-      await expectTaggedRowContrast(page);
     });
 
     test('the config error page', async ({ page }) => {

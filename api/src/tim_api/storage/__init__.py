@@ -10,12 +10,10 @@ from tim_api.storage.base import (
     ColumnViewStore,
     NotFoundError,
     PresetStore,
-    QueryRunStore,
     RunStore,
     Storage,
     StorageError,
     StorageUnavailableError,
-    TemplateStore,
 )
 from tim_api.storage.factory import build_storage
 from tim_api.storage.memory import MemoryStorage
@@ -34,12 +32,10 @@ __all__ = [
     "NotFoundError",
     "PostgresStorage",
     "PresetStore",
-    "QueryRunStore",
     "RunStore",
     "Storage",
     "StorageError",
     "StorageUnavailableError",
-    "TemplateStore",
     "build_storage",
     "start_retention_loop",
     "sweep_expired",

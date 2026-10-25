@@ -45,7 +45,7 @@ def test_body_under_limit_is_processed(client: TestClient) -> None:
 def test_security_headers_on_every_response(client: TestClient) -> None:
     for response in (
         client.get("/api/healthChecks/liveness"),
-        client.get("/api/templates/queries/not-a-uuid"),
+        client.get("/api/runs/not-a-uuid"),
         client.get("/nope"),
     ):
         assert response.headers["x-content-type-options"] == "nosniff"

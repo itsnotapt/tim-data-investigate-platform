@@ -1,7 +1,7 @@
 import type { CodeEditorInstance } from '../../components/CodeEditor';
 import { getKustoWorkerFor } from '../../lib/monaco';
-import { normalizeSchema } from '../kusto-query/kustoSchema';
 import type { LoadedEditorSchema } from './editorSchema';
+import { normalizeSchema } from './kustoSchema';
 import { setSqlSchema, type SqlSchema } from './sqlSchema';
 
 /** Gives an editor the schema of one `kind`. */

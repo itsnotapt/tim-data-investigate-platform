@@ -5,9 +5,6 @@ export type GridRow = Record<string, unknown>;
 /** A grid row plus the client-only `_id` used as the AG Grid row id. */
 export type GridRowWithId = GridRow & { _id: string };
 
-/** Template `columns`: ColDef overrides keyed by column name; `default` applies to every other column. */
-export type TemplateColumns = Record<string, unknown> | null | undefined;
-
 export const ROW_ID_FIELD = '_id';
 const DEFAULT_ROW_ID_COLUMN = 'EventId';
 /** The only editable column. */
@@ -23,7 +20,7 @@ export function isCommentEditable(data: unknown): boolean {
   return tag?.IsSaved === true && Boolean(row?.EventId) && Boolean(tag?.Determination);
 }
 
-/** Column-specific edit rule; template `editable` overrides are ignored. */
+/** Column-specific edit rule. */
 function editRule(name: string): Pick<ColDef, 'editable'> {
   return {
     editable: name === COMMENT_COLUMN ? (params) => isCommentEditable(params.data) : false,
@@ -41,10 +38,6 @@ export function scalarText(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint')
     return String(value);
   return '';
-}
-
-function asColDef(value: unknown): ColDef {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as ColDef) : {};
 }
 
 /**
@@ -72,33 +65,19 @@ export function collectColumnNames(rows: readonly GridRow[]): string[] {
 }
 
 /**
- * Column definitions, template-declared columns (except `default`), then every other
- * row key with the template's `default` overrides, then the hidden TagEvent columns.
+ * Column definitions: every row key in first-seen order, then the hidden TagEvent columns.
  * The selection checkbox column comes from the grid's `rowSelection`, not from here.
  * No rows gives no columns.
  */
-export function buildColumnDefs(
-  rows: readonly GridRow[],
-  templateColumns?: TemplateColumns,
-): ColDef[] {
+export function buildColumnDefs(rows: readonly GridRow[]): ColDef[] {
   if (rows.length === 0) return [];
-  const declared = templateColumns ?? {};
-  const defaults = asColDef(declared['default']);
-  const declaredNames = Object.keys(declared).filter((n) => n !== 'default');
-  const declaredSet = new Set(Object.keys(declared));
-
-  const defs: ColDef[] = declaredNames.map((name) => ({
+  const defs: ColDef[] = collectColumnNames(rows).map((name) => ({
     field: name,
     headerName: name,
-    ...asColDef(declared[name]),
     ...editRule(name),
   }));
-  for (const name of collectColumnNames(rows)) {
-    if (declaredSet.has(name)) continue;
-    defs.push({ field: name, headerName: name, ...defaults, ...editRule(name) });
-  }
   for (const name of HIDDEN_TAG_COLUMNS) {
-    if (declaredSet.has(name) || defs.some((d) => d.field === name)) continue;
+    if (defs.some((d) => d.field === name)) continue;
     defs.push({ field: name, headerName: name, hide: true, ...editRule(name) });
   }
   return defs;

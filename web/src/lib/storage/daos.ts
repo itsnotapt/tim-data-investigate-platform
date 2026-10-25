@@ -1,13 +1,6 @@
 import type { Annotations } from '../api/annotations';
 import { openTimDb, STORE } from './db';
-import type {
-  AppliedView,
-  ColumnView,
-  DisplayComponent,
-  QueryOption,
-  QueryOptions,
-  RowResult,
-} from './types';
+import type { AppliedView, ColumnView, DisplayComponent, RowResult } from './types';
 
 export const displayComponentsDao = {
   async getAll(): Promise<DisplayComponent[]> {
@@ -82,18 +75,6 @@ export const appliedViewsDao = {
   },
   async delete(analyst: string, scope: string): Promise<void> {
     await (await openTimDb()).delete(STORE.appliedViews, [analyst, scope]);
-  },
-};
-
-export const queryOptionsDao = {
-  /** All options keyed by template uuid. */
-  async getAll(): Promise<QueryOptions> {
-    const tx = (await openTimDb()).transaction(STORE.queryOptions, 'readonly');
-    const [keys, values] = await Promise.all([tx.store.getAllKeys(), tx.store.getAll(), tx.done]);
-    return Object.fromEntries(keys.map((key, i) => [key, values[i] as QueryOption]));
-  },
-  async put(templateUuid: string, option: QueryOption): Promise<void> {
-    await (await openTimDb()).put(STORE.queryOptions, option, templateUuid);
   },
 };
 

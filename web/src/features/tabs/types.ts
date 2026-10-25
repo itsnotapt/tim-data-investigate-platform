@@ -7,30 +7,20 @@ import type {
   ActionParams,
   DisplayComponentName,
   DisplayComponentState,
-  KustoQueryDisplayComponent,
-  KustoQueryParams,
   ParamErrors,
   StoredError,
-  TemplateQueryDisplayComponent,
-  TemplateQueryParams,
 } from '../../lib/storage';
-import type { QueryTemplate } from '../../lib/kql-templates';
 
 export type {
   ActionParams,
   DisplayComponentName as TabKind,
   DisplayComponentState as TabState,
-  KustoQueryParams,
   ParamErrors,
   StoredError,
-  TemplateQueryParams,
 };
 
-type KustoQueryTab = KustoQueryDisplayComponent;
-export type TemplateQueryTab = TemplateQueryDisplayComponent;
 export type ActionTab = ActionDisplayComponent;
-/** Discriminated on `componentName`. */
-export type Tab = KustoQueryTab | TemplateQueryTab | ActionTab;
+export type Tab = ActionTab;
 
 interface CreateTabInput {
   /** Generated when omitted. */
@@ -39,19 +29,10 @@ interface CreateTabInput {
   title: string;
   state?: Partial<DisplayComponentState>;
 }
-type CreateKustoTabInput = CreateTabInput & {
-  componentName: 'KustoQueryResult';
-  params: KustoQueryParams;
-};
-type CreateTemplateTabInput = CreateTabInput & {
-  componentName: 'TemplateQueryResult';
-  params: TemplateQueryParams;
-};
-type CreateActionTabInput = CreateTabInput & {
+export type CreateTabArgs = CreateTabInput & {
   componentName: 'ActionResult';
   params: ActionParams;
 };
-export type CreateTabArgs = CreateKustoTabInput | CreateTemplateTabInput | CreateActionTabInput;
 
 /** Partial state update. `error` may be anything thrown; it is reduced to `{message, code?}`. */
 export type TabStateUpdate = Partial<Omit<DisplayComponentState, 'error'>> & {
@@ -64,8 +45,3 @@ export const DEFAULT_TAB_STATE: DisplayComponentState = {
   rowCount: null,
   isExecuting: false,
 };
-
-/** The template snapshot stored on a template tab, typed for the template engine. */
-export function getTabTemplate(tab: TemplateQueryTab): QueryTemplate {
-  return tab.params.queryTemplate as unknown as QueryTemplate;
-}

@@ -78,27 +78,12 @@ describe('loadRuntimeConfig', () => {
     );
   });
 
-  it('parses defaultClusters from window config and env JSON, with a default', () => {
+  it('ignores a leftover defaultClusters, in window config or env', () => {
     const groups = [{ name: 'A', clusters: ['https://a.kusto.windows.net'], databases: ['db'] }];
-    expect(
-      loadRuntimeConfig({ ...fullWindow, defaultClusters: groups }, {}).defaultClusters,
-    ).toEqual(groups);
-    const env = { VITE_DEFAULT_CLUSTERS: JSON.stringify(groups) };
-    expect(loadRuntimeConfig(fullWindow, env).defaultClusters).toEqual(groups);
-    expect(loadRuntimeConfig(fullWindow, {}).defaultClusters[0]?.name).toBe('Example');
-    expect(() => loadRuntimeConfig(fullWindow, { VITE_DEFAULT_CLUSTERS: '{' })).toThrow(
-      /not valid JSON/,
+    const env = { VITE_DEFAULT_CLUSTERS: '{' };
+    expect(loadRuntimeConfig({ ...fullWindow, defaultClusters: groups }, env)).toEqual(
+      loadRuntimeConfig(fullWindow, {}),
     );
-  });
-
-  it('drops cluster groups made of unsubstituted placeholders', () => {
-    const w = {
-      ...fullWindow,
-      defaultClusters: [
-        { name: 'Cluster', clusters: ['$KUSTO_CLUSTER_URI'], databases: ['$KUSTO_DATABASE_NAME'] },
-      ],
-    };
-    expect(loadRuntimeConfig(w, {}).defaultClusters[0]?.name).toBe('Example');
   });
 
   it('normalises apiEndpoint: empty allowed, trailing slash stripped', () => {

@@ -15,16 +15,15 @@ const memoryPersistence: TabPersistence = {
 export const newTestStore = (): TabsStore =>
   createTabsStore({ persistence: memoryPersistence, debounceMs: 1 });
 
-export const kusto = (
+export const tab = (
   componentUuid: string,
   parentUuid: string | null = null,
   extra: Partial<CreateTabArgs> = {},
-): CreateTabArgs =>
-  ({
-    componentName: 'KustoQueryResult',
-    componentUuid,
-    parentUuid,
-    title: `T-${componentUuid}`,
-    params: { query: 'T', cluster: '', database: '' },
-    ...extra,
-  }) as CreateTabArgs;
+): CreateTabArgs => ({
+  componentName: 'ActionResult',
+  componentUuid,
+  parentUuid,
+  title: `T-${componentUuid}`,
+  params: { action: 'acme.sign_ins', params: {} },
+  ...extra,
+});

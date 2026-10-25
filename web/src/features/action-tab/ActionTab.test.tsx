@@ -356,6 +356,32 @@ describe('ActionTab', () => {
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
   });
 
+  it('copies a link to the run whose results it shows', async () => {
+    const user = userEvent.setup();
+    setup(withResults);
+    await user.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(await screen.findByText('Copied a link to this result')).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe('http://localhost:3000/#/runs/r1');
+  });
+
+  it('copies a link to the run going, which fills in when it ends', async () => {
+    const user = userEvent.setup();
+    setup({ ...withResults, isExecuting: true, run: running });
+    await user.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(await navigator.clipboard.readText()).toBe('http://localhost:3000/#/runs/r2');
+  });
+
+  it('has no link to copy before a run', () => {
+    setup();
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeDisabled();
+  });
+
+  it('shows the results of a share link to an action this instance does not know, without Run', () => {
+    setup({ ...withResults, linkedRow: 1 }, 'gone');
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+    expect(screen.getByRole('tab', { name: 'Results · 2', selected: true })).toBeInTheDocument();
+  });
+
   it('shows the rows loaded so far while the rest load', async () => {
     const { uuid } = setup({ isExecuting: true, run: { ...succeeded, rowCount: 3 } });
     act(() => {

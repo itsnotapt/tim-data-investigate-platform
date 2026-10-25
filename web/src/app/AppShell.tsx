@@ -5,7 +5,6 @@ import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import HelpIcon from '@mui/icons-material/Help';
 import InfoIcon from '@mui/icons-material/Info';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
-import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
 import SettingsBrightnessOutlinedIcon from '@mui/icons-material/SettingsBrightnessOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
@@ -22,7 +21,6 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import {
   Suspense,
-  useCallback,
   useRef,
   useState,
   type KeyboardEvent,
@@ -34,7 +32,6 @@ import { useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
-import { useTemplatesStore } from '../features/templates';
 import { AuthGate } from './AuthGate';
 import type { ThemeMode } from './themeKeys';
 
@@ -111,9 +108,6 @@ function SettingsMenu() {
         >
           <ListItemText primary="Appearance" />
           <ChevronRightIcon fontSize="small" sx={{ ml: 3, color: 'text.secondary' }} />
-        </MenuItem>
-        <MenuItem component={RouterLink} to="/exportimport" onClick={closeAll}>
-          Export / Import
         </MenuItem>
       </Menu>
       <Menu
@@ -194,23 +188,9 @@ function AccountMenu() {
 
 /** Side tree plus the routed page; only rendered once signed in and bootstrapped. */
 function ShellContent() {
-  const templates = useTemplatesStore((s) => s.templates);
-  const queryOptions = useTemplatesStore((s) => s.queryOptions);
-  const notify = useNotify();
-  const onReloadTemplates = useCallback(async () => {
-    try {
-      await useTemplatesStore.getState().reload();
-    } catch (e) {
-      notify(`Failed to reload templates: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, [notify]);
   return (
     <>
-      <SideTree
-        templates={templates}
-        queryOptions={queryOptions}
-        onReloadTemplates={onReloadTemplates}
-      />
+      <SideTree />
       <Box sx={{ ml: `${SIDE_TREE_COLLAPSED_WIDTH}px` }}>
         <Suspense fallback={<CircularProgress aria-label="Loading page" sx={{ m: 2 }} />}>
           <Outlet />
@@ -226,13 +206,6 @@ export function AppShell() {
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
         <Toolbar disableGutters sx={{ px: 1 }}>
-          <ToolbarMenu label="Menu" icon={<MenuIcon />}>
-            {(close) => (
-              <MenuItem component={RouterLink} to="/queries" onClick={close}>
-                Query Manager
-              </MenuItem>
-            )}
-          </ToolbarMenu>
           <Typography
             variant="h6"
             component="h1"

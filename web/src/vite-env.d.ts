@@ -12,8 +12,6 @@ interface ImportMetaEnv {
   readonly VITE_HELP_ISSUE_URI?: string;
   readonly VITE_TAG_CLUSTER?: string;
   readonly VITE_TAG_DATABASE?: string;
-  /** JSON array of `{name, clusters[], databases[]}`. */
-  readonly VITE_DEFAULT_CLUSTERS?: string;
 }
 
 interface ImportMeta {

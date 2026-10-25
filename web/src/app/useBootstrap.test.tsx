@@ -35,7 +35,6 @@ function makeSteps(calls: string[] = []) {
     calls,
     steps: {
       loadInstance: step('instance'),
-      loadTemplates: step('templates'),
       loadColumnViews: step('columnViews'),
       loadTabs: step('tabs'),
       resumeRuns: vi.fn(() => void calls.push('resumeRuns')),
@@ -53,16 +52,15 @@ function makeSteps(calls: string[] = []) {
 }
 
 describe('useBootstrap', () => {
-  it('runs instance, templates, column views, tabs in order, then loaded', async () => {
+  it('runs instance, column views, tabs in order, then loaded', async () => {
     const { steps, calls } = makeSteps();
     setup(client(), steps);
-    expect(screen.getByText('Authenticating and loading queries...')).toBeInTheDocument();
+    expect(screen.getByText('Authenticating and loading...')).toBeInTheDocument();
     expect(await screen.findByText('app ready')).toBeInTheDocument();
     // The instance is watched from an effect once loaded, which can run after the loaded render.
     await waitFor(() =>
       expect(calls).toEqual([
         'instance',
-        'templates',
         'columnViews',
         'tabs',
         'resumeRuns',
@@ -88,7 +86,7 @@ describe('useBootstrap', () => {
     const { steps } = makeSteps();
     setup(client({ getAccount: vi.fn().mockResolvedValue(null) }), steps);
     expect(await screen.findByText(/You must/)).toBeInTheDocument();
-    expect(steps.loadTemplates).not.toHaveBeenCalled();
+    expect(steps.loadInstance).not.toHaveBeenCalled();
   });
 
   it('failed first sign-in then retry proceeds to loaded', async () => {
@@ -100,7 +98,7 @@ describe('useBootstrap', () => {
     setup(client({ getAccount: vi.fn().mockResolvedValue(null), login }), steps);
     await userEvent.click(await screen.findByRole('button', { name: 'sign-in' }));
     expect(await screen.findByText(/abnormal state/)).toBeInTheDocument();
-    expect(steps.loadTemplates).not.toHaveBeenCalled();
+    expect(steps.loadInstance).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('app ready')).toBeInTheDocument();
     expect(login).toHaveBeenCalledTimes(2);
@@ -117,7 +115,7 @@ describe('useBootstrap', () => {
     expect(steps.loadTabs).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('app ready')).toBeInTheDocument();
-    expect(steps.loadTemplates).toHaveBeenCalledTimes(2);
+    expect(steps.loadInstance).toHaveBeenCalledTimes(2);
     expect(steps.loadTabs).toHaveBeenCalledTimes(1);
   });
 });

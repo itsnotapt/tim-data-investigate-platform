@@ -17,11 +17,7 @@ from urllib.parse import urlparse
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-from tim_api.kusto.validation import normalise_host_pattern
-
 ENV_PREFIX = "TIM_"
-
-DEFAULT_ALLOWED_KUSTO_HOSTS = ("**.kusto.windows.net",)
 
 
 def _split_list(value: object) -> object:
@@ -55,20 +51,12 @@ class Settings(BaseSettings):
     # Dev-only bypass. Rejected in production.
     auth_disabled: bool = False
 
-    # --- Kusto -------------------------------------------------------------------------
-    # OBO scope template. "{cluster}" is replaced by the cluster base URI.
-    kusto_obo_scope: str = "{cluster}/.default"
+    # --- tagging -----------------------------------------------------------------------
     tag_cluster_uri: str = Field(min_length=1)
     tag_database: str = "Research"
     tag_ingest_url: str | None = None  # optional; derived from tag_cluster_uri when unset
     # Dev only: in-memory fake instead of real ingestion (needs environment=development).
     tag_ingest_fake: bool = False
-
-    # --- cluster allow-list --------------------------------------------
-    # Host patterns (`host`, `*.domain`, `**.domain`); empty means DEFAULT_ALLOWED_KUSTO_HOSTS.
-    allowed_kusto_hosts: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: list(DEFAULT_ALLOWED_KUSTO_HOSTS)
-    )
 
     # --- actions (ADR-0017) --------------------------------------------------------------
     # One flat directory of action files, read at startup.
@@ -97,20 +85,19 @@ class Settings(BaseSettings):
     max_request_bytes: int = Field(default=64 * 1024 * 1024, gt=0)
 
     # --- run limits (ADR-0012) ----------------------------------------------------------
-    # Caps on a run's result; /api/kusto/query also keeps its own lower caps.
+    # Caps on a run's result.
     max_result_rows: int = Field(default=1_000_000, gt=0)
     max_result_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
     run_timeout_seconds: int = Field(default=600, gt=0)
     run_retention_seconds: int = Field(default=86_400, gt=0)
-    # Runs executing at once in this process; further runs wait, `running` (`created` for
-    # /api/kusto/query).
+    # Runs executing at once in this process; further runs wait, `running`.
     max_concurrent_runs: int = Field(default=16, gt=0)
     # Rows per page of GET /api/runs/{runId}/rows.
     rows_page_size: int = Field(default=10_000, gt=0)
     # Rows a pivot may be resolved from (POST /api/actions/{key}/resolve).
     max_pivot_rows: int = Field(default=100, gt=0)
 
-    @field_validator("allowed_kusto_hosts", "cors_allowed_origins", mode="before")
+    @field_validator("cors_allowed_origins", mode="before")
     @classmethod
     def _parse_lists(cls, value: object) -> object:
         return _split_list(value)
@@ -127,13 +114,6 @@ class Settings(BaseSettings):
     def _empty_is_unset(cls, value: object) -> object:
         """Compose/Helm pass unset optional variables as empty strings."""
         return None if isinstance(value, str) and not value.strip() else value
-
-    @field_validator("allowed_kusto_hosts")
-    @classmethod
-    def _normalise_allowed_hosts(cls, value: list[str]) -> list[str]:
-        if not value:
-            return list(DEFAULT_ALLOWED_KUSTO_HOSTS)
-        return [normalise_host_pattern(item) for item in value]
 
     @field_validator("actions_dir")
     @classmethod

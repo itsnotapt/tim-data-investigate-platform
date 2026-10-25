@@ -1,6 +1,6 @@
 # TIM
 
-TIM is a Kusto investigation platform: `web/` (React, TypeScript) and `api/` (Python, FastAPI) backed by PostgreSQL.
+TIM is an investigation platform: analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id`. It has `web/` (React, TypeScript) and `api/` (Python, FastAPI) backed by PostgreSQL.
 
 - [CODING_STANDARDS.md](CODING_STANDARDS.md): read before writing or reviewing code or docs.
 - [docs/RULES.md](docs/RULES.md): sources of truth, git and PR flow.

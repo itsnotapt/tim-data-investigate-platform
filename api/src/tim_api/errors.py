@@ -20,7 +20,6 @@ from pydantic import Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tim_api.auth.obo import OboAuthError, OboUnavailableError, OboUpstreamError
-from tim_api.kusto.validation import InvalidClusterError
 from tim_api.models_common import ApiModel
 from tim_api.observability import get_trace_id, log_safe
 from tim_api.presets.action_file import NoActionFileError
@@ -46,8 +45,6 @@ _TYPES: dict[int, tuple[str, str]] = {
     503: ("unavailable", "Service unavailable"),
 }
 
-# Keys of the errors object use the JSON names, not the Python attribute names.
-_FIELD_NAMES = {"from_": "from"}
 _LOCATION_PREFIXES = {"body", "query", "path", "header", "cookie"}
 
 
@@ -118,7 +115,7 @@ def _field_path(loc: tuple[Any, ...], error_type: str) -> str:
         parts = parts[1:]
     if not parts:
         return str(loc[0]) if loc else "body"
-    return ".".join(_FIELD_NAMES.get(str(p), str(p)) for p in parts)
+    return ".".join(str(p) for p in parts)
 
 
 def validation_errors(exc: RequestValidationError) -> dict[str, list[str]]:
@@ -168,15 +165,6 @@ def register_exception_handlers(app: FastAPI) -> None:
 
         return handler
 
-    async def invalid_cluster(request: Request, exc: Exception) -> JSONResponse:
-        return problem_response(
-            request,
-            400,
-            "The cluster is not allowed",
-            errors={"cluster": [str(exc)]},
-            slug="cluster-not-allowed",
-        )
-
     async def unprocessable(request: Request, exc: Exception) -> JSONResponse:
         assert isinstance(exc, UnprocessableError)  # noqa: S101
         return problem_response(request, 422, "One or more fields are invalid", errors=exc.errors)
@@ -203,7 +191,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     )
     app.add_exception_handler(OboUnavailableError, fixed(503, "Token exchange is not available"))
     app.add_exception_handler(TagIngestError, fixed(502, "Tag ingestion failed"))
-    app.add_exception_handler(InvalidClusterError, invalid_cluster)
     app.add_exception_handler(UnprocessableError, unprocessable)
     app.add_exception_handler(
         RunNotSucceededError,

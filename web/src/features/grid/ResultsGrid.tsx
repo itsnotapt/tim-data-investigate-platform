@@ -25,7 +25,7 @@ import { DetailPanel } from './DetailPanel';
 import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs, prepareRows } from './columns';
-import type { GridRow, GridRowWithId, TemplateColumns } from './columns';
+import type { GridRow, GridRowWithId } from './columns';
 import { useDeterminationSymbols } from './determinationSymbols';
 import {
   buildSelectionColumnDef,
@@ -36,8 +36,6 @@ import {
   staticGridOptions,
 } from './gridOptions';
 import type { ExtraMenuItems, GetExtraContextMenuItems } from './gridOptions';
-import { createStatsStore } from './status';
-import type { ExecutionStats, StatsStore } from './status';
 import './grid.css';
 
 // Registers modules and applies the licence key before any grid renders (this chunk is lazy).
@@ -61,13 +59,10 @@ const gridTheme = themeBalham.withParams({
 
 export interface ResultsGridProps {
   rows: readonly GridRow[];
-  /** Template `columns` (ColDef overrides by column name, plus `default`). */
-  templateColumns?: TemplateColumns;
-  /** Template `columnId`: row-id column (default `EventId`). */
+  /** Row-id column (default `EventId`). */
   columnId?: string | null;
-  /** Column definitions to use instead of those built from the rows and `templateColumns`. */
+  /** Column definitions to use instead of those built from the rows. */
   columnDefs?: ColDef[];
-  stats?: ExecutionStats;
   /**
    * Extra context menu items, placed above copy / export. An array is a list of groups: the first
    * group is followed by "Show details" (tagging), each later non-empty group comes after a
@@ -104,9 +99,9 @@ export interface ResultsGridProps {
   onCellFocused?: (event: CellFocusedEvent<GridRowWithId>) => void;
   /** The side bar, instead of Columns and Filters. */
   sideBar?: SideBarDef;
-  /** Status bar panels after the execution stats, before the counts. */
+  /** Status bar panels before the counts. */
   statusPanels?: StatusPanelDef[];
-  /** More of the grid's `context`, beside the execution stats, for custom panels. */
+  /** The grid's `context`, for custom panels. */
   context?: Record<string, unknown>;
   /** The grid's state changed while it's shown (not while its tab is hidden). */
   onStateUpdated?: (event: StateUpdatedEvent<GridRowWithId>) => void;
@@ -114,10 +109,8 @@ export interface ResultsGridProps {
 
 export function ResultsGrid({
   rows,
-  templateColumns,
   columnId,
   columnDefs: givenColumnDefs,
-  stats,
   getContextMenuItems,
   getMainMenuItems,
   onGridReady,
@@ -148,21 +141,18 @@ export function ResultsGrid({
     detailOpenRef.current = detailOpen;
   }, [detailOpen]);
 
-  const [statsStore] = useState<StatsStore>(() => createStatsStore());
-  statsStore.set(stats ?? {});
-  const context = useMemo(() => ({ ...extraContext, statsStore }), [extraContext, statsStore]);
   const statusBar = useMemo(
     () =>
       statusPanels && {
-        statusPanels: [STATUS_PANELS[0]!, ...statusPanels, ...STATUS_PANELS.slice(1)],
+        statusPanels: [...statusPanels, ...STATUS_PANELS],
       },
     [statusPanels],
   );
 
   const rowData = useMemo(() => prepareRows(rows, columnId), [rows, columnId]);
   const columnDefs = useMemo(
-    () => givenColumnDefs ?? buildColumnDefs(rows, templateColumns),
-    [givenColumnDefs, rows, templateColumns],
+    () => givenColumnDefs ?? buildColumnDefs(rows),
+    [givenColumnDefs, rows],
   );
   const extraMenuItems = useMemo<GetExtraContextMenuItems | undefined>(() => {
     const groups = Array.isArray(getContextMenuItems)
@@ -261,7 +251,7 @@ export function ResultsGrid({
           selectionColumnDef={selectionColumnDef}
           rowData={rowData}
           columnDefs={columnDefs}
-          context={context}
+          context={extraContext}
           quickFilterText={quick}
           getContextMenuItems={menu}
           getMainMenuItems={getMainMenuItems}

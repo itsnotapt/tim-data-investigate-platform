@@ -7,11 +7,10 @@ import {
   DEFAULT_TAB_STATE,
   type ActionParams,
   type CreateTabArgs,
-  type KustoQueryParams,
   type Tab,
+  type TabKind,
   type TabState,
   type TabStateUpdate,
-  type TemplateQueryParams,
 } from './types';
 
 interface TabsState {
@@ -28,13 +27,8 @@ interface TabsState {
   load(): Promise<void>;
   createTab(args: CreateTabArgs): string;
   updateState(uuid: string, update: TabStateUpdate): void;
-  updateParams(
-    uuid: string,
-    params: Partial<KustoQueryParams> | Partial<TemplateQueryParams> | Partial<ActionParams>,
-  ): void;
+  updateParams(uuid: string, params: Partial<ActionParams>): void;
   updateTitle(uuid: string, title: string): void;
-  /** Template tab becomes a Kusto tab; uuid, parent and row results are kept. */
-  convertToKusto(uuid: string, params: KustoQueryParams, state?: Partial<TabState>): void;
   /** Bump the tab's `rowDataTrigger`; grids subscribe to it and reload rows from IndexedDB. */
   triggerRowData(uuid: string): void;
   markVisited(uuid: string): void;
@@ -63,6 +57,11 @@ const initialData = {
   loaded: false,
   loadError: null,
   lastCreated: null,
+};
+
+/** Tab kinds this build can show; stored tabs of any other kind are dropped on load. */
+const TAB_KINDS: Record<TabKind, true> = {
+  ActionResult: true,
 };
 
 function sanitize(tab: Tab): Tab {
@@ -95,7 +94,9 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
       async load() {
         try {
           await queue.flush();
-          const stored = await persistence.loadAll();
+          const all = await persistence.loadAll();
+          const stored = all.filter((t) => t.componentName in TAB_KINDS);
+          const unknown = all.filter((t) => !(t.componentName in TAB_KINDS));
           // Parents before children, as stored.
           stored.sort((a, b) => a.displayComponentIndex - b.displayComponentIndex);
           const ids = new Set(stored.map((t) => t.componentUuid));
@@ -114,6 +115,7 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
             order.push(tab.componentUuid);
           });
           set({ tabs, order, nextIndex: order.length, loaded: true, loadError: null });
+          if (unknown.length > 0) void queue.remove(unknown.map((t) => t.componentUuid));
           // Indexes were renumbered; persist them.
           for (const id of order) queue.schedule(id);
         } catch (e) {
@@ -136,12 +138,7 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
             error: toStoredError(args.state?.error),
           },
         };
-        const tab: Tab =
-          args.componentName === 'KustoQueryResult'
-            ? { ...base, componentName: 'KustoQueryResult', params: args.params }
-            : args.componentName === 'TemplateQueryResult'
-              ? { ...base, componentName: 'TemplateQueryResult', params: args.params }
-              : { ...base, componentName: 'ActionResult', params: args.params };
+        const tab: Tab = { ...base, componentName: 'ActionResult', params: args.params };
         set({
           tabs: { ...state.tabs, [uuid]: tab },
           order: [...state.order.filter((id) => id !== uuid), uuid],
@@ -162,21 +159,11 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
       },
 
       updateParams(uuid, params) {
-        patch(uuid, (tab) => ({ ...tab, params: { ...tab.params, ...params } }) as Tab);
+        patch(uuid, (tab) => ({ ...tab, params: { ...tab.params, ...params } }));
       },
 
       updateTitle(uuid, title) {
         patch(uuid, (tab) => ({ ...tab, title }));
-      },
-
-      convertToKusto(uuid, params, state) {
-        if (get().tabs[uuid]?.componentName !== 'TemplateQueryResult') return;
-        patch(uuid, (tab) => ({
-          ...tab,
-          componentName: 'KustoQueryResult',
-          params,
-          state: { ...DEFAULT_TAB_STATE, ...state, error: toStoredError(state?.error) },
-        }));
       },
 
       triggerRowData(uuid) {

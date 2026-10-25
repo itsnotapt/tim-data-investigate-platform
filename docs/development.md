@@ -45,7 +45,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
   - You are signed in as `dev.user@example.com`.
   - To be another analyst, run `localStorage.setItem('tim.devStubUpn', 'bob@example.com')` in the browser console and reload.
   - The stub sends `Bearer dev:<upn>`. The api runs the request as that analyst.
-  - Kusto tab calls and runs on `obo` connections answer 503. The on-behalf-of exchange needs a real token.
+  - Runs on `obo` connections answer 503. The on-behalf-of exchange needs a real token.
   - `TIM_TAG_INGEST_FAKE=true` exercises tag writes without a cluster.
   - The [development actions](#development-actions) give you actions without a connection.
 - **The compose web container can't stub sign-in.** The UI at `:8081` needs a real Entra app registration (`REDIRECT_URI`). For UI work without one, use the main loop. The root `.env` (compose) and `api/.env` (main loop) are separate files.
@@ -167,7 +167,7 @@ There are two kinds of flow. What the spec imports picks the kind:
 | Flow | Imports | Talks to |
 |---|---|---|
 | Against the real api | `e2e/realApi.ts` | The api above. Nothing is intercepted. `page.route` is only for faults the server can't produce. New flows are written this way |
-| Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the template and Kusto features, which predate actions |
+| Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the Kusto features, which predate actions |
 
 The `@smoke` tag marks the smoke flows:
 

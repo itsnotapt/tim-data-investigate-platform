@@ -125,7 +125,7 @@ function setup({ actions = [signIns] }: { actions?: CatalogueAction[] } = {}) {
   render(
     <SnackbarHost>
       <MemoryRouter>
-        <NewQueryMenu templates={[]} actions={actions} store={tabs} presetsStore={presets}>
+        <NewQueryMenu actions={actions} store={tabs} presetsStore={presets}>
           New
         </NewQueryMenu>
       </MemoryRouter>

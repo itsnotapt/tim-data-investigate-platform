@@ -51,14 +51,14 @@ beforeEach(() => {
 });
 
 describe('CodeEditor', () => {
-  it('loads plain monaco for yaml and wires props', async () => {
+  it('loads plain monaco for plaintext and wires props', async () => {
     const onChange = vi.fn();
     const onMount = vi.fn();
     render(
       <CodeEditor
         value="a: 1"
-        language="yaml"
-        path="t.yaml"
+        language="plaintext"
+        path="t.txt"
         readOnly
         onChange={onChange}
         onMount={onMount}
@@ -72,7 +72,7 @@ describe('CodeEditor', () => {
     expect(palettes.dark.editor.background).toBe('#1e1e1e');
     expect(h.loadMonacoKusto).not.toHaveBeenCalled();
     const props = h.editorProps[0]!;
-    expect(props).toMatchObject({ value: 'a: 1', language: 'yaml', path: 't.yaml' });
+    expect(props).toMatchObject({ value: 'a: 1', language: 'plaintext', path: 't.txt' });
     const opts = props.options as Record<string, unknown>;
     expect(opts).toMatchObject({ readOnly: true, tabSize: 2, automaticLayout: true });
     expect(opts.suggest).toBeUndefined(); // suggestions stay enabled
@@ -90,7 +90,7 @@ describe('CodeEditor', () => {
 
   it('uses tim-dark when the colour scheme is dark', async () => {
     localStorage.setItem(THEME_MODE_KEY, 'dark');
-    render(<CodeEditor value="" language="yaml" />, { wrapper: AppThemeProvider });
+    render(<CodeEditor value="" language="plaintext" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');
     expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-dark' });
   });
@@ -98,7 +98,7 @@ describe('CodeEditor', () => {
   it('follows a dark OS when the stored mode is junk', async () => {
     localStorage.setItem(THEME_MODE_KEY, 'sepia');
     setPrefersColorScheme('dark');
-    render(<CodeEditor value="" language="yaml" />, { wrapper: AppThemeProvider });
+    render(<CodeEditor value="" language="plaintext" />, { wrapper: AppThemeProvider });
     await screen.findByTestId('monaco');
     expect(h.editorProps.at(-1)).toMatchObject({ theme: 'tim-dark' });
   });
