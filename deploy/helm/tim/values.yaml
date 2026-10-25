@@ -152,8 +152,8 @@ api:
 # Read by the api at startup from /etc/tim (read-only); an error in any file stops startup.
 # Reference: docs/actions.md.
 actions:
-  # Action files by file name (*.yaml or *.yml) → content, rendered into <fullname>-actions. Pods
-  # restart when a file changes. Sets TIM_ACTIONS_DIR=/etc/tim/actions.
+  # Action files (*.yaml, *.yml) and their sidecars by file name → content, rendered into
+  # <fullname>-actions. Pods restart when a file changes. Sets TIM_ACTIONS_DIR=/etc/tim/actions.
   #   triage.yaml: |
   #     type: kql_query
   #     ...

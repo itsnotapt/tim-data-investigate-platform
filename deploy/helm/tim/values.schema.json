@@ -447,7 +447,7 @@
         "files": {
           "type": "object",
           "propertyNames": {
-            "pattern": "^[-._a-zA-Z0-9]+\\.ya?ml$"
+            "pattern": "^[-._a-zA-Z0-9]+$"
           },
           "additionalProperties": {
             "type": "string"

@@ -371,6 +371,12 @@ The chart in `deploy/helm/tim` sets the same variable names; the install procedu
 - **Where the Secret comes from:** either the chart creates it from `secrets.databaseUrl`, `secrets.authClientSecret` and `secrets.agGridLicense`, or `secrets.existingSecret` names a Secret you manage. In the second case the chart creates none.
 - **Optional keys:** the api reads `TIM_AUTH_CLIENT_SECRET`, and the web container reads `AGGRID_LICENSE`, as optional keys. When a key is absent, the variable is not set.
 - **Any other variable:** api variables (`TIM_MAX_RESULT_ROWS`, `TIM_RUN_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) are set through `api.extraEnv` / `api.extraEnvFrom`. Web variables are set through `web.extraEnv` / `web.extraEnvFrom`.
+- **Instance files:** the api's file variables are set by the chart when the matching value is given, not through `api.extraEnv`:
+  - `actions.files` or `actions.existingConfigMap` sets `TIM_ACTIONS_DIR=/etc/tim/actions`;
+  - `connections` sets `TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml`;
+  - `labels` sets `TIM_LABELS_FILE=/etc/tim/labels.yaml`.
+  - Details: [deployment.md](deployment.md#instance-files-under-helm).
 - **OBO credential:** the chart does not require `TIM_AUTH_CLIENT_SECRET` the way production compose does.
-  - In production mode, rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret), or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`).
+  - In production mode with a connection in `connections` that uses `obo`, rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret), or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`).
+  - Without such a connection, no credential is required.
   - With workload identity, the webhook injects `AZURE_FEDERATED_TOKEN_FILE` into the api pod. The api uses it when `TIM_AUTH_CLIENT_SECRET` is unset.

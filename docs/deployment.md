@@ -139,6 +139,8 @@ The api reads its action files, connections file and labels file from `/etc/tim`
 
 The formats are in [actions.md](actions.md). `deploy/config/README.md` lists the files.
 
+Under Helm, the chart mounts the same paths from ConfigMaps and sets the variables itself ([Instance files under Helm](#instance-files-under-helm)).
+
 ## Derived images
 
 An instance that uses providers runs a derived image: TIM's backend image with the providers installed. Both Compose and Helm use it.
@@ -176,12 +178,16 @@ It deploys:
   - non-root security contexts;
   - optional HPAs and PodDisruptionBudgets.
 - ConfigMaps `<release>-tim-api` / `<release>-tim-web` with the non-secret variables, and a Secret `<release>-tim` (unless `secrets.existingSecret` is set).
+- ConfigMaps for the instance files, from `actions.files`, `connections` and `labels` (`<release>-tim-actions`, `<release>-tim-api-files`).
 - An Ingress for `ingress.host` with TLS, routing `/` to web (web proxies `/api/`).
 - A migrations Job (`<release>-tim-migrate`, Helm hook) running `alembic upgrade head` with the api image.
 - Optionally a single-pod PostgreSQL StatefulSet (`postgresql.enabled`).
 - A `helm test` pod that checks `/healthz`, `/config.js` and `/api/healthChecks/readiness` through web.
 
 The api and web pods restart automatically when their own ConfigMap or the Secret changes (checksum annotations). A change to one component's ConfigMap does not restart the other.
+
+- The api pod also restarts when `actions.files`, `connections` or `labels` change (`checksum/actions`, `checksum/api-files`).
+- It does not restart when an `actions.existingConfigMap` changes ([Upgrades](#upgrades)).
 
 ### Chart distribution
 
@@ -249,7 +255,7 @@ One Secret holds every sensitive variable. Its keys are the variable names.
 | Key | Required | Notes |
 | --- | --- | --- |
 | `TIM_DATABASE_URL` | yes | `postgresql+asyncpg://user:password@host:5432/db` |
-| `TIM_AUTH_CLIENT_SECRET` | unless workload identity | OBO client secret |
+| `TIM_AUTH_CLIENT_SECRET` | with an `obo` connection, unless workload identity | OBO client secret |
 | `AGGRID_LICENSE` | no | Absent = AG Grid Enterprise trial mode |
 | `POSTGRES_PASSWORD` | with `postgresql.enabled` | Must match the password in `TIM_DATABASE_URL` |
 
@@ -260,7 +266,7 @@ There are two ways to provide it:
   - The chart-created Secret is a pre-install/pre-upgrade hook, so it exists before the migrations Job.
   - `helm uninstall` leaves it in place (`kubectl delete secret <release>-tim`).
 
-With `config.environment: production`, the chart refuses to render without an OBO credential:
+With `config.environment: production`, the chart refuses to render without an OBO credential when an entry of `connections` has `auth: obo`:
 
 - `secrets.authClientSecret`;
 - `secrets.existingSecret`, expected to hold `TIM_AUTH_CLIENT_SECRET`;
@@ -292,6 +298,30 @@ Other api limits keep their defaults unless set through `api.extraEnv` (see [con
 - `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_CONCURRENT_RUNS`, `TIM_ROWS_PAGE_SIZE`, `TIM_MAX_PIVOT_ROWS`;
 - `TIM_RUN_RETENTION_SECONDS`, `TIM_RUN_RETENTION_SWEEP_SECONDS`;
 - `TIM_AUTH_AUTHORITY_HOST`, `TIM_KUSTO_OBO_SCOPE`, `TIM_TAG_INGEST_URL`.
+
+### Instance files under Helm
+
+The api reads the same files as under Compose ([Instance files](#instance-files)). Values supply them, and the chart mounts them read-only under `/etc/tim`.
+
+| Value | ConfigMap | Mounted at | Variable set |
+| --- | --- | --- | --- |
+| `actions.files` | `<release>-tim-actions` | `/etc/tim/actions` | `TIM_ACTIONS_DIR=/etc/tim/actions` |
+| `actions.existingConfigMap` | the one you name | `/etc/tim/actions` | `TIM_ACTIONS_DIR=/etc/tim/actions` |
+| `connections` | `<release>-tim-api-files`, key `connections.yaml` | `/etc/tim/connections.yaml` | `TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml` |
+| `labels` | `<release>-tim-api-files`, key `labels.yaml` | `/etc/tim/labels.yaml` | `TIM_LABELS_FILE=/etc/tim/labels.yaml` |
+
+- **Action files.** `actions.files` maps a file name to its content. A name is a ConfigMap key: letters, digits, `-`, `_` and `.`.
+  - The api loads the `*.yaml` and `*.yml` files as action files.
+  - A [sidecar](actions.md#sidecars) goes in `actions.files` next to the action file that names it.
+- **Existing ConfigMap.** `actions.existingConfigMap` names a ConfigMap you manage. The chart renders no ConfigMap for it.
+  - Set `actions.files` or `actions.existingConfigMap`, not both. Rendering fails when both are set.
+- **Connections and labels.** `connections` and `labels` are lists in the format of the connections file and the labels file ([actions.md](actions.md)). `values.schema.json` does not check their contents.
+  - Both go into `<release>-tim-api-files`, apart from the `<release>-tim-api` ConfigMap that sets the environment.
+- **Unset means unset.** With no action files, an empty `connections` or an empty `labels`, the chart sets no mount and no variable for it.
+- **Restarts.** The api reads the files at startup.
+  - A change to `actions.files`, `connections` or `labels` restarts the api pods (checksum annotations).
+  - A change to an `actions.existingConfigMap` does not. Run `kubectl rollout restart deployment/<release>-tim-api -n <namespace>`.
+- **Errors stop startup.** A problem in a file keeps the api from starting ([operations.md](operations.md#startup-failures-from-the-files)). Check the files first with `tim-api check` ([actions.md](actions.md#checking-files)).
 
 ### Database
 
@@ -334,8 +364,12 @@ helm uninstall tim -n tim
 | `config.tags.clusterUri` / `database` | required / `Research` | `TIM_TAG_CLUSTER_URI` / `TIM_TAG_DATABASE`, `TAG_CLUSTER` / `TAG_DATABASE` |
 | `secrets.existingSecret` | empty | Use this Secret instead of creating one |
 | `secrets.databaseUrl` / `authClientSecret` / `agGridLicense` | empty | `TIM_DATABASE_URL` / `TIM_AUTH_CLIENT_SECRET` / `AGGRID_LICENSE` |
-| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/backend` / empty / empty | Empty `tag` uses the backend version pinned in `image-tags.yaml`; `digest` wins over `tag` |
+| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/backend` / empty / empty | Empty `tag` uses the backend version pinned in `image-tags.yaml`; `digest` wins over `tag`. The migrations Job uses the same image. Another `repository` (a [derived image](#derived-images) or a mirror) needs `tag` or `digest`, else rendering fails. The chart does not check the tag's format |
 | `web.image.*` | same, `ghcr.io/itsnotapt/tim-data-investigate-platform/frontend`; empty `tag` uses the frontend version pinned in `image-tags.yaml` | |
+| `actions.files` | empty | Action files and their sidecars by file name to content, in ConfigMap `<release>-tim-actions`; sets `TIM_ACTIONS_DIR`. See [Instance files under Helm](#instance-files-under-helm) |
+| `actions.existingConfigMap` | empty | A ConfigMap of action files you manage, mounted the same way. Not with `actions.files` |
+| `connections` | empty | The connections file as a list, in `<release>-tim-api-files`; sets `TIM_CONNECTIONS_FILE`. An entry with `auth: obo` makes the production OBO credential check apply |
+| `labels` | empty | The labels file as a list, in `<release>-tim-api-files`; sets `TIM_LABELS_FILE` |
 | `api.replicaCount`, `web.replicaCount` | `2` | Ignored when autoscaling is enabled |
 | `<component>.autoscaling.*` | disabled, 2 to 6 (api) / 2 to 4 (web), CPU 75 % | HPA (`autoscaling/v2`) |
 | `<component>.podDisruptionBudget` | enabled, `minAvailable: 1` | Rendered only with more than one replica |
@@ -370,8 +404,10 @@ Ingress controllers have their own body-size and timeout defaults: ingress-nginx
 - **Derived images:** rebuild each one `FROM` the new backend tag on every TIM release, and retag it `<tim version>-<revision>`.
   - Then point the stack at the new tag: `TIM_API_IMAGE_TAG` in Compose, `api.image.tag` in Helm.
   - A provider that needs another `tim-actions` major fails the rebuild. Update the provider first.
+  - In Helm, a derived image's `api.image.tag` (or `digest`) is always set. The chart pins only TIM's own image, so it can't default it.
 - **Helm:** run `helm upgrade` with the new chart `--version`.
   - The images follow the pair that chart version pins. Set `api.image.tag` or `web.image.tag` only to override.
+  - A change to an `actions.existingConfigMap` is not rolled out by `helm upgrade`: run `kubectl rollout restart deployment/<release>-tim-api`. Changes to `actions.files`, `connections` and `labels` restart the api by themselves.
   - The migrations Job runs first. The Deployments then roll with `maxUnavailable` 25 %, gated on readiness.
   - Migrations are forward-only. `helm rollback` restores the previous images, but not the previous schema. So back up the database before upgrading.
 - **Running queries:** the api holds running Kusto queries in-process.

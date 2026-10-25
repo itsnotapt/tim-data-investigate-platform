@@ -194,15 +194,15 @@ jobs:
               | yq "select(.kind == \"Deployment\" and .metadata.name == \"acme-tim-api\") | .spec.template.metadata.annotations.\"$name\" // \"\""
           }
 
-          triage=(--set-string 'actions.files.triage\.yaml=type: kql_query')
-          check "actions.files must render <release>-tim-actions with one key per file" \
-            'configmap("acme-tim-actions") | map(.data) == [{"triage.yaml": "type: kql_query"}]' "${triage[@]}"
+          triage=(--set-string 'actions.files.triage\.yaml=kql_file: triage.kql' --set-string 'actions.files.triage\.kql=StormEvents')
+          check "actions.files must render <release>-tim-actions with one key per file, sidecars included" \
+            'configmap("acme-tim-actions") | map(.data) == [{"triage.yaml": "kql_file: triage.kql", "triage.kql": "StormEvents"}]' "${triage[@]}"
           check "actions.files must be mounted read-only at /etc/tim/actions with TIM_ACTIONS_DIR set" \
             'volume("actions") == [{"name": "actions", "configMap": {"name": "acme-tim-actions"}}]
               and mounts("actions") == [{"name": "actions", "mountPath": "/etc/tim/actions", "readOnly": true}]
               and env("TIM_ACTIONS_DIR") == ["/etc/tim/actions"]' "${triage[@]}"
           actions="$(annotation checksum/actions "${triage[@]}")"
-          changed="$(annotation checksum/actions --set-string 'actions.files.triage\.yaml=type: kql_query ')"
+          changed="$(annotation checksum/actions "${triage[@]}" --set-string 'actions.files.triage\.kql=StormEvents | count')"
           if [ -z "$actions" ] || [ "$actions" = "$changed" ]; then
             echo "the api pod's checksum/actions must change when an action file changes" >&2
             exit 1

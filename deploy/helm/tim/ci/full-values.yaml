@@ -36,8 +36,9 @@ actions:
       pivot: none
       connection: samples
       database: Samples
-      kql: |
-        StormEvents | count
+      kql_file: storms.kql
+    storms.kql: |
+      StormEvents | count
 connections:
   - name: samples
     title: Samples (help cluster)
