@@ -7,7 +7,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import { AgGridReact, type CustomCellRendererProps } from 'ag-grid-react';
 import { themeBalham } from 'ag-grid-community';
 import type {
-  CellEditRequestEvent,
   CellKeyDownEvent,
   ColDef,
   CellFocusedEvent,
@@ -23,13 +22,10 @@ import type {
 import { DetailPanel } from './DetailPanel';
 import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
-import { buildColumnDefs, prepareRows } from './columns';
-import type { GridRow, GridRowWithId } from './columns';
-import { useDeterminationSymbols } from './determinationSymbols';
+import { buildColumnDefs } from './columns';
+import type { GridRowWithId } from './columns';
 import {
   buildSelectionColumnDef,
-  buildSymbolSelectionColumnDef,
-  determinationSymbolsMenuItem,
   makeGetContextMenuItems,
   STATUS_PANELS,
   staticGridOptions,
@@ -57,14 +53,13 @@ const gridTheme = themeBalham.withParams({
 });
 
 export interface ResultsGridProps {
-  rows: readonly GridRow[];
-  /** Row-id column (default `EventId`). */
-  columnId?: string | null;
+  /** The rows, each with its `row` ordinal, the grid row id. */
+  rows: readonly GridRowWithId[];
   /** Column definitions to use instead of those built from the rows. */
   columnDefs?: ColDef[];
   /**
    * Extra context menu items, placed above copy / export. An array is a list of groups: the first
-   * group is followed by "Show details" (tagging), each later non-empty group comes after a
+   * group is followed by "Show details", each later non-empty group comes after a
    * separator (pivots).
    */
   getContextMenuItems?: GetExtraContextMenuItems | GetExtraContextMenuItems[];
@@ -72,7 +67,6 @@ export interface ResultsGridProps {
   getMainMenuItems?: GetMainMenuItems<GridRowWithId>;
   /** Exposes the grid api (column state save/restore, transactions). */
   onGridReady?: (event: GridReadyEvent<GridRowWithId>) => void;
-  onCellEditRequest?: (event: CellEditRequestEvent<GridRowWithId>) => void;
   /** Rendered right of the quick filter. */
   toolbarExtra?: ReactNode;
   /** CSS height of the grid. */
@@ -84,12 +78,9 @@ export interface ResultsGridProps {
    * re-created. Without it column state is not kept.
    */
   stateKey?: string;
-  /** Extra row class rules, beside the determination ones. */
+  /** Row class rules. */
   rowClassRules?: RowClassRules<GridRowWithId>;
-  /**
-   * The selection column's symbol, always shown, instead of the determination symbol the analyst
-   * can show or hide.
-   */
+  /** The selection column's symbol, beside the checkbox. */
   selectionSymbol?: ComponentType<CustomCellRendererProps>;
   onCellKeyDown?: (event: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => void;
   /** Called when a cell takes focus, after the detail panel follows it. */
@@ -106,12 +97,10 @@ export interface ResultsGridProps {
 
 export function ResultsGrid({
   rows,
-  columnId,
   columnDefs: givenColumnDefs,
   getContextMenuItems,
   getMainMenuItems,
   onGridReady,
-  onCellEditRequest,
   toolbarExtra,
   height = 'calc(100vh - 200px)',
   detailPanel = true,
@@ -144,7 +133,7 @@ export function ResultsGrid({
     [statusPanels],
   );
 
-  const rowData = useMemo(() => prepareRows(rows, columnId), [rows, columnId]);
+  const rowData = useMemo(() => [...rows], [rows]);
   const columnDefs = useMemo(
     () => givenColumnDefs ?? buildColumnDefs(rows),
     [givenColumnDefs, rows],
@@ -180,28 +169,11 @@ export function ResultsGrid({
       }, head);
     };
   }, [detailPanel, getContextMenuItems]);
-  const showSymbols = useDeterminationSymbols((s) => s.show);
-  const setShowSymbols = useDeterminationSymbols((s) => s.setShow);
   const selectionColumnDef = useMemo(
-    () =>
-      selectionSymbol
-        ? buildSymbolSelectionColumnDef(selectionSymbol)
-        : buildSelectionColumnDef(showSymbols, setShowSymbols),
-    [selectionSymbol, showSymbols, setShowSymbols],
+    () => buildSelectionColumnDef(selectionSymbol),
+    [selectionSymbol],
   );
-  const menu = useMemo(
-    () =>
-      makeGetContextMenuItems(
-        extraMenuItems,
-        selectionSymbol ? [] : [determinationSymbolsMenuItem(showSymbols, setShowSymbols)],
-      ),
-    [extraMenuItems, selectionSymbol, showSymbols, setShowSymbols],
-  );
-
-  const classRules = useMemo(
-    () => ({ ...staticGridOptions.rowClassRules, ...rowClassRules }),
-    [rowClassRules],
-  );
+  const menu = useMemo(() => makeGetContextMenuItems(extraMenuItems), [extraMenuItems]);
 
   // The open panel follows the focused cell's row.
   const onCellFocused = useCallback(
@@ -234,9 +206,7 @@ export function ResultsGrid({
             },
           }}
         />
-        <Box sx={{ flex: 5 }}>
-          {toolbarExtra}
-        </Box>
+        <Box sx={{ flex: 5 }}>{toolbarExtra}</Box>
       </Box>
       <div ref={containerRef} style={{ height }} data-testid="results-grid">
         <AgGridReact<GridRowWithId>
@@ -249,10 +219,9 @@ export function ResultsGrid({
           quickFilterText={quick}
           getContextMenuItems={menu}
           getMainMenuItems={getMainMenuItems}
-          onCellEditRequest={onCellEditRequest}
           onCellFocused={onCellFocused}
           onCellKeyDown={onCellKeyDown}
-          rowClassRules={classRules}
+          rowClassRules={rowClassRules}
           sideBar={sideBar ?? staticGridOptions.sideBar}
           statusBar={statusBar ?? staticGridOptions.statusBar}
           onStateUpdated={(e) => {

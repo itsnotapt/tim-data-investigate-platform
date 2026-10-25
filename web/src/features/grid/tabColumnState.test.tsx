@@ -4,7 +4,7 @@ import type { GridApi } from 'ag-grid-community';
 import { tabColumnState } from './tabColumnState';
 import { ResultsGrid } from './ResultsGrid';
 
-const rows = [{ EventId: 'a', Name: 'alpha', Other: 1 }];
+const rows = [{ row: 0, Name: 'alpha', Other: 1 }];
 
 let callbacks: ResizeObserverCallback[] = [];
 class FakeResizeObserver {

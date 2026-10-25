@@ -89,7 +89,11 @@ describe('loadRuntimeConfig', () => {
   });
 
   it('ignores a leftover tagCluster and tagDatabase, in window config or env', () => {
-    const window = { ...fullWindow, tagCluster: 'https://tags.kusto.windows.net', tagDatabase: 'T' };
+    const window = {
+      ...fullWindow,
+      tagCluster: 'https://tags.kusto.windows.net',
+      tagDatabase: 'T',
+    };
     const env = { VITE_TAG_CLUSTER: 'nope', VITE_TAG_DATABASE: 'T' };
     expect(loadRuntimeConfig(window, env)).toEqual(loadRuntimeConfig(fullWindow, {}));
   });

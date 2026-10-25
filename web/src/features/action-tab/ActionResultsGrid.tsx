@@ -19,7 +19,7 @@ import {
   useActionColumnView,
 } from '../action-column-views';
 import { annotationColumnDefs, useAnnotating, useHistoryPanel } from '../annotate';
-import { prepareRows, type GridRowWithId } from '../grid/columns';
+import type { GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
 import { useRowResults } from '../grid/useRowResults';
@@ -40,9 +40,6 @@ import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 
-/** The grid row id: the run's row ordinal. */
-const ROW_ID = 'row';
-
 /** The param that names the column giving each row its id (Run KQL's Id column). */
 const ID_PARAM = 'idColumn';
 const NO_LABELS: readonly InstanceLabel[] = [];
@@ -52,10 +49,8 @@ const DEFAULT_MAX_IDS = 10_000;
 export type ActionResultsGridProps = Omit<
   ResultsGridProps,
   | 'rows'
-  | 'columnId'
   | 'columnDefs'
   | 'stateKey'
-  | 'columnViews'
   | 'sideBar'
   | 'statusPanels'
   | 'context'
@@ -154,7 +149,7 @@ export function ActionResultsGrid({
     if (rows === shown.current) return;
     if (api.current && continues(shown.current, rows)) {
       const added = rows.slice(shown.current.length);
-      api.current.applyTransaction({ add: prepareRows(added, ROW_ID) });
+      api.current.applyTransaction({ add: [...added] });
       indexRows(index, added);
       void showStoredAnnotations(added.flatMap((r) => (r.id ? [r.id] : [])));
     } else {
@@ -312,7 +307,6 @@ export function ActionResultsGrid({
         context={context}
         onStateUpdated={keep}
         rows={given}
-        columnId={ROW_ID}
         columnDefs={columnDefs}
         getContextMenuItems={menu}
         getMainMenuItems={getMainMenuItems}

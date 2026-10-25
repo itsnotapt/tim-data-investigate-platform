@@ -10,8 +10,8 @@ describe('detail text', () => {
     expect(detailText({ s: 'a\u0001b' })).toBe('s: ab\n');
     expect(detailText(5)).toBe('5');
   });
-  it('hides empty values and the client row id', () => {
-    const entries = detailEntries({ _id: 'x', a: '', b: null, c: {}, d: [], e: 0, f: 'ok' });
+  it('hides empty values', () => {
+    const entries = detailEntries({ a: '', b: null, c: {}, d: [], e: 0, f: 'ok' });
     expect(entries.map((e) => e.key)).toEqual(['e', 'f']);
   });
 });
