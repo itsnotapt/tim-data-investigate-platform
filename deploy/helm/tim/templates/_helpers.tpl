@@ -122,7 +122,7 @@ values are empty. */}}
 {{- if not (hasPrefix "https://" .Values.config.tags.clusterUri) }}
 {{- fail "config.tags.clusterUri must be an https URL" }}
 {{- end }}
-{{- /* A repository other than TIM's (a derived image) needs a tag or digest: image-tags.yaml pins only TIM's. */}}
+{{- /* An api.image.repository other than TIM's (a derived image) needs a tag or digest (ADR-0008). */}}
 {{- $api := .Values.api.image }}
 {{- if and (ne $api.repository "ghcr.io/itsnotapt/tim-data-investigate-platform/backend") (not $api.tag) (not $api.digest) }}
 {{- fail "api.image.repository is not TIM's image: set api.image.tag (a derived image's is <tim version>-<revision>, e.g. 4.0.0-acme.3) or api.image.digest" }}

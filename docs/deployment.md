@@ -160,6 +160,7 @@ RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/a
 - **Tags.** Name a derived image `<tim version>-<revision>`, for example `4.0.0-acme.3`. The revision counts your own changes on that TIM version.
 - **Checks.** `tim-api schema` and `tim-api check` run in the derived image and include the providers' types ([actions.md](actions.md#checking-files)).
 - **Use it.** In Compose, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG`. In Helm, set `api.image.repository`, and always set `api.image.tag` or `api.image.digest`.
+- **Helm image.** The migrations Job uses the same image as the api. The chart does not check the tag's format.
 
 How to write a provider is in [actions.md](actions.md#providers).
 
@@ -364,7 +365,7 @@ helm uninstall tim -n tim
 | `config.tags.clusterUri` / `database` | required / `Research` | `TIM_TAG_CLUSTER_URI` / `TIM_TAG_DATABASE`, `TAG_CLUSTER` / `TAG_DATABASE` |
 | `secrets.existingSecret` | empty | Use this Secret instead of creating one |
 | `secrets.databaseUrl` / `authClientSecret` / `agGridLicense` | empty | `TIM_DATABASE_URL` / `TIM_AUTH_CLIENT_SECRET` / `AGGRID_LICENSE` |
-| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/backend` / empty / empty | Empty `tag` uses the backend version pinned in `image-tags.yaml`; `digest` wins over `tag`. The migrations Job uses the same image. Another `repository` (a [derived image](#derived-images) or a mirror) needs `tag` or `digest`, else rendering fails. The chart does not check the tag's format |
+| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/backend` / empty / empty | Empty `tag` uses the backend version pinned in `image-tags.yaml`; `digest` wins over `tag`. Another `repository` needs `tag` or `digest` ([Derived images](#derived-images)) |
 | `web.image.*` | same, `ghcr.io/itsnotapt/tim-data-investigate-platform/frontend`; empty `tag` uses the frontend version pinned in `image-tags.yaml` | |
 | `actions.files` | empty | Action files and their sidecars by file name to content, in ConfigMap `<release>-tim-actions`; sets `TIM_ACTIONS_DIR`. See [Instance files under Helm](#instance-files-under-helm) |
 | `actions.existingConfigMap` | empty | A ConfigMap of action files you manage, mounted the same way. Not with `actions.files` |

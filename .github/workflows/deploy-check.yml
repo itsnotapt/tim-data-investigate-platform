@@ -169,6 +169,7 @@ jobs:
 
       - name: Instance files are mounted under /etc/tim
         run: |
+          # shellcheck disable=SC2016 # jq definitions, not shell
           defs='
             def api_pod: .[] | select(.kind == "Deployment" and .metadata.name == "acme-tim-api") | .spec.template;
             def api: api_pod.spec.containers[] | select(.name == "api");
@@ -176,8 +177,7 @@ jobs:
             def volume($name): [api_pod.spec.volumes[] | select(.name == $name)];
             def mounts($name): [api.volumeMounts[] | select(.name == $name)];
             def env($name): [api.env[] | select(.name == $name) | .value];'
-          # check <failure message> <jq expression over the rendered documents> <helm template args...>
-          check() {
+          check() { # <failure message> <jq expression over the rendered documents> <helm template args...>
             local message="$1" expression="$2"
             shift 2
             if ! helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" "$@" | yq -o json -I0 . \
@@ -186,8 +186,8 @@ jobs:
               exit 1
             fi
           }
-          # annotation <name> <helm template args...>: the api pod's annotation, empty when absent.
-          annotation() {
+          # Prints the api pod's annotation, empty when absent.
+          annotation() { # <name> <helm template args...>
             local name="$1"
             shift
             helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" "$@" \
@@ -271,8 +271,8 @@ jobs:
 
       - name: The OBO credential is required only for obo connections
         run: |
-          # renders <helm template args...>: whether production values without an OBO credential render.
-          renders() {
+          # Succeeds when production values without an OBO credential render.
+          renders() { # <helm template args...>
             helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" --set secrets.authClientSecret= "$@" > /dev/null 2>&1
           }
           if ! renders; then
