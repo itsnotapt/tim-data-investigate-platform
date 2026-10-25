@@ -1,0 +1,35 @@
+[project]
+name = "example-provider"
+version = "0.1.0"
+description = "The example instance's provider: an action type, Python actions and a connection type"
+requires-python = ">=3.12,<3.13"
+dependencies = ["tim-actions[kusto]>=1,<2"]
+
+# TIM finds the provider through this entry point.
+[project.entry-points."tim.actions"]
+example = "example_provider:provider"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# The package data, src/example_provider/actions/*.yaml, ships in the wheel with the code.
+[tool.hatch.build.targets.wheel]
+packages = ["src/example_provider"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # bandit: allow assert in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

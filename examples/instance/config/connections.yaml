@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../schema/connections.schema.json
+# The instance's connections: Kusto's public help cluster as each analyst, and the provider's
+# lookup connection type.
+- name: samples
+  title: Samples (help cluster)
+  type: kusto
+  auth: obo
+  cluster: https://help.kusto.windows.net
+  databases: [Samples]
+# A lookup table runs as TIM, so every analyst sees all of it.
+- name: regions
+  title: US regions
+  type: lookup
+  auth: workload_identity
+  entries:
+    CALIFORNIA: {Region: West, Division: Pacific}
+    FLORIDA: {Region: South, Division: South Atlantic}
+    ILLINOIS: {Region: Midwest, Division: East North Central}
+    IOWA: {Region: Midwest, Division: West North Central}
+    KANSAS: {Region: Midwest, Division: West North Central}
+    MISSOURI: {Region: Midwest, Division: West North Central}
+    NEBRASKA: {Region: Midwest, Division: West North Central}
+    NEW YORK: {Region: Northeast, Division: Middle Atlantic}
+    OKLAHOMA: {Region: South, Division: West South Central}
+    TEXAS: {Region: South, Division: West South Central}

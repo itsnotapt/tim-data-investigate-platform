@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TIM labels file",
+  "$defs": {
+    "Label": {
+      "additionalProperties": false,
+      "description": "One of the instance's labels. ``key`` is what annotations store.",
+      "properties": {
+        "key": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "colour": {
+          "enum": [
+            "red",
+            "amber",
+            "green",
+            "teal",
+            "blue",
+            "purple",
+            "pink",
+            "grey"
+          ],
+          "title": "Colour",
+          "type": "string"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "enum": [
+                "skull",
+                "warning",
+                "check",
+                "flag",
+                "star",
+                "question",
+                "block",
+                "bug",
+                "eye"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "colour"
+      ],
+      "title": "Label",
+      "type": "object"
+    }
+  },
+  "items": {
+    "$ref": "#/$defs/Label"
+  },
+  "type": "array",
+  "minItems": 1
+}
