@@ -12,7 +12,7 @@ The guide for operators and action authors. It covers what an instance holds, ho
 - **The connections file**, YAML, `TIM_CONNECTIONS_FILE` ([configuration.md](configuration.md#connections)).
 - **The labels file**, YAML, `TIM_LABELS_FILE` ([configuration.md](configuration.md#labels-and-annotations)).
 
-All are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
+The three kinds of file are mounted under `/etc/tim`. All are read once, at startup. Any problem stops startup ([operations.md](operations.md#startup-failures-from-the-files)), so a change to a file takes a restart.
 
 ## Action files
 
@@ -454,7 +454,7 @@ An action type can say how a preset of its actions becomes an action file by ove
 
 ## Writing connection types and hooks
 
-A connection type has two parts: a `Connection` model for its entries in the connections file, and a `Hook` that gives actions access to its backend. [`lookup.py`](../examples/instance/src/example_provider/lookup.py) is the example.
+A connection type has two parts: a `Connection` model for its entries in the connections file, and a `Hook` that gives actions access to the system behind the connection. [`lookup.py`](../examples/instance/src/example_provider/lookup.py) is the example.
 
 `Connection` is a subclass of `tim_actions.Connection`. It narrows `type` to the type's name and `auth` to the mechanisms it supports, and adds the type's fields:
 
@@ -566,8 +566,6 @@ packages = ["src/example_provider"]
 
 There is no hook conformance suite.
 
-The examples below are from [`examples/instance/tests/`](../examples/instance/tests/).
-
 ### Fixtures
 
 The package registers a `pytest11` plugin, so the fixtures need no import.
@@ -579,7 +577,7 @@ The package registers a `pytest11` plugin, so the fixtures need no import.
   - `calls` lists each query as `KustoCall(connection, database, kql, parameters)`.
   - A query with no answer queued fails the test, and so does reaching a Kusto cluster, as the editor schema does.
 
-The example's tests show them.
+The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them.
 
 - **A fake Kusto.** `tim_kusto` records the KQL and parameters sent, so a test of `StormSummary` checks that the params are bound by name:
 
@@ -652,7 +650,7 @@ Then deploy it with Helm or Compose.
   - `actions.files` holds the files of `config/actions/`, sidecars included, by file name. `actions.existingConfigMap` is the alternative.
   - `connections` and `labels` hold the other two files as YAML ([deployment.md](deployment.md#instance-files-under-helm)).
   - A change to `actions.files`, `connections` or `labels` restarts the api pods. A change to an `actions.existingConfigMap` needs `kubectl rollout restart deployment/<release>-tim-api`.
-- **Compose.** [`deploy/compose/.env`](../examples/instance/deploy/compose/.env) is a second `--env-file`:
+- **Compose.** [`deploy/compose/.env`](../examples/instance/deploy/compose/.env) is a second `--env-file`, after the operator's own, for TIM's `deploy/compose.prod.yaml` ([deployment.md](deployment.md#instance-files)):
   - `docker compose -f deploy/compose.prod.yaml --env-file deploy/.env --env-file <this file> up -d --no-build`.
   - `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` name the derived image.
   - `TIM_CONFIG_DIR` is the host directory holding a copy of `config/`, here `/srv/tim-instance/config`. `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` name the files under `/etc/tim` ([deployment.md](deployment.md#instance-files)).
