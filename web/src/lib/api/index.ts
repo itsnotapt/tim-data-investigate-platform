@@ -1,6 +1,5 @@
 export * from './client';
 export * from './errors';
-export * from './taggedEvents';
 export * from './instance';
 export * from './runs';
 export * from './connections';

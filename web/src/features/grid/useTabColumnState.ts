@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { ColumnState, GridApi } from 'ag-grid-community';
-import { tabColumnState } from '../column-views';
+import { tabColumnState } from './tabColumnState';
 
 /**
  * Keeps a grid's column state across its tab being hidden (TabHost uses `display:none`) and

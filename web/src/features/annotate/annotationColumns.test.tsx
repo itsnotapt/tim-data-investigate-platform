@@ -6,7 +6,6 @@ import type { Annotations } from '../../lib/api';
 import { commentsColumnDef, commentTextColumnDef, tagsColumnDef } from './annotationColumns';
 
 const row = (annotations?: Partial<Annotations>) => ({
-  _id: '0',
   id: 'h1',
   ...(annotations && {
     annotations: { id: 'h1', label: null, tags: [], comments: [], version: 1, ...annotations },

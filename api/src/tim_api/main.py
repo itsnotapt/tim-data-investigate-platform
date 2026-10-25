@@ -29,7 +29,6 @@ from tim_api.runs.connections import Connections
 from tim_api.runs.router import router as runs_router
 from tim_api.runs.runner import RACE_SECONDS, Runner
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
-from tim_api.tagged_events.router import router as tagged_events_router
 
 logger = logging.getLogger("tim_api")
 
@@ -131,7 +130,6 @@ def create_app(
     app.include_router(instance_router)
     app.include_router(annotations_router)
     app.include_router(tags_router)
-    app.include_router(tagged_events_router)
     app.include_router(column_views_router)
     app.include_router(connections_router)
     app.include_router(presets_router)

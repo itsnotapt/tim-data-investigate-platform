@@ -1,6 +1,5 @@
 import { dump } from 'js-yaml';
 import { isEmpty } from '../../lib/isEmpty';
-import { ROW_ID_FIELD } from './columns';
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/gu;
@@ -22,10 +21,10 @@ export function detailText(value: unknown): string {
   return '';
 }
 
-/** Entries to show: empty values and the client-only row id are hidden. */
+/** Entries to show: empty values are hidden. */
 export function detailEntries(data: Record<string, unknown> | null | undefined) {
   if (!data) return [];
   return Object.entries(data)
-    .filter(([key, value]) => key !== ROW_ID_FIELD && !isEmpty(value))
+    .filter(([, value]) => !isEmpty(value))
     .map(([key, value]) => ({ key, text: detailText(value) }));
 }

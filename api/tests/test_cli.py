@@ -46,7 +46,6 @@ def test_check_reports_the_same_problems_as_startup(
             "TIM_AUTH_TENANT_ID": "tenant-id",
             "TIM_AUTH_CLIENT_ID": "client-id",
             "TIM_AUTH_CLIENT_SECRET": "client-secret",
-            "TIM_TAG_CLUSTER_URI": "https://tags.westeurope.kusto.windows.net",
             "TIM_DATABASE_URL": "postgresql+asyncpg://tim:pw@localhost:5432/tim",
         }.items():
             patch.setenv(key, value)

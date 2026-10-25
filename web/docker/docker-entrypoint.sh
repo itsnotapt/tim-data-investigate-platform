@@ -29,7 +29,7 @@ case "$TIM_ENVIRONMENT" in
 esac
 
 # --- required variables ---------------------------------------------------------------
-required="BACKEND_URI REDIRECT_URI AUTH_CLIENT_ID AUTH_TENANT_ID TAG_CLUSTER"
+required="BACKEND_URI REDIRECT_URI AUTH_CLIENT_ID AUTH_TENANT_ID"
 missing=""
 for name in $required; do
     eval "value=\${$name-}"
@@ -51,11 +51,9 @@ BACKEND_URI=$(printf '%s' "$BACKEND_URI" | sed 's|/*$||')
 printf '%s' "$BACKEND_URI" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' \
     || fail "BACKEND_URI must be http(s)://host[:port] with no path (got '$BACKEND_URI')"
 is_http_url "$REDIRECT_URI" || fail "REDIRECT_URI must be an http(s) URL"
-is_http_url "$TAG_CLUSTER" || fail "TAG_CLUSTER must be an http(s) URL"
 printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
     || fail "AUTH_TENANT_ID must be a tenant GUID or domain name"
 
-TAG_DATABASE=${TAG_DATABASE:-Research}
 API_BASEPATH=${API_BASEPATH-}
 # Optional: without a key AG Grid Enterprise runs in trial mode.
 AGGRID_LICENSE=${AGGRID_LICENSE-}
@@ -81,8 +79,6 @@ config_tmp="$RUNTIME_DIR/.config.js.$$"
         --arg agGridLicenseKey "$AGGRID_LICENSE" \
         --arg wikiUri "$HELP_WIKI_URI" \
         --arg issueUri "$HELP_ISSUE_URI" \
-        --arg tagCluster "$TAG_CLUSTER" \
-        --arg tagDatabase "$TAG_DATABASE" \
         '{
             auth: {
                 clientId: $clientId,
@@ -92,9 +88,7 @@ config_tmp="$RUNTIME_DIR/.config.js.$$"
             apiEndpoint: $apiEndpoint,
             agGridLicenseKey: $agGridLicenseKey,
             wikiUri: $wikiUri,
-            issueUri: $issueUri,
-            tagCluster: $tagCluster,
-            tagDatabase: $tagDatabase
+            issueUri: $issueUri
         } | with_entries(select(.value != "" or .key == "agGridLicenseKey"))' \
         | sed 's/</\\u003c/g'
     printf ';\n'

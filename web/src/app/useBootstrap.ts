@@ -7,14 +7,13 @@ import { resumeSinkRuns } from '../features/sinks';
 import { useTabsStore } from '../features/tabs';
 import { startAnnotationSync } from '../lib/annotations';
 import { useAuth } from '../lib/auth';
-import { loadColumnViews } from './columnViewsState';
 
 type BootstrapStatus = 'signedOut' | 'loading' | 'loaded' | 'error';
 
 export interface BootstrapSteps {
   loadInstance: () => Promise<void>;
-  /** The column views, and the analyst's applied views. */
-  loadColumnViews: (analyst: string) => Promise<void>;
+  /** The analyst's applied views. */
+  loadAppliedViews: (analyst: string) => Promise<void>;
   loadTabs: () => Promise<void>;
   /** Picks up the runs the loaded tabs were following. */
   resumeRuns: () => void;
@@ -35,10 +34,7 @@ async function loadTabs(): Promise<void> {
 
 const defaultSteps: BootstrapSteps = {
   loadInstance: () => useInstanceStore.getState().load(),
-  loadColumnViews: async (analyst) => {
-    await loadColumnViews();
-    await loadAppliedViews(analyst);
-  },
+  loadAppliedViews,
   loadTabs,
   resumeRuns: () => void resumeActionRuns(),
   resumeSinkRuns: (notify) => void resumeSinkRuns({ notify }),
@@ -58,7 +54,7 @@ export interface UseBootstrap {
 }
 
 /**
- * Startup sequence: sign in, then the instance, column views and tabs, then the tabs'
+ * Startup sequence: sign in, then the instance, applied views and tabs, then the tabs'
  * runs and the sink runs are picked up again.
  * A failed attempt leaves the app retryable.
  */
@@ -81,7 +77,7 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
     void (async () => {
       try {
         await steps.loadInstance();
-        await steps.loadColumnViews(analyst);
+        await steps.loadAppliedViews(analyst);
         await steps.loadTabs();
         if (!cancelled) steps.resumeRuns();
         if (!cancelled) steps.resumeSinkRuns((options) => notifyContext?.(options));

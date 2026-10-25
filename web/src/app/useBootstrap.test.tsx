@@ -35,7 +35,7 @@ function makeSteps(calls: string[] = []) {
     calls,
     steps: {
       loadInstance: step('instance'),
-      loadColumnViews: step('columnViews'),
+      loadAppliedViews: step('appliedViews'),
       loadTabs: step('tabs'),
       resumeRuns: vi.fn(() => void calls.push('resumeRuns')),
       resumeSinkRuns: vi.fn<(notify: Notify) => void>(() => void calls.push('resumeSinkRuns')),
@@ -52,7 +52,7 @@ function makeSteps(calls: string[] = []) {
 }
 
 describe('useBootstrap', () => {
-  it('runs instance, column views, tabs in order, then loaded', async () => {
+  it('runs instance, applied views, tabs in order, then loaded', async () => {
     const { steps, calls } = makeSteps();
     setup(client(), steps);
     expect(screen.getByText('Authenticating and loading...')).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe('useBootstrap', () => {
     await waitFor(() =>
       expect(calls).toEqual([
         'instance',
-        'columnViews',
+        'appliedViews',
         'tabs',
         'resumeRuns',
         'resumeSinkRuns',
@@ -69,7 +69,7 @@ describe('useBootstrap', () => {
         'syncAnnotations',
       ]),
     );
-    expect(steps.loadColumnViews).toHaveBeenCalledWith('jo@example.com');
+    expect(steps.loadAppliedViews).toHaveBeenCalledWith('jo@example.com');
   });
 
   it("picks the sink runs up again, toasting how they ended in the app's snackbar", async () => {
@@ -107,7 +107,7 @@ describe('useBootstrap', () => {
 
   it('a failing load step shows the error; Retry re-runs and reaches loaded', async () => {
     const { steps } = makeSteps();
-    steps.loadColumnViews.mockRejectedValueOnce(new Error('idb unavailable'));
+    steps.loadAppliedViews.mockRejectedValueOnce(new Error('idb unavailable'));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     setup(client(), steps);
     expect(await screen.findByText('idb unavailable')).toBeInTheDocument();

@@ -107,8 +107,8 @@ jobs:
       - name: Build
         run: npm run build
 
-  # The mocked flows and the flows against a real tim-api (playwright.config.ts starts it on this
-  # Postgres service, reset once per run).
+  # The flows run against a real tim-api, which playwright.config.ts starts on this Postgres
+  # service, reset once per run.
   e2e:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'

@@ -20,7 +20,7 @@ def client(monkeypatch: pytest.MonkeyPatch, auth: AuthKit) -> Iterator[TestClien
 
 
 def test_oversized_content_length_is_413(client: TestClient) -> None:
-    response = client.post("/api/taggedevents/tags", content=b"x" * 5000)
+    response = client.post("/api/runs", content=b"x" * 5000)
     assert response.status_code == 413
     assert response.headers["content-type"].startswith("application/problem+json")
     assert response.json()["traceId"]
@@ -32,14 +32,14 @@ def test_chunked_body_over_limit_is_413(client: TestClient) -> None:
             yield b"x" * 500
 
     response = client.post(
-        "/api/taggedevents/tags", content=chunks(), headers={"content-type": "application/json"}
+        "/api/runs", content=chunks(), headers={"content-type": "application/json"}
     )
     assert response.status_code == 413
 
 
 def test_body_under_limit_is_processed(client: TestClient) -> None:
-    response = client.post("/api/taggedevents/tags", json=[])
-    assert response.status_code == 422  # validation (empty batch), not 413
+    response = client.post("/api/runs", json=[])
+    assert response.status_code == 422  # validation (not a run request), not 413
 
 
 def test_security_headers_on_every_response(client: TestClient) -> None:

@@ -1,15 +1,14 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Annotations } from '../api/annotations';
-import type { AppliedView, ColumnView, DisplayComponent, RowResult } from './types';
+import type { AppliedView, DisplayComponent, RowResult } from './types';
 
 /** The app's IndexedDB database. */
 const TIM_DB_NAME = 'tim';
-const TIM_DB_VERSION = 4;
+const TIM_DB_VERSION = 5;
 
 export const STORE = {
   displayComponents: 'display_components',
   rowResults: 'row_results',
-  columnViews: 'column_views',
   annotations: 'annotations',
   annotationSync: 'annotation_sync',
   appliedViews: 'applied_views',
@@ -19,7 +18,6 @@ interface TimDbSchema extends DBSchema {
   display_components: { key: string; value: DisplayComponent };
   /** Key = display component uuid; out-of-line key, value is the row array. */
   row_results: { key: string; value: RowResult[] };
-  column_views: { key: string; value: ColumnView };
   /**
    * Each `id`'s annotations, keyed by `id`. An `id` whose annotations were all removed stays, as a
    * tombstone with its version.
@@ -44,7 +42,6 @@ export function openTimDb(): Promise<TimDb> {
         if (oldVersion < 1) {
           db.createObjectStore(STORE.displayComponents, { keyPath: 'componentUuid' });
           db.createObjectStore(STORE.rowResults);
-          db.createObjectStore(STORE.columnViews, { keyPath: 'uuid' });
         }
         if (oldVersion < 2) {
           db.createObjectStore(STORE.annotations, { keyPath: 'id' });
@@ -61,6 +58,13 @@ export function openTimDb(): Promise<TimDb> {
           const untyped = db as unknown as IDBPDatabase;
           if (untyped.objectStoreNames.contains('query_options')) {
             untyped.deleteObjectStore('query_options');
+          }
+        }
+        if (oldVersion < 5) {
+          // Versions 1 to 4 had a `column_views` store, which the schema no longer names.
+          const untyped = db as unknown as IDBPDatabase;
+          if (untyped.objectStoreNames.contains('column_views')) {
+            untyped.deleteObjectStore('column_views');
           }
         }
       },

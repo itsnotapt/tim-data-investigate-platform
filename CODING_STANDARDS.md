@@ -39,15 +39,14 @@ Commands are in [docs/development.md](docs/development.md).
 - Every HTTP call to the API goes through the client in `web/src/lib/api/`.
 - Only `web/src/lib/auth/` imports MSAL; the rest of the app uses that module.
 - A default export is allowed only for a page loaded lazily in `web/src/app/lazyPages.ts`; everything else uses named exports.
-- Unit and component tests sit next to the code as `*.test.ts` or `*.test.tsx`. A user flow gets a Playwright spec in `web/e2e/flows/`. Each layer has one `@smoke` flow: the mocked app and the real api. Tag another flow `@smoke` only for a layer that has none. The other flows run on `main` and on release PRs.
+- Unit and component tests sit next to the code as `*.test.ts` or `*.test.tsx`. A user flow gets a Playwright spec in `web/e2e/flows/`, run against the real api through `web/e2e/realApi.ts`. The `@smoke` flows, which run on every PR, are the sign-in flows in `real-api.spec.ts`; don't tag others `@smoke`. The other flows run on `main` and on release PRs.
 
 ## Backend (`api/`)
 
 - Request and response models extend `ApiModel` (`api/src/tim_api/models_common.py`). A request model is separate from the stored model and leaves out fields the server owns, such as identifiers it assigns and audit fields.
 - Actions reach a connection through a `Hook` (`tim_actions.Hook`).
-  - Tag ingestion sits behind the protocol `TagIngestClient`.
   - A hook gets tokens from the `token_for(scope)` callable it is given (`OboTokenProvider.token_for` behind it), never the user's token.
-  - Callers depend on the `Hook` or the protocol, not the implementation behind it.
+  - Callers depend on the `Hook`, not the implementation behind it.
 - A change to stored data comes with an Alembic migration in `api/migrations/`.
 - Every storage implementation passes the shared suite in `api/tests/storage_contract.py`.
 
@@ -55,7 +54,7 @@ Commands are in [docs/development.md](docs/development.md).
 
 - A change ships with tests for the behaviour it adds or alters.
 - Tests drive behaviour through public interfaces: HTTP endpoints, a module's exports, what a component renders.
-- Tests replace only systems outside the repo: Kusto, Entra ID, tag ingestion, the clock.
+- Tests replace only systems outside the repo: Kusto, Entra ID, the clock.
   - Tests of actions and sinks replace those systems at the seams `Hook` (a fake hook such as `tim_kusto`) and `token_for` (the token a hook gets), with `tim_actions.testing`.
 - A bug fix starts with a test that fails on the bug, written at a seam where the bug occurs. When no such seam exists, the PR says so.
 - Every API endpoint has a happy-path test and a test for its main error case.

@@ -27,12 +27,6 @@ interface GridColours {
   header: string;
   oddRow: string;
 }
-/** One colour per determination: the row fill (`determination`) or its decorative stripe. */
-interface DeterminationColours {
-  malicious: string;
-  suspicious: string;
-  benign: string;
-}
 /** One colour per label colour: the row fill (`label`) or its decorative stripe. */
 type LabelColours = Record<LabelColour, string>;
 
@@ -44,16 +38,12 @@ declare module '@mui/material/styles' {
   interface Palette {
     editor: EditorColours;
     grid: GridColours;
-    determination: DeterminationColours;
-    stripe: DeterminationColours;
     label: LabelColours;
     labelStripe: LabelColours;
   }
   interface PaletteOptions {
     editor?: EditorColours;
     grid?: GridColours;
-    determination?: DeterminationColours;
-    stripe?: DeterminationColours;
     label?: LabelColours;
     labelStripe?: LabelColours;
   }
@@ -77,8 +67,6 @@ export const theme = createTheme({
         divider: '#e0e0e0',
         editor: { border: '#8a8a8a', background: '#ffffff' },
         grid: { header: '#f5f7f7', oddRow: '#fcfdfe' },
-        determination: { malicious: '#fecaca', suspicious: '#fde68a', benign: '#bbf7d0' },
-        stripe: { malicious: '#dc2626', suspicious: '#d97706', benign: '#16a34a' },
         label: {
           red: '#fecaca',
           amber: '#fde68a',
@@ -110,8 +98,6 @@ export const theme = createTheme({
         divider: '#333333',
         editor: { border: '#6e6e6e', background: '#1e1e1e' },
         grid: { header: '#262626', oddRow: '#232323' },
-        determination: { malicious: '#7f1d1d', suspicious: '#713f12', benign: '#14532d' },
-        stripe: { malicious: '#f87171', suspicious: '#fbbf24', benign: '#4ade80' },
         label: {
           red: '#7f1d1d',
           amber: '#713f12',

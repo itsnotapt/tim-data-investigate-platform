@@ -23,11 +23,6 @@ config:
     tenantId: ""
     # TIM_AUTH_CLIENT_ID (api), AUTH_CLIENT_ID (web). Required.
     clientId: ""
-  tags:
-    # TIM_TAG_CLUSTER_URI (api), TAG_CLUSTER (web). https Kusto cluster for tags. Required.
-    clusterUri: ""
-    # TIM_TAG_DATABASE (api), TAG_DATABASE (web).
-    database: Research
 
 # --- Secrets ---------------------------------------------------------------------------------
 # One Secret holds every sensitive variable. Its keys are the environment variable names:

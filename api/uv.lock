@@ -170,51 +170,6 @@ wheels = [
 ]
 
 [[package]]
-name = "azure-kusto-ingest"
-version = "6.0.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-kusto-data" },
-    { name = "azure-storage-blob" },
-    { name = "azure-storage-queue" },
-    { name = "tenacity" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/06/b0/c2353e224bcb7bcfad0de679a72a5c9e2396b0242fa13b283d86646e3710/azure_kusto_ingest-6.0.4.tar.gz", hash = "sha256:5cc3f547bc77496884af17ec0d3d874f5c32081393e5d846d8eb260afcbc29d5", size = 19822, upload-time = "2026-05-06T12:56:06.08Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/e3/aecf5bc1810c7738f9ce0d593dde6a39085d5fb6a3e8f2ff239b2c5eecc5/azure_kusto_ingest-6.0.4-py3-none-any.whl", hash = "sha256:af70305fa83edc0534214bceb6ece722117d798e4ece0a87a80ad3337fb4e019", size = 28275, upload-time = "2026-05-06T12:56:03.281Z" },
-]
-
-[[package]]
-name = "azure-storage-blob"
-version = "12.26.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-core" },
-    { name = "cryptography" },
-    { name = "isodate" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/96/95/3e3414491ce45025a1cde107b6ae72bf72049e6021597c201cd6a3029b9a/azure_storage_blob-12.26.0.tar.gz", hash = "sha256:5dd7d7824224f7de00bfeb032753601c982655173061e242f13be6e26d78d71f", size = 583332, upload-time = "2025-07-16T21:34:07.644Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5b/64/63dbfdd83b31200ac58820a7951ddfdeed1fbee9285b0f3eae12d1357155/azure_storage_blob-12.26.0-py3-none-any.whl", hash = "sha256:8c5631b8b22b4f53ec5fff2f3bededf34cfef111e2af613ad42c9e6de00a77fe", size = 412907, upload-time = "2025-07-16T21:34:09.367Z" },
-]
-
-[[package]]
-name = "azure-storage-queue"
-version = "12.13.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-core" },
-    { name = "cryptography" },
-    { name = "isodate" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/96/82/f3b0fa9b221d43296448bef7b667e098c218768c6123b709021e2e2a25be/azure_storage_queue-12.13.0.tar.gz", hash = "sha256:25691e7958d24970392451134dfa547637fd2dfcfde5b3476a2e152e56973f8c", size = 191088, upload-time = "2025-07-16T22:42:13.968Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/ef/67979a913bd26b0333214176a95983bead17a8608e8779eae6ebac162e70/azure_storage_queue-12.13.0-py3-none-any.whl", hash = "sha256:e83292a43c116b17ccede492f0f86a153f8a6f3c6637e8abc653f59fa49df01a", size = 183735, upload-time = "2025-07-16T22:42:15.25Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2026.10.19"
 source = { registry = "https://pypi.org/simple" }
@@ -521,15 +476,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz", hash = "sha256:67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960", size = 21209, upload-time = "2026-10-06T22:48:38.076Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7", size = 7552, upload-time = "2026-10-06T22:48:36.959Z" },
-]
-
-[[package]]
-name = "isodate"
-version = "0.7.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/54/4d/e940025e2ce31a8ce1202635910747e5a87cc3a6a6bb2d00973375014749/isodate-0.7.2.tar.gz", hash = "sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6", size = 29705, upload-time = "2024-10-08T23:04:11.5Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/15/aa/0aca39a37d3c7eb941ba736ede56d689e7be91cab5d9ca846bde3999eba6/isodate-0.7.2-py3-none-any.whl", hash = "sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15", size = 22320, upload-time = "2024-10-08T23:04:09.501Z" },
 ]
 
 [[package]]
@@ -1110,15 +1056,6 @@ wheels = [
 ]
 
 [[package]]
-name = "tenacity"
-version = "9.2.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/82/9e/497c1c8ebe5a5b5d1d4a7511aea22c0bb1a97e3170d98abdef0e1b34265a/tenacity-9.2.1.tar.gz", hash = "sha256:a606b5c808d0cded4a359d5b9932d867ff2a6a6b64d37350260fd01bbdf83839", size = 58261, upload-time = "2026-10-07T12:13:01.633Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d6/26/1ff2b0721ac66a3ec5b1402b333110b352ab0a8724052ac279a7b82d40c4/tenacity-9.2.1-py3-none-any.whl", hash = "sha256:9e56f17539296baab7beabb08b92f6ee3d7be92d8be72d763360677c2ad6580e", size = 32310, upload-time = "2026-10-07T12:13:00.102Z" },
-]
-
-[[package]]
 name = "tim-actions"
 version = "1.0.0"
 source = { editable = "tim-actions" }
@@ -1171,9 +1108,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
-    { name = "azure-identity" },
     { name = "azure-kusto-data" },
-    { name = "azure-kusto-ingest" },
     { name = "fastapi" },
     { name = "httpx2" },
     { name = "msal" },
@@ -1187,6 +1122,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "azure-identity" },
     { name = "jsonschema" },
     { name = "mypy" },
     { name = "pgserver" },
@@ -1202,9 +1138,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "asyncpg", specifier = ">=0.32.0" },
-    { name = "azure-identity", specifier = ">=1.26.0" },
     { name = "azure-kusto-data", specifier = ">=6.0.4" },
-    { name = "azure-kusto-ingest", specifier = ">=6.0.4" },
     { name = "fastapi" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "msal", specifier = ">=1.39.0" },
@@ -1218,6 +1152,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "azure-identity", specifier = ">=1.26.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "mypy", specifier = ">=2.4.0" },
     { name = "pgserver", specifier = ">=0.1.4" },

@@ -112,21 +112,6 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
         {"204"},
         {"401", "404", "422", "500"},
     ),
-    (
-        "post",
-        "/api/taggedevents/savedEvents",
-        "saveEvents",
-        {"204"},
-        {"400", "401", "422", "500", "502"},
-    ),
-    ("post", "/api/taggedevents/tags", "tagEvents", {"204"}, {"400", "401", "422", "500", "502"}),
-    (
-        "post",
-        "/api/taggedevents/comments",
-        "commentEvents",
-        {"204"},
-        {"400", "401", "422", "500", "502"},
-    ),
     ("patch", "/api/annotations", "changeAnnotations", {"200"}, {"400", "401", "422", "500"}),
     ("get", "/api/annotations/changes", "getAnnotationChanges", {"200"}, {"401", "422", "500"}),
     ("get", "/api/annotations/history", "getAnnotationHistory", {"200"}, {"401", "422", "500"}),
@@ -207,10 +192,6 @@ def test_request_and_response_schemas(spec: dict[str, Any]) -> None:
             "application/json"
         ]["schema"]
         return schema
-
-    assert body_ref("/api/taggedevents/savedEvents", "post").endswith("/SavedEvent")
-    assert body_ref("/api/taggedevents/tags", "post").endswith("/EventTag")
-    assert body_ref("/api/taggedevents/comments", "post").endswith("/EventComment")
 
     assert ok_schema("/api/instance", "get", "200")["$ref"].endswith("/Instance")
     assert body_ref("/api/runs", "post").endswith("/StartRun")

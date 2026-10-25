@@ -6,7 +6,6 @@ beforeEach(() => {
   window.appConfig = {
     auth: { clientId: 'cid', authority: 'https://login.microsoftonline.com/tid' },
     redirectUri: 'https://app.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
   };
   resetConfigCache();
 });

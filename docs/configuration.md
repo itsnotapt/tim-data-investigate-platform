@@ -20,7 +20,7 @@ Settings are read by pydantic-settings from two places:
 How values are read:
 
 - List values are comma-separated.
-- Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_TAG_INGEST_URL`, `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` count as unset.
+- Empty strings for `TIM_AUTH_CLIENT_SECRET`, `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` count as unset.
 - Unknown `TIM_*` variables are ignored.
 - Invalid or missing settings stop the api at startup, with an error naming each variable (see [operations.md](operations.md#common-failures)).
 
@@ -48,15 +48,6 @@ Note: an api whose connections file has a connection that uses `obo` needs an OB
 - The credential is either `TIM_AUTH_CLIENT_SECRET`, or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file.
 - Without one, the api fails to start.
 - An instance with no `obo` connection starts without one. OBO then answers 503 when something uses it.
-
-### Tag ingestion
-
-| Variable                     | Default                                          | Required | Description                                                                                                                           |
-| ---------------------------- | ------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `TIM_TAG_CLUSTER_URI`        | none                                             | yes      | https URI of the Kusto cluster that stores tagged events.                                                                             |
-| `TIM_TAG_DATABASE`           | `Research`                                       | no       | Database on the tag cluster.                                                                                                          |
-| `TIM_TAG_INGEST_URL`         | derived from `TIM_TAG_CLUSTER_URI`               | no       | https ingestion endpoint for tag writes.                                                                                              |
-| `TIM_TAG_INGEST_FAKE`        | `false`                                          | no       | Development only. Uses an in-memory fake instead of Kusto ingestion. Ignored unless `TIM_ENVIRONMENT=development`.                    |
 
 ### Connections
 
@@ -182,7 +173,6 @@ The web container's nginx allows request bodies up to 64 MB and waits up to 620 
 
 | Variable                                                    | Read by                                     | Description                                                                                                                                                                                                                         |
 | ----------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET` | `azure-identity` (`DefaultAzureCredential`) | App identity for tag ingestion and the `create-tables` command. Other credentials `DefaultAzureCredential` supports (managed or workload identity, Azure CLI login) also work.                                                      |
 | `AZURE_FEDERATED_TOKEN_FILE`                                | OBO exchange                                | Path to a workload-identity token file, used as the client assertion when `TIM_AUTH_CLIENT_SECRET` is unset. Re-read on each exchange. Needed at startup when a connection uses `obo` and there is no client secret.                                                                                              |
 | `FORWARDED_ALLOW_IPS`                                       | uvicorn                                     | Addresses from which `X-Forwarded-*` headers are trusted (default `127.0.0.1`). Set to the proxy address. `compose.yaml` uses `*`, `deploy/compose.prod.yaml` the compose subnet (`TIM_SUBNET`), the chart `api.forwardedAllowIps`. |
 
@@ -191,9 +181,9 @@ The web container's nginx allows request bodies up to 64 MB and waits up to 620 
 | Variable                                                                       | Used by           | Description                                                                                            |
 | ------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | `TIM_TEST_DATABASE_URL`                                                        | `pytest`, Playwright | Postgres server for storage tests, and the e2e api's database, which Playwright empties at the start of each run; falls back to `pgserver`. |
-| `TIM_TEST_KUSTO_INGEST_URL`, `TIM_TEST_KUSTO_DATABASE`, `TIM_TEST_KUSTO_TABLE` | `pytest -m kusto` | Real ingest endpoint for the integration test (database default `Research`, table default `EventTag`). |
-| `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the live tests `test_run_kql_on_a_real_cluster` and `test_kql_query_binds_params_on_a_real_cluster` (database default `Research`). It runs as the `AZURE_*` identity through `DefaultAzureCredential`, or your Azure CLI login, see [development.md](development.md#live-kusto-tests). |
-| `TIM_TEST_SNOWFLAKE_ACCOUNT`, `TIM_TEST_SNOWFLAKE_WAREHOUSE`, `TIM_TEST_SNOWFLAKE_SCOPE` | `pytest -m snowflake` | A real account for the live test `test_run_sql_on_a_real_account`; it skips unless the account is set. It runs as the `AZURE_*` identity through `DefaultAzureCredential`, which needs a token for the scope that the account's External OAuth integration accepts. |
+| `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the live tests `test_run_kql_on_a_real_cluster` and `test_kql_query_binds_params_on_a_real_cluster` (database default `Research`). It authenticates through `DefaultAzureCredential`, for example with your Azure CLI login, see [development.md](development.md#live-kusto-tests). |
+| `TIM_TEST_SNOWFLAKE_ACCOUNT`, `TIM_TEST_SNOWFLAKE_WAREHOUSE`, `TIM_TEST_SNOWFLAKE_SCOPE` | `pytest -m snowflake` | A real account for the live tests `test_run_sql_on_a_real_account` and `test_run_sql_on_a_real_account_through_tims_obo_exchange`; they skip unless the account is set. The analyst's token comes from `DefaultAzureCredential`, for example your Azure CLI login, see [development.md](development.md#things-that-arent-obvious). |
+| `TIM_TEST_AUTH_TENANT_ID`, `TIM_TEST_AUTH_CLIENT_ID`, `TIM_TEST_AUTH_CLIENT_SECRET` | `pytest -m snowflake` | The API app registration that `test_run_sql_on_a_real_account_through_tims_obo_exchange` validates tokens for and makes the on-behalf-of exchange as; it skips without the client ID. |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
 | `E2E_PORT`                                                                     | Playwright        | Vite's port for e2e runs. Default `5180`, a whole number from 1 to 65534. The api takes the next port. |
 | `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |
@@ -216,8 +206,6 @@ The root filesystem can be read-only. Only `/tmp` must be writable. A validation
 | `REDIRECT_URI`     | yes      | none                                                      | `redirectUri`          | MSAL popup redirect target, `https://<web host>/blank.html`. Register it as a SPA redirect URI in Entra. |
 | `AUTH_CLIENT_ID`   | yes      | none                                                      | `auth.clientId`        | Client id of the app registration the SPA signs in with.                                                 |
 | `AUTH_TENANT_ID`   | yes      | none                                                      | `auth.authority`       | Tenant GUID or domain; the authority becomes `https://login.microsoftonline.com/<tenant>`.               |
-| `TAG_CLUSTER`      | yes      | none                                                      | `tagCluster`           | http(s) URI of the tag cluster.                                                                          |
-| `TAG_DATABASE`     | no       | `Research`                                                | `tagDatabase`          | Tag database.                                                                                            |
 | `API_BASEPATH`     | no       | empty (same origin)                                       | `apiEndpoint`          | Prefix for API calls. A cross-origin `http(s)://host[:port]` is added to the CSP `connect-src`.          |
 | `AGGRID_LICENSE`   | no       | empty                                                     | `agGridLicenseKey`     | AG Grid Enterprise licence key, see [below](#ag-grid-enterprise-licence).                                |
 | `HELP_WIKI_URI`    | no       | project wiki (built in)                                   | `wikiUri`              | Target of the help link.                                                                                 |
@@ -248,15 +236,13 @@ The image serves `/config.js` from `/tmp/tim`, and includes `nginx.conf` from th
 | `VITE_AGGRID_LICENSE_KEY` | `agGridLicenseKey` / `AGGRID_LICENSE`                                                                                       |
 | `VITE_HELP_WIKI_URI`      | `wikiUri` / `HELP_WIKI_URI`                                                                                                 |
 | `VITE_HELP_ISSUE_URI`     | `issueUri` / `HELP_ISSUE_URI`                                                                                               |
-| `VITE_TAG_CLUSTER`        | `tagCluster` / `TAG_CLUSTER`                                                                                                |
-| `VITE_TAG_DATABASE`       | `tagDatabase` / `TAG_DATABASE` (default `Research`)                                                                         |
 | `VITE_AUTH_STUB`          | `true` signs in a fake account without Entra and sends its stub token (`dev:<upn>`). The account is `dev.user@example.com`, or the upn in the `localStorage` key `tim.devStubUpn`. A production build refuses it and shows the configuration error screen. |
 
 ### How the SPA merges and validates configuration
 
 1. Each key comes from `window.appConfig`, else from the matching `VITE_*` variable.
 2. Empty strings and unsubstituted placeholders such as `$VAR` or `${VAR}` count as missing.
-3. The result is validated: `auth.clientId`, `auth.authority`, `redirectUri` and `tagCluster` are required (URLs must be http(s)); `tagDatabase` defaults to `Research`, `apiEndpoint` to same origin (trailing slashes are stripped).
+3. The result is validated: `auth.clientId`, `auth.authority` and `redirectUri` are required (URLs must be http(s)); `apiEndpoint` defaults to same origin (trailing slashes are stripped).
 4. On any problem the app renders a configuration error screen listing every missing or invalid key instead of starting.
 
 ### AG Grid Enterprise licence
@@ -283,7 +269,6 @@ Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](adr
 | `TIM_AUTH_DISABLED`                                   | `true`                                                     | Passed to `migrate` and `api`.                                                              |
 | `TIM_LOG_LEVEL`                                       | `INFO`                                                     | Passed to `migrate` and `api`.                                                              |
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`            | all-zero GUID                                              | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`.                    |
-| `TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE`             | `https://example.westeurope.kusto.windows.net`, `Research` | Passed to the api and, as `TAG_CLUSTER` / `TAG_DATABASE`, to `web`.                         |
 | `REDIRECT_URI`                                        | `http://localhost:8081/blank.html`                         | Passed to `web`. Must match `WEB_PORT`.                                                     |
 | `AGGRID_LICENSE`                                      | empty                                                      | Passed to `web`.                                                                            |
 | `TIM_AUTH_CLIENT_SECRET`                              | empty                                                      | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
@@ -305,8 +290,6 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | `POSTGRES_USER`, `POSTGRES_DB`                        | no       | `tim`, `tim`                  | Same.                                                                                          |
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`            | yes      | none                          | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`.                       |
 | `TIM_AUTH_CLIENT_SECRET`                              | yes      | none                          | Passed to `migrate` and `api`. See the note below.                                             |
-| `TIM_TAG_CLUSTER_URI`                                 | yes      | none                          | Passed to the api and, as `TAG_CLUSTER`, to `web`.                                             |
-| `TIM_TAG_DATABASE`                                    | no       | `Research`                    | Passed to the api and, as `TAG_DATABASE`, to `web`.                                            |
 | `TIM_CORS_ALLOWED_ORIGINS` | no       | empty                         | Passed to `migrate` and `api`.                                                                 |
 | `TIM_LOG_LEVEL`                                       | no       | `INFO`                        | Passed to `migrate` and `api`.                                                                 |
 | `TIM_CONFIG_DIR`                                      | no       | `./config`                    | Host directory mounted read-only at `/etc/tim` in the api; a relative path is from `deploy/`.  |
@@ -329,7 +312,6 @@ The chart in `deploy/helm/tim` sets the same variable names; the install procedu
 - **Non-secret variables** come from two ConfigMaps (api and web), rendered from values:
   - `config.environment` (`TIM_ENVIRONMENT`);
   - `config.auth.tenantId` / `clientId`;
-  - `config.tags.clusterUri` / `database`;
   - `api.logLevel` (`TIM_LOG_LEVEL`);
   - `api.corsAllowedOrigins`;
   - `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`);
@@ -344,7 +326,7 @@ The chart in `deploy/helm/tim` sets the same variable names; the install procedu
   - `POSTGRES_PASSWORD`, with the in-cluster PostgreSQL.
 - **Where the Secret comes from:** either the chart creates it from `secrets.databaseUrl`, `secrets.authClientSecret` and `secrets.agGridLicense`, or `secrets.existingSecret` names a Secret you manage. In the second case the chart creates none.
 - **Optional keys:** the api reads `TIM_AUTH_CLIENT_SECRET`, and the web container reads `AGGRID_LICENSE`, as optional keys. When a key is absent, the variable is not set.
-- **Any other variable:** api variables (`TIM_MAX_RESULT_ROWS`, `TIM_RUN_TIMEOUT_SECONDS`, `AZURE_CLIENT_ID`, ...) are set through `api.extraEnv` / `api.extraEnvFrom`. Web variables are set through `web.extraEnv` / `web.extraEnvFrom`.
+- **Any other variable:** api variables (`TIM_MAX_RESULT_ROWS`, `TIM_RUN_TIMEOUT_SECONDS`, ...) are set through `api.extraEnv` / `api.extraEnvFrom`. Web variables are set through `web.extraEnv` / `web.extraEnvFrom`.
 - **Instance files:** the chart sets the api's file variables when the matching value is given, not through `api.extraEnv`. See [Instance files under Helm](deployment.md#instance-files-under-helm).
   - `actions.files` or `actions.existingConfigMap` sets `TIM_ACTIONS_DIR=/etc/tim/actions`.
   - `connections` sets `TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml`.

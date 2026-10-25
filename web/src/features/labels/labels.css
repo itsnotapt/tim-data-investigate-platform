@@ -1,7 +1,7 @@
 /*
  * Labelled rows: each colour class names its fill and stripe from the theme palette; `tim-label`
- * draws them like a determination row (row background variables, an inset shadow on the first
- * cell). The menu swatch is the stripe colour.
+ * draws them (row background variables, an inset shadow on the first cell). The menu swatch is the
+ * stripe colour.
  */
 .tim-label-red {
   --tim-label-fill: var(--mui-palette-label-red);

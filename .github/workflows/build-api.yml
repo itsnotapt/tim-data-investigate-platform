@@ -157,8 +157,6 @@ jobs:
         env:
           TIM_TEST_KUSTO_CLUSTER: ${{ vars.TIM_TEST_KUSTO_CLUSTER }}
           TIM_TEST_KUSTO_QUERY_DATABASE: ${{ vars.TIM_TEST_KUSTO_QUERY_DATABASE || 'Research' }}
-          TIM_TEST_KUSTO_INGEST_URL: ${{ vars.TIM_TEST_KUSTO_INGEST_URL }}
-          TIM_TEST_KUSTO_DATABASE: ${{ vars.TIM_TEST_KUSTO_DATABASE || 'Research' }}
 
   docker-build-api:
     needs: changes

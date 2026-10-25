@@ -10,13 +10,3 @@ export async function waitForEditor(page: Page, scope?: Locator): Promise<void> 
   // Tokenisation runs after first paint; give the coloured spans a moment.
   await page.waitForTimeout(300);
 }
-
-/** Distinct `mtk<N>` token classes currently rendered in the editor. */
-export async function tokenClasses(page: Page, scope?: Locator): Promise<string[]> {
-  const root = scope ?? page.locator('.monaco-editor').first();
-  return root.locator('.view-lines span[class*="mtk"]').evaluateAll((els) => {
-    const set = new Set<string>();
-    for (const el of els) for (const c of el.classList) if (/^mtk\d+$/.test(c)) set.add(c);
-    return [...set];
-  });
-}

@@ -95,15 +95,6 @@ export type DisplayComponent = ActionDisplayComponent;
 /** One stored row: an action run row `{row, id, data}`. */
 export type RowResult = Record<string, unknown>;
 
-/** A named AG Grid column state, global to the analyst's browser, offered by the column-view bar. */
-export interface ColumnView {
-  /** Key (store `column_views`). */
-  uuid: string;
-  name: string;
-  /** Raw AG Grid `getColumnState()` output. */
-  columnState: unknown[];
-}
-
 /**
  * The column view an analyst applied for new tabs from a preset or action, in this browser. Key
  * (store `applied_views`) = `[analyst, scope]`.

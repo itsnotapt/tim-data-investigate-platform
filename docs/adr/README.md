@@ -67,7 +67,6 @@ Numbers are never reused, so the sequence has gaps.
 | [0009](0009-obo-token-exchange.md) | OBO token exchange: one shared MSAL app, scope per connection | accepted | 2026-10-06 |
 | [0011](0011-development-only-modes.md) | Development-only modes refuse to run in production | accepted | 2026-10-06 |
 | [0012](0012-query-run-limits-and-lifecycle.md) | Run limits and lifecycle | accepted | 2026-10-06 |
-| [0013](0013-tag-ingestion.md) | Tag ingestion runs as the app identity | accepted | 2026-10-06 |
 | [0014](0014-web-auth-token-cache.md) | Web sign-in: token cache in localStorage | accepted | 2026-10-06 |
 | [0016](0016-release-versions.md) | Release versions for frontend, backend, the Helm chart and tim-actions | accepted | 2026-10-07 |
 | [0017](0017-actions-from-providers.md) | Actions are Python classes from installed providers, configured by YAML files | accepted | 2026-10-20 |

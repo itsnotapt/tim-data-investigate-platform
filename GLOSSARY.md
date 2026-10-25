@@ -146,24 +146,3 @@ A note on an `id`'s annotations, with its author and time. An `id` can have many
 **History**:
 The record of an `id`'s label changes and comments, each with who made it and when. Tags are not in it.
 _Avoid_: audit log, activity
-
-### Tagging
-
-**Saved event**:
-A snapshot of a result row kept so it can be tagged and commented on. A row is saved before it is tagged or commented.
-
-**Event tag**:
-A free-text string an analyst attaches to a saved event. It is kept in Kusto, apart from an `id`'s [tags](#annotations).
-
-**Event comment**:
-An analyst's note on a saved event, optionally carrying a determination. It is kept in Kusto, apart from an `id`'s [comments](#annotations).
-
-**Tagged event**:
-An event that has event tags or event comments. Queries that ask for it show its tags, comments and determination alongside the row.
-
-**Determination**:
-An analyst's judgement of whether an event is malicious, suspicious or benign. It colours the event's row in the grid and, when the analyst turns symbols on, marks it with a symbol.
-_Avoid_: verdict, classification
-
-**Tag cluster** / **tag database**:
-The Kusto cluster and database that hold saved events, tags and comments.
