@@ -73,6 +73,24 @@ The digest wins over the tag; an empty tag uses the version pinned for the compo
 {{- default (include "tim.fullname" .) .Values.secrets.existingSecret }}
 {{- end }}
 
+{{/* The ConfigMap of action files: actions.existingConfigMap, <fullname>-actions for
+actions.files, or empty for none. */}}
+{{- define "tim.actionsConfigMap" -}}
+{{- if .Values.actions.existingConfigMap }}
+{{- .Values.actions.existingConfigMap }}
+{{- else if .Values.actions.files }}
+{{- printf "%s-actions" (include "tim.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/* The ConfigMap of the connections and labels files: <fullname>-api-files, or empty when both
+values are empty. */}}
+{{- define "tim.apiFilesConfigMap" -}}
+{{- if or .Values.connections .Values.labels }}
+{{- printf "%s-api-files" (include "tim.fullname" .) }}
+{{- end }}
+{{- end }}
+
 {{- define "tim.apiServiceName" -}}
 {{- printf "%s-api" (include "tim.fullname" .) }}
 {{- end }}
@@ -104,12 +122,26 @@ The digest wins over the tag; an empty tag uses the version pinned for the compo
 {{- if not (hasPrefix "https://" .Values.config.tags.clusterUri) }}
 {{- fail "config.tags.clusterUri must be an https URL" }}
 {{- end }}
+{{- /* An api.image.repository other than TIM's (a derived image) needs a tag or digest (ADR-0008). */}}
+{{- $api := .Values.api.image }}
+{{- if and (ne $api.repository "ghcr.io/itsnotapt/tim-data-investigate-platform/backend") (not $api.tag) (not $api.digest) }}
+{{- fail "api.image.repository is not TIM's image: set api.image.tag (a derived image's is <tim version>-<revision>, e.g. 4.0.0-acme.3) or api.image.digest" }}
+{{- end }}
+{{- if and .Values.actions.files .Values.actions.existingConfigMap }}
+{{- fail "set actions.files or actions.existingConfigMap, not both" }}
+{{- end }}
 {{- if and .Values.ingress.enabled (not .Values.ingress.host) }}
 {{- fail "ingress.host is required when ingress.enabled" }}
 {{- end }}
 {{- $workloadIdentity := eq (toString (index .Values.api.podLabels "azure.workload.identity/use")) "true" }}
-{{- if and (eq .Values.config.environment "production") (not .Values.secrets.existingSecret) (not .Values.secrets.authClientSecret) (not $workloadIdentity) }}
-{{- fail "the api needs an OBO credential: set secrets.authClientSecret, secrets.existingSecret (key TIM_AUTH_CLIENT_SECRET), or Entra workload identity (api.podLabels azure.workload.identity/use: \"true\" plus serviceAccount.annotations azure.workload.identity/client-id)" }}
+{{- $obo := false }}
+{{- range .Values.connections }}
+{{- if and (kindIs "map" .) (eq (toString .auth) "obo") }}
+{{- $obo = true }}
+{{- end }}
+{{- end }}
+{{- if and $obo (eq .Values.config.environment "production") (not .Values.secrets.existingSecret) (not .Values.secrets.authClientSecret) (not $workloadIdentity) }}
+{{- fail "a connection uses obo, so the api needs an OBO credential: set secrets.authClientSecret, secrets.existingSecret (key TIM_AUTH_CLIENT_SECRET), or Entra workload identity (api.podLabels azure.workload.identity/use: \"true\" plus serviceAccount.annotations azure.workload.identity/client-id)" }}
 {{- end }}
 {{- if not .Values.secrets.existingSecret }}
 {{- if .Values.postgresql.enabled }}

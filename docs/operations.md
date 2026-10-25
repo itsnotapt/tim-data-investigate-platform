@@ -252,6 +252,7 @@ On Kubernetes:
 
 - Pods restart on their own when the chart's ConfigMaps or chart-created Secret change at `helm upgrade`.
 - A Secret you manage (`secrets.existingSecret`) is not watched. After changing it, run `kubectl -n <namespace> rollout restart deploy/<release>-tim-api` (or `-web`).
+- A ConfigMap you manage (`actions.existingConfigMap`) is not watched either. After changing it, run `kubectl -n <namespace> rollout restart deploy/<release>-tim-api`.
 
 | Item                          | Where                                                  | Restart |
 | ----------------------------- | ------------------------------------------------------ | ------- |

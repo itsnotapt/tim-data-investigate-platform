@@ -440,6 +440,30 @@
         }
       }
     },
+    "actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[-._a-zA-Z0-9]+$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "existingConfigMap": {
+          "type": "string"
+        }
+      }
+    },
+    "connections": {
+      "type": "array"
+    },
+    "labels": {
+      "type": "array"
+    },
     "migrations": {
       "type": "object",
       "additionalProperties": false,
