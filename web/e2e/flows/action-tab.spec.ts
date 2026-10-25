@@ -31,7 +31,11 @@ test('an action opened from the New menu runs with a pill’s value, and its row
     route.fulfill({
       status: 404,
       contentType: 'application/problem+json',
-      body: JSON.stringify({ type: 'urn:tim:problem:not-found', title: 'Not found', status: 404 }),
+      body: JSON.stringify({
+        type: 'urn:tim:problem:not-found',
+        title: 'Not found',
+        status: 404,
+      }),
     }),
   );
   await page.reload();

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { SideTree } from './SideTree';
-import { kusto, newTestStore } from '../../test/tabsTestUtils';
+import { newTestStore, tab } from '../../test/tabsTestUtils';
 
 const Loc = () => <div data-testid="loc">{useLocation().pathname}</div>;
 
@@ -25,12 +25,11 @@ describe('SideTree', () => {
   it('shows status icons, badge text and prefixes', async () => {
     const store = newTestStore();
     const s = store.getState();
-    s.createTab(kusto('draft'));
-    s.createTab(kusto('exec', null, { state: { isExecuting: true } }));
-    s.createTab(kusto('err', null, { state: { error: { message: 'boom' } } }));
-    s.createTab(kusto('new', null, { state: { rowCount: 3 } }));
-    s.createTab(kusto('zero', null, { state: { rowCount: 0 } }));
-    s.createTab(kusto('many', null, { state: { rowCount: 50, isVisited: true } }));
+    s.createTab(tab('draft'));
+    s.createTab(tab('exec', null, { state: { isExecuting: true } }));
+    s.createTab(tab('err', null, { state: { error: { message: 'boom' } } }));
+    s.createTab(tab('new', null, { state: { rowCount: 3 } }));
+    s.createTab(tab('many', null, { state: { rowCount: 50, isVisited: true } }));
     renderTree(store);
     await expand();
     const status = (id: string) => within(node(id)).getByTestId('tree-icon');
@@ -39,8 +38,6 @@ describe('SideTree', () => {
     expect(status('err')).toHaveAttribute('data-status', 'error');
     expect(status('new')).toHaveAttribute('data-tone', 'info');
     expect(status('new')).toHaveTextContent('3');
-    expect(status('zero')).toHaveAttribute('data-tone', 'warning');
-    expect(status('zero')).toHaveTextContent('0');
     expect(status('many')).toHaveAttribute('data-tone', 'default');
     expect(status('many')).toHaveTextContent('9+');
     expect(node('draft')).toHaveTextContent('[draft] T-draft');
@@ -95,7 +92,7 @@ describe('SideTree', () => {
 
   it('click marks visited and navigates', async () => {
     const store = newTestStore();
-    store.getState().createTab(kusto('a', null, { state: { rowCount: 2 } }));
+    store.getState().createTab(tab('a', null, { state: { rowCount: 2 } }));
     renderTree(store);
     await expand();
     await userEvent.click(node('a'));
@@ -106,8 +103,8 @@ describe('SideTree', () => {
 
   it('highlights the active node on first load', () => {
     const store = newTestStore();
-    store.getState().createTab(kusto('a'));
-    store.getState().createTab(kusto('b'));
+    store.getState().createTab(tab('a'));
+    store.getState().createTab(tab('b'));
     renderTree(store, '/view/b');
     expect(node('b')).toHaveAttribute('aria-current', 'page');
     expect(node('b')).toHaveClass('Mui-selected');
@@ -116,7 +113,7 @@ describe('SideTree', () => {
 
   it('marks the active tab visited when results arrive', () => {
     const store = newTestStore();
-    store.getState().createTab(kusto('a'));
+    store.getState().createTab(tab('a'));
     renderTree(store, '/view/a');
     act(() => store.getState().updateState('a', { rowCount: 4 }));
     expect(store.getState().tabs['a']?.state.isVisited).toBe(true);
@@ -125,8 +122,8 @@ describe('SideTree', () => {
   it('nests children, collapses, and Remove selected cascades', async () => {
     const store = newTestStore();
     const s = store.getState();
-    s.createTab(kusto('p'));
-    s.createTab(kusto('c', 'p'));
+    s.createTab(tab('p'));
+    s.createTab(tab('c', 'p'));
     renderTree(store, '/view/c');
     await expand();
     expect(node('c')).toBeInTheDocument();
@@ -150,7 +147,7 @@ describe('SideTree', () => {
 
   it('expands on hover', async () => {
     const store = newTestStore();
-    store.getState().createTab(kusto('a'));
+    store.getState().createTab(tab('a'));
     renderTree(store);
     expect(screen.queryByLabelText('Select T-a')).not.toBeInTheDocument();
     await expand();
@@ -159,7 +156,7 @@ describe('SideTree', () => {
 
   it('collapses on a mouse move outside even without a mouseleave (closed portal menu)', async () => {
     const store = newTestStore();
-    store.getState().createTab(kusto('a'));
+    store.getState().createTab(tab('a'));
     renderTree(store);
     await expand();
     expect(screen.getByLabelText('Select T-a')).toBeInTheDocument();
@@ -173,7 +170,7 @@ describe('SideTree', () => {
     const add = vi.spyOn(document, 'addEventListener');
     const remove = vi.spyOn(document, 'removeEventListener');
     const store = newTestStore();
-    store.getState().createTab(kusto('a'));
+    store.getState().createTab(tab('a'));
     const { unmount } = render(
       <MemoryRouter>
         <SideTree store={store} />

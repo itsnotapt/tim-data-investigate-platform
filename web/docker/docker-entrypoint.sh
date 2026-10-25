@@ -64,14 +64,6 @@ if [ -z "$AGGRID_LICENSE" ]; then
 fi
 HELP_WIKI_URI=${HELP_WIKI_URI-}
 HELP_ISSUE_URI=${HELP_ISSUE_URI-}
-DEFAULT_CLUSTERS=${DEFAULT_CLUSTERS-}
-
-if [ -n "$DEFAULT_CLUSTERS" ]; then
-    printf '%s' "$DEFAULT_CLUSTERS" | jq -e 'type == "array"' >/dev/null 2>&1 \
-        || fail "DEFAULT_CLUSTERS must be a JSON array of {name, clusters, databases}"
-else
-    DEFAULT_CLUSTERS='[]'
-fi
 
 # --- config.js --------------------------------------------------------------------------
 # jq does all JSON escaping. "<" is additionally emitted as < so the file stays safe even
@@ -91,7 +83,6 @@ config_tmp="$RUNTIME_DIR/.config.js.$$"
         --arg issueUri "$HELP_ISSUE_URI" \
         --arg tagCluster "$TAG_CLUSTER" \
         --arg tagDatabase "$TAG_DATABASE" \
-        --argjson defaultClusters "$DEFAULT_CLUSTERS" \
         '{
             auth: {
                 clientId: $clientId,
@@ -103,12 +94,7 @@ config_tmp="$RUNTIME_DIR/.config.js.$$"
             wikiUri: $wikiUri,
             issueUri: $issueUri,
             tagCluster: $tagCluster,
-            tagDatabase: $tagDatabase,
-            defaultClusters: (
-                if ($defaultClusters | length) > 0 then $defaultClusters
-                else [{name: "Cluster", clusters: [$tagCluster], databases: [$tagDatabase]}]
-                end
-            )
+            tagDatabase: $tagDatabase
         } | with_entries(select(.value != "" or .key == "agGridLicenseKey"))' \
         | sed 's/</\\u003c/g'
     printf ';\n'

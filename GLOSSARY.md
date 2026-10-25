@@ -11,12 +11,8 @@ An analyst's tree of tabs. Each pivot adds a child tab under the tab it was made
 _Avoid_: session, case
 
 **Tab**:
-One node of an investigation: a Kusto tab or an action tab, with its results.
+One node of an investigation: an action tab, with its results.
 _Avoid_: display component, view
-
-**Kusto tab**:
-A tab holding free KQL with a cluster, a database and a time range.
-_Avoid_: ad-hoc tab
 
 **Action tab**:
 A tab that runs an action with the analyst's param values and shows the rows of its run. It keeps those values as they are, so a later change to the action does not change them.
@@ -113,17 +109,13 @@ _Avoid_: drill-down
 
 **Run**:
 One execution of an action by the server for the analyst who started it. It ends succeeded, in error, timed out or cancelled.
-_Avoid_: action run, job, execution
+_Avoid_: action run, query run, job, execution
 
 **Run details**:
 The key-value facts a run reports, such as its duration, row count or a warning.
 
 **Share link**:
 A link to a run, or to one row of it, that any signed-in analyst holding it can open to see the run's rows.
-
-**Query run**:
-One execution of a Kusto tab's KQL by the server on behalf of the analyst who started it. It ends completed, failed with an error, or timed out.
-_Avoid_: job
 
 ### Results
 

@@ -57,8 +57,8 @@ The logger is `tim_api`, with child loggers such as `tim_api.retention`. Its lev
 - **Unhandled exceptions** log `Unhandled exception traceId=... method=... path=...`, with a stack trace.
 - **Other notable lines:**
   - `AUTHENTICATION IS DISABLED`: a warning at startup. It must never appear in production;
-  - `Retention sweep deleted N expired query run(s)`;
-  - `Marked N interrupted query run(s) as error`;
+  - `Retention sweep deleted N expired run(s)`;
+  - `Marked N interrupted run(s) as error`;
   - `OBO exchange failed (...)` and `OBO exchange rejected: error=... scope=...`: token exchange problems;
   - `Action <key> left out: ...`: an info line at startup, for each action that has no connection to run on.
 
@@ -96,7 +96,7 @@ The api never creates or changes tables on its own. A new or upgraded database m
 
 On a first install with in-cluster PostgreSQL, the api pods start alongside PostgreSQL, and pass readiness before the schema exists. Until the database is up and migrated:
 
-- they log non-fatal `Stale query-run sweep failed`, `Stale run sweep failed` and `Retention sweep failed` tracebacks (database unavailable);
+- they log non-fatal `Stale run sweep failed` and `Retention sweep failed` tracebacks (database unavailable);
 - requests that use the database fail.
 
 On Kubernetes, the Job retries a failed pod up to `migrations.backoffLimit` times (default 3). It is stopped after `migrations.activeDeadlineSeconds` (default 600).
@@ -204,16 +204,13 @@ The change feed carries annotations ([architecture.md](architecture.md#annotatio
 - **Cursors.** A browser keeps its place in its own IndexedDB. A new browser, or one with its site data cleared, reads the whole feed once.
 - **The labels file.** Check a file with `tim-api check --labels <file>`, and print its JSON Schema with `tim-api schema labels` ([`tim-api check`](#tim-api-check)). Stored labels keep the `key` they were set with. A key that is later taken out of the file shows grey in the grid, and can still be cleared or replaced.
 
-### Query run retention and cleanup
-
-These apply to runs (`/api/runs`) and query runs (`/api/kusto/query`) alike.
+### Run retention and cleanup
 
 - **Expiry:** each run has an expiry (`TIM_RUN_RETENTION_SECONDS`, default 24 h), refreshed when it finishes. An expired run is treated as not found immediately.
 - **Sweep:** a background task deletes expired runs every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300 s), and logs the count.
   - Runs, with their rows, go ten at a time, so no single delete holds locks for long.
-  - Then the expired query runs go.
   - A failed sweep is logged with a stack trace, and retried at the next interval.
-- **Startup:** some runs are left behind by a restart or crash. These are runs still `running` (query runs still `created`) that started more than `TIM_RUN_TIMEOUT_SECONDS` ago.
+- **Startup:** some runs are left behind by a restart or crash. These are runs still `running` that started more than `TIM_RUN_TIMEOUT_SECONDS` ago.
   - They are set to `error`, with the message `Run interrupted by server restart`.
   - A warning logs the count.
 - **Shutdown:** runs in flight are stopped, and set to `error` the same way. A run's action keeps running in its thread until the process exits, but its rows are no longer stored.
@@ -235,9 +232,9 @@ Change the `TIM_MAX_*`, `TIM_RUN_TIMEOUT_SECONDS`, `TIM_ROWS_PAGE_SIZE` and `TIM
 
 | Symptom                                      | Variable                                  |
 | -------------------------------------------- | ----------------------------------------- |
-| Runs fail with `Result exceeds limit of …`   | `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`. Query runs (`/api/kusto/query`) stay capped at 100,000 rows and 64 MiB whatever these say. Bigger results need more database space and more memory in the browser |
+| Runs fail with `Result exceeds limit of …`   | `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`. Bigger results need more database space and more memory in the browser |
 | Runs stopped at the time limit               | `TIM_RUN_TIMEOUT_SECONDS` (nginx waits 620 s; raising it above 600 also needs a change to `web/docker/nginx.conf.template`) |
-| Runs stay `running` (query runs `created`) under heavy use | `TIM_MAX_CONCURRENT_RUNS` (per api process, shared by runs and query runs) |
+| Runs stay `running` under heavy use | `TIM_MAX_CONCURRENT_RUNS` (per api process) |
 | Row pages are slow or large                  | `TIM_ROWS_PAGE_SIZE`                      |
 | Labelling a big selection is refused         | `TIM_MAX_ANNOTATION_IDS`                  |
 | Labels reach other analysts late, or the feed is busy | `TIM_ANNOTATION_POLL_SECONDS`    |
@@ -317,10 +314,9 @@ Each line names the file, the line and the field.
 | Kusto calls return `403` with title "Consent or sign-in is required for the downstream service" (`consent-required`) | The OBO exchange was refused (`invalid_grant` / `interaction_required`): the user or tenant has not consented to the API's Kusto permission, or MFA or conditional access needs interaction. The SPA prompts the user to sign in again; if it persists, grant admin consent on the API app registration. |
 | Kusto calls return `403` "Access to the Kusto database was denied" | The signed-in user has no rights on that cluster or database.                                                                                              |
 | Kusto calls return `502` "identity provider could not be reached" | The OBO exchange failed for another reason (network to Entra, misconfigured secret). The api log has `OBO exchange failed` or `OBO exchange rejected: error=...`.   |
-| Kusto calls return `503` "Token exchange is not available" | The api runs with `TIM_AUTH_DISABLED=true`, or the api has no OBO credential, which startup allows only when no connection uses `obo`, so only the Kusto tab is affected.                                                                                                                         |
+| Kusto calls return `503` "Token exchange is not available" | The api runs with `TIM_AUTH_DISABLED=true`, or the api has no OBO credential, which startup allows only when no connection uses `obo`, so only runs on `obo` connections are affected.                                                                                                                         |
 | Tag writes return `502` "Tag ingestion failed"           | Ingest endpoint unreachable, tables missing (run `create-tables`), or the app identity lacks ingest rights.                                                            |
-| Query rejected with `400` "The cluster is not allowed"   | Cluster is not https, or its host matches no pattern in `TIM_ALLOWED_KUSTO_HOSTS`. Regional clusters (`<name>.<region>.kusto.windows.net`) need a `**.` pattern; Fabric needs `**.kusto.fabric.microsoft.com`.                                                                    |
-| Web container exits immediately: `tim-web: missing required environment variable(s): ...` | Set `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`, `TAG_CLUSTER`. Other `tim-web:` messages name an invalid value (`BACKEND_URI` with a path, bad `DEFAULT_CLUSTERS` JSON, bad `API_BASEPATH`, and so on). |
+| Web container exits immediately: `tim-web: missing required environment variable(s): ...` | Set `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`, `TAG_CLUSTER`. Other `tim-web:` messages name an invalid value (`BACKEND_URI` with a path, bad `API_BASEPATH`, and so on). |
 | Browser shows the configuration error screen             | `/config.js` has missing or invalid keys; the screen lists each one. Check the web container variables and that `/config.js` is not served from a stale cache or proxy.  |
 | Sign-in popup fails with a redirect error                | `REDIRECT_URI` (`https://<host>/blank.html`) is not registered as a SPA redirect URI on the app registration.                                                          |
 | `502` from `/api/...` on the web host                    | nginx cannot reach `BACKEND_URI` (name does not resolve, api down). Check the api container and `NGINX_RESOLVER`.                                                      |

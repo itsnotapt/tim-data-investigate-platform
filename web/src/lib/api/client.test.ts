@@ -4,7 +4,6 @@ import { apiUrl, problemResponse, TEST_API, TEST_TRACE_ID } from '../../test/msw
 import { setupMswServer } from '../../test/msw/server';
 import { createApiClient } from './client';
 import { ApiError, CLIENT_PROBLEM } from './errors';
-import { getKustoSchema } from './kustoSchema';
 import {
   createPreset,
   deletePreset,
@@ -238,20 +237,6 @@ describe('endpoint modules', () => {
       'DELETE /api/presets/p1',
     ]);
     expect(bodies).toEqual([preset, preset]);
-  });
-
-  it('kusto schema returns the parsed schema document', async () => {
-    let body: unknown;
-    server.use(
-      http.post(apiUrl('/api/kusto/schema'), async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({ schema: { Databases: {} } });
-      }),
-    );
-    await expect(
-      getKustoSchema({ cluster: 'https://c', database: 'd' }, { client: makeClient() }),
-    ).resolves.toEqual({ Databases: {} });
-    expect(body).toEqual({ cluster: 'https://c', database: 'd' });
   });
 
   it('tagged events post arrays without createdBy/dateTimeUtc and handle 204', async () => {

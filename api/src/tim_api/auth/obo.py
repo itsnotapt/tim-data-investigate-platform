@@ -1,12 +1,11 @@
-"""On-Behalf-Of exchange: the caller's API token -> a Kusto token for one cluster (ADR-0005).
+"""On-Behalf-Of exchange: the caller's API token -> an access token for one scope (ADR-0005).
 
 * One ``msal.ConfidentialClientApplication`` per provider (i.e. per process) with MSAL's shared
   in-memory token cache, so repeat calls are served from cache.
 * Credential: ``TIM_AUTH_CLIENT_SECRET`` if set, else a client assertion read from the federated
   / workload-identity token file (``AZURE_FEDERATED_TOKEN_FILE``). With neither, startup fails
   with :class:`OboConfigError` when a connection uses ``obo``; otherwise OBO is unavailable (503).
-* Scope: ``TIM_KUSTO_OBO_SCOPE`` with ``{cluster}`` replaced by the already validated, normalised
-  cluster URL.
+* Scope: the connection's ``obo_scope``, passed to ``token_for`` by its hook.
 * MSAL is blocking, so calls run in a worker thread.
 
 Tokens (the user assertion and the result) are never logged or put in exception messages.
@@ -14,7 +13,6 @@ Tokens (the user assertion and the result) are never logged or put in exception 
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import threading
@@ -61,10 +59,6 @@ class OboTokenProvider(Protocol):
         worker thread."""
         ...
 
-    async def get_token(self, principal: Principal, cluster_url: str) -> str:
-        """Kusto access token for ``cluster_url`` (validated and normalised by the caller)."""
-        ...
-
 
 class _MsalApp(Protocol):
     def acquire_token_on_behalf_of(
@@ -104,7 +98,6 @@ def _credential(settings: Settings) -> str | dict[str, Any]:
 
 class MsalOboTokenProvider:
     def __init__(self, settings: Settings, *, app_factory: MsalFactory = _default_factory) -> None:
-        self._scope_template = settings.kusto_obo_scope
         authority = f"{settings.auth_authority_host.rstrip('/')}/{settings.auth_tenant_id}"
         # Credential is resolved now so misconfiguration fails at startup. The MSAL app itself is
         # built lazily (its constructor does authority discovery over the network) and once.
@@ -126,12 +119,6 @@ class MsalOboTokenProvider:
 
     def _exchange(self, user_assertion: str, scopes: list[str]) -> dict[str, Any]:
         return self._get_app().acquire_token_on_behalf_of(user_assertion, scopes)
-
-    def scope_for(self, cluster_url: str) -> str:
-        return self._scope_template.replace("{cluster}", cluster_url.rstrip("/"))
-
-    async def get_token(self, principal: Principal, cluster_url: str) -> str:
-        return await asyncio.to_thread(self.token_for, principal, self.scope_for(cluster_url))
 
     def token_for(self, principal: Principal, scope: str) -> str:
         if principal.token is None:
@@ -165,9 +152,6 @@ class DisabledOboTokenProvider:
         self._reason = reason
 
     def token_for(self, principal: Principal, scope: str) -> str:
-        raise OboUnavailableError(self._reason)
-
-    async def get_token(self, principal: Principal, cluster_url: str) -> str:
         raise OboUnavailableError(self._reason)
 
 

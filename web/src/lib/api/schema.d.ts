@@ -217,57 +217,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/kusto/query": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start Query */
-        post: operations["runQuery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/kusto/query/{queryRunId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Query Run */
-        get: operations["getQueryRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/kusto/schema": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get Schema */
-        post: operations["getSchema"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/presets": {
         parameters: {
             query?: never;
@@ -949,96 +898,6 @@ export interface components {
         };
         JsonValue: unknown;
         /**
-         * KustoClusterDatabase
-         * @description Request body of `POST /api/kusto/schema`.
-         */
-        KustoClusterDatabase: {
-            /** Cluster */
-            cluster: string;
-            /** Database */
-            database: string;
-        };
-        /**
-         * KustoQueryEcho
-         * @description Echo of the request; `requestedBy` is the token identity (read-only).
-         */
-        KustoQueryEcho: {
-            /** Cluster */
-            cluster: string;
-            /** Database */
-            database: string;
-            /** Endtime */
-            endTime?: string | null;
-            /** Query */
-            query: string;
-            /** Requestedby */
-            requestedBy: string;
-            /** Starttime */
-            startTime?: string | null;
-        };
-        /**
-         * KustoQueryRequest
-         * @description Body of `POST /api/kusto/query`. `requestedBy` is ignored (owner comes from the token).
-         */
-        KustoQueryRequest: {
-            /** Cluster */
-            cluster: string;
-            /** Database */
-            database: string;
-            /** Endtime */
-            endTime?: string | null;
-            /** Query */
-            query: string;
-            /** Starttime */
-            startTime?: string | null;
-        };
-        /**
-         * KustoQueryRun
-         * @description Run resource returned by POST (200/202) and GET. Server-produced only, never a request.
-         */
-        KustoQueryRun: {
-            /** Executedatetimeutc */
-            executeDateTimeUtc: string;
-            executionMetrics?: components["schemas"]["KustoQueryStats"] | null;
-            /** Expiresat */
-            expiresAt: string;
-            kustoQuery: components["schemas"]["KustoQueryEcho"];
-            /** Mainerror */
-            mainError?: string | null;
-            /**
-             * Queryrunid
-             * Format: uuid
-             */
-            queryRunId: string;
-            /** Resultdata */
-            resultData?: {
-                [key: string]: unknown;
-            }[] | null;
-            status: components["schemas"]["QueryRunStatus"];
-        };
-        /**
-         * KustoQueryStats
-         * @description Kusto `QueryCompletionInformation` stats. Keys are snake_case as Kusto returns them.
-         */
-        KustoQueryStats: {
-            /** Dataset Statistics */
-            dataset_statistics?: {
-                [key: string]: unknown;
-            }[] | null;
-            /** Execution Time */
-            execution_time: number;
-            /** Input Dataset Statistics */
-            input_dataset_statistics?: {
-                [key: string]: unknown;
-            } | null;
-            /** Resource Usage */
-            resource_usage?: {
-                [key: string]: unknown;
-            } | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
          * LabelEntry
          * @description A label change in an id's history: the label it set, ``null`` when it cleared it.
          */
@@ -1228,11 +1087,6 @@ export interface components {
             type: string;
         };
         /**
-         * QueryRunStatus
-         * @enum {string}
-         */
-        QueryRunStatus: "created" | "completed" | "error" | "timedOut";
-        /**
          * ResolvePivot
          * @description Body of ``POST /api/actions/{key}/resolve``.
          */
@@ -1364,16 +1218,6 @@ export interface components {
             presetId?: string | null;
         };
         /**
-         * SchemaResponse
-         * @description `{schema: <parsed .show schema as json document>}`, passed through untouched.
-         */
-        SchemaResponse: {
-            /** Schema */
-            schema: {
-                [key: string]: unknown;
-            };
-        };
-        /**
          * SinkInput
          * @description The rows a sink writes, each a row's ``data``, and their columns.
          */
@@ -1443,7 +1287,7 @@ export interface operations {
                     "application/json": components["schemas"]["PivotResolution"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1514,7 +1358,7 @@ export interface operations {
                     "application/json": components["schemas"]["ChangedAnnotations"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1718,7 +1562,7 @@ export interface operations {
                     "application/json": components["schemas"]["ColumnView"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1782,7 +1626,7 @@ export interface operations {
                     "application/json": components["schemas"]["ColumnView"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1802,7 +1646,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            /** @description Consent required, or only the owner may change it (`consent-required` / `forbidden`). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1869,7 +1713,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            /** @description Consent required, or only the owner may change it (`consent-required` / `forbidden`). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2054,7 +1898,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2074,7 +1918,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            /** @description Consent required, or only the owner may change it (`consent-required` / `forbidden`). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2215,244 +2059,6 @@ export interface operations {
             };
         };
     };
-    runQuery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["KustoQueryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KustoQueryRun"];
-                };
-            };
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KustoQueryRun"];
-                };
-            };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
-                headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Unhandled error (`internal`). */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Upstream failure (`upstream`). */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Dependency unavailable (`unavailable`). */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    getQueryRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                queryRunId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KustoQueryRun"];
-                };
-            };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
-                headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Not found (`not-found`). */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Unhandled error (`internal`). */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    getSchema: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["KustoClusterDatabase"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SchemaResponse"];
-                };
-            };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Missing, invalid or expired token (`unauthorized`). */
-            401: {
-                headers: {
-                    /** @description `Bearer` */
-                    "WWW-Authenticate"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Unhandled error (`internal`). */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Upstream failure (`upstream`). */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
     listPresets: {
         parameters: {
             query?: never;
@@ -2515,7 +2121,7 @@ export interface operations {
                     "application/json": components["schemas"]["Preset"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2579,7 +2185,7 @@ export interface operations {
                     "application/json": components["schemas"]["Preset"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2599,7 +2205,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            /** @description Consent required, or only the owner may change it (`consent-required` / `forbidden`). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2666,7 +2272,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            /** @description Consent required, or only the owner may change it (`consent-required` / `forbidden`). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2920,7 +2526,7 @@ export interface operations {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2940,7 +2546,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Consent required or Kusto denied the user (`consent-required` / `forbidden`). */
+            /** @description Consent required, or only the owner may change it (`consent-required` / `forbidden`). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3208,7 +2814,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3277,7 +2883,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3346,7 +2952,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`). */
+            /** @description Malformed JSON (`bad-request`). */
             400: {
                 headers: {
                     [name: string]: unknown;

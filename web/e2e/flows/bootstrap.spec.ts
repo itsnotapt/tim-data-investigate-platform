@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures';
 import { shot } from '../shot';
 
-test('welcome page and account menu', async ({ page, api }) => {
+test('welcome page and account menu', { tag: '@smoke' }, async ({ page, api }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
   await expect(page.getByText('The triage and investigation experience.')).toBeVisible();

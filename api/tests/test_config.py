@@ -1,9 +1,8 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
-from tim_api.config import DEFAULT_ALLOWED_KUSTO_HOSTS, Settings, SettingsError, get_settings
+from tim_api.config import Settings, SettingsError, get_settings
 
 
 def make(**overrides: object) -> Settings:
@@ -44,23 +43,17 @@ def test_defaults_applied() -> None:
     assert s.auth_client_secret is not None
     assert s.auth_disabled is False
     assert s.cors_allowed_origins == []
-    assert s.allowed_kusto_hosts == list(DEFAULT_ALLOWED_KUSTO_HOSTS) == ["**.kusto.windows.net"]
     assert s.max_result_rows == 1_000_000
     assert s.max_result_bytes == 512 * 1024 * 1024
     assert s.run_timeout_seconds == 600
     assert s.rows_page_size == 10_000
     assert s.run_retention_seconds == 86_400
-    assert s.kusto_obo_scope == "{cluster}/.default"
 
 
 def test_list_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TIM_CORS_ALLOWED_ORIGINS", "http://a.test, https://b.test ,")
-    monkeypatch.setenv(
-        "TIM_ALLOWED_KUSTO_HOSTS", "One.Kusto.Windows.NET, *.Kusto.chinacloudapi.cn."
-    )
     s = make()
     assert s.cors_allowed_origins == ["http://a.test", "https://b.test"]
-    assert s.allowed_kusto_hosts == ["one.kusto.windows.net", "*.kusto.chinacloudapi.cn"]
 
 
 def test_empty_list_value(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,51 +61,17 @@ def test_empty_list_value(monkeypatch: pytest.MonkeyPatch) -> None:
     assert make().cors_allowed_origins == []
 
 
-@pytest.mark.parametrize("value", ["", "   ", " , ,"])
-def test_blank_allowed_hosts_gives_default(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
-    monkeypatch.setenv("TIM_ALLOWED_KUSTO_HOSTS", value)
-    assert make().allowed_kusto_hosts == ["**.kusto.windows.net"]
-    assert get_settings().allowed_kusto_hosts == ["**.kusto.windows.net"]
-
-
-BAD_PATTERNS = [
-    "*foo.com",
-    "a.*.com",
-    "***.com",
-    "f*.com",
-    "a.b.*",
-    "*",
-    "**",
-    "a..com",
-    ".a.com",
-    "*..com",
-    "a.com..",
-    "10.0.0.1",
-    "*.10.0.0.1",
-    "https://x.com",
-    "x.com:443",
-    "x.com/p",
-    "u@x.com",
-    "bad_label.com",
-]
-
-
-@pytest.mark.parametrize("pattern", BAD_PATTERNS)
-def test_invalid_allowed_host_pattern_rejected(pattern: str) -> None:
-    with pytest.raises(ValidationError, match="invalid host pattern"):
-        make(allowed_kusto_hosts=f"ok.example,{pattern}")
-
-
-@pytest.mark.parametrize("pattern", BAD_PATTERNS)
-def test_invalid_allowed_host_pattern_fails_startup(
-    monkeypatch: pytest.MonkeyPatch, pattern: str
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("TIM_ALLOWED_KUSTO_HOSTS", "*foo.com"), ("TIM_KUSTO_OBO_SCOPE", "{cluster}/x")],
+)
+def test_removed_variable_has_no_effect(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
 ) -> None:
-    monkeypatch.setenv("TIM_ALLOWED_KUSTO_HOSTS", f"ok.example,{pattern}")
-    with pytest.raises(SettingsError) as info:
-        get_settings()
-    message = str(info.value)
-    assert "TIM_ALLOWED_KUSTO_HOSTS" in message
-    assert repr(pattern) in message
+    before = get_settings().model_dump()
+    get_settings.cache_clear()
+    monkeypatch.setenv(name, value)
+    assert get_settings().model_dump() == before
 
 
 def test_secrets_not_leaked(monkeypatch: pytest.MonkeyPatch) -> None:

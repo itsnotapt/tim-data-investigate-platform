@@ -9,7 +9,6 @@ import {
   quickFilterText,
 } from './gridOptions';
 import { getDetermination, rowClassRules } from './rowClasses';
-import { createStatsStore, formatExecutionStats, formatMemoryMb } from './status';
 
 describe('columns', () => {
   const rows = [{ A: 1 }, { A: 2, B: 'x' }, { C: true }];
@@ -113,36 +112,5 @@ describe('grid options helpers', () => {
       'copyWithHeaders',
       'export',
     ]);
-  });
-});
-
-describe('status formatting', () => {
-  it('formats memory bytes as MB', () => {
-    expect(formatMemoryMb(524384)).toBe('1MB');
-    expect(formatMemoryMb(1048576 * 12)).toBe('12MB');
-    expect(formatMemoryMb('2097152')).toBe('2MB');
-    expect(formatMemoryMb(0)).toBeNull();
-    expect(formatMemoryMb(null)).toBeNull();
-  });
-  it('lists only the known stats', () => {
-    expect(
-      formatExecutionStats({ executionTime: 0.42, cpuUsage: '00:00:00.1', memoryUsage: 1048576 }),
-    ).toEqual([
-      { label: 'Execution Time', value: '0.42' },
-      { label: 'CPU Time', value: '00:00:00.1' },
-      { label: 'Memory', value: '1MB' },
-    ]);
-    expect(formatExecutionStats({ executionTime: 0 })).toEqual([
-      { label: 'Execution Time', value: '0' },
-    ]);
-    expect(formatExecutionStats({})).toEqual([]);
-  });
-  it('stats store notifies only on change', () => {
-    const s = createStatsStore();
-    let n = 0;
-    s.subscribe(() => n++);
-    s.set({ executionTime: 1 });
-    s.set({ executionTime: 1 });
-    expect(n).toBe(1);
   });
 });

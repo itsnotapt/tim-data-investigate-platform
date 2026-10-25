@@ -55,12 +55,6 @@ from tim_api.annotations.models import (
 )
 from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
-from tim_api.query_runs.models import (
-    KustoQueryEcho,
-    KustoQueryRun,
-    KustoQueryStats,
-    QueryRunStatus,
-)
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
 from tim_api.storage.base import (
     AlreadyExistsError,
@@ -72,7 +66,6 @@ from tim_api.storage.base import (
     ColumnViewStore,
     NotFoundError,
     PresetStore,
-    QueryRunStore,
     RunStore,
     Storage,
     StorageUnavailableError,
@@ -83,28 +76,6 @@ metadata = MetaData()
 # none_as_null: Python ``None`` is stored as SQL NULL, never as the JSON literal ``null``.
 _JSON = JSONB(none_as_null=True)
 _TS = DateTime(timezone=True)
-
-query_runs = Table(
-    "query_runs",
-    metadata,
-    Column("query_run_id", Uuid, primary_key=True),
-    Column("requested_by", Text, nullable=False),
-    Column("status", String(16), nullable=False),
-    Column("execute_date_time_utc", _TS, nullable=False),
-    Column("expires_at", _TS, nullable=False),
-    Column("kusto_query", _JSON, nullable=False),
-    Column("execution_metrics", _JSON),
-    Column("result_data", _JSON),
-    Column("main_error", Text),
-    Index("ix_query_runs_requested_by", "requested_by"),
-    Index("ix_query_runs_expires_at", "expires_at"),
-    # Startup sweep only ever looks at runs still in ``created``.
-    Index(
-        "ix_query_runs_created_executed",
-        "execute_date_time_utc",
-        postgresql_where=text("status = 'created'"),
-    ),
-)
 
 runs = Table(
     "runs",
@@ -245,40 +216,6 @@ comments = Table(
 )
 
 
-def _query_run_values(run: KustoQueryRun) -> dict[str, Any]:
-    return {
-        "query_run_id": run.query_run_id,
-        "requested_by": run.kusto_query.requested_by,
-        "status": run.status.value,
-        "execute_date_time_utc": run.execute_date_time_utc,
-        "expires_at": run.expires_at,
-        "kusto_query": run.kusto_query.model_dump(mode="json"),
-        "execution_metrics": (
-            run.execution_metrics.model_dump(mode="json") if run.execution_metrics else None
-        ),
-        "result_data": run.result_data,
-        "main_error": run.main_error,
-    }
-
-
-def _query_run_from_row(row: Any) -> KustoQueryRun:
-    m = row._mapping
-    return KustoQueryRun(
-        query_run_id=m["query_run_id"],
-        status=QueryRunStatus(m["status"]),
-        kusto_query=KustoQueryEcho.model_validate(m["kusto_query"]),
-        execute_date_time_utc=m["execute_date_time_utc"],
-        expires_at=m["expires_at"],
-        result_data=m["result_data"],
-        execution_metrics=(
-            KustoQueryStats.model_validate(m["execution_metrics"])
-            if m["execution_metrics"] is not None
-            else None
-        ),
-        main_error=m["main_error"],
-    )
-
-
 def _run_values(run: Run) -> dict[str, Any]:
     return {
         "run_id": run.run_id,
@@ -370,79 +307,6 @@ def _is_connection_error(exc: DBAPIError) -> bool:
     # SQLSTATE class 08 = connection exception, 57P0x = shutdown, 53300 = too many connections.
     code = getattr(exc.orig, "sqlstate", None) or ""
     return code.startswith(("08", "57P0", "53300"))
-
-
-class PostgresQueryRunStore(QueryRunStore):
-    def __init__(self, db: _Db) -> None:
-        self._db = db
-
-    async def create(self, run: KustoQueryRun) -> KustoQueryRun:
-        try:
-            async with self._db.begin() as conn:
-                await conn.execute(insert(query_runs).values(**_query_run_values(run)))
-        except IntegrityError:
-            raise AlreadyExistsError(str(run.query_run_id)) from None
-        return run.model_copy(deep=True)
-
-    async def get_for_owner(self, run_id: UUID, owner: str, now: datetime) -> KustoQueryRun | None:
-        stmt = select(query_runs).where(
-            query_runs.c.query_run_id == run_id,
-            query_runs.c.requested_by == owner,
-            query_runs.c.expires_at > now,
-        )
-        async with self._db.begin() as conn:
-            row = (await conn.execute(stmt)).first()
-        return _query_run_from_row(row) if row else None
-
-    async def update_result(
-        self,
-        run_id: UUID,
-        *,
-        status: QueryRunStatus,
-        expires_at: datetime,
-        result_data: list[dict[str, Any]] | None = None,
-        execution_metrics: KustoQueryStats | None = None,
-        main_error: str | None = None,
-    ) -> KustoQueryRun:
-        stmt = (
-            update(query_runs)
-            .where(query_runs.c.query_run_id == run_id)
-            .values(
-                status=status.value,
-                expires_at=expires_at,
-                result_data=result_data,
-                execution_metrics=(
-                    execution_metrics.model_dump(mode="json") if execution_metrics else None
-                ),
-                main_error=main_error,
-            )
-            .returning(*query_runs.c)
-        )
-        async with self._db.begin() as conn:
-            row = (await conn.execute(stmt)).first()
-        if row is None:
-            raise NotFoundError(str(run_id))
-        return _query_run_from_row(row)
-
-    async def delete_expired(self, now: datetime) -> int:
-        async with self._db.begin() as conn:
-            result = await conn.execute(delete(query_runs).where(query_runs.c.expires_at <= now))
-        return int(result.rowcount)
-
-    async def mark_stale_created_as_error(
-        self, before: datetime, *, message: str, expires_at: datetime
-    ) -> int:
-        stmt = (
-            update(query_runs)
-            .where(
-                query_runs.c.status == QueryRunStatus.CREATED.value,
-                query_runs.c.execute_date_time_utc < before,
-            )
-            .values(status=QueryRunStatus.ERROR.value, main_error=message, expires_at=expires_at)
-        )
-        async with self._db.begin() as conn:
-            result = await conn.execute(stmt)
-        return int(result.rowcount)
 
 
 class PostgresRunStore(RunStore):
@@ -1019,7 +883,6 @@ class PostgresStorage(Storage):
     def __init__(self, url: str, *, pool_size: int = 10) -> None:
         self._engine = create_async_engine(url, pool_size=pool_size, pool_pre_ping=True)
         db = _Db(self._engine)
-        self.query_runs = PostgresQueryRunStore(db)
         self.runs = PostgresRunStore(db)
         self.presets = PostgresPresetStore(db)
         self.column_views = PostgresColumnViewStore(db)

@@ -8,9 +8,7 @@ implementation must pass unchanged. Each test needs an empty store.
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -25,35 +23,14 @@ from tim_api.annotations.models import (
 )
 from tim_api.column_views.models import ColumnViewFields, StoredColumnView
 from tim_api.presets.models import PresetFields, StoredPreset
-from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
 from tim_api.storage import AlreadyExistsError, AnnotationEdit, NotFoundError, Storage
 
-FIXTURES = Path(__file__).parent / "fixtures"
 T0 = datetime(2026, 9, 29, 12, 0, tzinfo=UTC)
 
 
 def _minutes(n: int) -> datetime:
     return T0 + timedelta(minutes=n)
-
-
-def make_query_run(
-    *,
-    run_id: UUID | None = None,
-    owner: str = "alice",
-    status: QueryRunStatus = QueryRunStatus.CREATED,
-    executed: datetime = T0,
-    expires: datetime | None = None,
-) -> KustoQueryRun:
-    raw: dict[str, Any] = json.loads((FIXTURES / "query_run_created.json").read_text())
-    raw.update(
-        queryRunId=str(run_id or uuid4()),
-        status=status.value,
-        executeDateTimeUtc=executed,
-        expiresAt=expires or executed + timedelta(days=1),
-    )
-    raw["kustoQuery"]["requestedBy"] = owner
-    return KustoQueryRun.model_validate(raw)
 
 
 def make_preset(
@@ -111,124 +88,6 @@ def make_column_view(
             "updatedAt": created,
         }
     )
-
-
-class QueryRunContract:
-    async def test_create_and_get_for_owner(self, storage: Storage) -> None:
-        run = make_query_run()
-        assert await storage.query_runs.create(run) == run
-        assert await storage.query_runs.get_for_owner(run.query_run_id, "alice", T0) == run
-
-    async def test_create_duplicate_raises(self, storage: Storage) -> None:
-        run = make_query_run()
-        await storage.query_runs.create(run)
-        with pytest.raises(AlreadyExistsError):
-            await storage.query_runs.create(run)
-
-    async def test_missing_run_is_none(self, storage: Storage) -> None:
-        assert await storage.query_runs.get_for_owner(uuid4(), "alice", T0) is None
-
-    async def test_other_owner_is_none(self, storage: Storage) -> None:
-        run = make_query_run(owner="alice")
-        await storage.query_runs.create(run)
-        assert await storage.query_runs.get_for_owner(run.query_run_id, "bob", T0) is None
-
-    async def test_expired_run_is_none_even_if_not_deleted(self, storage: Storage) -> None:
-        run = make_query_run(expires=_minutes(10))
-        await storage.query_runs.create(run)
-        assert await storage.query_runs.get_for_owner(run.query_run_id, "alice", _minutes(9)) == run
-        assert (
-            await storage.query_runs.get_for_owner(run.query_run_id, "alice", _minutes(10)) is None
-        )
-
-    async def test_update_result_completed(self, storage: Storage) -> None:
-        run = make_query_run()
-        await storage.query_runs.create(run)
-        stats = KustoQueryStats(execution_time=0.5)
-        updated = await storage.query_runs.update_result(
-            run.query_run_id,
-            status=QueryRunStatus.COMPLETED,
-            expires_at=_minutes(90),
-            result_data=[{"a": 1, "b": {"c": [1, 2]}}],
-            execution_metrics=stats,
-        )
-        assert updated.status is QueryRunStatus.COMPLETED
-        assert updated.expires_at == _minutes(90)
-        assert updated.result_data == [{"a": 1, "b": {"c": [1, 2]}}]
-        assert updated.execution_metrics is not None
-        assert updated.execution_metrics.execution_time == 0.5
-        assert updated.kusto_query == run.kusto_query
-        assert updated.execute_date_time_utc == run.execute_date_time_utc
-        assert await storage.query_runs.get_for_owner(run.query_run_id, "alice", T0) == updated
-
-    async def test_update_result_error(self, storage: Storage) -> None:
-        run = make_query_run()
-        await storage.query_runs.create(run)
-        updated = await storage.query_runs.update_result(
-            run.query_run_id,
-            status=QueryRunStatus.ERROR,
-            expires_at=_minutes(90),
-            main_error="boom",
-        )
-        assert updated.main_error == "boom"
-        assert updated.result_data is None
-
-    async def test_update_missing_raises(self, storage: Storage) -> None:
-        with pytest.raises(NotFoundError):
-            await storage.query_runs.update_result(
-                uuid4(), status=QueryRunStatus.ERROR, expires_at=T0, main_error="x"
-            )
-
-    async def test_delete_expired_counts_and_removes(self, storage: Storage) -> None:
-        old1 = make_query_run(expires=_minutes(1))
-        old2 = make_query_run(expires=_minutes(5))
-        fresh = make_query_run(expires=_minutes(60))
-        for r in (old1, old2, fresh):
-            await storage.query_runs.create(r)
-        assert await storage.query_runs.delete_expired(_minutes(5)) == 2
-        assert await storage.query_runs.delete_expired(_minutes(5)) == 0
-        assert await storage.query_runs.get_for_owner(fresh.query_run_id, "alice", T0) == fresh
-        # the expired rows are really gone: recreating the same id succeeds
-        await storage.query_runs.create(old1)
-
-    async def test_stale_created_marked_error(self, storage: Storage) -> None:
-        stale = make_query_run(executed=_minutes(-30))
-        recent = make_query_run(executed=_minutes(-1))
-        done = make_query_run(executed=_minutes(-30), status=QueryRunStatus.COMPLETED)
-        for r in (stale, recent, done):
-            await storage.query_runs.create(r)
-        count = await storage.query_runs.mark_stale_created_as_error(
-            _minutes(-10), message="Interrupted by restart", expires_at=_minutes(60)
-        )
-        assert count == 1
-        got = await storage.query_runs.get_for_owner(stale.query_run_id, "alice", T0)
-        assert got is not None
-        assert got.status is QueryRunStatus.ERROR
-        assert got.main_error == "Interrupted by restart"
-        assert got.expires_at == _minutes(60)
-        untouched = await storage.query_runs.get_for_owner(recent.query_run_id, "alice", T0)
-        assert untouched is not None
-        assert untouched.status is QueryRunStatus.CREATED
-        completed = await storage.query_runs.get_for_owner(done.query_run_id, "alice", T0)
-        assert completed is not None
-        assert completed.status is QueryRunStatus.COMPLETED
-
-    async def test_returned_objects_are_copies(self, storage: Storage) -> None:
-        run = make_query_run()
-        await storage.query_runs.create(run)
-        await storage.query_runs.update_result(
-            run.query_run_id,
-            status=QueryRunStatus.COMPLETED,
-            expires_at=_minutes(90),
-            result_data=[{"a": [1]}],
-        )
-        got = await storage.query_runs.get_for_owner(run.query_run_id, "alice", T0)
-        assert got is not None
-        assert got.result_data is not None
-        got.result_data[0]["a"].append(2)
-        again = await storage.query_runs.get_for_owner(run.query_run_id, "alice", T0)
-        assert again is not None
-        assert again.result_data == [{"a": [1]}]
 
 
 def make_run(

@@ -16,12 +16,12 @@ import {
 function makeComponent(id: string, parentUuid: string | null = null): DisplayComponent {
   return {
     componentUuid: id,
-    componentName: 'KustoQueryResult',
+    componentName: 'ActionResult',
     title: `t-${id}`,
     parentUuid,
     rowDataTrigger: null,
     displayComponentIndex: 0,
-    params: { query: 'T | take 1', cluster: '', database: '' },
+    params: { action: 'acme.sign_ins', params: {} },
     state: { isVisited: false, error: null, rowCount: null, isExecuting: false },
   };
 }

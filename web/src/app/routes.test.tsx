@@ -18,7 +18,6 @@ beforeEach(() => {
     tagCluster: 'https://tags.kusto.windows.net',
     wikiUri: 'https://wiki.example',
     issueUri: 'https://issues.example',
-    defaultClusters: [],
   };
   resetConfigCache();
 });
@@ -56,16 +55,16 @@ describe('routes', () => {
     expect(screen.getByRole('button', { name: 'New query' })).toBeInTheDocument();
   });
 
-  it('/view/:uuid renders the ad-hoc query tab', async () => {
+  it('/view/:uuid renders the action tab', async () => {
     useTabsStore.getState().createTab({
       componentUuid: 'abc-123',
-      componentName: 'KustoQueryResult',
+      componentName: 'ActionResult',
       parentUuid: null,
       title: 'My tab',
-      params: { query: 'T', cluster: '', database: '' },
+      params: { action: 'acme.sign_ins', params: {} },
     });
     renderAt('/view/abc-123');
-    expect(await screen.findByLabelText('Summary')).toHaveValue('My tab');
+    expect(await screen.findByText('This action is no longer available.')).toBeInTheDocument();
   });
 
   it('/view/:uuid with an unknown uuid redirects to /', async () => {

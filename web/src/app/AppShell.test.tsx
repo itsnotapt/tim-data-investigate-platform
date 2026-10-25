@@ -19,7 +19,6 @@ beforeEach(() => {
     tagCluster: 'https://tags.kusto.windows.net',
     wikiUri: 'https://wiki.example/tim',
     issueUri: 'https://issues.example/new',
-    defaultClusters: [],
   };
   resetConfigCache();
 });

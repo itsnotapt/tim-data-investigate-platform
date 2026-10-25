@@ -22,7 +22,6 @@ from uuid import UUID
 from tim_api.annotations.models import Annotations, HistoryEntry, TagSuggestions
 from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
-from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
 
 
@@ -40,43 +39,6 @@ class AlreadyExistsError(StorageError):
 
 class StorageUnavailableError(StorageError):
     """The backing store cannot be reached."""
-
-
-class QueryRunStore(ABC):
-    @abstractmethod
-    async def create(self, run: KustoQueryRun) -> KustoQueryRun:
-        """Insert a run. The owner is ``run.kusto_query.requested_by``.
-        Raises ``AlreadyExistsError`` on a duplicate ``query_run_id``."""
-
-    @abstractmethod
-    async def get_for_owner(self, run_id: UUID, owner: str, now: datetime) -> KustoQueryRun | None:
-        """The run, or ``None`` when unknown, owned by someone else, or expired
-        (``expires_at <= now``; expired is 404 even before cleanup)."""
-
-    @abstractmethod
-    async def update_result(
-        self,
-        run_id: UUID,
-        *,
-        status: QueryRunStatus,
-        expires_at: datetime,
-        result_data: list[dict[str, Any]] | None = None,
-        execution_metrics: KustoQueryStats | None = None,
-        main_error: str | None = None,
-    ) -> KustoQueryRun:
-        """Persist a state change (normally created -> terminal) and refresh ``expires_at``.
-        The three result fields are replaced, not merged. Raises ``NotFoundError`` when missing."""
-
-    @abstractmethod
-    async def delete_expired(self, now: datetime) -> int:
-        """Delete runs with ``expires_at <= now``; returns how many."""
-
-    @abstractmethod
-    async def mark_stale_created_as_error(
-        self, before: datetime, *, message: str, expires_at: datetime
-    ) -> int:
-        """Startup sweep: runs still ``created`` with ``execute_date_time_utc < before``
-        become ``error`` with ``main_error=message`` and the given ``expires_at``."""
 
 
 class RunStore(ABC):
@@ -291,7 +253,6 @@ class AnnotationStore(ABC):
 class Storage(ABC):
     """Bundle wired into the app: the stores plus lifecycle and health."""
 
-    query_runs: QueryRunStore
     runs: RunStore
     presets: PresetStore
     column_views: ColumnViewStore

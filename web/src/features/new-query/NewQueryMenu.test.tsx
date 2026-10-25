@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { newTestStore } from '../../test/tabsTestUtils';
 import { useInstanceStore } from '../instance';
-import { DEFAULT_QUERY_EXAMPLE } from '../kusto-query/defaultQuery';
 import { NewQueryMenu } from './NewQueryMenu';
 import type { CatalogueAction } from '../../lib/api';
 
@@ -80,17 +79,11 @@ function setup() {
 afterEach(() => useInstanceStore.setState({ instance: null }));
 
 describe('NewQueryMenu', () => {
-  it('creates an ad-hoc draft with the default query and navigates', async () => {
-    const store = setup();
+  it('opens with search first: there is no free-text query item', async () => {
+    setup();
     await userEvent.click(screen.getByRole('button', { name: 'New' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'New query' }));
-    const [tab] = Object.values(store.getState().tabs);
-    expect(tab?.componentName).toBe('KustoQueryResult');
-    expect(tab?.title).toBe('New query');
-    expect(tab?.parentUuid).toBeNull();
-    expect(tab?.params).toEqual({ query: DEFAULT_QUERY_EXAMPLE, cluster: '', database: '' });
-    expect(tab?.state.rowCount).toBeNull();
-    expect(screen.getByTestId('loc')).toHaveTextContent(`/view/${tab?.componentUuid}`);
+    expect(screen.queryByRole('menuitem', { name: 'New query' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search queries' })).toHaveFocus();
   });
 
   it('opens an action under its menu path as an action tab with its defaults, and focuses it', async () => {

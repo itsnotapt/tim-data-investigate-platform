@@ -12,7 +12,7 @@ An investigation is a tree of tabs. Each pivot creates a child tab.
 |---|---|---|
 | Web | `web/` | React SPA served by nginx |
 | API | `api/` | Python 3.12, FastAPI |
-| Persistence | PostgreSQL | presets, column views, runs, query runs and annotations ([ADR-0004](adr/0004-postgresql-persistence.md)) |
+| Persistence | PostgreSQL | presets, column views, runs and annotations ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Related docs:
 
@@ -35,7 +35,7 @@ Related docs:
  +------------------------------+     +-----------------------+------------+
  | web container (nginx)        |---->| api container (FastAPI)            |
  | static files, /config.js,    |     |  presets, runs,                    |
- | security headers, /api proxy |     |  query runs, tag ingest            |
+ | security headers, /api proxy |     |  tag ingest                        |
  +------------------------------+     +---+-------------+-----------+------+
                                           |             |           |
                                           v             |           |
@@ -44,7 +44,6 @@ Related docs:
                               | presets,           |    |           |
                               | preset_hidden      |    |           |
                               | runs, run_rows     |    |           |
-                              | query_runs         |    |           |
                               +--------------------+    |           |
                       user token (OBO)  +---------------+           | app identity
                                         v                           v
@@ -60,7 +59,7 @@ Related docs:
 Key points:
 
 - Investigation state (tabs, cached result rows, the column views applied per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
-- Queries run on the API. It exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run. The SPA polls the query run.
+- Actions run on the API. It exchanges the caller's token for each connection's token (OBO), runs the action's hook and stores the result as a run. The SPA polls the run and loads its rows.
 - Tag data is written through the API, as the app identity. It is read back with KQL, inside the user's own queries.
 - Labels, tags and comments are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
 
@@ -80,14 +79,14 @@ Key points:
 | Path | Contents |
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
-| `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `action-tab`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share-links` |
-| `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
+| `web/src/components/` | Shared UI: code editor, dialogs, snackbar |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `action-tab`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share-links` |
+| `web/src/lib/api/` | Typed API client, problem handling, run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
 | `web/src/lib/config/` | Runtime config loader |
 | `web/src/lib/storage/` | IndexedDB database and DAOs |
-| `web/src/lib/monaco/`, `time-range/` | Editor setup, time range model |
+| `web/src/lib/monaco/` | Editor setup |
 | `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
 | `web/src/lib/uuid.ts` | `generateUuid` (v4 UUID via `crypto.randomUUID`) |
 | `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
@@ -95,8 +94,8 @@ Key points:
 
 Features import `lib/*` and `components/*`. Between features:
 
-- **Public `index.ts`:** every feature but `kusto-query` has one. Most imports between features go through it.
-- **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline` and `grid/rowUpdates`.
+- **Public `index.ts`:** every feature has one. Most imports between features go through it.
+- **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry` and `grid/rowUpdates`.
 - **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. The `index.ts` of `features/grid` pulls in AG Grid (see [Bundle](#bundle)).
 - **Lazy pages:** `app/lazyPages.ts` imports the page components of `tabs` and `share-links` directly.
 
@@ -132,13 +131,13 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
 - **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `columnViewsStore`.
-- **`columnViewsStore`** holds the column views of Kusto tabs, in IndexedDB `column_views`. Action tabs don't use it.
+- **`columnViewsStore`** holds the column views of the column-view bar, in IndexedDB `column_views`. Action tabs don't use it.
 - **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
   - Bootstrap loads it first.
   - A refetch on every window focus replaces it only when its `version` differs. So a rolling update shows up without a reload.
   - A failed refetch keeps the instance already loaded.
 
-A tab is one of two kinds, named by `componentName`: `KustoQueryResult` and `ActionResult`.
+A tab has the kind `ActionResult`, named by `componentName`.
 
 An action tab's params are `{action, params, presetId?}`: the action's key, the param values as plain values, as the browser sends them, and the preset the tab was opened from or saved as. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
 
@@ -157,24 +156,6 @@ Besides the common fields, an action tab's state holds:
 | `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the action default), and the grid state just after it was put on |
 
 ### Data flow: run, poll, pivot, tag
-
-1. **Run.** A tab calls `runQuery` (`lib/api`), which sends `POST /api/kusto/query` with cluster, database and query.
-   - Kusto tabs also send `startTime`/`endTime` from their time range.
-   - There is one run per tab. Starting a new run aborts the previous one, and so does removing the tab.
-2. **Poll.** A `200` response is final. On `202`, the client polls `GET /api/kusto/query/{id}`.
-   - It starts at 500 ms and doubles every three polls, up to 30 s.
-   - It gives up after 11 minutes.
-   - `completed` returns rows and stats. `error` and `timedOut` become errors on the tab.
-3. **Store.**
-   - Rows go to IndexedDB `row_results`, keyed by tab uuid.
-   - The tab state records the row count and execution stats.
-   - The grid reloads rows from IndexedDB.
-4. **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
-   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
-   - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
-5. **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query that invokes `getTagEvents()` returns the updated `TagEvent` column.
-
-An action tab runs differently:
 
 1. **Run.** `runActionTab` sends `POST /api/runs` with the tab's `{action, params}`.
    - A `422` puts each `params.<name>` error in the tab's `paramErrors`, for every param the action declares. That includes the Query editor's `kql` or `sql` param, whose border and caption show it.
@@ -200,6 +181,13 @@ An action tab runs differently:
    - A `404` on the run shows "The run is no longer available; run again".
    - A `410` on the rows (results gone) shows "Results are no longer available; run again".
 
+From the rows, an analyst pivots or tags:
+
+- **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
+  - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
+  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
+- **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query that invokes `getTagEvents()` returns the updated `TagEvent` column.
+
 ### Share links
 
 A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. The code is in `web/src/features/share-links/`.
@@ -219,9 +207,9 @@ Database `tim` (version 4):
 
 | Store | Key | Value |
 |---|---|---|
-| `display_components` | `componentUuid` | Tab: name (`KustoQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
+| `display_components` | `componentUuid` | Tab: name (`ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
 | `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
-| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by Kusto tabs only |
+| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by the column-view bar only |
 | `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>` |
 | `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
@@ -232,7 +220,6 @@ Annotations are never stored in `row_results`.
 
 The New menu opens from the **New** button. It lists, in order:
 
-- **New query**, which creates a Kusto tab.
 - A search box.
 - An **All / Mine / Others' / Hidden** filter for presets.
 - **Actions and presets**, one tree of folders.
@@ -427,7 +414,7 @@ A column view is a named, saved set of the results grid's columns and filters ([
 - It is private to its owner, or shared with everyone.
 - Others read a shared column view but do not change it. They apply it, hide it for themselves, or save their own copy.
 - Names are not unique. Last write wins.
-- Kusto tabs keep their own column views, in the browser (`features/column-views`).
+- The column-view bar keeps its own column views, in the browser (`features/column-views`).
 
 **What's stored.** `state` is a partial AG Grid `GridState` (`features/action-column-views/columnViewState.ts`).
 
@@ -600,7 +587,6 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 | `apiEndpoint` | API origin; empty means same origin |
 | `agGridLicenseKey` | AG Grid Enterprise key; empty runs in trial mode |
 | `tagCluster`, `tagDatabase` | Tag tables location (database default `Research`) |
-| `defaultClusters` | Cluster and database groups offered in the UI |
 | `wikiUri`, `issueUri` | Help links |
 
 `/config.js` and `index.html` are served uncached. Hashed assets under `/assets/` are cached for a year.
@@ -635,7 +621,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its preset, column-view, run, query-run and annotation stores |
+| `deps.py` | FastAPI dependencies returning the storage and its preset, column-view, run and annotation stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
@@ -643,9 +629,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `annotations/` | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
 | `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
-| `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
-| `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
 | `presets/` | `/api/presets` routes (`router.py`) and models |
 | `column_views/` | `/api/columnViews` routes (`router.py`) and models |
 | `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
@@ -802,7 +786,6 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
 - **The caller** is a `Principal`: `oid`, `tid`, and a name taken from `unique_name`, then `upn`, then `preferred_username`. The name is the owner and audit identity (`requestedBy`, `createdBy`, `updatedBy`).
 - **OBO exchange.** Runs exchange the caller's token for each `obo` connection's scope with `msal.ConfidentialClientApplication.acquire_token_on_behalf_of`.
   - Runs call it through `OboTokenProvider.token_for(principal, scope)`. It blocks, so callers use a worker thread.
-  - The Kusto tab's query and schema calls use `get_token(principal, cluster_url)`, with scope `TIM_KUSTO_OBO_SCOPE` (default `{cluster}/.default`).
   - There is one MSAL app, and one token cache, per process.
   - The credential is `TIM_AUTH_CLIENT_SECRET` or a federated token file (`AZURE_FEDERATED_TOKEN_FILE`).
   - With neither, startup fails when auth is enabled and a connection uses `obo` (`OboConfigError`). Otherwise OBO answers `503` when it is used.
@@ -839,7 +822,7 @@ An action reaches a connection only through `ctx.hook(name)`. It refuses a conne
 
 The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fields `cluster`, `databases` (optional) and `scope` (optional), and the auth `obo`:
 
-- `cluster` gets the URL shape checks and normalisation to `https://<host>` ([api.md](api.md#cluster-validation)) when the file is read. There is no allow-list: the operator names each cluster.
+- `cluster` gets the URL shape checks and normalisation to `https://<host>` ([configuration.md](configuration.md#connections)) when the file is read.
 - `scope` defaults to `{cluster}/.default`.
 - `databases` are suggestions the browser offers for the `database` param. They don't restrict it.
 
@@ -891,26 +874,9 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 - `run` sends the KQL text unchanged. The params go through `tim_actions.kusto.query_parameters`, which formats each value with `kusto_literal` ([actions.md](actions.md#how-kusto-binds-params), [ADR-0019](adr/0019-params-are-bound.md)).
 - A param with no value is left out, so the KQL's `declare query_parameters` default applies.
 
-The Kusto tab runs free-text KQL, so its cluster goes through `validate_cluster_url`.
-
-- It runs before any token exchange, and returns the normalised `https://<host>`. The rules are in [api.md](api.md#cluster-validation).
-- The allow-list is `TIM_ALLOWED_KUSTO_HOSTS`, a list of host patterns: exact, `*.domain` or `**.domain`. The default is `**.kusto.windows.net`.
-- A rejected cluster gives `400 cluster-not-allowed`.
-
-`AzureKustoQueryClient` runs the synchronous `azure-kusto-data` client in a worker thread, with the user's token.
-
-- Result values are serialised (datetime, timespan, decimal, dynamic, guid), and every `PrimaryResult` table is concatenated.
-- `StartTime` and `EndTime` are passed as query parameters. To use them, KQL must `declare query_parameters(StartTime:datetime, EndTime:datetime)`.
-- Kusto errors become sanitised messages: stack-trace lines removed, capped at 2000 characters.
-
 ### Runs and rows
 
-Two paths run work on the server:
-
-- runs of an action, through `/api/runs` (`runs/`);
-- Kusto query runs, through `/api/kusto/query` (`query_runs/`).
-
-Both follow [ADR-0012](adr/0012-query-run-limits-and-lifecycle.md). They share one concurrency semaphore of `TIM_MAX_CONCURRENT_RUNS` per process.
+Runs of an action go through `/api/runs` (`runs/`). They follow [ADR-0012](adr/0012-query-run-limits-and-lifecycle.md), with one concurrency semaphore of `TIM_MAX_CONCURRENT_RUNS` per process.
 
 A run:
 
@@ -967,32 +933,20 @@ Problems with `id` never fail the run, such as an id column missing from the res
 
 `GET /api/runs/{runId}/rows` reads a page of `run_rows` by row number. When a succeeded run with rows has none stored, it answers `410`.
 
-Kusto query runs:
-
-1. `POST /api/kusto/query` validates the cluster and exchanges the token. Auth errors are returned synchronously, before a run exists. `RunManager` then stores a run (`KustoQueryRun`, table `query_runs`) as `created`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`.
-2. A tracked asyncio task executes the query. The run stays `created` while it waits for a slot.
-3. The request waits up to about 1 second for the task. If it finished, the response is `200` with the terminal run. Otherwise it is `202` with the `created` run.
-4. The task always writes a final state and refreshes `expiresAt`:
-   - `completed`, with rows and `executionMetrics`;
-   - `error`, with `mainError`: a Kusto error, limit exceeded, shutdown, or a generic message for unexpected failures;
-   - `timedOut`, after `TIM_RUN_TIMEOUT_SECONDS`.
-5. `GET /api/kusto/query/{id}` returns `202` while `created`, and `200` otherwise.
-
 Result caps:
 
-- A Kusto query run's rows are one `jsonb` value. So its caps are 100,000 rows and 64 MiB, or `TIM_MAX_RESULT_ROWS` and `TIM_MAX_RESULT_BYTES` when lower.
-- Runs use the settings as they are: `TIM_MAX_RESULT_ROWS` (1,000,000) and `TIM_MAX_RESULT_BYTES` (512 MiB).
+- `TIM_MAX_RESULT_ROWS` (1,000,000) and `TIM_MAX_RESULT_BYTES` (512 MiB) apply as they are set.
 - A result over a cap fails the run. It is not truncated.
 - NUL characters in results and errors are replaced with U+FFFD before storing.
 
-A run that is unknown or expired is `404`, and so is cancelling someone else's run. A query run that is unknown, expired or owned by another user is `404`.
+A run that is unknown or expired is `404`, and so is cancelling someone else's run.
 
-Housekeeping, for both:
+Housekeeping:
 
-- At startup, runs still `running` (query runs still `created`) for longer than `TIM_RUN_TIMEOUT_SECONDS` are set to `error` (`Run interrupted by server restart`).
+- At startup, runs still `running` for longer than `TIM_RUN_TIMEOUT_SECONDS` are set to `error` (`Run interrupted by server restart`).
 - At shutdown, runs in flight are stopped and marked `error` the same way.
 - A background loop deletes runs past `expiresAt` every `TIM_RUN_RETENTION_SWEEP_SECONDS` (300).
-  - It deletes ten runs at a time, so each delete of their rows stays short. Then it deletes the expired query runs.
+  - It deletes ten runs at a time, so each delete of their rows stays short.
   - Expired runs already read as `404` before they are deleted.
 
 ### Sinks
@@ -1108,7 +1062,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 
 ### Persistence
 
-`storage/` defines `PresetStore`, `ColumnViewStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
+`storage/` defines `PresetStore`, `ColumnViewStore`, `RunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
 
 - `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`).
 - In development only, `memory://` selects an in-memory store. Production refuses it.
@@ -1127,7 +1081,6 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |
 | `tags` | `(id, tag)` | `added_by`, `added_at` |
 | `comments` | none | `id`, `author`, `created_at`, `text`, `version`; index on `(id, version)` |
-| `query_runs` | `query_run_id` | `requested_by` (owner), `status`, `execute_date_time_utc`, `expires_at`, `kusto_query`, `result_data`, `execution_metrics` (JSONB), `main_error`; indexes on owner, expiry, and `created` runs |
 
 `run_rows` is `UNLOGGED`, so it is not written to the WAL.
 
@@ -1146,13 +1099,12 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
 ## Security model
 
 - **Identity** comes from the validated token only. The API ignores `requestedBy`, `createdBy`, `updatedBy`, `updated` and `dateTimeUtc` sent by a client. The SPA also strips them.
-- **A run is readable by any signed-in analyst who holds its id.** Only the owner can cancel a run; for anyone else, cancel answers the same `404` as for an unknown run. A query run is visible only to its owner, and another user's id is indistinguishable from an unknown one (`404`).
+- **A run is readable by any signed-in analyst who holds its id.** Only the owner can cancel a run; for anyone else, cancel answers the same `404` as for an unknown run.
 - **Annotations are instance-wide.** Every signed-in analyst reads and changes the labels, tags and comments of every `id`. The author of a change comes from the token.
 - **A run reaches only the connections in the connections file**, whose endpoints the operator chose.
   - Analysts never name an endpoint, so the API cannot be used to forward user tokens to arbitrary hosts.
   - Hooks get a `token_for(scope)` callable and never see the analyst's token.
   - `GET /api/instance` shows a connection's name, title, type, editor and databases. It never shows its cluster, auth or scope.
-- **The Kusto tab's cluster URLs** are validated against an allow-list before any token is acquired or sent, for the same reason.
 - **Connections run as the user** (OBO). Only tag ingestion and table creation use the app identity.
 - **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's auth stub throws in a production build.
 - **Request bodies are capped:**
@@ -1212,7 +1164,7 @@ uv run python -m tim_api.tagged_events.cli create-tables [--dry-run] [--cluster-
 - `--dry-run` prints the commands without running them.
 - Any failing command prints an error and exits non-zero.
 
-The Kusto tab reads the data back with the `getTagEvents` function, which the analyst's KQL defines. The query helper dialog (`web/src/features/kusto-query/queryHelperSamples.ts`) shows the definition, filled with the tag cluster and database.
+Tags are read back with a `getTagEvents` function that the analyst's KQL defines.
 
 - The query calls `getTagEvents(T)` on a table with an `EventId` column.
 - For each `EventId`, the function joins:

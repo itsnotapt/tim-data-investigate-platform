@@ -1,7 +1,7 @@
 import type { CodeEditorInstance } from '../../components/CodeEditor';
 import { getKustoWorkerFor } from '../../lib/monaco';
-import { normalizeSchema } from '../kusto-query/kustoSchema';
 import type { LoadedEditorSchema } from './editorSchema';
+import { normalizeSchema } from './kustoSchema';
 
 /** Gives an editor the schema of one `kind`. */
 type Adapter = (

@@ -13,7 +13,7 @@ type BootstrapStatus = 'signedOut' | 'loading' | 'loaded' | 'error';
 
 export interface BootstrapSteps {
   loadInstance: () => Promise<void>;
-  /** The Kusto tabs' column views, and the analyst's applied views. */
+  /** The column views, and the analyst's applied views. */
   loadColumnViews: (analyst: string) => Promise<void>;
   loadTabs: () => Promise<void>;
   /** Picks up the runs the loaded tabs were following. */

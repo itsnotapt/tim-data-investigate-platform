@@ -7,7 +7,6 @@ import {
   DEFAULT_TAB_STATE,
   type ActionParams,
   type CreateTabArgs,
-  type KustoQueryParams,
   type Tab,
   type TabKind,
   type TabState,
@@ -28,7 +27,7 @@ interface TabsState {
   load(): Promise<void>;
   createTab(args: CreateTabArgs): string;
   updateState(uuid: string, update: TabStateUpdate): void;
-  updateParams(uuid: string, params: Partial<KustoQueryParams> | Partial<ActionParams>): void;
+  updateParams(uuid: string, params: Partial<ActionParams>): void;
   updateTitle(uuid: string, title: string): void;
   /** Bump the tab's `rowDataTrigger`; grids subscribe to it and reload rows from IndexedDB. */
   triggerRowData(uuid: string): void;
@@ -63,7 +62,6 @@ const initialData = {
 /** Tab kinds this build can show; stored tabs of any other kind are dropped on load. */
 const TAB_KINDS: Record<TabKind, true> = {
   ActionResult: true,
-  KustoQueryResult: true,
 };
 
 function sanitize(tab: Tab): Tab {
@@ -140,10 +138,7 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
             error: toStoredError(args.state?.error),
           },
         };
-        const tab: Tab =
-          args.componentName === 'KustoQueryResult'
-            ? { ...base, componentName: 'KustoQueryResult', params: args.params }
-            : { ...base, componentName: 'ActionResult', params: args.params };
+        const tab: Tab = { ...base, componentName: 'ActionResult', params: args.params };
         set({
           tabs: { ...state.tabs, [uuid]: tab },
           order: [...state.order.filter((id) => id !== uuid), uuid],
@@ -164,7 +159,7 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
       },
 
       updateParams(uuid, params) {
-        patch(uuid, (tab) => ({ ...tab, params: { ...tab.params, ...params } }) as Tab);
+        patch(uuid, (tab) => ({ ...tab, params: { ...tab.params, ...params } }));
       },
 
       updateTitle(uuid, title) {

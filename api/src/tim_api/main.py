@@ -17,7 +17,6 @@ from tim_api.config import Settings, get_settings
 from tim_api.connections.router import router as connections_router
 from tim_api.deps import get_storage
 from tim_api.errors import register_exception_handlers
-from tim_api.kusto.router import router as kusto_router
 from tim_api.observability import (
     BodySizeLimitMiddleware,
     LazyCORSMiddleware,
@@ -26,11 +25,9 @@ from tim_api.observability import (
 )
 from tim_api.openapi_meta import install_openapi
 from tim_api.presets.router import router as presets_router
-from tim_api.query_runs.router import router as query_runs_router
-from tim_api.query_runs.runner import RACE_SECONDS, cancel_tasks, mark_stale_runs
 from tim_api.runs.connections import Connections
 from tim_api.runs.router import router as runs_router
-from tim_api.runs.runner import Runner
+from tim_api.runs.runner import RACE_SECONDS, Runner
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
 from tim_api.tagged_events.router import router as tagged_events_router
 
@@ -78,14 +75,13 @@ async def _lifespan(
     )
     storage = storage_factory(settings)
     app.state.storage = storage
-    app.state.run_tasks = set()
-    # One limit for runs and query runs together.
-    app.state.run_slots = asyncio.Semaphore(settings.max_concurrent_runs)
     runner = Runner(
-        storage.runs, settings, slots=app.state.run_slots, race_seconds=app.state.race_seconds
+        storage.runs,
+        settings,
+        slots=asyncio.Semaphore(settings.max_concurrent_runs),
+        race_seconds=app.state.race_seconds,
     )
     app.state.runner = runner
-    await mark_stale_runs(storage.query_runs, settings)
     await runner.mark_stale()
     runner.start_watching()
     stop_retention = start_retention_loop(storage, settings.run_retention_sweep_seconds)
@@ -94,7 +90,6 @@ async def _lifespan(
     finally:
         await stop_retention()
         await runner.aclose()
-        await cancel_tasks(app.state.run_tasks)
         await storage.aclose()
 
 
@@ -139,9 +134,7 @@ def create_app(
     app.include_router(tagged_events_router)
     app.include_router(column_views_router)
     app.include_router(connections_router)
-    app.include_router(kusto_router)
     app.include_router(presets_router)
-    app.include_router(query_runs_router)
     app.include_router(runs_router)
     register_exception_handlers(app)
     install_openapi(app)

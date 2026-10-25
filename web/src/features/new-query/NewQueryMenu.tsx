@@ -1,9 +1,7 @@
 import SearchIcon from '@mui/icons-material/Search';
 import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
 import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -50,8 +48,8 @@ const FILTERS: readonly [NewMenuFilter, string][] = [
 ];
 
 /**
- * "New query" button + menu: a Kusto tab, search, the presets filter, then actions and presets in
- * one tree of folders (screens 05, 06, 31). The presets are refetched each time the menu opens.
+ * "New query" button + menu: search, the presets filter, then actions and presets in one tree of
+ * folders (screens 05, 06, 31). The presets are refetched each time the menu opens.
  */
 export function NewQueryMenu({
   actions,
@@ -66,7 +64,7 @@ export function NewQueryMenu({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<NewMenuFilter>('all');
   const [editing, setEditing] = useState<{ preset: Preset; action: CatalogueAction } | null>(null);
-  const { createAdHoc, createFromAction, createFromPreset } = useNewQuery(store);
+  const { createFromAction, createFromPreset } = useNewQuery(store);
   const instanceActions = useInstanceStore((s) => s.instance?.actions ?? NO_ACTIONS);
   const presets = presetsStore((s) => s.presets);
   const notify = useContext(NotifyContext);
@@ -148,15 +146,6 @@ export function NewQueryMenu({
         {children}
       </Button>
       <Menu anchorEl={anchor} open={anchor !== null} onClose={close} autoFocus={false}>
-        <MenuItem
-          onClick={() => {
-            createAdHoc();
-            close();
-          }}
-        >
-          New query
-        </MenuItem>
-        <Divider component="li" />
         <li style={{ padding: '4px 16px' }}>
           <TextField
             size="small"

@@ -1095,252 +1095,6 @@
         "type": "object"
       },
       "JsonValue": {},
-      "KustoClusterDatabase": {
-        "description": "Request body of `POST /api/kusto/schema`.",
-        "properties": {
-          "cluster": {
-            "title": "Cluster",
-            "type": "string"
-          },
-          "database": {
-            "maxLength": 256,
-            "minLength": 1,
-            "title": "Database",
-            "type": "string"
-          }
-        },
-        "required": [
-          "cluster",
-          "database"
-        ],
-        "title": "KustoClusterDatabase",
-        "type": "object"
-      },
-      "KustoQueryEcho": {
-        "description": "Echo of the request; `requestedBy` is the token identity (read-only).",
-        "properties": {
-          "cluster": {
-            "title": "Cluster",
-            "type": "string"
-          },
-          "database": {
-            "title": "Database",
-            "type": "string"
-          },
-          "endTime": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Endtime"
-          },
-          "query": {
-            "title": "Query",
-            "type": "string"
-          },
-          "requestedBy": {
-            "title": "Requestedby",
-            "type": "string"
-          },
-          "startTime": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Starttime"
-          }
-        },
-        "required": [
-          "cluster",
-          "database",
-          "query",
-          "requestedBy"
-        ],
-        "title": "KustoQueryEcho",
-        "type": "object"
-      },
-      "KustoQueryRequest": {
-        "description": "Body of `POST /api/kusto/query`. `requestedBy` is ignored (owner comes from the token).",
-        "properties": {
-          "cluster": {
-            "title": "Cluster",
-            "type": "string"
-          },
-          "database": {
-            "maxLength": 256,
-            "minLength": 1,
-            "title": "Database",
-            "type": "string"
-          },
-          "endTime": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Endtime"
-          },
-          "query": {
-            "maxLength": 100000,
-            "title": "Query",
-            "type": "string"
-          },
-          "startTime": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Starttime"
-          }
-        },
-        "required": [
-          "cluster",
-          "database",
-          "query"
-        ],
-        "title": "KustoQueryRequest",
-        "type": "object"
-      },
-      "KustoQueryRun": {
-        "description": "Run resource returned by POST (200/202) and GET. Server-produced only, never a request.",
-        "properties": {
-          "executeDateTimeUtc": {
-            "title": "Executedatetimeutc",
-            "type": "string"
-          },
-          "executionMetrics": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/KustoQueryStats"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expiresAt": {
-            "title": "Expiresat",
-            "type": "string"
-          },
-          "kustoQuery": {
-            "$ref": "#/components/schemas/KustoQueryEcho"
-          },
-          "mainError": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mainerror"
-          },
-          "queryRunId": {
-            "format": "uuid",
-            "title": "Queryrunid",
-            "type": "string"
-          },
-          "resultData": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resultdata"
-          },
-          "status": {
-            "$ref": "#/components/schemas/QueryRunStatus"
-          }
-        },
-        "required": [
-          "queryRunId",
-          "status",
-          "kustoQuery",
-          "executeDateTimeUtc",
-          "expiresAt"
-        ],
-        "title": "KustoQueryRun",
-        "type": "object"
-      },
-      "KustoQueryStats": {
-        "additionalProperties": true,
-        "description": "Kusto `QueryCompletionInformation` stats. Keys are snake_case as Kusto returns them.",
-        "properties": {
-          "dataset_statistics": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dataset Statistics"
-          },
-          "execution_time": {
-            "title": "Execution Time",
-            "type": "number"
-          },
-          "input_dataset_statistics": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Input Dataset Statistics"
-          },
-          "resource_usage": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resource Usage"
-          }
-        },
-        "required": [
-          "execution_time"
-        ],
-        "title": "KustoQueryStats",
-        "type": "object"
-      },
       "LabelEntry": {
         "description": "A label change in an id's history: the label it set, ``null`` when it cleared it.",
         "properties": {
@@ -1763,16 +1517,6 @@
         "title": "ProblemDetails",
         "type": "object"
       },
-      "QueryRunStatus": {
-        "enum": [
-          "created",
-          "completed",
-          "error",
-          "timedOut"
-        ],
-        "title": "QueryRunStatus",
-        "type": "string"
-      },
       "ResolvePivot": {
         "description": "Body of ``POST /api/actions/{key}/resolve``.",
         "properties": {
@@ -2081,21 +1825,6 @@
         "title": "SavedFrom",
         "type": "object"
       },
-      "SchemaResponse": {
-        "description": "`{schema: <parsed .show schema as json document>}`, passed through untouched.",
-        "properties": {
-          "schema": {
-            "additionalProperties": true,
-            "title": "Schema",
-            "type": "object"
-          }
-        },
-        "required": [
-          "schema"
-        ],
-        "title": "SchemaResponse",
-        "type": "object"
-      },
       "SinkInput": {
         "description": "The rows a sink writes, each a row's ``data``, and their columns.",
         "properties": {
@@ -2238,7 +1967,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -2333,7 +2062,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -2628,7 +2357,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -2725,7 +2454,7 @@
                 }
               }
             },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+            "description": "Consent required, or only the owner may change it (`consent-required` / `forbidden`)."
           },
           "404": {
             "content": {
@@ -2811,7 +2540,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -2839,7 +2568,7 @@
                 }
               }
             },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+            "description": "Consent required, or only the owner may change it (`consent-required` / `forbidden`)."
           },
           "404": {
             "content": {
@@ -3086,7 +2815,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -3114,7 +2843,7 @@
                 }
               }
             },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+            "description": "Consent required, or only the owner may change it (`consent-required` / `forbidden`)."
           },
           "404": {
             "content": {
@@ -3265,320 +2994,6 @@
         ]
       }
     },
-    "/api/kusto/query": {
-      "post": {
-        "operationId": "runQuery",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KustoQueryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KustoQueryRun"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KustoQueryRun"
-                }
-              }
-            },
-            "description": "Accepted"
-          },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
-          },
-          "401": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Missing, invalid or expired token (`unauthorized`).",
-            "headers": {
-              "WWW-Authenticate": {
-                "description": "`Bearer`",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "403": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Unhandled error (`internal`)."
-          },
-          "502": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Upstream failure (`upstream`)."
-          },
-          "503": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Dependency unavailable (`unavailable`)."
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Start Query",
-        "tags": [
-          "kusto"
-        ]
-      }
-    },
-    "/api/kusto/query/{queryRunId}": {
-      "get": {
-        "operationId": "getQueryRun",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "queryRunId",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Queryrunid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KustoQueryRun"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Missing, invalid or expired token (`unauthorized`).",
-            "headers": {
-              "WWW-Authenticate": {
-                "description": "`Bearer`",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Not found (`not-found`)."
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Unhandled error (`internal`)."
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Get Query Run",
-        "tags": [
-          "kusto"
-        ]
-      }
-    },
-    "/api/kusto/schema": {
-      "post": {
-        "operationId": "getSchema",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KustoClusterDatabase"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SchemaResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
-          },
-          "401": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Missing, invalid or expired token (`unauthorized`).",
-            "headers": {
-              "WWW-Authenticate": {
-                "description": "`Bearer`",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "403": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Unhandled error (`internal`)."
-          },
-          "502": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Upstream failure (`upstream`)."
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Get Schema",
-        "tags": [
-          "kusto"
-        ]
-      }
-    },
     "/api/presets": {
       "get": {
         "operationId": "listPresets",
@@ -3667,7 +3082,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -3764,7 +3179,7 @@
                 }
               }
             },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+            "description": "Consent required, or only the owner may change it (`consent-required` / `forbidden`)."
           },
           "404": {
             "content": {
@@ -3850,7 +3265,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -3878,7 +3293,7 @@
                 }
               }
             },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+            "description": "Consent required, or only the owner may change it (`consent-required` / `forbidden`)."
           },
           "404": {
             "content": {
@@ -4218,7 +3633,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -4246,7 +3661,7 @@
                 }
               }
             },
-            "description": "Consent required or Kusto denied the user (`consent-required` / `forbidden`)."
+            "description": "Consent required, or only the owner may change it (`consent-required` / `forbidden`)."
           },
           "422": {
             "content": {
@@ -4640,7 +4055,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -4733,7 +4148,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {
@@ -4826,7 +4241,7 @@
                 }
               }
             },
-            "description": "Malformed JSON, or the cluster is not allowed (`bad-request` / `cluster-not-allowed`)."
+            "description": "Malformed JSON (`bad-request`)."
           },
           "401": {
             "content": {

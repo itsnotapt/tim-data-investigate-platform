@@ -41,24 +41,22 @@ See [ADR-0005](adr/0005-auth-entra-popup-obo.md) for the design.
 | `TIM_AUTH_CLIENT_ID`      | none                                | yes      | Client id of the API app registration. The API audience is `api://<client id>`.                                                                                                                      |
 | `TIM_AUTH_CLIENT_SECRET`  | unset                               | see note | Client secret for the on-behalf-of (OBO) exchange. When unset, a workload-identity token file is used (`AZURE_FEDERATED_TOKEN_FILE`, below).                                                         |
 | `TIM_AUTH_AUTHORITY_HOST` | `https://login.microsoftonline.com` | no       | Authority host, override for sovereign clouds. Must be https.                                                                                                                                        |
-| `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as the analyst its stub token (`Authorization: Bearer dev:<upn>`) names, or as a fixed dev user (`dev.user@example.com`) without one. A stub token with a blank upn gets 401. Connections that use `obo` and Kusto tab calls then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
+| `TIM_AUTH_DISABLED`       | `false`                             | no       | Development only. Skips token validation; every request runs as the analyst its stub token (`Authorization: Bearer dev:<upn>`) names, or as a fixed dev user (`dev.user@example.com`) without one. A stub token with a blank upn gets 401. Connections that use `obo` then return 503 because there is no user token to exchange. Refused when `TIM_ENVIRONMENT=production`. |
 
 Note: an api whose connections file has a connection that uses `obo` needs an OBO credential at startup, unless `TIM_AUTH_DISABLED=true`.
 
 - The credential is either `TIM_AUTH_CLIENT_SECRET`, or `AZURE_FEDERATED_TOKEN_FILE` pointing to a readable file.
 - Without one, the api fails to start.
-- An instance with no `obo` connection starts without one. OBO then answers 503 when something uses it (the Kusto tab, for example).
+- An instance with no `obo` connection starts without one. OBO then answers 503 when something uses it.
 
-### Kusto
+### Tag ingestion
 
 | Variable                     | Default                                          | Required | Description                                                                                                                           |
 | ---------------------------- | ------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `TIM_KUSTO_OBO_SCOPE`        | `{cluster}/.default`                             | no       | OBO scope template of the Kusto tab. `{cluster}` is replaced by the cluster base URI. A connection has its own `scope` ([Connections](#connections)). |
 | `TIM_TAG_CLUSTER_URI`        | none                                             | yes      | https URI of the Kusto cluster that stores tagged events.                                                                             |
 | `TIM_TAG_DATABASE`           | `Research`                                       | no       | Database on the tag cluster.                                                                                                          |
 | `TIM_TAG_INGEST_URL`         | derived from `TIM_TAG_CLUSTER_URI`               | no       | https ingestion endpoint for tag writes.                                                                                              |
 | `TIM_TAG_INGEST_FAKE`        | `false`                                          | no       | Development only. Uses an in-memory fake instead of Kusto ingestion. Ignored unless `TIM_ENVIRONMENT=development`.                    |
-| `TIM_ALLOWED_KUSTO_HOSTS` | `**.kusto.windows.net` | no | Comma separated patterns for the Kusto clusters users may query; see [Cluster allow-list](#cluster-allow-list). Unset or blank uses the default. Clusters must be https. Invalid patterns stop the api at startup. |
 
 ### Connections
 
@@ -80,9 +78,16 @@ The `kusto` connection type adds `cluster` (required), `databases` (optional) an
 
 | Field       | Description |
 | ----------- | ----------- |
-| `cluster`   | An absolute https URL of a plain DNS host with no credentials, port other than 443, path, query or fragment, and not an IP address. It is normalised to `https://<host>` at startup ([api.md](api.md#cluster-validation)). |
+| `cluster`   | An absolute https URL of a plain DNS host with no credentials, port other than 443, path, query or fragment, and not an IP address. It is normalised to `https://<host>` at startup. |
 | `databases` | Database names the browser suggests for Run KQL's `database` param. Not a restriction. |
 | `scope`     | The OBO scope. Defaults to `{cluster}/.default`. |
+
+A `cluster` is checked when the file is read. A rejected value stops startup with the reason.
+
+- It is an absolute `https://` URL, with no whitespace or control characters.
+- It has no credentials, query, fragment or path (a trailing `/` is accepted), and no IP address literal.
+- Its port is omitted or `443`.
+- Its host is a valid domain name; an internationalised name is converted to punycode.
 
 ```yaml
 - name: samples
@@ -97,42 +102,6 @@ The `kusto` connection type adds `cluster` (required), `databases` (optional) an
 - Check a file before deploying it with `tim-api check --connections <file>` ([operations.md](operations.md#tim-api-check)).
 - The api's OBO credential is needed when a connection uses `obo` ([Authentication](#authentication)).
 - `GET /api/instance` lists each connection's name, type, title, editor and databases. It never lists the cluster, auth or scope.
-
-### Cluster allow-list
-
-`TIM_ALLOWED_KUSTO_HOSTS` is the allow-list of the Kusto tab; connections don't use it. It is one list of patterns. A cluster host is allowed when it matches any pattern. Patterns are trimmed, lowercased and converted to punycode; one trailing dot is ignored. Matching is on whole labels.
-
-| Pattern kind | Matches | Does not match |
-|---|---|---|
-| `help.kusto.windows.net` (exact host) | that host only | `a.help.kusto.windows.net` |
-| `*.kusto.windows.net` | exactly one label before the domain | `kusto.windows.net`, `a.b.kusto.windows.net` |
-| `**.kusto.windows.net` | one or more labels before the domain | `kusto.windows.net` |
-
-| Pattern | Host | Result |
-|---|---|---|
-| `**.kusto.windows.net` | `help.kusto.windows.net` | match |
-| `**.kusto.windows.net` | `contoso.westus2.kusto.windows.net` | match |
-| `**.kusto.windows.net` | `kusto.windows.net` | no match (bare domain) |
-| `**.kusto.windows.net` | `evilkusto.windows.net` | no match (not a label boundary) |
-| `**.kusto.windows.net` | `x.kusto.fabric.microsoft.com` | no match |
-| `*.kusto.windows.net` | `help.kusto.windows.net` | match |
-| `*.kusto.windows.net` | `contoso.westus2.kusto.windows.net` | no match (two labels) |
-| `help.kusto.windows.net` | `help.kusto.windows.net` | match |
-
-A wildcard is allowed only as the whole first label (`*` or `**`) followed by a domain. Bare wildcards, wildcards elsewhere, empty labels, IP addresses, schemes, ports and paths are rejected at startup.
-
-Examples:
-
-```
-# Default: public Azure, including regional clusters (<name>.<region>.kusto.windows.net)
-TIM_ALLOWED_KUSTO_HOSTS=**.kusto.windows.net
-# Public Azure plus Microsoft Fabric
-TIM_ALLOWED_KUSTO_HOSTS=**.kusto.windows.net,**.kusto.fabric.microsoft.com
-# Locked down: two exact clusters
-TIM_ALLOWED_KUSTO_HOSTS=help.kusto.windows.net,contoso.westeurope.kusto.windows.net
-```
-
-A set value replaces the default rather than adding to it, so keep `**.kusto.windows.net` in the list when adding other domains. Fabric and sovereign clouds are not in the default; list them explicitly. A host that matches no pattern gives `400 cluster-not-allowed`.
 
 ### Actions
 
@@ -180,7 +149,7 @@ See [ADR-0004](adr/0004-postgresql-persistence.md).
 | Variable                          | Default | Required | Description                                                                                                            |
 | --------------------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `TIM_DATABASE_URL`                | none    | yes      | `postgresql+asyncpg://user:password@host:5432/db`. `memory://` (data lost on restart) is accepted only in development. |
-| `TIM_RUN_RETENTION_SWEEP_SECONDS` | `300`   | no       | Interval of the sweep that deletes expired runs and query runs. Must be greater than 0.                                |
+| `TIM_RUN_RETENTION_SWEEP_SECONDS` | `300`   | no       | Interval of the sweep that deletes expired runs. Must be greater than 0.                                |
 
 ### HTTP and run limits
 
@@ -190,12 +159,12 @@ All numeric values must be greater than 0. See [ADR-0012](adr/0012-query-run-lim
 | --------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TIM_CORS_ALLOWED_ORIGINS`  | empty                 | Allowed origins. With none, no CORS headers are sent (the web container proxies `/api`, so none are needed).                                        |
 | `TIM_MAX_REQUEST_BYTES`     | `67108864` (64 MiB)   | Largest accepted request body, including the input of a sink; larger requests get 413.                                                              |
-| `TIM_MAX_RESULT_ROWS`       | `1000000`             | Row cap for a run's result. A query run (`/api/kusto/query`) is capped at 100,000 rows, or this when lower.                                         |
-| `TIM_MAX_RESULT_BYTES`      | `536870912` (512 MiB) | Size cap for a run's result, as compact JSON per row, summed. A query run is capped at 64 MiB, or this when lower.                                  |
-| `TIM_RUN_TIMEOUT_SECONDS`   | `600`                 | Execution time limit of a run or query run, counted once it has a concurrency slot.                                                                 |
-| `TIM_RUN_RETENTION_SECONDS` | `86400` (24 h)        | How long a run or query run stays readable after it last changed.                                                                                   |
+| `TIM_MAX_RESULT_ROWS`       | `1000000`             | Row cap for a run's result.                                         |
+| `TIM_MAX_RESULT_BYTES`      | `536870912` (512 MiB) | Size cap for a run's result, as compact JSON per row, summed.                                  |
+| `TIM_RUN_TIMEOUT_SECONDS`   | `600`                 | Execution time limit of a run, counted once it has a concurrency slot.                                                                 |
+| `TIM_RUN_RETENTION_SECONDS` | `86400` (24 h)        | How long a run stays readable after it last changed.                                                                                   |
 | `TIM_MAX_PIVOT_ROWS`        | `100`                 | Most selected rows a pivot into an action accepts (`POST /api/actions/{key}/resolve`); more gets 422.                                               |
-| `TIM_MAX_CONCURRENT_RUNS`   | `16`                  | Runs and query runs executing at once per api process, together; further runs wait as `running` (query runs as `created`).                          |
+| `TIM_MAX_CONCURRENT_RUNS`   | `16`                  | Runs executing at once per api process; further runs wait as `running`.                          |
 | `TIM_ROWS_PAGE_SIZE`        | `10000`               | Most rows per page of `GET /api/runs/{runId}/rows`.                                                                                                 |
 
 The web container's nginx allows request bodies up to 64 MB and waits up to 620 s for the api, so keep `TIM_RUN_TIMEOUT_SECONDS` at or below 600 unless `web/docker/nginx.conf.template` is changed.
@@ -243,7 +212,6 @@ The root filesystem can be read-only. Only `/tmp` must be writable. A validation
 | `AGGRID_LICENSE`   | no       | empty                                                     | `agGridLicenseKey`     | AG Grid Enterprise licence key, see [below](#ag-grid-enterprise-licence).                                |
 | `HELP_WIKI_URI`    | no       | project wiki (built in)                                   | `wikiUri`              | Target of the help link.                                                                                 |
 | `HELP_ISSUE_URI`   | no       | project issue tracker (built in)                          | `issueUri`             | Target of the issue link.                                                                                |
-| `DEFAULT_CLUSTERS` | no       | one group `Cluster` from `TAG_CLUSTER` and `TAG_DATABASE` | `defaultClusters`      | JSON array of `{"name": "...", "clusters": ["https://..."], "databases": ["..."]}`.                      |
 | `TIM_ENVIRONMENT`  | no       | `production`                                              | none                   | Only validated: must be `development` or `production`.                                                   |
 | `NGINX_RESOLVER`   | no       | first nameserver in `/etc/resolv.conf`, else `127.0.0.11` | none                   | DNS resolver nginx uses to resolve `BACKEND_URI`.                                                        |
 
@@ -272,7 +240,6 @@ The image serves `/config.js` from `/tmp/tim`, and includes `nginx.conf` from th
 | `VITE_HELP_ISSUE_URI`     | `issueUri` / `HELP_ISSUE_URI`                                                                                               |
 | `VITE_TAG_CLUSTER`        | `tagCluster` / `TAG_CLUSTER`                                                                                                |
 | `VITE_TAG_DATABASE`       | `tagDatabase` / `TAG_DATABASE` (default `Research`)                                                                         |
-| `VITE_DEFAULT_CLUSTERS`   | `defaultClusters` / `DEFAULT_CLUSTERS` (JSON)                                                                               |
 | `VITE_AUTH_STUB`          | `true` signs in a fake account without Entra and sends its stub token (`dev:<upn>`). The account is `dev.user@example.com`, or the upn in the `localStorage` key `tim.devStubUpn`. A production build refuses it and shows the configuration error screen. |
 
 ### How the SPA merges and validates configuration
@@ -310,8 +277,7 @@ Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](adr
 | `REDIRECT_URI`                                        | `http://localhost:8081/blank.html`                         | Passed to `web`. Must match `WEB_PORT`.                                                     |
 | `AGGRID_LICENSE`                                      | empty                                                      | Passed to `web`.                                                                            |
 | `TIM_AUTH_CLIENT_SECRET`                              | empty                                                      | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
-| `TIM_ALLOWED_KUSTO_HOSTS`                             | empty                                                      | Passed to `migrate` and `api`. Empty uses the api default.                                  |
-| `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | empty                                                      | Passed to `web`.                                                                            |
+| `HELP_WIKI_URI`, `HELP_ISSUE_URI` | empty                                                      | Passed to `web`.                                                                            |
 | `TIM_CONFIG_DIR`                                      | `./deploy/config`                                          | Host directory mounted read-only at `/etc/tim` in the api.                                  |
 | `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE`, `TIM_LABELS_FILE` | empty                                               | Passed to the api: container paths under `/etc/tim`. Empty means none.                      |
 | `TIM_DEV_ACTIONS`                                     | `false`                                                    | Passed to the api. Registers the development actions ([development.md](development.md#development-actions)). |
@@ -331,12 +297,12 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | `TIM_AUTH_CLIENT_SECRET`                              | yes      | none                          | Passed to `migrate` and `api`. See the note below.                                             |
 | `TIM_TAG_CLUSTER_URI`                                 | yes      | none                          | Passed to the api and, as `TAG_CLUSTER`, to `web`.                                             |
 | `TIM_TAG_DATABASE`                                    | no       | `Research`                    | Passed to the api and, as `TAG_DATABASE`, to `web`.                                            |
-| `TIM_ALLOWED_KUSTO_HOSTS`, `TIM_CORS_ALLOWED_ORIGINS` | no       | empty                         | Passed to `migrate` and `api`.                                                                 |
+| `TIM_CORS_ALLOWED_ORIGINS` | no       | empty                         | Passed to `migrate` and `api`.                                                                 |
 | `TIM_LOG_LEVEL`                                       | no       | `INFO`                        | Passed to `migrate` and `api`.                                                                 |
 | `TIM_CONFIG_DIR`                                      | no       | `./config`                    | Host directory mounted read-only at `/etc/tim` in the api; a relative path is from `deploy/`.  |
 | `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE`, `TIM_LABELS_FILE` | no | empty                       | Passed to the api: container paths under `/etc/tim`. Empty means none. See [Instance files](deployment.md#instance-files). |
 | `AGGRID_LICENSE`                                      | no       | empty                         | Passed to `web`. Empty runs AG Grid Enterprise in trial mode.                                  |
-| `HELP_WIKI_URI`, `HELP_ISSUE_URI`, `DEFAULT_CLUSTERS` | no       | empty                         | Passed to `web`.                                                                               |
+| `HELP_WIKI_URI`, `HELP_ISSUE_URI` | no       | empty                         | Passed to `web`.                                                                               |
 | `WEB_PORT`                                            | no       | `8080`                        | Host port of `web`, the only published port.                                                   |
 | `TIM_SUBNET`                                          | no       | `10.89.0.0/24`                | Subnet of the compose network.                                                                 |
 | `FORWARDED_ALLOW_IPS`                                 | no       | `TIM_SUBNET`                  | Addresses from which the api trusts `X-Forwarded-*`.                                           |
@@ -355,11 +321,9 @@ The chart in `deploy/helm/tim` sets the same variable names; the install procedu
   - `config.auth.tenantId` / `clientId`;
   - `config.tags.clusterUri` / `database`;
   - `api.logLevel` (`TIM_LOG_LEVEL`);
-  - `api.allowedKustoHosts` (`TIM_ALLOWED_KUSTO_HOSTS`). An empty list gives the api default;
   - `api.corsAllowedOrigins`;
   - `api.forwardedAllowIps` (`FORWARDED_ALLOW_IPS`);
   - `web.helpWikiUri`, `web.helpIssueUri`;
-  - `web.defaultClusters`, rendered as JSON;
   - `web.apiBasePath` (`API_BASEPATH`).
 - `REDIRECT_URI` is `config.publicUrl` (default `https://<ingress.host>`) plus `/blank.html`.
 - `BACKEND_URI` is the api Service address.

@@ -4,11 +4,11 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from tim_api.config import Settings, SettingsError, get_settings
-from tim_api.deps import get_query_run_store
+from tim_api.deps import get_run_store
 from tim_api.storage import (
     MemoryStorage,
     PostgresStorage,
-    QueryRunStore,
+    RunStore,
     build_storage,
 )
 
@@ -36,10 +36,10 @@ def test_dependencies_resolve_from_lifespan() -> None:
 
     @app.get("/_probe")
     def probe(
-        runs: QueryRunStore = Depends(get_query_run_store),  # noqa: B008
+        runs: RunStore = Depends(get_run_store),  # noqa: B008
     ) -> dict[str, bool]:
         return {
-            "runs": isinstance(runs, QueryRunStore),
+            "runs": isinstance(runs, RunStore),
         }
 
     with TestClient(app) as client:

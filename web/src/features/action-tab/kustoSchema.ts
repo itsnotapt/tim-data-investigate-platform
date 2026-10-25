@@ -1,5 +1,3 @@
-import { formatCluster, getKustoSchema } from '../../lib/api';
-
 /**
  * Unwraps the schema document for `setSchemaFromShowSchema` (the wire shape is tolerated in
  * several variants). Accepted: the parsed document (`{Databases: ...}`), an object
@@ -40,33 +38,4 @@ function unwrapSchema(value: unknown, depth = 0): object {
     }
   }
   throw new Error('Unrecognised Kusto schema response.');
-}
-
-const cache = new Map<string, Promise<object>>();
-
-const schemaKey = (cluster: string, database: string): string =>
-  `${formatCluster(cluster)}|${database.trim()}`;
-
-/**
- * Schema for a cluster and database, cached per pair. A failed fetch is not cached. Only one
- * request is made for concurrent callers.
- */
-export function fetchKustoSchema(cluster: string, database: string): Promise<object> {
-  const key = schemaKey(cluster, database);
-  let hit = cache.get(key);
-  if (!hit) {
-    // Not tied to one caller's signal: the shared result is reused by the next caller.
-    hit = getKustoSchema({ cluster: formatCluster(cluster), database: database.trim() }).then(
-      normalizeSchema,
-    );
-    cache.set(key, hit);
-    hit.catch(() => {
-      if (cache.get(key) === hit) cache.delete(key);
-    });
-  }
-  return hit;
-}
-
-export function clearKustoSchemaCache(): void {
-  cache.clear();
 }
