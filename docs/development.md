@@ -106,8 +106,8 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 | Playwright with `CI` set: `forbidOnly`, 1 retry, 3 workers, HTML report                             | `list` reporter only, no retries                                                              |
 | The e2e job's api on a `postgres:17` service (`TIM_TEST_DATABASE_URL`). The job also runs when `api/` changes | `pgserver` unless you set `TIM_TEST_DATABASE_URL`                                  |
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
-| `build-api.yml` `docker-build-api`: builds the api image and runs the derived-image and `deploy/config` checks | Needs Docker; read the workflow for the exact commands |
-| `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions, and the rendered `/etc/tim` mount and variables of both compose files | Needs those tools installed; read the workflow for the exact commands |
+| `build-api.yml` `docker-build-api`: builds the api image and runs the derived-image and `deploy/config` checks, then `examples/instance/ci.sh` on that image | Needs Docker; read the workflow for the exact commands |
+| `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions, the rendered `/etc/tim` mount and variables of both compose files, and that the example instance's Helm values and Compose variables render its `config/` | Needs those tools installed; read the workflow for the exact commands |
 | `lint-workflows.yml`: actionlint and shellcheck on workflows, plus the `.github/scripts` tests     | `python3 -B -m unittest discover -s .github/scripts` (`-B` keeps `__pycache__` out of the tree) |
 
 ## Live Kusto tests
@@ -301,7 +301,7 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
 | Workflow | Paths |
 |---|---|
 | `build-web.yml` | `web/`, the workflow file, and `.editorconfig`, which Prettier reads |
-| `build-api.yml` | `api/`, the workflow file, `docs/architecture.md` and `web/src/lib/api/openapi.json`, which the api tests read, and `deploy/config/`, which the image build checks |
+| `build-api.yml` | `api/`, the workflow file, `docs/architecture.md` and `web/src/lib/api/openapi.json`, which the api tests read, `deploy/config/`, which the image build checks, and `examples/instance/`, which `ci.sh` checks against the image |
 
 - The gate job fails when the `changes` job or a build job failed or was cancelled.
 - The `e2e` job in `build-web.yml` runs `npm run e2e:smoke` on a PR, and `npm run e2e` on a push to `main` and on a `release-please--*` PR.

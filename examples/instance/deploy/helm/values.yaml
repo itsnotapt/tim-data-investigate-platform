@@ -1,6 +1,7 @@
 # The example instance under Helm, on top of the operator's own values
 # (docs/actions.md#building-and-deploying):
-#   helm upgrade --install tim deploy/helm/tim -f <your values> -f values.yaml
+#   helm upgrade --install tim oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim \
+#     --version X.Y.Z -n tim -f <your values> -f values.yaml
 # The files are config/'s, inline. TIM's CI checks they match.
 
 # The derived image: TIM's backend image with the provider installed. Name its tag

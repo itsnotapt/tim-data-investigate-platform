@@ -160,7 +160,7 @@ RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/a
 - **Use it.** In Compose, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG`. In Helm, set `api.image.repository`, and always set `api.image.tag` or `api.image.digest`.
 - **Helm image.** The migrations Job uses the same image as the api. The chart does not check the tag's format.
 
-How to write a provider is in [actions.md](actions.md#providers).
+How to write a provider is in [actions.md](actions.md#providers). [`examples/instance/`](../examples/instance/README.md) is a derived image with its Compose variables and Helm values.
 
 ## Kubernetes (Helm)
 
