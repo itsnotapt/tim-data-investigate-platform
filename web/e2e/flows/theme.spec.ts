@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 import { grid, openAction } from '../actionTab';
 import { test, expect } from '../realApi';
 import { COLOR_SCHEME_ATTRIBUTE, THEME_MODE_KEY } from '../../src/app/themeKeys';
-import { waitForEditor } from '../mocks/editor';
+import { waitForEditor } from '../editor';
 import { runJsonRows } from '../stormRows';
 
 // Computed colours of the light and dark palettes (web/src/app/theme.ts).

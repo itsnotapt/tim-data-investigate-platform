@@ -22,8 +22,7 @@ function parseE2ePort(value: string | undefined): number {
  * the labels in e2e/labels.yaml.
  * Its Postgres (TIM_TEST_DATABASE_URL, else a temporary pgserver) is reset once per run.
  *
- * Flows that import e2e/realApi.ts use the real api. Those that import e2e/fixtures.ts intercept
- * every `/api/**` call (e2e/mocks) instead.
+ * Every flow imports e2e/realApi.ts; `page.route` is only for faults the server can't produce.
  *
  * Dev server rather than `vite preview`: the stub is refused in production builds, and dev needs
  * no build step. `/config.js` comes from public/config.js.

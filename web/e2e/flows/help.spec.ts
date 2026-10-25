@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../realApi';
 import { shot } from '../shot';
 
 test('help menu lists the wiki and bug report links', async ({ page }) => {
