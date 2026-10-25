@@ -10,8 +10,6 @@ data:
   REDIRECT_URI: {{ printf "%s/blank.html" (include "tim.publicUrl" .) | quote }}
   AUTH_CLIENT_ID: {{ .Values.config.auth.clientId | quote }}
   AUTH_TENANT_ID: {{ .Values.config.auth.tenantId | quote }}
-  TAG_CLUSTER: {{ .Values.config.tags.clusterUri | quote }}
-  TAG_DATABASE: {{ .Values.config.tags.database | quote }}
   API_BASEPATH: {{ .Values.web.apiBasePath | quote }}
   HELP_WIKI_URI: {{ .Values.web.helpWikiUri | quote }}
   HELP_ISSUE_URI: {{ .Values.web.helpIssueUri | quote }}

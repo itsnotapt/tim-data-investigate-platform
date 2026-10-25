@@ -43,19 +43,6 @@
               "type": "string"
             }
           }
-        },
-        "tags": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "clusterUri": {
-              "type": "string"
-            },
-            "database": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
         }
       }
     },
