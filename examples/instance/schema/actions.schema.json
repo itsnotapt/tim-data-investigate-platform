@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TIM action file",
+  "$defs": {
+    "Column": {
+      "additionalProperties": false,
+      "description": "A declared result column, with the grid's initial settings for it. ``calculated`` is an AG\nGrid calculated-column expression, such as ``[Bytes] / 1024``: the grid computes the column\nfrom the row's other columns. A ``tim:`` name declares settings of one of TIM's own columns\n(``TIM_COLUMNS``).",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "datetime",
+            "timespan",
+            "json"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "hidden": {
+          "default": false,
+          "title": "Hidden",
+          "type": "boolean"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "pinned": {
+          "anyOf": [
+            {
+              "enum": [
+                "left",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pinned"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sort"
+        },
+        "group": {
+          "default": false,
+          "title": "Group",
+          "type": "boolean"
+        },
+        "calculated": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calculated"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "Column",
+      "type": "object"
+    },
+    "Param": {
+      "additionalProperties": false,
+      "description": "A param an action declares.\n\n``default`` and ``choices`` are wire values, as the browser sends them, and are served\nto it unchanged. ``from_columns`` lists the result columns a pivot takes the value from,\nfirst non-empty one wins. ``schema_from`` names the params that scope a ``kql``/``sql``\neditor's schema.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "datetime",
+            "timespan",
+            "json",
+            "kql",
+            "sql",
+            "connection"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "many": {
+          "default": false,
+          "title": "Many",
+          "type": "boolean"
+        },
+        "choices": {
+          "default": [],
+          "items": {},
+          "title": "Choices",
+          "type": "array"
+        },
+        "connection_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Connection Type"
+        },
+        "schema_from": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Schema From",
+          "type": "array"
+        },
+        "from_columns": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "From Columns",
+          "type": "array"
+        },
+        "help": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Help"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "Param",
+      "type": "object"
+    },
+    "kql_query": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "kql"
+              ]
+            },
+            {
+              "required": [
+                "kql_file"
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "``kql_query``: fixed KQL in a database of a fixed Kusto connection. Its params are sent as\nKusto query parameters by name, which the KQL declares with ``declare query_parameters``;\nthe KQL text is sent unchanged (ADR-0019).",
+      "properties": {
+        "type": {
+          "const": "kql_query",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z0-9_.-]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "menu": {
+          "default": "",
+          "title": "Menu",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "pivot": {
+          "enum": [
+            "row",
+            "rows",
+            "none"
+          ],
+          "title": "Pivot",
+          "type": "string"
+        },
+        "params": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Param"
+          },
+          "title": "Params",
+          "type": "array"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Column"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columns"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "connection": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Connection",
+          "type": "string"
+        },
+        "database": {
+          "title": "Database",
+          "type": "string"
+        },
+        "kql": {
+          "title": "Kql",
+          "type": "string"
+        },
+        "kql_file": {
+          "description": "A file next to the action file that holds kql",
+          "title": "Kql file",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key",
+        "name",
+        "pivot",
+        "connection",
+        "database"
+      ],
+      "title": "kql_query",
+      "type": "object"
+    },
+    "storm_summary": {
+      "additionalProperties": false,
+      "description": "Storm events counted by state and event type over a time window.",
+      "properties": {
+        "type": {
+          "const": "storm_summary",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z0-9_.-]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "menu": {
+          "default": "",
+          "title": "Menu",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "pivot": {
+          "enum": [
+            "row",
+            "rows",
+            "none"
+          ],
+          "title": "Pivot",
+          "type": "string"
+        },
+        "params": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Param"
+          },
+          "title": "Params",
+          "type": "array"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Column"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columns"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "connection": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Connection",
+          "type": "string"
+        },
+        "database": {
+          "title": "Database",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key",
+        "name",
+        "pivot",
+        "connection",
+        "database"
+      ],
+      "title": "storm_summary",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "kql_query": "#/$defs/kql_query",
+      "storm_summary": "#/$defs/storm_summary"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/kql_query"
+    },
+    {
+      "$ref": "#/$defs/storm_summary"
+    }
+  ]
+}

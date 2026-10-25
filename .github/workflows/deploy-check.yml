@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - deploy/**
+      - examples/instance/config/**
+      - examples/instance/deploy/**
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -17,6 +19,8 @@ on:
       - main
     paths:
       - deploy/**
+      - examples/instance/config/**
+      - examples/instance/deploy/**
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -288,6 +292,35 @@ jobs:
             exit 1
           fi
 
+      # examples/instance/deploy/helm/values.yaml renders on top of the operator's values, with
+      # the files of the example's config/.
+      - name: The example instance renders its files
+        run: |
+          example=examples/instance
+          rendered="$(helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" \
+            -f "$example/deploy/helm/values.yaml" --kube-version "${{ matrix.kubernetes }}")"
+          kubeconform -strict -summary -kubernetes-version "${{ matrix.kubernetes }}" - <<<"$rendered"
+          data() { # <ConfigMap name>
+            yq -o json "select(.kind == \"ConfigMap\" and .metadata.name == \"$1\") | .data" <<<"$rendered"
+          }
+          # The action files byte for byte, sidecars included.
+          actions="$(for f in "$example"/config/actions/*; do
+            jq -n --arg name "${f##*/}" --rawfile text "$f" '{($name): $text}'
+          done | jq -s add)"
+          if ! jq -n -e --argjson want "$actions" --argjson got "$(data acme-tim-actions)" '$want == $got' > /dev/null; then
+            echo "actions.files in $example/deploy/helm/values.yaml must match $example/config/actions" >&2
+            exit 1
+          fi
+          # The connections and labels as YAML values.
+          for file in connections labels; do
+            got="$(data acme-tim-api-files | jq -r --arg key "$file.yaml" '.[$key]' | yq -p yaml -o json)"
+            if ! jq -n -e --argjson want "$(yq -o json "$example/config/$file.yaml")" --argjson got "$got" \
+              '$want == $got' > /dev/null; then
+              echo "$file in $example/deploy/helm/values.yaml must match $example/config/$file.yaml" >&2
+              exit 1
+            fi
+          done
+
   compose:
     runs-on: ubuntu-latest
 
@@ -332,3 +365,12 @@ jobs:
                  -e 's|^TIM_LABELS_FILE=$|TIM_LABELS_FILE=/etc/tim/labels.yaml|' deploy/.env
           assert_api_mount -f deploy/compose.prod.yaml --env-file deploy/.env -- /srv/tim \
             /etc/tim/actions /etc/tim/connections.yaml /etc/tim/labels.yaml
+          # The example instance's variables, on top of the operator's.
+          example=(--env-file deploy/.env --env-file examples/instance/deploy/compose/.env)
+          assert_api_mount -f deploy/compose.prod.yaml "${example[@]}" -- /srv/tim-instance/config \
+            /etc/tim/actions /etc/tim/connections.yaml /etc/tim/labels.yaml
+          image="$(docker compose -f deploy/compose.prod.yaml "${example[@]}" config --format json | jq -r .services.api.image)"
+          if [ "$image" != registry.example.com/tim-instance:5.0.0-example.1 ]; then
+            echo "the example instance must run its derived image, got $image" >&2
+            exit 1
+          fi

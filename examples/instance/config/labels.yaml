@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=../schema/labels.schema.json
+# The instance's labels: the first nine take the keys 1 to 9 in the grid.
+- {key: damaging, name: Damaging, colour: red, symbol: warning}
+- {key: follow-up, name: Follow up, colour: amber, symbol: flag}
+- {key: reviewed, name: Reviewed, colour: green, symbol: check}
+- {key: duplicate, name: Duplicate, colour: grey, symbol: block}

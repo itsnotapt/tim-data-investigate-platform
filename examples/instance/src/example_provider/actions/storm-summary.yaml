@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../../schema/actions.schema.json
+# A storm_summary action, shipped in the provider's package data.
+type: storm_summary
+key: example.storm_summary
+name: Storm summary
+menu: Weather
+description: Storm events by state and event type over a time window
+pivot: rows
+connection: samples
+database: Samples
+columns:
+  - {name: State, type: string, pinned: left}
+  - {name: EventType, type: string, title: Event type}
+  - {name: Events, type: number, sort: desc}
