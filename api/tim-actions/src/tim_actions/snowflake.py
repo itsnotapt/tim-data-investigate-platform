@@ -9,7 +9,7 @@ import re
 import threading
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any, ClassVar, Literal, Protocol, cast
 
@@ -78,14 +78,18 @@ _COLUMN_TYPES: dict[int, ColumnType] = {
 }
 
 
+def _seconds(value: datetime | time) -> str:
+    """The value's seconds and their fraction, trimmed of trailing zeros."""
+    frac = f"{value.microsecond:06d}".rstrip("0")
+    return f"{value:%S}.{frac}" if frac else f"{value:%S}"
+
+
 def _datetime(value: datetime) -> str:
     """ISO 8601 in UTC, the fraction trimmed of trailing zeros, with a ``Z`` suffix. A value
     without a time zone (``TIMESTAMP_NTZ``) is taken as UTC."""
     if value.tzinfo is not None:
         value = value.astimezone(UTC)
-    text = f"{value:%Y-%m-%dT%H:%M:%S}"
-    frac = f"{value.microsecond:06d}".rstrip("0")
-    return f"{text}.{frac}Z" if frac else f"{text}Z"
+    return f"{value:%Y-%m-%dT%H:%M:}{_seconds(value)}Z"
 
 
 def _number(value: Decimal | float) -> float | str:
@@ -114,6 +118,8 @@ def _value(column_type: ColumnType, value: Any) -> Any:
         return _datetime(value)
     if isinstance(value, date):
         return f"{value.isoformat()}T00:00:00Z"
+    if isinstance(value, time):
+        return f"{value:%H:%M:}{_seconds(value)}"
     if isinstance(value, Decimal | float):
         return _number(value)
     if isinstance(value, bytes | bytearray):
@@ -245,6 +251,8 @@ class SnowflakeHook(Hook):
             "account": self.connection.account,
             "warehouse": self.connection.warehouse,
             "paramstyle": "numeric",
+            # Close always logs out, which ends a query still running on the login.
+            "enable_server_session_keep_alive_auto_detection": False,
         }
         if self.connection.role is not None:
             login["role"] = self.connection.role

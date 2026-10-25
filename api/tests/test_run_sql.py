@@ -18,11 +18,15 @@ from snowflake_fakes import CONNECTIONS, SCOPE, FakeConnector, described, open_c
 from tim_actions.snowflake import SnowflakeHook
 
 from tim_api.auth.obo import OboAuthError
+from tim_api.config import get_settings
 
 # Read before the autouse fixture in conftest.py clears TIM_* variables.
 LIVE_ACCOUNT = os.environ.get("TIM_TEST_SNOWFLAKE_ACCOUNT")
 LIVE_WAREHOUSE = os.environ.get("TIM_TEST_SNOWFLAKE_WAREHOUSE", "")
 LIVE_SCOPE = os.environ.get("TIM_TEST_SNOWFLAKE_SCOPE", "")
+LIVE_TENANT_ID = os.environ.get("TIM_TEST_AUTH_TENANT_ID", "")
+LIVE_CLIENT_ID = os.environ.get("TIM_TEST_AUTH_CLIENT_ID")
+LIVE_CLIENT_SECRET = os.environ.get("TIM_TEST_AUTH_CLIENT_SECRET", "")
 
 FIXED, TEXT, TIMESTAMP_NTZ = 0, 2, 8
 
@@ -201,14 +205,7 @@ async def test_an_instance_with_only_workload_identity_connections_needs_no_obo_
     assert login["authenticator"] == "WORKLOAD_IDENTITY"
 
 
-@pytest.mark.snowflake
-@pytest.mark.skipif(not LIVE_ACCOUNT, reason="TIM_TEST_SNOWFLAKE_ACCOUNT not set")
-async def test_run_sql_on_a_real_account(
-    auth: AuthKit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Needs an ``AZURE_*`` identity whose token for ``TIM_TEST_SNOWFLAKE_SCOPE`` Snowflake's
-    External OAuth integration accepts, and ``TIM_TEST_SNOWFLAKE_WAREHOUSE``."""
-    connections = f"""\
+LIVE_CONNECTIONS = f"""\
 - name: warehouse
   title: Warehouse
   type: snowflake
@@ -217,29 +214,63 @@ async def test_run_sql_on_a_real_account(
   account: {LIVE_ACCOUNT}
   warehouse: {LIVE_WAREHOUSE}
 """
-    obo: Any = AzureObo()
-    async with open_client(auth, tmp_path, monkeypatch, obo=obo, connections=connections) as client:
-        body = {
-            "action": "tim.run_sql",
-            "params": {
-                "connection": "warehouse",
-                "sql": "SELECT 1 AS N, 'x' AS S",
-                "idColumn": "N",
-            },
-        }
-        run: dict[str, Any] = (await client.post("/api/runs", json=body)).json()
-        async with asyncio.timeout(60):
-            while run["status"] == "running":
-                await asyncio.sleep(0.5)
-                run = (await client.get(f"/api/runs/{run['runId']}")).json()
-        assert run["status"] == "succeeded", run.get("error")
-        assert [(c["name"], c["type"]) for c in run["columns"]] == [
-            ("N", "number"),
-            ("S", "string"),
-        ]
-        rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-        assert [(r["id"], r["data"]) for r in rows] == [("1", {"N": 1, "S": "x"})]
 
-        schema = await client.post("/api/connections/warehouse/schema", json={"scope": {}})
-        assert schema.status_code == 200
-        assert schema.json()["kind"] == "sql"
+
+async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
+    body = {
+        "action": "tim.run_sql",
+        "params": {"connection": "warehouse", "sql": "SELECT 1 AS N, 'x' AS S", "idColumn": "N"},
+    }
+    run: dict[str, Any] = (await client.post("/api/runs", json=body)).json()
+    async with asyncio.timeout(60):
+        while run["status"] == "running":
+            await asyncio.sleep(0.5)
+            run = (await client.get(f"/api/runs/{run['runId']}")).json()
+    assert run["status"] == "succeeded", run.get("error", run)
+    assert [(c["name"], c["type"]) for c in run["columns"]] == [("N", "number"), ("S", "string")]
+    rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
+    assert [(r["id"], r["data"]) for r in rows] == [("1", {"N": 1, "S": "x"})]
+
+    schema = await client.post("/api/connections/warehouse/schema", json={"scope": {}})
+    assert schema.status_code == 200
+    assert schema.json()["kind"] == "sql"
+
+
+@pytest.mark.snowflake
+@pytest.mark.skipif(not LIVE_ACCOUNT, reason="TIM_TEST_SNOWFLAKE_ACCOUNT not set")
+async def test_run_sql_on_a_real_account(
+    auth: AuthKit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Needs ``TIM_TEST_SNOWFLAKE_WAREHOUSE`` and ``TIM_TEST_SNOWFLAKE_SCOPE``, and a
+    ``DefaultAzureCredential`` (the Azure CLI) of a member user that Snowflake's External OAuth
+    integration accepts. Its token for the scope stands in for TIM's OBO exchange."""
+    obo: Any = AzureObo()
+    async with open_client(
+        auth, tmp_path, monkeypatch, obo=obo, connections=LIVE_CONNECTIONS
+    ) as client:
+        await run_sql_on_the_real_account(client)
+
+
+@pytest.mark.snowflake
+@pytest.mark.skipif(
+    not (LIVE_ACCOUNT and LIVE_CLIENT_ID),
+    reason="TIM_TEST_SNOWFLAKE_ACCOUNT or TIM_TEST_AUTH_* not set",
+)
+async def test_run_sql_on_a_real_account_through_tims_obo_exchange(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TIM as deployed: it validates the analyst's Entra token and exchanges it for the scope's.
+    Needs, as well, ``TIM_TEST_AUTH_TENANT_ID``, ``TIM_TEST_AUTH_CLIENT_ID`` and
+    ``TIM_TEST_AUTH_CLIENT_SECRET`` of an API app with consent to the scope, which the Azure CLI
+    may sign in to."""
+    from azure.identity import DefaultAzureCredential
+
+    monkeypatch.setenv("TIM_AUTH_TENANT_ID", LIVE_TENANT_ID)
+    monkeypatch.setenv("TIM_AUTH_CLIENT_ID", LIVE_CLIENT_ID or "")
+    monkeypatch.setenv("TIM_AUTH_CLIENT_SECRET", LIVE_CLIENT_SECRET)
+    get_settings.cache_clear()
+    token = DefaultAzureCredential().get_token(f"api://{LIVE_CLIENT_ID}/.default").token
+    async with open_client(
+        None, tmp_path, monkeypatch, obo=None, connections=LIVE_CONNECTIONS, token=token
+    ) as client:
+        await run_sql_on_the_real_account(client)

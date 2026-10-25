@@ -91,7 +91,7 @@ The `snowflake` connection type adds `account`, `warehouse`, `role` (optional) a
 | `account`   | The account identifier, such as `myorg-myaccount`. A URL or host name stops startup. |
 | `warehouse` | The warehouse that runs the queries. Required. |
 | `role`      | The role to use. Optional. |
-| `scope`     | The OBO scope, such as `api://<snowflake-app>/session:role-any`. Required for `obo`, with no default. `workload_identity` refuses it. |
+| `scope`     | The OBO scope, such as `api://<app id>/session:role-any`. Required for `obo`, with no default. `workload_identity` refuses it. |
 
 ```yaml
 - name: samples

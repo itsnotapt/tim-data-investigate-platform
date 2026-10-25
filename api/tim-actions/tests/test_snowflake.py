@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 from snowflake.connector import errors as sf_errors
+from snowflake_recording import load
 
 from tim_actions import Column, Hook, RunError
 from tim_actions.snowflake import RUN_SQL, SnowflakeConnection, SnowflakeHook
@@ -123,7 +124,6 @@ class FakeCursor:
         self.sdk.querying.set()
         if self.sdk.hold:
             self.sdk.aborted_event.wait(10)
-            raise sf_errors.ProgrammingError("SQL execution canceled")
         answer = self.sdk.answer(self.sdk.executed[-1])
         if isinstance(answer, Exception):
             raise answer
@@ -152,7 +152,7 @@ class FakeConnection:
 class FakeConnector:
     """``snowflake.connector.connect``: records each login and answers each statement from
     ``answers``, by the first key the statement contains, or with ``result``; ``login_error``
-    fails the login; with ``hold``, a query waits until it's aborted."""
+    fails the login; with ``hold``, a query waits until it's aborted, then answers."""
 
     def __init__(self) -> None:
         self.logins: list[dict[str, Any]] = []
@@ -216,6 +216,7 @@ def test_the_hook_logs_in_as_the_analyst_and_gives_columns_and_rows(sdk: FakeCon
         "authenticator": "oauth",
         "token": f"token for {SCOPE}",
         "paramstyle": "numeric",
+        "enable_server_session_keep_alive_auto_detection": False,
     }
     assert sdk.executed == ["SELECT 1"]
     assert sdk.closed == 1
@@ -237,6 +238,7 @@ def test_with_workload_identity_the_hook_logs_in_as_tim_without_a_token(
         "authenticator": "WORKLOAD_IDENTITY",
         "workload_identity_provider": "AZURE",
         "paramstyle": "numeric",
+        "enable_server_session_keep_alive_auto_detection": False,
     }
 
 
@@ -257,6 +259,7 @@ def test_a_failed_query_raises_a_run_error_with_its_message(sdk: FakeConnector) 
 
 def test_cancel_aborts_the_running_query_and_refuses_new_ones(sdk: FakeConnector) -> None:
     sdk.hold = True
+    sdk.answers = {"SYSTEM$WAIT": sf_errors.ProgrammingError("SQL execution canceled")}
     running = hook()
     errors: list[RunError] = []
 
@@ -412,3 +415,185 @@ def test_an_account_identifier_is_accepted(account: str) -> None:
 def test_an_account_that_is_not_an_identifier_is_refused(account: str) -> None:
     with pytest.raises(ValueError, match="account identifier"):
         SnowflakeConnection.model_validate(CONNECTION.model_dump() | {"account": account})
+
+
+# --- against what a real account answered (``record_snowflake.py``) -----------------------
+
+
+@pytest.fixture
+def recorded(sdk: FakeConnector) -> FakeConnector:
+    sdk.answers = dict(load())
+    sdk.result = AssertionError("not recorded")
+    return sdk
+
+
+def test_each_type_snowflake_gives_comes_back_as_tim_stores_it(recorded: FakeConnector) -> None:
+    result = hook().query(
+        "SELECT * FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID", deadline=in_30s()
+    )
+    assert [(c.name, c.type) for c in result.columns] == [
+        ("ID", "number"),
+        ("BIG", "number"),
+        ("PRICE", "number"),
+        ("RATIO", "number"),
+        ("NAME", "string"),
+        ("OK", "boolean"),
+        ("DAY", "datetime"),
+        ("AT_TIME", "string"),
+        ("AT_NTZ", "datetime"),
+        ("AT_LTZ", "datetime"),
+        ("AT_TZ", "datetime"),
+        ("DOC", "json"),
+        ("OBJ", "json"),
+        ("ARR", "json"),
+        ("BYTES", "string"),
+        ("PLACE", "json"),
+        ("SHAPE", "json"),
+        ("VEC", "json"),
+    ]
+    assert result.rows == [
+        {
+            "ID": 1,
+            "BIG": 12345678901234567890,
+            "PRICE": 1.5,
+            "RATIO": 0.25,
+            "NAME": "alice@contoso.com",
+            "OK": True,
+            "DAY": "2026-01-02T00:00:00Z",
+            "AT_TIME": "03:04:05.123",
+            "AT_NTZ": "2026-01-02T03:04:05.123456Z",
+            "AT_LTZ": "2026-01-02T03:04:05Z",
+            "AT_TZ": "2026-01-02T01:04:05.5Z",
+            "DOC": {"a": [1, 2]},
+            "OBJ": {"k": "v"},
+            "ARR": [1, "two"],
+            "BYTES": "cafe",
+            "PLACE": {"coordinates": [1, 2], "type": "Point"},
+            "SHAPE": {"coordinates": [3, 4], "type": "Point"},
+            "VEC": [1.5, 2, 3],
+        },
+        {"ID": 2} | {c.name: None for c in result.columns[1:]},
+    ]
+
+
+def test_numbers_a_float_cant_hold_come_back_as_strings(recorded: FakeConnector) -> None:
+    sql = (
+        "SELECT 'NaN'::FLOAT AS NOT_A_NUMBER, '-inf'::FLOAT AS MINUS_INFINITY,"
+        " 0.1::NUMBER(38, 20) AS TENTH, 1234567890.123456789::NUMBER(38, 9) AS PRECISE"
+    )
+    assert hook().query(sql, deadline=in_30s()).rows == [
+        {
+            "NOT_A_NUMBER": "NaN",
+            "MINUS_INFINITY": "-Infinity",
+            "TENTH": 0.1,
+            "PRECISE": "1234567890.123456789",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("sql", "message"),
+    [
+        (
+            "SELECT * FROM TIM_RECORDING.PUBLIC.NOPE",
+            r"^SQL compilation error:\s+Object 'TIM_RECORDING.PUBLIC.NOPE' does not exist or not"
+            r" authorized\. Your primary role ",
+        ),
+        ("SELEC 1", r"^SQL compilation error:\s+syntax error line 1 at position 0 "),
+        ("SELECT SYSTEM$WAIT(10)", r"timeout of \d+ second\(s\) and was canceled\.$"),
+    ],
+)
+def test_snowflakes_errors_end_the_query_with_its_message(
+    recorded: FakeConnector, sql: str, message: str
+) -> None:
+    with pytest.raises(RunError, match=message):
+        hook().query(sql, deadline=in_30s())
+
+
+def test_a_query_cancelled_on_snowflake_ends_as_cancelled(recorded: FakeConnector) -> None:
+    recorded.hold = True
+    running = hook()
+    errors: list[RunError] = []
+
+    def query() -> None:
+        try:
+            running.query("SELECT SYSTEM$WAIT(30)", deadline=in_30s())
+        except RunError as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=query)
+    worker.start()
+    assert recorded.querying.wait(5)
+    running.cancel()
+    worker.join(5)
+    assert [str(e) for e in errors] == ["The query was cancelled"]
+
+
+def test_the_editor_schema_is_the_tree_snowflake_shows_the_role(recorded: FakeConnector) -> None:
+    schema = hook().editor_schema({})
+    assert schema is not None
+    databases = {d["name"]: d["schemas"] for d in schema.schema["databases"]}
+    assert list(databases) == [
+        "SNOWFLAKE",
+        "SNOWFLAKE_SAMPLE_DATA",
+        "TIM_RECORDING",
+        "TIM_RECORDING_HIDDEN",
+    ]
+    # Databases the role sees but can't use, with nothing in them it can read.
+    assert databases["SNOWFLAKE"] == databases["TIM_RECORDING_HIDDEN"] == []
+    # A shared database, recorded with one of its schemas.
+    [tpch] = databases["SNOWFLAKE_SAMPLE_DATA"]
+    assert tpch["name"] == "TPCH_SF1"
+    tables = {t["name"]: t["columns"] for t in tpch["tables"]}
+    assert list(tables) == [
+        "CUSTOMER",
+        "LINEITEM",
+        "NATION",
+        "ORDERS",
+        "PART",
+        "PARTSUPP",
+        "REGION",
+        "SUPPLIER",
+    ]
+    assert tables["REGION"] == [
+        {"name": "R_REGIONKEY", "type": "NUMBER"},
+        {"name": "R_NAME", "type": "TEXT"},
+        {"name": "R_COMMENT", "type": "TEXT"},
+    ]
+    types = [
+        ("ID", "NUMBER"),
+        ("BIG", "NUMBER"),
+        ("PRICE", "NUMBER"),
+        ("RATIO", "FLOAT"),
+        ("NAME", "TEXT"),
+        ("OK", "BOOLEAN"),
+        ("DAY", "DATE"),
+        ("AT_TIME", "TIME"),
+        ("AT_NTZ", "TIMESTAMP_NTZ"),
+        ("AT_LTZ", "TIMESTAMP_LTZ"),
+        ("AT_TZ", "TIMESTAMP_TZ"),
+        ("DOC", "VARIANT"),
+        ("OBJ", "OBJECT"),
+        ("ARR", "ARRAY"),
+        ("BYTES", "BINARY"),
+        ("PLACE", "GEOGRAPHY"),
+        ("SHAPE", "GEOMETRY"),
+        ("VEC", "VECTOR"),
+    ]
+    assert databases["TIM_RECORDING"] == [
+        {
+            "name": "Mixed Case",
+            "tables": [{"name": "Sign-ins", "columns": [{"name": "User Name", "type": "TEXT"}]}],
+        },
+        {
+            "name": "PUBLIC",
+            "tables": [
+                {"name": "EVERY_TYPE", "columns": [{"name": n, "type": t} for n, t in types]},
+                # A view.
+                {
+                    "name": "NAMES",
+                    "columns": [{"name": "ID", "type": "NUMBER"}, {"name": "NAME", "type": "TEXT"}],
+                },
+            ],
+        },
+    ]

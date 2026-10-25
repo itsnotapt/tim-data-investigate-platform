@@ -153,7 +153,10 @@ class AzureObo:
         self._credential = DefaultAzureCredential()
 
     def token_for(self, principal: Principal, scope: str) -> str:
-        return self._credential.get_token(scope).token
+        # The Azure CLI gives tokens only for a resource's ``/.default``, which carry the
+        # delegated scopes granted to the CLI, such as Snowflake's ``session:role-any``.
+        resource = scope.rsplit("/", 1)[0]
+        return self._credential.get_token(f"{resource}/.default").token
 
 
 @asynccontextmanager

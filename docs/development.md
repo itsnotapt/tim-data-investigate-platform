@@ -56,7 +56,20 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
     - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL and `kql_query` on a real cluster as an `AZURE_*` identity.
 
     They run locally against the shared test cluster (see [Live Kusto tests](#live-kusto-tests)), and in CI in the [`kusto-live` job](#ci-and-releases).
-  - **`snowflake` tests** skip unless `TIM_TEST_SNOWFLAKE_ACCOUNT` is set. They also use `TIM_TEST_SNOWFLAKE_WAREHOUSE`, `TIM_TEST_SNOWFLAKE_SCOPE` and an `AZURE_*` identity, and run Run SQL on a real account as that identity. `uv run pytest -m snowflake --no-cov` runs them. CI doesn't.
+  - **`snowflake` tests** skip unless `TIM_TEST_SNOWFLAKE_ACCOUNT` is set. They also use `TIM_TEST_SNOWFLAKE_WAREHOUSE` and `TIM_TEST_SNOWFLAKE_SCOPE`, and run Run SQL on a real account as the analyst. `uv run pytest -m snowflake --no-cov` runs them. CI doesn't.
+    - The analyst's token comes from `DefaultAzureCredential`, in practice the Azure CLI signed in as a member user that has a Snowflake user.
+    - The Azure CLI (client ID `04b07795-8ddb-461a-bbee-02f9e1bf7b46`) must be a pre-authorized client of the Snowflake app for `session:role-any`.
+    - The CLI gives only `/.default` tokens, so the test's `AzureObo` asks for the scope's resource with `/.default`.
+    - A separate `AZURE_CONFIG_DIR` keeps this sign-in apart from your own. Run `AZURE_CONFIG_DIR=<dir> az login --tenant <tid> --allow-no-subscriptions`, then pytest with the same `AZURE_CONFIG_DIR`.
+    - A second test runs TIM as deployed. TIM validates the analyst's Entra token and makes the real on-behalf-of exchange for the Snowflake scope. The first test stands in for that exchange with `AzureObo`.
+      - It also needs `TIM_TEST_AUTH_CLIENT_ID`, `TIM_TEST_AUTH_TENANT_ID` and `TIM_TEST_AUTH_CLIENT_SECRET`, and skips without the client ID.
+      - They are those of an API app registration with App ID URI `api://<its app ID>` and v1 tokens. It exposes a delegated scope the Azure CLI is pre-authorized for, and has admin-consented permission to the Snowflake app's `session:role-any`.
+      - The analyst's token is for `api://<client ID>/.default`, from `DefaultAzureCredential`.
+  - **The Snowflake recording** `api/tim-actions/tests/fixtures/snowflake.json` is what a real account answers, which the replay tests in `tests/test_snowflake.py` use instead of an account. To record it again, run `uv run python tests/record_snowflake.py <connection name>` in `api/tim-actions/`.
+    - The connection is one from `~/.snowflake/connections.toml`. Its warehouse is used, and its role must be able to create a database and a role.
+    - The script creates and keeps `TIM_RECORDING`, `TIM_RECORDING_HIDDEN` and the role `TIM_RECORDING_READER`, granted to the signed-in user. The hook signs in as that role, with no secondary roles.
+    - The fixture keeps only the databases `SNOWFLAKE`, `SNOWFLAKE_SAMPLE_DATA` (one schema), `TIM_RECORDING` and `TIM_RECORDING_HIDDEN`.
+    - Check the fixture for account-specific data, such as names, users and URLs, before you commit it.
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
 - **Playwright fails if its ports are busy.** It never reuses a running server, so a stray server on its ports (default 5180 and 5181) stops the run.

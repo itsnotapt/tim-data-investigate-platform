@@ -75,10 +75,10 @@ The result grids use AG Grid Enterprise only ([ADR-0006](adr/0006-ag-grid-enterp
 A `snowflake` connection with `auth: obo` runs as the analyst. TIM sends Snowflake an Entra token for the connection's `scope`, and Snowflake accepts it through an External OAuth security integration.
 
 1. **Register an app for Snowflake** in Entra, the Snowflake resource app.
-   - Set its App ID URI, e.g. `api://<snowflake-app>`.
+   - Set its App ID URI to `api://<app id>`, with the app's own ID. With version 1 tokens, Entra's default tenant policy refuses a URI that holds none of the app ID, the tenant ID or a verified domain, such as `api://snowflake`.
    - Add the delegated permission `session:role-any`.
    - Issue version 1 access tokens, so the issuer is `https://sts.windows.net/<tid>/`.
-2. **Grant TIM's app** (the API app registration) that permission, and grant admin consent for it. TIM exchanges the analyst's token for `<App ID URI>/session:role-any`; that string is the connection's `scope`.
+2. **Grant TIM's app** (the API app registration) that permission, and grant admin consent for it. TIM exchanges the analyst's token for `<App ID URI>/session:role-any`; that string is the connection's `scope`, e.g. `api://<app id>/session:role-any`.
 3. **Create the security integration** in Snowflake:
 
    ```sql
@@ -88,13 +88,15 @@ A `snowflake` connection with `auth: obo` runs as the analyst. TIM sends Snowfla
      EXTERNAL_OAUTH_TYPE = AZURE
      EXTERNAL_OAUTH_ISSUER = 'https://sts.windows.net/<tid>/'
      EXTERNAL_OAUTH_JWS_KEYS_URL = 'https://login.microsoftonline.com/<tid>/discovery/v2.0/keys'
-     EXTERNAL_OAUTH_AUDIENCE_LIST = ('api://<snowflake-app>')
+     EXTERNAL_OAUTH_AUDIENCE_LIST = ('api://<app id>')
      EXTERNAL_OAUTH_TOKEN_USER_MAPPING_CLAIM = 'upn'
      EXTERNAL_OAUTH_SNOWFLAKE_USER_MAPPING_ATTRIBUTE = 'login_name'
      EXTERNAL_OAUTH_ANY_ROLE_MODE = 'ENABLE';
    ```
 
 4. **Provision the users.** Each analyst needs a Snowflake user whose `login_name` is their `upn`. Create them from Entra with SCIM.
+   - The integration maps the token's `upn` claim. Tokens of guest users, such as a personal Microsoft account, have no `upn`, so analysts must be member users. Guests can't use `obo` Snowflake connections.
+   - External OAuth blocks the roles `ACCOUNTADMIN`, `ORGADMIN` and `SECURITYADMIN` (`EXTERNAL_OAUTH_BLOCKED_ROLES_LIST`). Each analyst's default role, or the connection's `role`, must be another role.
 
 The connection's `account` is an account identifier such as `myorg-myaccount`, not a URL.
 

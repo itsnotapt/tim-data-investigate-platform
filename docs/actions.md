@@ -168,7 +168,7 @@ The `snowflake` connection type, from the `snowflake` extra of `tim-actions`:
 | `account` | yes | The account identifier, such as `myorg-myaccount`. A URL or host name stops startup. |
 | `warehouse` | yes | The warehouse that runs the queries. |
 | `role` | no | The role to use. Without it, the user's default role. |
-| `scope` | for `obo` | The OBO scope, such as `api://<snowflake-app>/session:role-any`. There is no default. |
+| `scope` | for `obo` | The OBO scope, such as `api://<app id>/session:role-any`. There is no default. |
 
 - With `obo`, TIM logs in to Snowflake as the analyst, with an Entra token for `scope` that Snowflake's External OAuth security integration accepts. [deployment.md](deployment.md#snowflake-app-registration-and-external-oauth) sets it up.
 - With `workload_identity`, TIM logs in as itself through Snowflake workload identity federation, with a service user the operator creates ([deployment.md](deployment.md#snowflake-workload-identity)).

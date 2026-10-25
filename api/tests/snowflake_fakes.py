@@ -109,14 +109,16 @@ class FakeCursor:
 
 @asynccontextmanager
 async def open_client(
-    auth: AuthKit,
+    auth: AuthKit | None,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
     obo: FakeObo | None,
     connections: str = CONNECTIONS,
+    token: str = "",
 ) -> AsyncIterator[httpx.AsyncClient]:
-    """A client of TIM with ``connections``, as ALICE. With ``obo``, the OBO exchange is faked at
+    """A client of TIM with ``connections``: with ``auth``, as ALICE; without, TIM validates real
+    Entra tokens, and the client sends ``token``. With ``obo``, the OBO exchange is faked at
     ``token_for``; without, TIM builds its own."""
     path = tmp_path / "connections.yaml"
     path.write_text(connections)
@@ -125,12 +127,15 @@ async def open_client(
     app = create_test_app(
         storage_factory=lambda _s: MemoryStorage(), race_seconds=0.5, providers=None
     )
-    auth.install(app)
+    if auth is not None:
+        auth.install(app)
     if obo is not None:
         app.dependency_overrides[get_obo_provider] = lambda: obo
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(
-            transport=transport, base_url="http://t", headers=auth.headers(ALICE, "oid-a")
+            transport=transport,
+            base_url="http://t",
+            headers=auth.headers(ALICE, "oid-a") if auth else {"Authorization": f"Bearer {token}"},
         ) as client:
             yield client
