@@ -7,7 +7,7 @@ date: 2026-09-29
 
 TIM uses one Entra app registration for both the SPA and the API, with an MSAL popup sign-in and an On-Behalf-Of (OBO) token exchange so queries run as the user. The app registration serves `api://<clientId>/user_impersonation`; the backend exchanges the user's token for each `obo` connection's scope ([0018](0018-fixed-connections.md)).
 
-- **Single app registration and OBO.** Runs and editor-schema calls use the user's delegated token for each `obo` connection; `workload_identity` connections run as TIM. Tag ingestion runs under the app identity, with `createdBy` taken from the token.
+- **Single app registration and OBO.** Runs and editor-schema calls use the user's delegated token for each `obo` connection; `workload_identity` connections run as TIM.
 - **Popup login** (`@azure/msal-browser` + `@azure/msal-react`):
   - initialise MSAL and handle any pending response on load
   - restore the cached account and try `acquireTokenSilent` / `ssoSilent` before any popup, so there's no prompt on every load

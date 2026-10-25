@@ -119,46 +119,6 @@ Then:
 
 To migrate without a chart upgrade, run `alembic upgrade head` in a pod of the api image. For example: `kubectl exec deploy/<release>-tim-api -- alembic upgrade head`.
 
-### Create the Kusto tag tables
-
-Tagged events are stored in Kusto tables, in `TIM_TAG_DATABASE` on `TIM_TAG_CLUSTER_URI`. Create them once per database. The command is idempotent, so it is safe to repeat:
-
-```bash
-cd api
-python -m tim_api.tagged_events.cli create-tables --dry-run     # print the commands only
-python -m tim_api.tagged_events.cli create-tables               # apply
-# options: --cluster-uri <https://...> (default TIM_TAG_CLUSTER_URI), --database <name> (default TIM_TAG_DATABASE or Research)
-```
-
-In the api image, use `python -m tim_api.tagged_events.cli create-tables` with the api's environment. From a checkout, prefix it with `uv run`.
-
-For each tag table, the command runs:
-
-- `.create-merge table`;
-- `.create-or-alter table ... ingestion json mapping`;
-- `.alter table ... policy streamingingestion enable`.
-
-It authenticates with `DefaultAzureCredential`: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_CLIENT_SECRET`, a workload or managed identity, or an Azure CLI login.
-
-- The identity needs permission to run these management commands on the database. In Kusto, that means database admin, or table admin on the tag tables.
-- At runtime, tag writes use the same credential chain. They need ingest rights on the tag tables.
-- On failure, the command prints the failing command and error, and exits non-zero. It exits `2` when no cluster URI is given.
-
-The streaming ingestion policy makes a saved tag, comment or saved event queryable about a second after the request answers.
-
-- The ingest client streams first.
-- It falls back to queued ingestion for a payload too large to stream (over 4 MB), or after a transient streaming failure.
-- Queued rows, and every row of a table without the policy, wait for the table's ingestion batching window. That is up to 5 minutes by default, so the analyst doesn't see what they just saved.
-
-- **Cluster:** a cluster created in Azure also needs streaming ingestion turned on for the cluster itself.
-  - In the portal: **Settings → Configurations → Streaming ingestion**.
-  - Or: `az kusto cluster update --enable-streaming-ingest true`.
-  - A free cluster has it on already, so the table policy is all it needs.
-- **Check a table:**
-  - `.show table EventTag policy streamingingestion` shows `"IsEnabled": true`.
-  - `.show journal | where Event has 'STREAMING-INGESTION'` shows when the policy was set.
-- **New roles:** a new role on the database, such as ingest rights for a new identity, can take a few minutes to apply. Until then, ingestion answers `403`, and the routes answer `502`.
-
 ### `tim-api check`
 
 The api image runs the startup validation of its providers, an action files directory, a connections file and a labels file. It needs no database, credentials or other settings:
@@ -306,7 +266,7 @@ Each line names the file, the line and the field.
 
 | Symptom                                                  | Cause and fix                                                                                                                                                         |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| api exits at startup with `Invalid configuration:` and lines like `- TIM_AUTH_TENANT_ID: missing (...)` | A required `TIM_*` variable is missing or invalid; the message names each one (never the value). Common: `TIM_DATABASE_URL` not `postgresql+asyncpg://`, a non-https `TIM_TAG_CLUSTER_URI`, `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production`. |
+| api exits at startup with `Invalid configuration:` and lines like `- TIM_AUTH_TENANT_ID: missing (...)` | A required `TIM_*` variable is missing or invalid; the message names each one (never the value). Common: `TIM_DATABASE_URL` not `postgresql+asyncpg://`, `TIM_AUTH_DISABLED=true` with `TIM_ENVIRONMENT=production`. |
 | api exits at startup with `Invalid instance:`            | A provider, an action file, the connections file or the labels file has a problem; see [Startup failures from the files](#startup-failures-from-the-files). |
 | api exits at startup about the OBO credential            | A connection uses `obo`, and neither `TIM_AUTH_CLIENT_SECRET` nor a readable `AZURE_FEDERATED_TOKEN_FILE` is set (the message says which).                                                          |
 | api starts but requests fail with database errors; `/api/healthChecks/readiness` returns `503`; problem responses say "Service unavailable" | PostgreSQL is down or unreachable (or the schema is not migrated; run the migrations). The connection pool checks connections before use, so the api serves again once the database is back.                 |
@@ -315,8 +275,7 @@ Each line names the file, the line and the field.
 | Kusto calls return `403` "Access to the Kusto database was denied" | The signed-in user has no rights on that cluster or database.                                                                                              |
 | Kusto calls return `502` "identity provider could not be reached" | The OBO exchange failed for another reason (network to Entra, misconfigured secret). The api log has `OBO exchange failed` or `OBO exchange rejected: error=...`.   |
 | Kusto calls return `503` "Token exchange is not available" | The api runs with `TIM_AUTH_DISABLED=true`, or the api has no OBO credential, which startup allows only when no connection uses `obo`, so only runs on `obo` connections are affected.                                                                                                                         |
-| Tag writes return `502` "Tag ingestion failed"           | Ingest endpoint unreachable, tables missing (run `create-tables`), or the app identity lacks ingest rights.                                                            |
-| Web container exits immediately: `tim-web: missing required environment variable(s): ...` | Set `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`, `TAG_CLUSTER`. Other `tim-web:` messages name an invalid value (`BACKEND_URI` with a path, bad `API_BASEPATH`, and so on). |
+| Web container exits immediately: `tim-web: missing required environment variable(s): ...` | Set `BACKEND_URI`, `REDIRECT_URI`, `AUTH_CLIENT_ID`, `AUTH_TENANT_ID`. Other `tim-web:` messages name an invalid value (`BACKEND_URI` with a path, bad `API_BASEPATH`, and so on). |
 | Browser shows the configuration error screen             | `/config.js` has missing or invalid keys; the screen lists each one. Check the web container variables and that `/config.js` is not served from a stale cache or proxy.  |
 | Sign-in popup fails with a redirect error                | `REDIRECT_URI` (`https://<host>/blank.html`) is not registered as a SPA redirect URI on the app registration.                                                          |
 | `502` from `/api/...` on the web host                    | nginx cannot reach `BACKEND_URI` (name does not resolve, api down). Check the api container and `NGINX_RESOLVER`.                                                      |

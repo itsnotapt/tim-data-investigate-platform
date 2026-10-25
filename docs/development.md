@@ -26,8 +26,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
 - **`TIM_ENVIRONMENT` defaults to `production`.** These dev-only switches are refused or silently ignored unless it is `development` ([ADR-0011](adr/0011-development-only-modes.md)):
   - `TIM_AUTH_DISABLED`;
   - `TIM_DEV_ACTIONS`;
-  - `TIM_DATABASE_URL=memory://`;
-  - `TIM_TAG_INGEST_FAKE`.
+  - `TIM_DATABASE_URL=memory://`.
 
   `api/.env.example` sets it to `development`.
 - **A connection that uses `obo` needs a credential at startup, unless auth is disabled.** This applies when `TIM_CONNECTIONS_FILE` names such a connection. Set one of:
@@ -46,16 +45,11 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
   - To be another analyst, run `localStorage.setItem('tim.devStubUpn', 'bob@example.com')` in the browser console and reload.
   - The stub sends `Bearer dev:<upn>`. The api runs the request as that analyst.
   - Runs on `obo` connections answer 503. The on-behalf-of exchange needs a real token.
-  - `TIM_TAG_INGEST_FAKE=true` exercises tag writes without a cluster.
   - The [development actions](#development-actions) give you actions without a connection.
 - **The compose web container can't stub sign-in.** The UI at `:8081` needs a real Entra app registration (`REDIRECT_URI`). For UI work without one, use the main loop. The root `.env` (compose) and `api/.env` (main loop) are separate files.
 - **Tests that don't run by default:** see [configuration.md](configuration.md#test-only-variables) for the variables.
   - **`slow` tests** are deselected. `uv run pytest -m slow` runs them. CI doesn't.
-  - **`kusto` tests** skip unless one of these is set:
-    - `TIM_TEST_KUSTO_INGEST_URL`, for tag ingestion;
-    - `TIM_TEST_KUSTO_CLUSTER`, for Run KQL and `kql_query` on a real cluster as an `AZURE_*` identity.
-
-    They run locally against the shared test cluster (see [Live Kusto tests](#live-kusto-tests)), and in CI in the [`kusto-live` job](#ci-and-releases).
+  - **`kusto` tests** skip unless `TIM_TEST_KUSTO_CLUSTER` is set. They run Run KQL and `kql_query` on a real cluster: locally against the shared test cluster (see [Live Kusto tests](#live-kusto-tests)), and in CI in the [`kusto-live` job](#ci-and-releases).
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
 - **Playwright fails if its ports are busy.** It never reuses a running server, so a stray server on its ports (default 5180 and 5181) stops the run.
@@ -121,16 +115,15 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 The `kusto` tests run against the shared test cluster, signed in with your own Azure CLI login, which `DefaultAzureCredential` picks up.
 
 1. Sign in to the test tenant: `az login --tenant $(gh variable get TIM_TESTS_TENANT_ID)`.
-2. Your account needs Viewer on the `Research` database to query, and Ingestor to ingest. Ask a maintainer of the cluster.
+2. Your account needs Viewer on the `Research` database. Ask a maintainer of the cluster.
 3. In `api/`, read the cluster from the repository variables and run the tests:
 
    ```sh
    export TIM_TEST_KUSTO_CLUSTER=$(gh variable get TIM_TEST_KUSTO_CLUSTER)
-   export TIM_TEST_KUSTO_INGEST_URL=$(gh variable get TIM_TEST_KUSTO_INGEST_URL)
    uv run pytest -m kusto --no-cov
    ```
 
-Both databases default to `Research`, as in CI. Each run adds an `itest` row to the ingest table.
+The database (`TIM_TEST_KUSTO_QUERY_DATABASE`) defaults to `Research`, as in CI.
 
 ## e2e tests
 
@@ -148,20 +141,11 @@ Neither server is reused, locally or in CI. If a port is in use, Playwright fail
 - `E2E_PORT` must be a whole number from 1 to 65534. Anything else makes the config throw.
 - Each run takes two ports. For parallel worktrees, give each its own `E2E_PORT`, two apart: 5180, 5182, 5184.
 
-There are two kinds of flow. What the spec imports picks the kind:
+Every flow imports `e2e/realApi.ts` and runs against the api above, with the dev stub's sign-in. Nothing is intercepted. `page.route` is only for faults the server can't produce. `waitForEditor` is in `e2e/editor.ts`.
 
-| Flow | Imports | Talks to |
-|---|---|---|
-| Against the real api | `e2e/realApi.ts` | The api above. Nothing is intercepted. `page.route` is only for faults the server can't produce. New flows are written this way |
-| Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the Kusto features, which predate actions |
+The `@smoke` tag marks the two tests in `e2e/flows/real-api.spec.ts` ([CODING_STANDARDS.md](../CODING_STANDARDS.md#frontend-web)). Other flows aren't tagged.
 
-The `@smoke` tag marks the smoke flows:
-
-- **Mocked app:** `e2e/flows/run-query.spec.ts`.
-- **Real api:** both tests in `e2e/flows/real-api.spec.ts`.
-- **Rule:** each layer has one smoke flow ([CODING_STANDARDS.md](../CODING_STANDARDS.md#frontend-web)).
-
-In a real-api flow:
+In a flow:
 
 - **`page`** is signed in as a new analyst for each test, `analyst.upn`. The sign-in goes through the stub's `localStorage` key `tim.devStubUpn`.
 - **`signIn(upn)`** opens a second browser context signed in as another analyst, for flows with several analysts.
@@ -344,12 +328,11 @@ Things the workflows don't tell you:
 - **`kusto-live`** (`build-api.yml`) runs `pytest -m kusto` on pushes to `main` that change the api.
   - It signs in as an Entra test app through GitHub OIDC (`azure/login`, no secret).
   - The app needs a federated credential with subject `repo:itsnotapt/tim-data-investigate-platform:ref:refs/heads/main`. That is why pull requests can't run the job.
-  - The app also needs Ingestor and Viewer on the test database.
-  - The job reads the repository variables `TIM_TESTS_CLIENT_ID`, `TIM_TESTS_TENANT_ID`, `TIM_TEST_KUSTO_CLUSTER` and `TIM_TEST_KUSTO_INGEST_URL`.
-  - It also reads `TIM_TEST_KUSTO_QUERY_DATABASE` and `TIM_TEST_KUSTO_DATABASE`, both defaulting to `Research`.
+  - The app also needs Viewer on the test database.
+  - The job reads the repository variables `TIM_TESTS_CLIENT_ID`, `TIM_TESTS_TENANT_ID` and `TIM_TEST_KUSTO_CLUSTER`.
+  - It also reads `TIM_TEST_KUSTO_QUERY_DATABASE`, defaulting to `Research`.
   - It is skipped while `TIM_TESTS_CLIENT_ID` is unset.
   - It is not part of `build-api-gate`. A failure shows on the commit but blocks nothing.
-  - Each run adds an `itest` row to the ingest table.
 - **Actions use their major tag (`@vN`).** `astral-sh/setup-uv` publishes only full version tags, so it is pinned to `v10.2.0`.
 
 Repository settings that the branch flow depends on. They live in GitHub, not in the repo:

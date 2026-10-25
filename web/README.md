@@ -15,7 +15,7 @@ npm run format:check  # Prettier check (CI)
 npm run typecheck     # tsc --noEmit
 npm test              # Vitest (jsdom + Testing Library), single run
 npm run test:watch    # Vitest watch mode
-npm run e2e           # Playwright e2e (headless Chromium, real api and mocked flows)
+npm run e2e           # Playwright e2e (headless Chromium, against a real api)
 npm run e2e:headed    # same, with a visible browser
 npm run e2e:smoke     # only the flows tagged @smoke (what CI runs on a PR)
 npm run gen:api       # regenerate src/lib/api/schema.d.ts from openapi.json
@@ -42,17 +42,13 @@ Playwright specs run in headless Chromium: `e2e/flows/*.spec.ts`. Flows tagged `
 
 Neither server is reused; to run several checkouts at once, see [development.md](../docs/development.md#e2e-tests).
 
-`/config.js` comes from `public/config.js`. There are two kinds of flow.
+`/config.js` comes from `public/config.js`. Every flow imports `e2e/realApi.ts` and uses the dev actions in `e2e/actions/`.
 
-- **Real-api flows** import `e2e/realApi.ts` and use the dev actions in `e2e/actions/`.
-  - `page` is signed in as a new analyst per test (`analyst`).
-  - `signIn(upn)` opens a second analyst's browser context.
-  - `idPrefix` is a random per-test prefix for `id`s.
-- **Mocked flows** import `e2e/fixtures.ts`, which intercepts every `/api/**` call (`e2e/mocks/api.ts`, data in `e2e/mocks/data.ts`).
-  - They sign in as the stub's default account (token `dev:dev.user@example.com`).
-  - A run starts with 202 while `running`, is polled as `running`, then ends `succeeded`.
-  - Override per file with `test.use({ apiOptions: { rows, pendingPolls, handlers } })`.
-  - Inspect requests with the `api` fixture, for example `api.callsTo('POST', '/api/runs')`.
+- `page` is signed in as a new analyst per test (`analyst`).
+- `signIn(upn)` opens a second analyst's browser context.
+- `idPrefix` is a random per-test prefix for `id`s.
+- `page.route` is for faults the server can't produce.
+- `waitForEditor` is in `e2e/editor.ts`.
 
 Each test gets a fresh browser context, so IndexedDB starts empty.
 
@@ -101,7 +97,6 @@ The source has four parts:
 | `apiEndpoint`                     | `VITE_API_ENDPOINT`                          | optional, default `''` (same origin), trailing `/` stripped |
 | `agGridLicenseKey`                | `VITE_AGGRID_LICENSE_KEY`                    | optional; empty = AG Grid trial                             |
 | `wikiUri`, `issueUri`             | `VITE_HELP_WIKI_URI`, `VITE_HELP_ISSUE_URI`  | default GitHub URLs                                         |
-| `tagCluster`, `tagDatabase`       | `VITE_TAG_CLUSTER`, `VITE_TAG_DATABASE`      | cluster required; database defaults to `Research`           |
 
 ## Auth
 
@@ -133,7 +128,7 @@ docker build -t tim-web web/
 docker run --rm -p 8080:8080 \
   -e BACKEND_URI=http://api:8080 -e REDIRECT_URI=https://tim.example.com/blank.html \
   -e AUTH_CLIENT_ID=<app-id> -e AUTH_TENANT_ID=<tenant> \
-  -e TAG_CLUSTER=https://<cluster>.kusto.windows.net -e AGGRID_LICENSE=<key> tim-web
+  -e AGGRID_LICENSE=<key> tim-web
 ```
 
 The build is multi-stage:
@@ -159,10 +154,8 @@ The root filesystem can be read-only. Only `/tmp` must be writable.
 | `BACKEND_URI`                      | yes      | nginx upstream, `http(s)://host[:port]`, no path (trailing `/` stripped)         |
 | `REDIRECT_URI`                     | yes      | `redirectUri`; must be registered in Entra                                       |
 | `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` | yes      | `auth.clientId`; `auth.authority` = `https://login.microsoftonline.com/<tenant>` |
-| `TAG_CLUSTER`                      | yes      | `tagCluster`                                                                     |
 | `AGGRID_LICENSE`                   | no       | `agGridLicenseKey`; empty = trial                                                |
 | `TIM_ENVIRONMENT`                  | no       | `production` (default) or `development`; does not affect `AGGRID_LICENSE`        |
-| `TAG_DATABASE`                     | no       | default `Research`                                                               |
 | `API_BASEPATH`                     | no       | `apiEndpoint`, default empty (same origin; paths already start `/api`)           |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI`  | no       | omitted when empty (app defaults apply)                                          |
 | `NGINX_RESOLVER`                   | no       | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`   |
@@ -177,7 +170,7 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `columnViewsDao`, `appliedViewsDao`, `annotationsDao` and `annotationSyncDao`.
+- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `appliedViewsDao`, `annotationsDao` and `annotationSyncDao`.
 - Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
@@ -200,9 +193,7 @@ The entrypoint also honours three variables, for testing without Docker:
   - It carries `status`, `type`, `title`, `detail`, `traceId` (from the body or `x-trace-id`) and `errors`.
   - Client-side failures have status 0, and a `type` of `urn:tim:client:timeout`, `urn:tim:client:network` or `urn:tim:client:invalid-response`.
 - 401: one 401 triggers one token re-acquisition and one retry.
-- Endpoint modules: `taggedEvents`, `instance`, `connections` and `runs`.
-  - The `taggedEvents` functions take `{client?, signal?, timeoutMs?}`.
-  - `taggedEvents` strips the server-owned fields from bodies: `requestedBy`, `createdBy` and `dateTimeUtc`.
+- Endpoint modules: `instance`, `connections` and `runs`.
 
 Tests use the shared MSW server.
 
@@ -225,15 +216,12 @@ Tests use the shared MSW server.
 
 ## Theme
 
-Every colour lives in one palette in `src/app/theme.ts`, with a light and a dark colour scheme (`colorSchemes`). Besides MUI's entries it has TIM's own: `editor.{border,background}`, `grid.{header,oddRow}`, `determination.*` (row fills) and `stripe.*`.
+Every colour lives in one palette in `src/app/theme.ts`, with a light and a dark colour scheme (`colorSchemes`). Besides MUI's entries it has TIM's own: `editor.{border,background}`, `grid.{header,oddRow}`, `label.*` (row fills) and `labelStripe.*`.
 
 - Variables: MUI emits the palette as `--mui-palette-…` CSS variables. Components read them through palette tokens, for example `sx={{ borderColor: 'editor.border' }}` or `theme.vars.palette.*`. They never use colour literals or `theme.palette.mode`.
 - Scheme attribute: MUI writes the active scheme as `data-ag-theme-mode="light|dark"` on `<html>`. AG Grid's theme reads the same attribute.
 - `ResultsGrid.tsx`: sets the grid theme's params to those variables.
-- `grid.css`: colours determination rows by setting AG Grid's row background variables from `determination.*`. It adds a 5px `stripe.*` inset shadow on the first cell.
-- `DeterminationSymbol.tsx`: draws each tagged row's determination symbol, 16px tall, in the checkbox column.
-  - The context menu of a checkbox cell, or of the checkbox column header, has **Show determination symbols**.
-  - It is off by default. `determinationSymbols.ts` saves the choice in `localStorage['tim-determination-symbols']`.
+- `features/labels/labels.css`: colours labelled rows from `label.*` and adds a `labelStripe.*` stripe on the first cell.
 - `theme.test.ts`: checks the WCAG AA contrast pairs in both schemes.
 - `colourLiterals.test.ts`: fails on a colour literal anywhere in `src` outside `theme.ts` and tests. Hex, `rgb(`, `hsl(` and named colours all count.
 
@@ -253,7 +241,7 @@ Choosing the scheme:
 `useBootstrap(steps?)` in `src/app/useBootstrap.ts` is used by `AuthGate`. It signs in, then runs these steps in order:
 
 1. The instance: `useInstanceStore.load`.
-2. The column views of the column-view bar (`src/app/columnViewsState.ts`), then the analyst's applied column views (`loadAppliedViews`).
+2. The analyst's applied column views (`loadAppliedViews`).
 3. The tabs: `useTabsStore.load`.
 4. `resumeActionRuns`, which picks up the runs the tabs were following.
 
@@ -337,30 +325,19 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - Without a key, the grid runs as a trial, with a watermark.
   - `ResultsGrid` calls `initAgGridFromConfig()` when it is imported, so the grid works in tests without extra setup.
   - `src/app/main.tsx` must not import AG Grid.
-- `ResultsGrid`: takes `rows`, `columnId` and `stats`. `columnDefs` replaces the columns built from the rows, and `stateKey` keeps per-tab column state (see below).
+- `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows, and `stateKey` keeps per-tab column state (see below).
 - `useRowResults(uuid, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
 - Columns: the union of all row keys.
-- Row id: `_id`, taken from the `columnId` column (default `EventId`), else `row-index-N`.
+- Row id: the row's `row` ordinal.
 - Extension points:
-  - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, tagging and details.
+  - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, labelling and details.
     It accepts a list of groups: group 0 is followed by "Show details", and later non-empty groups come after a separator;
   - `onGridReady` exposes the grid api;
   - `toolbarExtra` sits beside the quick filter.
 - Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters, row grouping with a `dcount` aggregation, and a status bar.
   - The status bar shows execution time, CPU, memory in MB, and total, filtered and selected counts. An action tab adds "View: name" after the execution stats.
   - `ResultsGrid` takes `sideBar`, `statusPanels`, `context` and `onStateUpdated` for that. `onStateUpdated` is not called while the tab is hidden.
-
-### Column-view bar (`src/features/column-views`)
-
-Action tabs don't use these. They have the column views saved to the API, below.
-
-- `ColumnViewBar`: sits beside the quick filter. It has an autocomplete with a "Create column view" item, and Apply, Rename, Delete and Save icon buttons with dialogs.
-- Apply calls `applyColumnState({state, applyOrder: true})`. Save overwrites the view with the live state, and creating a view captures it.
-- `useColumnViewsStore`: a zustand store persisted through `columnViewsDao`. Its state updates after the write succeeds. `app/columnViewsState.ts` re-exports it for bootstrap.
-- The selected view belongs to one grid instance and is not persisted.
 - Per-tab column state: pass `stateKey`, the tab uuid. The state is kept in memory only, in `tabColumnState`.
-- It is saved on AG Grid `stateUpdated`, when the tab is hidden, and on unmount. A `ResizeObserver` detects hiding: the container size drops to 0.
-- It is restored when the tab is shown again and when the grid is re-created.
 
 ### Column views of action tabs (`src/features/action-column-views`)
 
@@ -378,11 +355,11 @@ Action tabs don't use these. They have the column views saved to the API, below.
 - `DetailPanel`: a persistent right drawer, 900px wide.
   - It is positioned absolutely in the grid container, so that hidden tabs hide it.
   - It has a "Result Details" accordion, and a visible close button.
-- Content: object values show as YAML, with control characters stripped before dumping. Empty values and the client `_id` are hidden.
+- Content: object values show as YAML, with control characters stripped before dumping. Empty values are hidden.
 - Opening: a "Show details" context-menu item opens it.
   - The item comes after the caller's `getContextMenuItems` items, and is disabled on group rows.
   - While open, the panel follows the focused cell's row.
-- `ResultsGrid` props `columnViews` and `detailPanel` both default to true. Set one to false to turn that feature off.
+- `ResultsGrid` prop `detailPanel` defaults to true. Set it to false to turn the panel off.
 
 ## Action tab (`src/features/action-tab`, `src/features/instance`)
 
@@ -431,59 +408,3 @@ A share link opens a run; see the glossary entry for Share link.
   - A `404` or `410` shows only "This result is no longer available".
   - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<uuid>`.
   - For an action the instance doesn't know, the rows still show and Run is disabled.
-
-## Tagging (`src/features/tagging`)
-
-Tagging saves events and attaches determinations, comments and tags to them; see [architecture.md](../docs/architecture.md#data-flow-run-poll-pivot-tag).
-
-### Quick tag
-
-- Menu: the grid's first context-menu group is a "Tag Events" submenu, built by `useTaggingMenu`.
-  - It has "Quick - Malicious", "Quick - Suspicious" and "Quick - Benign", before "Show details".
-- Targets: the selected rows, or the clicked row. The submenu and its items are disabled unless every target has `EventId` and `EventTime`.
-- `quickTag`: never rejects. It calls `saveEvents` for unsaved rows, then `commentEvents` with `{eventId, determination (lower case), isDeleted: false}` and no comment.
-- Snackbars: "Quick saving events...", "Tag events successfully saved.", "Saving events failed: ..." and "Saving comments failed: ...". The text after the colon is the API problem `detail`.
-- On success: the API returns 204, so the updated rows (`TagEvent.Determination`, `IsSaved`) are computed locally.
-  - `applyRowUpdates`, in `features/grid/rowUpdates.ts`, applies them with `applyTransaction` by `_id`. It then rewrites the tab's stored `row_results`. `_id` is never stored.
-  - The selection is cleared.
-- On failure: nothing changes.
-- The submenu starts with "Customise tag events". It is disabled outside a `TagDialogProvider`.
-
-### Customise dialog
-
-- `TagDialogProvider`: owns one `TagDialog`, and exposes `TagDialogContext`.
-  - `useTaggingMenu` calls the context's `openDialog({rows, api, uuid})` with the selected or clicked rows.
-- `TagDialog`: a `DraggableDialog` titled "Customise Tag Events", with "N event(s) selected".
-  - It has determination, comment and tags, each with an action select.
-  - The tags field is a chips autocomplete, with "Exists in N event(s)" hints. Free text is added with Enter or on blur, except when removing.
-  - A backdrop click does not close it.
-- Save: runs `validateTagDialog`, which shows messages under the fields or form, with a live modification preview.
-  - It then runs `buildTagRequests`, `submitTagRequests` and `applyRowUpdates`.
-  - It closes with the snackbar "Tag events successfully customised." or "...removed.".
-- Errors: the dialog stays open and shows "Customisation of tag events failed: <detail>" inline and as a snackbar. Save stays available.
-- Retry: after a partial failure, where events were saved but comments failed, a retry sends the save-events call again, because the rows still look unsaved.
-
-### Dialog logic
-
-This is pure code with no React.
-
-- `tagSets.ts`: `tagsFromRow`, `tagsDiff`, `tagsIntersect`, `existingTagCounts` and `tagOptions`.
-- `tagDialogLogic.ts`: `TagDialogInput` with `defaultTagDialogInput`, the per-field action lists and `isDeterminationDisabled`.
-- `validateTagDialog(input, rows)`: returns `{ok, fieldErrors, errors}`. The field errors "Determination/Comment cannot be empty." come first. The cross-field messages are computed only when those pass.
-- `modificationPreview(rows, tagAction, tags)`: returns text such as "Adding X to N event(s).".
-- `buildTagRequests(rows, input)`: returns `{savedEvents, comments, tags, updatedRows}` for the Override, Append and Remove actions.
-- `submitTagRequests`: sends events, comments and tags in that order. A failure is a `TagSubmitError` whose `stage` says which step failed.
-
-### Inline comment edit (`tagging/commentEdit.ts`)
-
-- Columns, in `features/grid/columns.ts`:
-  - `defaultColDef.editable` is false, and `buildColumnDefs` sets `editable` on every column.
-  - Only `TagEvent.Comment` is editable, and only on rows where `isCommentEditable` holds: `TagEvent.IsSaved === true`, `EventId` set, and `TagEvent.Determination` set.
-- Grid option: the grid keeps `readOnlyEdit`. So an edit arrives as `onCellEditRequest`, and AG Grid does not change the cell value.
-- Wiring: The grid wires `useCommentEdit(uuid)` by default. A caller's own `onCellEditRequest` wins.
-- `commentEdit(event, {uuid, notify, call})`: never rejects, and returns whether it saved. It ignores other columns, ineditable rows and unchanged values.
-- Saving:
-  1. shows "Quick saving comment...";
-  2. calls `commentEvents([{eventId, determination, comment, isDeleted: false}])`;
-  3. runs `applyRowUpdates`, and shows "Comment successfully quick saved.".
-- On failure: the row is untouched and the cells are refreshed, so the old value shows. "Saving comments failed: <detail>" is shown.

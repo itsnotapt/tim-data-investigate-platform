@@ -30,11 +30,10 @@ Local stack (PostgreSQL, running api and web together): see [development.md](../
 Configuration comes from `TIM_*` environment variables, optionally loaded from a `.env` file (see `src/tim_api/config.py`).
 
 - Copy `.env.example` to `.env` for local development. It lists every variable, with comments.
-- Required: `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`, `TIM_TAG_CLUSTER_URI` and `TIM_DATABASE_URL`.
+- Required: `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID` and `TIM_DATABASE_URL`.
 - Startup fails with a message naming any missing or invalid variable. Values are never printed.
 - `TIM_AUTH_DISABLED` and `TIM_DEV_ACTIONS` (the development actions) are rejected when `TIM_ENVIRONMENT=production`, the default.
-- Empty `TIM_AUTH_CLIENT_SECRET` and `TIM_TAG_INGEST_URL` count as unset.
-- The Kusto app identity uses the standard `AZURE_*` variables, read by `azure-identity`.
+- An empty `TIM_AUTH_CLIENT_SECRET` counts as unset.
 
 Production deployment and `/api` routing are in [docs/deployment.md](../docs/deployment.md). Environment variables are in [docs/configuration.md](../docs/configuration.md).
 
@@ -185,15 +184,14 @@ The build is multi-stage, on `python:3.12-slim-trixie` (Debian 13, from `mirror.
 Pydantic v2 models mirror the schemas in [api.md](../docs/api.md).
 
 - They use camelCase aliases, ignore unknown input fields, and serialise by alias.
-- They are in `actions/models.py`, `presets/models.py`, `runs/models.py` and `tagged_events/models.py`.
+- They are in `actions/models.py`, `presets/models.py`, `runs/models.py` and `annotations/models.py`.
 - The shared base and UTC datetime type are in `models_common.py`.
 
 Rules:
 
 - **Request and response models are separate:** `PresetFields` (POST and PUT), `StoredPreset` (stored) and `Preset` (returned).
-  - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `presetId`, `owner`, `createdAt`, `updatedAt`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
+  - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `presetId`, `owner`, `createdAt`, `updatedAt` and `requestedBy`.
 - **Datetimes:** input without an offset is UTC, and offsets are converted. Output is `...Z`, with milliseconds only when the value has a sub-second part.
-- **Batch types** (`SavedEventBatch`, ...) enforce 1 to 1000 items.
 
 ## Runs
 
@@ -264,50 +262,6 @@ Tests:
 | `TIM_RUN_RETENTION_SECONDS` | 86 400 | run 404 after expiry |
 | `TIM_MAX_CONCURRENT_RUNS` | 16 | per process; extra runs wait as `running` (the timeout starts when execution starts) |
 | `TIM_MAX_REQUEST_BYTES` | 67108864 | hard cap on any request body; larger requests get 413 `urn:tim:problem:too-large` |
-
-## Tagged events
-
-`POST /api/taggedevents/{savedEvents,tags,comments}`:
-
-1. validates the batch;
-2. sets `createdBy` (from the token) and `dateTimeUtc` (server clock);
-3. makes one `TagIngestClient.ingest(table, "<Table>Mapping", rows)` call, with rows keyed by the camelCase mapping paths.
-
-Ingest failures raise `TagIngestError` (502). SDK failures become `TagIngestError` too, and no row contents are logged.
-
-`get_tag_ingest_client` returns the cached `AzureTagIngestClient` whenever the tag cluster is configured.
-
-- It uses `ManagedStreamingIngestClient` from `azure-kusto-ingest`: streaming, falling back to queued.
-- It sends NDJSON, with a JSON mapping reference.
-- It authenticates with `DefaultAzureCredential`, from `AZURE_*`.
-- The SDK runs in a thread.
-- The ingest URL is `TIM_TAG_INGEST_URL`, or `https://ingest-<cluster host>`.
-- The in-memory `FakeTagIngestClient` is used only with `TIM_ENVIRONMENT=development` and `TIM_TAG_INGEST_FAKE=true`.
-
-Streaming gives read-your-writes. The tag tables need the streaming ingestion policy, which the table creation CLI below enables.
-
-An optional integration test runs with `pytest -m kusto`. Set `TIM_TEST_KUSTO_INGEST_URL`, and `TIM_TEST_KUSTO_DATABASE` and `TIM_TEST_KUSTO_TABLE`. See [development.md](../docs/development.md#live-kusto-tests) to run it locally.
-
-## Tag table creation CLI
-
-```
-python -m tim_api.tagged_events.cli create-tables [--dry-run] [--cluster-uri URI] [--database DB]
-```
-
-It creates:
-
-- the `SavedEvent`, `EventTag` and `EventComment` tables (`.create-merge table`);
-- their `<Table>Mapping` JSON ingestion mappings (`.create-or-alter ... ingestion json mapping`);
-- the streaming ingestion policy on each (`.alter table ... policy streamingingestion enable`).
-
-It is safe to re-run.
-
-- Definitions live in `tagged_events/kusto_schema.py`, shared with the ingest endpoints.
-- Cluster and database default to `TIM_TAG_CLUSTER_URI` and `TIM_TAG_DATABASE` (`Research`). No other settings are needed.
-- It authenticates with `DefaultAzureCredential` (`AZURE_*` or `az login`). So the identity needs database admin rights.
-- `--dry-run` prints the commands without connecting.
-- The first failing command stops the run. It is printed to stderr, and the CLI exits 1.
-- Table creation is a deploy step, not app startup.
 
 ## Errors, CORS and logging
 

@@ -41,7 +41,6 @@ client ── TLS proxy / Ingress ──> web (nginx :8080) ──/api/──> a
 | ----------------------- | ------------------------------------------- | -------------------------------- |
 | Mode                    | `TIM_ENVIRONMENT`                           | `TIM_ENVIRONMENT`                |
 | Entra tenant / client   | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`  | `AUTH_TENANT_ID`, `AUTH_CLIENT_ID` |
-| Tag cluster / database  | `TIM_TAG_CLUSTER_URI`, `TIM_TAG_DATABASE`   | `TAG_CLUSTER`, `TAG_DATABASE`    |
 | Database (secret)       | `TIM_DATABASE_URL`                          | -                                |
 | OBO credential (secret) | `TIM_AUTH_CLIENT_SECRET` or workload identity (`AZURE_FEDERATED_TOKEN_FILE`) | -  |
 | AG Grid licence (secret)| -                                           | `AGGRID_LICENSE`                 |
@@ -106,7 +105,6 @@ To run providers, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` to a [derived imag
 | `POSTGRES_PASSWORD` | yes | - | `POSTGRES_USER` / `POSTGRES_DB` default `tim` |
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID` | yes | - | Also passed to web |
 | `TIM_AUTH_CLIENT_SECRET` | yes | - | OBO client secret |
-| `TIM_TAG_CLUSTER_URI` | yes | - | https; `TIM_TAG_DATABASE` defaults to `Research` |
 | `TIM_CORS_ALLOWED_ORIGINS` | no | empty | Comma separated |
 | `TIM_LOG_LEVEL` | no | `INFO` | |
 | `AGGRID_LICENSE` | no | empty | Empty = AG Grid Enterprise trial mode |
@@ -220,8 +218,6 @@ config:
   auth:
     tenantId: <tenant id>
     clientId: <client id>
-  tags:
-    clusterUri: https://<cluster>.<region>.kusto.windows.net
 secrets:
   existingSecret: tim-secrets
 ingress:
@@ -286,19 +282,14 @@ api:
     azure.workload.identity/use: "true"
 ```
 
-The workload identity webhook then injects:
-
-- `AZURE_FEDERATED_TOKEN_FILE`, used for OBO when `TIM_AUTH_CLIENT_SECRET` is unset;
-- `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`, which `DefaultAzureCredential` uses for tag ingest.
-
-Without workload identity, pass `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_CLIENT_SECRET` through `api.extraEnv` or `api.extraEnvFrom`. Compose doesn't wire them. Add them to the api environment if tag ingest needs a separate app identity.
+The workload identity webhook then injects `AZURE_FEDERATED_TOKEN_FILE`, used for OBO when `TIM_AUTH_CLIENT_SECRET` is unset.
 
 Other api limits keep their defaults unless set through `api.extraEnv` (see [configuration.md](configuration.md)):
 
 - `TIM_MAX_REQUEST_BYTES`, `TIM_MAX_RESULT_ROWS`, `TIM_MAX_RESULT_BYTES`;
 - `TIM_RUN_TIMEOUT_SECONDS`, `TIM_MAX_CONCURRENT_RUNS`, `TIM_ROWS_PAGE_SIZE`, `TIM_MAX_PIVOT_ROWS`;
 - `TIM_RUN_RETENTION_SECONDS`, `TIM_RUN_RETENTION_SWEEP_SECONDS`;
-- `TIM_AUTH_AUTHORITY_HOST`, `TIM_TAG_INGEST_URL`.
+- `TIM_AUTH_AUTHORITY_HOST`.
 
 ### Instance files under Helm
 
@@ -362,7 +353,6 @@ helm uninstall tim -n tim
 | `config.environment` | `production` | `TIM_ENVIRONMENT` (api, web) |
 | `config.publicUrl` | `https://<ingress.host>` | `REDIRECT_URI` = `<publicUrl>/blank.html` |
 | `config.auth.tenantId` / `clientId` | required | `TIM_AUTH_TENANT_ID` / `TIM_AUTH_CLIENT_ID`, `AUTH_TENANT_ID` / `AUTH_CLIENT_ID` |
-| `config.tags.clusterUri` / `database` | required / `Research` | `TIM_TAG_CLUSTER_URI` / `TIM_TAG_DATABASE`, `TAG_CLUSTER` / `TAG_DATABASE` |
 | `secrets.existingSecret` | empty | Use this Secret instead of creating one |
 | `secrets.databaseUrl` / `authClientSecret` / `agGridLicense` | empty | `TIM_DATABASE_URL` / `TIM_AUTH_CLIENT_SECRET` / `AGGRID_LICENSE` |
 | `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/backend` / empty / empty | Empty `tag` uses the backend version pinned in `image-tags.yaml`; `digest` wins over `tag`. Another `repository` needs `tag` or `digest` ([Derived images](#derived-images)) |
