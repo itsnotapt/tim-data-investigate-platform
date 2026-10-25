@@ -2,9 +2,6 @@
 
 All variables use the ``TIM_`` prefix and may also come from a ``.env`` file in the working
 directory.
-The app identity for Kusto ingest/admin is read by ``azure-identity`` from the standard
-``AZURE_CLIENT_ID`` / ``AZURE_TENANT_ID`` / ``AZURE_CLIENT_SECRET`` variables and is
-deliberately not part of ``Settings``.
 """
 
 from __future__ import annotations
@@ -50,13 +47,6 @@ class Settings(BaseSettings):
     auth_authority_host: str = "https://login.microsoftonline.com"  # sovereign clouds override
     # Dev-only bypass. Rejected in production.
     auth_disabled: bool = False
-
-    # --- tagging -----------------------------------------------------------------------
-    tag_cluster_uri: str = Field(min_length=1)
-    tag_database: str = "Research"
-    tag_ingest_url: str | None = None  # optional; derived from tag_cluster_uri when unset
-    # Dev only: in-memory fake instead of real ingestion (needs environment=development).
-    tag_ingest_fake: bool = False
 
     # --- actions (ADR-0017) --------------------------------------------------------------
     # One flat directory of action files, read at startup.
@@ -104,7 +94,6 @@ class Settings(BaseSettings):
 
     @field_validator(
         "auth_client_secret",
-        "tag_ingest_url",
         "actions_dir",
         "connections_file",
         "labels_file",
@@ -129,7 +118,7 @@ class Settings(BaseSettings):
             raise ValueError(f"no file {value}")
         return value
 
-    @field_validator("tag_cluster_uri", "tag_ingest_url", "auth_authority_host")
+    @field_validator("auth_authority_host")
     @classmethod
     def _require_https(cls, value: str | None) -> str | None:
         if value is not None and urlparse(value).scheme != "https":

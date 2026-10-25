@@ -28,18 +28,9 @@ def test_invalid_value_is_reported_without_echoing_it(monkeypatch: pytest.Monkey
     assert "hunter2" not in str(info.value)
 
 
-def test_non_https_cluster_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TIM_TAG_CLUSTER_URI", "http://x.kusto.windows.net")
-    with pytest.raises(SettingsError, match="TIM_TAG_CLUSTER_URI"):
-        get_settings()
-
-
 def test_defaults_applied() -> None:
     s = make()
     assert s.environment == "production"
-    assert s.tag_database == "Research"
-    assert s.tag_ingest_url is None
-    assert s.tag_ingest_fake is False
     assert s.auth_client_secret is not None
     assert s.auth_disabled is False
     assert s.cors_allowed_origins == []
@@ -63,7 +54,14 @@ def test_empty_list_value(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.parametrize(
     ("name", "value"),
-    [("TIM_ALLOWED_KUSTO_HOSTS", "*foo.com"), ("TIM_KUSTO_OBO_SCOPE", "{cluster}/x")],
+    [
+        ("TIM_ALLOWED_KUSTO_HOSTS", "*foo.com"),
+        ("TIM_KUSTO_OBO_SCOPE", "{cluster}/x"),
+        ("TIM_TAG_CLUSTER_URI", "http://x.kusto.windows.net"),
+        ("TIM_TAG_DATABASE", "Other"),
+        ("TIM_TAG_INGEST_URL", "http://ingest-x.kusto.windows.net"),
+        ("TIM_TAG_INGEST_FAKE", "true"),
+    ],
 )
 def test_removed_variable_has_no_effect(
     monkeypatch: pytest.MonkeyPatch, name: str, value: str
@@ -103,14 +101,12 @@ def test_get_settings_is_cached() -> None:
 
 def test_reads_dotenv_file(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
-    env_file.write_text("TIM_TAG_DATABASE=FromFile\n")
-    assert Settings(_env_file=env_file).tag_database == "FromFile"
+    env_file.write_text("TIM_RUN_TIMEOUT_SECONDS=42\n")
+    assert Settings(_env_file=env_file).run_timeout_seconds == 42
 
 
 def test_empty_optional_secret_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     """Compose passes unset optional variables as empty strings (must not become a secret)."""
     monkeypatch.setenv("TIM_AUTH_CLIENT_SECRET", "")
-    monkeypatch.setenv("TIM_TAG_INGEST_URL", "")
     s = make()
     assert s.auth_client_secret is None
-    assert s.tag_ingest_url is None

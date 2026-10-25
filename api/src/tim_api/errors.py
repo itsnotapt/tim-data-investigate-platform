@@ -25,7 +25,6 @@ from tim_api.observability import get_trace_id, log_safe
 from tim_api.presets.action_file import NoActionFileError
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.storage import AlreadyExistsError, NotFoundError, StorageUnavailableError
-from tim_api.tagged_events.ingest import TagIngestError
 
 logger = logging.getLogger("tim_api")
 
@@ -190,7 +189,6 @@ def register_exception_handlers(app: FastAPI) -> None:
         OboUpstreamError, fixed(502, "The identity provider could not be reached")
     )
     app.add_exception_handler(OboUnavailableError, fixed(503, "Token exchange is not available"))
-    app.add_exception_handler(TagIngestError, fixed(502, "Tag ingestion failed"))
     app.add_exception_handler(UnprocessableError, unprocessable)
     app.add_exception_handler(
         RunNotSucceededError,
