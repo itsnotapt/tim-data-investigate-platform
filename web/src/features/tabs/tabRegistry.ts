@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 import { ActionTab } from '../action-tab/ActionTab';
 import { KustoQueryTab } from '../kusto-query/KustoQueryTab';
-import { TemplateQueryTab } from '../template-query/TemplateQueryTab';
 import type { TabKind } from './types';
 
 /** Every tab component receives only its uuid and reads the tab from the store. */
@@ -15,5 +14,4 @@ export type TabRegistry = Record<TabKind, ComponentType<TabComponentProps>>;
 export const tabRegistry: TabRegistry = {
   ActionResult: ActionTab,
   KustoQueryResult: KustoQueryTab,
-  TemplateQueryResult: TemplateQueryTab,
 };

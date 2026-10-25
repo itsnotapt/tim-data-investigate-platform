@@ -27,7 +27,7 @@ Decided by the user. Related: [0005](0005-auth-entra-popup-obo.md), [0009](0009-
 
 ## Consequences
 
-- An XSS bug on the web origin would expose cached tokens. The nginx Content-Security-Policy in `web/docker/nginx.conf.template` limits what can load and where requests can go: scripts are same-origin only, `connect-src` is this origin, Entra ID and the configured API origin, and `object-src` is `none`. It is not a full defence, because `script-src` includes `'unsafe-eval'` (Handlebars compiles templates with `new Function`, see [0015](0015-kql-templating.md)).
-- The cached access token is for the TIM API scope only. Kusto tokens are obtained by the API via OBO and never reach the browser.
+- An XSS bug on the web origin would expose cached tokens. The nginx Content-Security-Policy in `web/docker/nginx.conf.template` limits what can load and where requests can go: scripts are same-origin only, `connect-src` is this origin, Entra ID and the configured API origin, and `object-src` is `none`. It is not a full defence, because `script-src` includes `'unsafe-eval'`, which the Kusto Monaco worker needs.
+- The cached access token is for the TIM API scope only. Connection tokens are obtained by the API via OBO and never reach the browser.
 - Sign-out uses `logoutPopup` and clears the active account.
 - Browsers must allow popups. The CSP allows `frame-src` to Entra ID for the hidden iframe used by `ssoSilent`.

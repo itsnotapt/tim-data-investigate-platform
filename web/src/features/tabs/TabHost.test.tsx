@@ -25,7 +25,6 @@ function useMountLog(kind: string, uuid: string) {
 }
 const registry: TabRegistry = {
   KustoQueryResult: (p: TabComponentProps) => <Probe kind="kusto" uuid={p.uuid} />,
-  TemplateQueryResult: (p: TabComponentProps) => <Probe kind="template" uuid={p.uuid} />,
   ActionResult: (p: TabComponentProps) => <Probe kind="action" uuid={p.uuid} />,
 };
 
@@ -111,25 +110,6 @@ describe('TabHost', () => {
       ['kusto', 'a'],
       ['kusto', 'b'],
     ]);
-  });
-
-  it('remounts with the new component when the tab is converted', async () => {
-    useTabsStore.getState().createTab({
-      componentUuid: 't',
-      componentName: 'TemplateQueryResult',
-      parentUuid: null,
-      title: 'T',
-      params: { inParams: {}, queryTemplate: {} },
-    });
-    useTabsStore.setState({ loaded: true });
-    renderAt('/view/t');
-    expect(await screen.findByText('template:T')).toBeInTheDocument();
-    act(() =>
-      useTabsStore.getState().convertToKusto('t', { query: 'Q', cluster: '', database: '' }),
-    );
-    expect(await screen.findByText('kusto:T')).toBeInTheDocument();
-    expect(screen.queryByText('template:T')).not.toBeInTheDocument();
-    expect(mounts.mock.calls.map((c) => c[0])).toEqual(['template', 'kusto']);
   });
 
   it('drops a removed tab from the mounted set', async () => {

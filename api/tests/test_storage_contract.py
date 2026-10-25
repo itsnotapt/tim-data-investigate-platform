@@ -10,12 +10,7 @@ from storage_contract import (
     PresetContract,
     QueryRunContract,
     RunContract,
-    TemplateContract,
 )
-
-
-class TestTemplateStore(TemplateContract):
-    pass
 
 
 class TestQueryRunStore(QueryRunContract):

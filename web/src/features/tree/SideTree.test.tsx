@@ -7,16 +7,16 @@ import { kusto, newTestStore } from '../../test/tabsTestUtils';
 
 const Loc = () => <div data-testid="loc">{useLocation().pathname}</div>;
 
-function renderTree(store = newTestStore(), initial = '/', onReload = vi.fn()) {
+function renderTree(store = newTestStore(), initial = '/') {
   render(
     <MemoryRouter initialEntries={[initial]}>
-      <SideTree templates={[]} onReloadTemplates={onReload} store={store} />
+      <SideTree store={store} />
       <Routes>
         <Route path="*" element={<Loc />} />
       </Routes>
     </MemoryRouter>,
   );
-  return { store, onReload };
+  return { store };
 }
 const node = (id: string) => screen.getByTestId(`tree-node-${id}`);
 const expand = async () => userEvent.hover(screen.getByLabelText('Query tree'));
@@ -148,12 +148,6 @@ describe('SideTree', () => {
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe('/'));
   });
 
-  it('Reload templates calls onReload', async () => {
-    const { onReload } = renderTree();
-    await userEvent.click(screen.getByLabelText('Reload templates'));
-    expect(onReload).toHaveBeenCalledTimes(1);
-  });
-
   it('expands on hover', async () => {
     const store = newTestStore();
     store.getState().createTab(kusto('a'));
@@ -182,7 +176,7 @@ describe('SideTree', () => {
     store.getState().createTab(kusto('a'));
     const { unmount } = render(
       <MemoryRouter>
-        <SideTree templates={[]} onReloadTemplates={vi.fn()} store={store} />
+        <SideTree store={store} />
       </MemoryRouter>,
     );
     await expand();

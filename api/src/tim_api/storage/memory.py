@@ -38,78 +38,7 @@ from tim_api.storage.base import (
     QueryRunStore,
     RunStore,
     Storage,
-    TemplateStore,
 )
-from tim_api.templates.models import QueryTemplate, QueryTemplateFields
-
-
-class MemoryTemplateStore(TemplateStore):
-    def __init__(self) -> None:
-        self._items: dict[UUID, QueryTemplate] = {}
-        self._lock = asyncio.Lock()
-
-    async def list(self, *, since: datetime | None, include_deleted: bool) -> list[QueryTemplate]:
-        async with self._lock:
-            items = [
-                t
-                for t in self._items.values()
-                if (include_deleted or not t.is_deleted) and (since is None or t.updated > since)
-            ]
-            items.sort(key=lambda t: (t.updated, t.uuid))
-            return [t.model_copy(deep=True) for t in items]
-
-    async def get(self, uuid: UUID) -> QueryTemplate | None:
-        async with self._lock:
-            found = self._items.get(uuid)
-            return found.model_copy(deep=True) if found else None
-
-    async def create(self, template: QueryTemplate) -> QueryTemplate:
-        async with self._lock:
-            if template.uuid in self._items:
-                raise AlreadyExistsError(str(template.uuid))
-            self._items[template.uuid] = template.model_copy(deep=True)
-            return template.model_copy(deep=True)
-
-    async def replace(
-        self, uuid: UUID, fields: QueryTemplateFields, *, updated_by: str, updated: datetime
-    ) -> QueryTemplate:
-        async with self._lock:
-            current = self._items.get(uuid)
-            if current is None:
-                raise NotFoundError(str(uuid))
-            new = QueryTemplate.model_validate(
-                {
-                    **fields.model_dump(by_alias=False),
-                    "uuid": uuid,
-                    "is_deleted": current.is_deleted,
-                    "created_by": current.created_by,
-                    "updated_by": updated_by,
-                    "updated": updated,
-                }
-            )
-            self._items[uuid] = new
-            return new.model_copy(deep=True)
-
-    async def save(self, template: QueryTemplate) -> QueryTemplate:
-        async with self._lock:
-            current = self._items.get(template.uuid)
-            if current is None:
-                raise NotFoundError(str(template.uuid))
-            new = template.model_copy(deep=True, update={"created_by": current.created_by})
-            self._items[template.uuid] = new
-            return new.model_copy(deep=True)
-
-    async def soft_delete(self, uuid: UUID, *, updated_by: str, updated: datetime) -> QueryTemplate:
-        async with self._lock:
-            current = self._items.get(uuid)
-            if current is None:
-                raise NotFoundError(str(uuid))
-            if not current.is_deleted:
-                current = current.model_copy(
-                    update={"is_deleted": True, "updated_by": updated_by, "updated": updated}
-                )
-                self._items[uuid] = current
-            return current.model_copy(deep=True)
 
 
 class MemoryQueryRunStore(QueryRunStore):
@@ -535,7 +464,6 @@ class MemoryAnnotationStore(AnnotationStore):
 
 class MemoryStorage(Storage):
     def __init__(self) -> None:
-        self.templates = MemoryTemplateStore()
         self.query_runs = MemoryQueryRunStore()
         self.runs = MemoryRunStore()
         self.presets = MemoryPresetStore()

@@ -18,7 +18,7 @@ export interface CallOptions extends RequestOptions {
 
 interface ApiRequest extends RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  /** Path below the API origin, e.g. `/api/templates/queries`. */
+  /** Path below the API origin, e.g. `/api/presets`. */
   path: string;
   query?: Record<string, string | boolean | undefined | null>;
   body?: unknown;
@@ -50,7 +50,7 @@ export interface ApiClientOptions {
 }
 
 /** Fields the server owns; never sent, whatever the caller passes. */
-const SERVER_OWNED = new Set(['requestedBy', 'createdBy', 'updatedBy', 'updated', 'dateTimeUtc']);
+const SERVER_OWNED = new Set(['requestedBy', 'createdBy', 'dateTimeUtc']);
 
 /** Removes server-owned identity fields from a request body (top level, or per array item). */
 export function stripServerOwned<T>(body: T): T {

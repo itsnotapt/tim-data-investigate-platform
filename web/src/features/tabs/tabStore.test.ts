@@ -142,6 +142,28 @@ describe('persistence', () => {
     expect(selectRoots(st).map((t) => t.componentUuid)).toEqual(['early', 'orphan']);
     expect(st.tabs['orphan']?.parentUuid).toBeNull();
   });
+
+  it('load drops a stored tab of an unknown kind with its row results; its children become roots', async () => {
+    const parent = store.getState().createTab(kusto(null, 'kept'));
+    await store.getState().flush();
+    const raw = (await displayComponentsDao.get(parent))!;
+    await displayComponentsDao.put({
+      ...raw,
+      componentUuid: 'old',
+      componentName: 'TemplateQueryResult',
+      parentUuid: null,
+      displayComponentIndex: 0,
+    } as never);
+    await displayComponentsDao.put({ ...raw, componentUuid: 'child', parentUuid: 'old' });
+    await rowResultsDao.put('old', [{ x: 1 }]);
+
+    const fresh = await reload();
+    const st = fresh.getState();
+    expect(st.order.sort()).toEqual([parent, 'child'].sort());
+    expect(st.tabs['child']?.parentUuid).toBeNull();
+    expect(await displayComponentsDao.get('old')).toBeUndefined();
+    expect(await rowResultsDao.get('old')).toEqual([]);
+  });
 });
 
 describe('remove', () => {
@@ -232,30 +254,7 @@ describe('errors', () => {
   });
 });
 
-describe('convert, trigger, visited', () => {
-  it('converts a template tab to a kusto tab keeping uuid and parent', () => {
-    const p = store.getState().createTab(kusto(null));
-    const t = store.getState().createTab({
-      componentName: 'TemplateQueryResult',
-      parentUuid: p,
-      title: 'tpl',
-      params: { inParams: { a: 1 }, queryTemplate: { query: 'x' } },
-      state: { editQuery: true },
-    });
-    store
-      .getState()
-      .convertToKusto(t, { query: 'Q', cluster: 'c', database: 'd' }, { isVisited: true });
-    const tab = store.getState().tabs[t]!;
-    expect(tab.componentName).toBe('KustoQueryResult');
-    expect(tab.params).toEqual({ query: 'Q', cluster: 'c', database: 'd' });
-    expect(tab.parentUuid).toBe(p);
-    expect(tab.state.editQuery).toBeUndefined();
-    expect(tab.state.isVisited).toBe(true);
-    // Kusto tabs are not converted again.
-    store.getState().convertToKusto(p, { query: 'Z', cluster: '', database: '' });
-    expect(store.getState().tabs[p]?.params).toMatchObject({ query: 'T' });
-  });
-
+describe('trigger, visited', () => {
   it('triggerRowData strictly increases and persists', async () => {
     const a = store.getState().createTab(kusto(null));
     const seen: Array<number | null> = [];

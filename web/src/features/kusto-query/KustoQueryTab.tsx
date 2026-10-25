@@ -17,11 +17,11 @@ import { validateClusterSelection } from '../../components/clusterSelection';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import { TimeRangePicker } from '../../components/TimeRangePicker';
 import { DEFAULT_TIME_RANGE, type TimeRange } from '../../lib/time-range';
-import { PivotResultsGrid } from '../pivots';
+import { TabResultsGrid } from '../grid';
 import { NewQueryMenu } from '../new-query';
+import { TagDialogProvider, useTaggingMenu } from '../tagging';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
-import { useTemplatesStore } from '../templates';
 import { QueryHelperDialog } from './QueryHelperDialog';
 import { useKustoSchema } from './useKustoSchema';
 import { useRunKustoQuery, type RunKustoQueryArgs } from './useRunKustoQuery';
@@ -38,6 +38,12 @@ interface Draft {
   query: string;
 }
 
+/** Grid with the tagging menu; needs `TagDialogProvider` above it. */
+function TaggingGrid({ uuid }: { uuid: string }) {
+  const tagging = useTaggingMenu(uuid);
+  return <TabResultsGrid uuid={uuid} getContextMenuItems={[tagging]} />;
+}
+
 const Sep = () => <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 0.5 }} />;
 
 /**
@@ -45,8 +51,6 @@ const Sep = () => <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 0.5 
  */
 export function KustoQueryTab({ uuid, onRun }: KustoQueryTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
-  const templates = useTemplatesStore((s) => s.templates);
-  const queryOptions = useTemplatesStore((s) => s.queryOptions);
   const navigate = useNavigate();
   const defaultRun = useRunKustoQuery();
   const run = onRun ?? defaultRun;
@@ -119,7 +123,7 @@ export function KustoQueryTab({ uuid, onRun }: KustoQueryTabProps) {
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', px: 1 }}>
-        <NewQueryMenu templates={templates} queryOptions={queryOptions} size="small">
+        <NewQueryMenu size="small">
           <AddIcon fontSize="small" sx={{ mr: 0.5 }} />
           New
         </NewQueryMenu>
@@ -220,7 +224,11 @@ export function KustoQueryTab({ uuid, onRun }: KustoQueryTabProps) {
         </Alert>
       )}
 
-      {tab.rowDataTrigger !== null && <PivotResultsGrid uuid={uuid} />}
+      {tab.rowDataTrigger !== null && (
+        <TagDialogProvider>
+          <TaggingGrid uuid={uuid} />
+        </TagDialogProvider>
+      )}
 
       <QueryHelperDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </Box>

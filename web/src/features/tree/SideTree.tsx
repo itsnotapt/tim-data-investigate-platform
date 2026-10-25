@@ -1,7 +1,6 @@
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
@@ -11,7 +10,7 @@ import IconButton from '@mui/material/IconButton';
 import ListItemButton from '@mui/material/ListItemButton';
 import { useEffect, useMemo, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router';
-import { NewQueryMenu, type NewQueryMenuProps } from '../new-query';
+import { NewQueryMenu } from '../new-query';
 import { selectAncestors, selectRoots, useTabsStore, type Tab, type TabsStore } from '../tabs';
 import { TreeNodeIcon } from './TreeNodeIcon';
 import { TreeNodeLabel } from './TreeNodeLabel';
@@ -21,10 +20,6 @@ export const SIDE_TREE_COLLAPSED_WIDTH = 56;
 const SIDE_TREE_EXPANDED_WIDTH = 700;
 
 export interface SideTreeProps {
-  templates: NewQueryMenuProps['templates'];
-  queryOptions?: NewQueryMenuProps['queryOptions'];
-  /** Called by the "Reload templates" button. Must handle its own errors (rejections are ignored). */
-  onReloadTemplates: () => void | Promise<void>;
   /** Override the tab store (tests). */
   store?: TabsStore;
 }
@@ -33,12 +28,7 @@ export interface SideTreeProps {
  * Query tree drawer (mini variant, expands on hover). The active node comes straight from the
  * route (`/view/:uuid`) on every render, so it is highlighted after a hard load too.
  */
-export function SideTree({
-  templates,
-  queryOptions,
-  onReloadTemplates,
-  store = useTabsStore,
-}: SideTreeProps) {
+export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const navigate = useNavigate();
   const activeUuid = useMatch('/view/:uuid')?.params.uuid;
   const tabs = store((s) => s.tabs);
@@ -180,23 +170,9 @@ export function SideTree({
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', pl: 1, whiteSpace: 'nowrap', minWidth: 0 }}>
-        <NewQueryMenu
-          templates={templates}
-          queryOptions={queryOptions}
-          ariaLabel="New query"
-          store={store}
-        >
+        <NewQueryMenu ariaLabel="New query" store={store}>
           <AddIcon />
         </NewQueryMenu>
-        <IconButton
-          aria-label="Reload templates"
-          title="Reload templates"
-          onClick={() => {
-            void Promise.resolve(onReloadTemplates()).catch(() => undefined);
-          }}
-        >
-          <RefreshIcon />
-        </IconButton>
         <IconButton
           aria-label="Remove selected"
           title="Remove selected"

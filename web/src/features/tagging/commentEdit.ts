@@ -31,7 +31,6 @@ export interface CommentEditEvent {
 export interface CommentEditOptions {
   /** Tab uuid, for the stored rows. */
   uuid: string;
-  columnId?: string | null;
   notify: (message: string) => void;
   call?: CallOptions;
 }
@@ -74,7 +73,7 @@ export async function commentEdit(
     return false;
   }
   const row = { ...data, TagEvent: { ...tag, Comment: comment } } as GridRowWithId;
-  await applyRowUpdates(event.api, opts.uuid, [row], opts.columnId);
+  await applyRowUpdates(event.api, opts.uuid, [row]);
   opts.notify(COMMENT_MESSAGES.success);
   return true;
 }
@@ -82,14 +81,13 @@ export async function commentEdit(
 /** `onCellEditRequest` handler for a tab's grid (comment edit). */
 export function useCommentEdit(
   uuid: string,
-  columnId?: string | null,
   call?: CallOptions,
 ): (event: CellEditRequestEvent<GridRowWithId>) => void {
   const notifyCtx = useContext(NotifyContext);
   return useCallback(
     (event) => {
-      void commentEdit(event, { uuid, columnId, call, notify: (m) => notifyCtx?.(m) });
+      void commentEdit(event, { uuid, call, notify: (m) => notifyCtx?.(m) });
     },
-    [uuid, columnId, call, notifyCtx],
+    [uuid, call, notifyCtx],
   );
 }

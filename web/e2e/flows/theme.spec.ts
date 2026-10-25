@@ -7,7 +7,6 @@ import { mockApi } from '../mocks';
 import { runAdhocQuery } from '../mocks/adhoc-grid';
 import { DETERMINATION_SYMBOLS_KEY } from '../../src/features/grid/determinationSymbolsKey';
 import { waitForEditor } from '../mocks/editor';
-import { openRunTemplateTab, openTemplateTab, templateStoreHandlers } from '../mocks/templates';
 
 // Computed colours of the light and dark palettes (web/src/app/theme.ts).
 const LIGHT = {
@@ -217,10 +216,6 @@ async function expectTaggedRowContrast(page: Page) {
   }
 }
 
-const store = templateStoreHandlers();
-test.use({ apiOptions: { handlers: store.handlers } });
-test.beforeEach(() => store.reset());
-
 /** The KQL editor of a new ad hoc query. */
 async function expectKqlEditor(page: Page, colours: Colours) {
   await page.goto('/');
@@ -231,15 +226,6 @@ async function expectKqlEditor(page: Page, colours: Colours) {
     'background-color',
     colours.editor,
   );
-}
-
-/** The Query Manager edit dialog has YAML and plain text editors only: no Kusto is loaded. */
-async function expectYamlEditor(page: Page, colours: Colours) {
-  await page.goto('/#/queries');
-  await page.getByRole('button', { name: 'Storm events by state' }).click();
-  const params = page.getByRole('dialog', { name: 'Edit Query' }).locator('.monaco-editor').first();
-  await waitForEditor(page, params);
-  await expect(params).toHaveCSS('background-color', colours.editor);
 }
 
 // The results grid and config error page in each scheme are checked in the colour contrast sweep.
@@ -253,18 +239,13 @@ test.describe('with dark mode stored', () => {
     await expectScheme(page, 'dark', DARK);
   });
 
-  test('a YAML editor opened before any KQL editor is dark, and so is the KQL editor', async ({
-    page,
-  }) => {
-    await expectYamlEditor(page, DARK);
-    // `/` from `#/queries` is a full page load, so the YAML editor was the first on its page.
+  test('the KQL editor is dark', async ({ page }) => {
     await expectKqlEditor(page, DARK);
   });
 });
 
 test.describe('with nothing stored', () => {
-  test('the YAML and KQL editors are on the light editor background', async ({ page }) => {
-    await expectYamlEditor(page, LIGHT);
+  test('the KQL editor is on the light editor background', async ({ page }) => {
     await expectKqlEditor(page, LIGHT);
   });
 });
@@ -350,7 +331,7 @@ test.describe('Settings › Appearance', () => {
   test('a second page in the same browser follows the choice', async ({ page, context }) => {
     await expectAppShell(page, LIGHT);
     const other = await context.newPage();
-    await mockApi(other, { handlers: store.handlers });
+    await mockApi(other);
     await expectAppShell(other, LIGHT);
 
     await pickAppearance(page, 'Dark');
@@ -401,30 +382,8 @@ for (const scheme of ['light', 'dark'] as const) {
       await expectColourContrast(page);
     }
 
-    test('home and Query Manager', async ({ page }) => {
+    test('home', async ({ page }) => {
       await pickScheme(page);
-      await expectContrastInScheme(page);
-
-      await page.goto('/#/queries');
-      await expect(page.getByRole('heading', { name: 'Query Manager' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Storm events by state' })).toBeVisible();
-      await expectContrastInScheme(page);
-    });
-
-    test('a template tab in edit mode, and its results after a reload', async ({ page }) => {
-      await pickScheme(page);
-
-      await openTemplateTab(page);
-      await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
-      await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
-      await expectContrastInScheme(page);
-
-      await openRunTemplateTab(page);
-      // Reloading the tab's own URL reopens the template tab.
-      await page.reload();
-      await expect(page).toHaveURL(/#\/view\//);
-      await expect(page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
       await expectContrastInScheme(page);
     });
 

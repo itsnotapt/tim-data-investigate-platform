@@ -22,7 +22,6 @@ import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../pr
 import { copyShareLink } from '../share-links';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
-import { useTemplatesStore } from '../templates';
 import { useActionPivotMenu } from '../action-pivots';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
@@ -142,8 +141,6 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
   const shown = useRunRows(uuid);
   const notify = useContext(NotifyContext);
-  const templates = useTemplatesStore((s) => s.templates);
-  const queryOptions = useTemplatesStore((s) => s.queryOptions);
   const actionState = tab?.componentName === 'ActionResult' ? tab.state : undefined;
   const elapsed = useElapsed(
     actionState?.isExecuting && actionState.run?.status === 'running'
@@ -312,7 +309,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
-        <NewQueryMenu templates={templates} queryOptions={queryOptions} size="small">
+        <NewQueryMenu size="small">
           <AddIcon fontSize="small" sx={{ mr: 0.5 }} />
           New
         </NewQueryMenu>

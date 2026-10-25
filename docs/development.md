@@ -153,7 +153,7 @@ There are two kinds of flow. What the spec imports picks the kind:
 | Flow | Imports | Talks to |
 |---|---|---|
 | Against the real api | `e2e/realApi.ts` | The api above. Nothing is intercepted. `page.route` is only for faults the server can't produce. New flows are written this way |
-| Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the template and Kusto features, which predate actions |
+| Mocked | `e2e/fixtures.ts` | `web/e2e/mocks`, which intercept every `/api/**` call. The flows for the Kusto features, which predate actions |
 
 The `@smoke` tag marks the smoke flows:
 

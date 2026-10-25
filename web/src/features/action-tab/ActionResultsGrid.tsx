@@ -52,7 +52,6 @@ const DEFAULT_MAX_IDS = 10_000;
 export type ActionResultsGridProps = Omit<
   ResultsGridProps,
   | 'rows'
-  | 'templateColumns'
   | 'columnId'
   | 'columnDefs'
   | 'stateKey'

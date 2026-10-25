@@ -111,7 +111,7 @@ async def storage(request: pytest.FixtureRequest) -> AsyncIterator[Storage]:
         async with engine.begin() as conn:
             await conn.execute(
                 text(
-                    "TRUNCATE query_templates, query_runs, runs, run_rows, presets, preset_hidden, "
+                    "TRUNCATE query_runs, runs, run_rows, presets, preset_hidden, "
                     "column_views, column_view_hidden, "
                     "id_state, label_changes, tags, comments"
                 )

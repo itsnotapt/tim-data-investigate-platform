@@ -1,12 +1,12 @@
 """Storage interfaces (ADR-0004). Implementations: ``memory.py`` and ``postgres.py``.
 
-The stores are deliberately thin persistence ports. Business rules (validation, JSON Patch,
-owner identity, retention length) live in the endpoints/services. Timestamps and identities are
+The stores are deliberately thin persistence ports. Business rules (validation, owner
+identity, retention length) live in the endpoints/services. Timestamps and identities are
 passed in by the caller, so an implementation never reads the clock except where stated, and
 both implementations behave identically. Every method must be safe to call concurrently.
 
 Postgres mapping: each method is one statement or one short transaction;
-``create`` maps unique violation to ``AlreadyExistsError``; ``replace``/``soft_delete``/
+``create`` maps unique violation to ``AlreadyExistsError``; ``replace``/
 ``update_result`` map ``UPDATE ... RETURNING`` with zero rows to ``NotFoundError``.
 """
 
@@ -24,7 +24,6 @@ from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColu
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.query_runs.models import KustoQueryRun, KustoQueryStats, QueryRunStatus
 from tim_api.runs.models import Run, RunColumn, RunRow, RunStatus
-from tim_api.templates.models import QueryTemplate, QueryTemplateFields
 
 
 class StorageError(Exception):
@@ -41,38 +40,6 @@ class AlreadyExistsError(StorageError):
 
 class StorageUnavailableError(StorageError):
     """The backing store cannot be reached."""
-
-
-class TemplateStore(ABC):
-    @abstractmethod
-    async def list(self, *, since: datetime | None, include_deleted: bool) -> list[QueryTemplate]:
-        """Templates with ``updated > since`` (strict, when given), ordered by ``updated`` then
-        ``uuid`` ascending. Soft-deleted templates are included only when ``include_deleted``."""
-
-    @abstractmethod
-    async def get(self, uuid: UUID) -> QueryTemplate | None:
-        """The template (soft-deleted included), or ``None`` when unknown."""
-
-    @abstractmethod
-    async def create(self, template: QueryTemplate) -> QueryTemplate:
-        """Insert. Raises ``AlreadyExistsError`` if the uuid exists (deleted or not)."""
-
-    @abstractmethod
-    async def replace(
-        self, uuid: UUID, fields: QueryTemplateFields, *, updated_by: str, updated: datetime
-    ) -> QueryTemplate:
-        """Overwrite the client-editable fields. ``uuid``, ``created_by`` and ``is_deleted``
-        are preserved. Raises ``NotFoundError`` when missing (never creates)."""
-
-    @abstractmethod
-    async def save(self, template: QueryTemplate) -> QueryTemplate:
-        """Overwrite the whole record (used for the PATCH result, incl. restore).
-        ``created_by`` is preserved from storage. Raises ``NotFoundError`` when missing."""
-
-    @abstractmethod
-    async def soft_delete(self, uuid: UUID, *, updated_by: str, updated: datetime) -> QueryTemplate:
-        """Set ``is_deleted``, ``updated_by``, ``updated``. Idempotent: an already deleted
-        template is returned unchanged without a write. Raises ``NotFoundError`` when missing."""
 
 
 class QueryRunStore(ABC):
@@ -324,7 +291,6 @@ class AnnotationStore(ABC):
 class Storage(ABC):
     """Bundle wired into the app: the stores plus lifecycle and health."""
 
-    templates: TemplateStore
     query_runs: QueryRunStore
     runs: RunStore
     presets: PresetStore

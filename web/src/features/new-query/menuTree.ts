@@ -1,5 +1,4 @@
 import type { CatalogueAction, Preset } from '../../lib/api';
-import type { QueryOptions, QueryTemplate, QueryType } from './types';
 
 interface MenuFolderNode<T> {
   kind: 'folder';
@@ -66,32 +65,6 @@ function buildMenuTree<T>(entries: readonly MenuEntry<T>[]): MenuNode<T>[] {
     return [...f, ...i];
   };
   return order(root.children);
-}
-
-export interface BuildMenuOptions {
-  queryType: QueryType;
-  search?: string;
-  queryOptions?: QueryOptions;
-}
-
-/**
- * Nested menu for one template type, searched over menu text and summary.
- * Hidden templates (`queryOptions[uuid].hide === true`) are excluded.
- */
-export function buildTemplateMenuTree(
-  templates: readonly QueryTemplate[],
-  { queryType, search = '', queryOptions = {} }: BuildMenuOptions,
-): MenuNode<QueryTemplate>[] {
-  return buildMenuTree(
-    templates
-      .filter(
-        (t) =>
-          t.queryType === queryType &&
-          queryOptions[t.uuid]?.hide !== true &&
-          matchesSearch([t.menu, t.summary], search),
-      )
-      .map((t) => ({ key: t.uuid, label: t.menu, path: t.path, item: t })),
-  );
 }
 
 /** Nested menu of actions under their menu paths, searched over name, folders and key. */

@@ -6,7 +6,7 @@ import type { GridState } from 'ag-grid-community';
 import type { Run, RunColumn } from '../api/runs';
 import type { TimeRange } from '../time-range';
 
-export type DisplayComponentName = 'KustoQueryResult' | 'TemplateQueryResult' | 'ActionResult';
+export type DisplayComponentName = 'KustoQueryResult' | 'ActionResult';
 
 /** Serialisable error only; never store Error instances. */
 export interface StoredError {
@@ -22,8 +22,6 @@ export interface DisplayComponentState {
   error: StoredError | null;
   rowCount: number | null;
   isExecuting: boolean;
-  /** Template components only. */
-  editQuery?: boolean;
   /** Kusto components only: the picked time range (resolved at run time). Default Last 15 minutes. */
   timeRange?: TimeRange;
   executionTime?: number | null;
@@ -87,12 +85,6 @@ export interface ActionParams {
   presetId?: string;
 }
 
-/** Template component params: user inputs plus a full template snapshot (not a reference). */
-export interface TemplateQueryParams {
-  inParams: Record<string, unknown>;
-  queryTemplate: Record<string, unknown>;
-}
-
 interface DisplayComponentBase {
   /** Key (store `display_components`). */
   componentUuid: string;
@@ -110,19 +102,13 @@ export interface KustoQueryDisplayComponent extends DisplayComponentBase {
   params: KustoQueryParams;
 }
 
-export interface TemplateQueryDisplayComponent extends DisplayComponentBase {
-  componentName: 'TemplateQueryResult';
-  params: TemplateQueryParams;
-}
-
 export interface ActionDisplayComponent extends DisplayComponentBase {
   componentName: 'ActionResult';
   params: ActionParams;
 }
 
 /** A tab node without `children` (the tree is rebuilt in memory). */
-export type DisplayComponent =
-  KustoQueryDisplayComponent | TemplateQueryDisplayComponent | ActionDisplayComponent;
+export type DisplayComponent = KustoQueryDisplayComponent | ActionDisplayComponent;
 
 /**
  * One stored row: a raw Kusto row (`_id` is client-only and never stored), or for action
@@ -130,7 +116,7 @@ export type DisplayComponent =
  */
 export type RowResult = Record<string, unknown>;
 
-/** Global named AG Grid column state, for template and Kusto tabs. */
+/** Global named AG Grid column state, for Kusto tabs. */
 export interface ColumnView {
   /** Key (store `column_views`). */
   uuid: string;
@@ -152,11 +138,3 @@ export interface AppliedView {
   /** The view's name when it was applied, for the warning if it's gone. */
   name: string;
 }
-
-/** Per-template options, keyed by template uuid. Other keys are allowed. */
-export interface QueryOption {
-  hide?: boolean;
-  [key: string]: unknown;
-}
-
-export type QueryOptions = Record<string, QueryOption>;

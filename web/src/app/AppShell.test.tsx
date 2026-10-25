@@ -69,7 +69,7 @@ describe('AppShell / AuthGate', () => {
 
   it('loading: shows progress', () => {
     renderShell(fakeClient({ getAccount: vi.fn().mockReturnValue(new Promise(() => undefined)) }));
-    expect(screen.getByText('Authenticating and loading queries...')).toBeInTheDocument();
+    expect(screen.getByText('Authenticating and loading...')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
     expect(screen.queryByText('routes ok')).not.toBeInTheDocument();
   });
@@ -119,14 +119,9 @@ describe('AppShell / AuthGate', () => {
     }
   });
 
-  it('menus link to Query Manager and home', async () => {
+  it('the title links home', () => {
     renderShell(fakeClient());
     expect(screen.getByRole('link', { name: 'TIM' })).toHaveAttribute('href', '/');
-    await userEvent.click(screen.getByRole('button', { name: 'Menu' }));
-    expect(screen.getByRole('menuitem', { name: 'Query Manager' })).toHaveAttribute(
-      'href',
-      '/queries',
-    );
   });
 
   it('Settings lists Appearance', async () => {

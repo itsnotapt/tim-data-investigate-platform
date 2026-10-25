@@ -1,9 +1,9 @@
 # TIM
 
-TIM is a Kusto investigation platform. Analysts run KQL against Azure Data Explorer clusters, pivot between data sources with shared query templates, and tag and comment on events so findings are shared with the team.
+TIM is an investigation platform. Analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id` so findings are shared with the team.
 
 - **`web/`**: React single-page app (TypeScript, Vite, AG Grid Enterprise, Monaco), served by nginx.
-- **`api/`**: FastAPI service (Python 3.12) that runs Kusto queries on behalf of the signed-in user, stores query templates, presets and query runs in PostgreSQL, and records tagged events in Kusto.
+- **`api/`**: FastAPI service (Python 3.12) that runs Kusto queries on behalf of the signed-in user, stores presets, runs and query runs in PostgreSQL, and records tagged events in Kusto.
 - Sign-in is Microsoft Entra ID.
 
 ## Quickstart

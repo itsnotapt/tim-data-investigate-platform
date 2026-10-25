@@ -3,7 +3,6 @@ import { useAppliedViewsStore } from '../features/action-column-views';
 import { useInstanceStore } from '../features/instance';
 import { usePresetsStore } from '../features/presets';
 import { useTabsStore } from '../features/tabs';
-import { useTemplatesStore } from '../features/templates';
 
 /** Makes the app bootstrap instant and storage/network free for tests that render the shell. */
 export function stubBootstrap(): void {
@@ -24,7 +23,6 @@ export function stubBootstrap(): void {
       },
     },
   });
-  useTemplatesStore.setState({ loaded: true });
   useColumnViewsState.setState({ load: () => Promise.resolve() });
   useAppliedViewsStore.setState({ load: () => Promise.resolve() });
   usePresetsStore.setState({ refresh: () => Promise.resolve() });

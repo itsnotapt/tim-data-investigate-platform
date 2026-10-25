@@ -11,17 +11,12 @@ from tim_api.storage import (
     QueryRunStore,
     RunStore,
     Storage,
-    TemplateStore,
 )
 
 
 def get_storage(request: Request) -> Storage:
     storage: Storage = request.app.state.storage
     return storage
-
-
-def get_template_store(request: Request) -> TemplateStore:
-    return get_storage(request).templates
 
 
 def get_query_run_store(request: Request) -> QueryRunStore:

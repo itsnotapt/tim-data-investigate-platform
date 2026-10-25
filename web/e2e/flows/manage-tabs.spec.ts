@@ -1,55 +1,41 @@
-import { test, expect } from '../fixtures';
+import { grid, openAction } from '../actionTab';
+import { test, expect } from '../realApi';
 import { shotHovering } from '../shot';
 
-async function runNewQuery(page: import('@playwright/test').Page) {
-  await page.goto('/');
-  await page.getByRole('button', { name: /get started/i }).click();
-  await page.getByRole('menuitem', { name: 'New query' }).click();
-  await page.getByLabel('Cluster').first().click();
-  await page.getByRole('option', { name: 'https://help.kusto.windows.net' }).first().click();
-  await page.getByLabel('Database').first().click();
-  await page.getByRole('option', { name: 'Samples' }).first().click();
-  await page.getByRole('button', { name: /save changes & run/i }).click();
-  await expect(page.locator('.ag-row').first()).toBeVisible();
-}
-
 test('side tree expands on hover, cascade-select and remove tabs', async ({ page }) => {
-  await runNewQuery(page);
+  await openAction(page, ['Development', 'Rows', 'Sign-ins']);
+  await page.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByRole('tab', { name: 'Results · 4' })).toBeVisible();
 
   // Collapsed: only icons. Hover expands with the title and selection checkboxes.
   await page.getByLabel('Query tree').hover();
-  await expect(page.getByText('New query', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Reload templates' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Select Sign-ins' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Remove selected' })).toBeDisabled();
   await shotHovering(page, '16-side-tree-expanded');
 
-  // Pivot (Weather > Storms > Storm events for state) creates a child of the query.
+  // A pivot (Development > Pivots > Sessions for users) creates a child of the action tab.
   await page.mouse.move(900, 500);
-  await page.locator('.ag-row[row-index="1"] .ag-cell[col-id="State"]').click({ button: 'right' });
-  await page.locator('.ag-menu-option:has-text("Weather")').hover();
-  await page.locator('.ag-menu-option:has-text("Storms")').hover();
-  await page.locator('.ag-menu-option:has-text("Storm events for state")').click();
-  await expect(page).toHaveURL(/#\/view\//);
+  await grid(page).locator('.ag-row[row-index="1"] [col-id="User"]').click({ button: 'right' });
+  for (const step of ['Pivot', 'Development', 'Pivots']) {
+    await page
+      .locator('.ag-menu-option')
+      .filter({ hasText: new RegExp(`^${step}$`) })
+      .hover();
+  }
+  await page
+    .locator('.ag-menu-option')
+    .filter({ hasText: /^Sessions for users$/ })
+    .click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Sessions for users' })).toBeVisible();
 
   await page.getByLabel('Query tree').hover();
   await expect(page.getByRole('checkbox', { name: /Select /i })).toHaveCount(2);
 
   // Checking the parent cascades to its child; Remove deletes both and returns home.
-  await page.getByRole('checkbox', { name: 'Select New query' }).check();
+  await page.getByRole('checkbox', { name: 'Select Sign-ins' }).check();
   await expect(page.getByRole('checkbox', { name: /Select /i }).nth(1)).toBeChecked();
   await page.getByRole('button', { name: 'Remove selected' }).click();
   await expect(page).toHaveURL(/#\/$/);
   await expect(page.getByRole('checkbox', { name: /Select /i })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
-});
-
-test('Reload templates refetches the template list', async ({ page, api }) => {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
-  const before = api.callsTo('GET', '/api/templates/queries').length;
-  await page.getByLabel('Query tree').hover();
-  await page.getByRole('button', { name: 'Reload templates' }).click();
-  await expect
-    .poll(() => api.callsTo('GET', '/api/templates/queries').length)
-    .toBeGreaterThan(before);
 });

@@ -46,8 +46,6 @@ _TYPES: dict[int, tuple[str, str]] = {
     503: ("unavailable", "Service unavailable"),
 }
 
-# Keys of the errors object use the JSON names, not the Python attribute names.
-_FIELD_NAMES = {"from_": "from"}
 _LOCATION_PREFIXES = {"body", "query", "path", "header", "cookie"}
 
 
@@ -118,7 +116,7 @@ def _field_path(loc: tuple[Any, ...], error_type: str) -> str:
         parts = parts[1:]
     if not parts:
         return str(loc[0]) if loc else "body"
-    return ".".join(_FIELD_NAMES.get(str(p), str(p)) for p in parts)
+    return ".".join(str(p) for p in parts)
 
 
 def validation_errors(exc: RequestValidationError) -> dict[str, list[str]]:

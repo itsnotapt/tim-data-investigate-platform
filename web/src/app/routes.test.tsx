@@ -5,8 +5,6 @@ import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthProvider, type AuthClient } from '../lib/auth';
 import { useTabsStore } from '../features/tabs';
-import { useTemplatesStore } from '../features/templates';
-import userEvent from '@testing-library/user-event';
 import { resetConfigCache } from '../lib/config/runtimeConfig';
 import { AppThemeProvider } from './AppThemeProvider';
 import { routes } from './routes';
@@ -55,21 +53,7 @@ describe('routes', () => {
     expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
     expect(screen.getByText('The triage and investigation experience.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Get Started' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Reload templates' })).toBeInTheDocument();
-  });
-
-  it('Reload templates in the tree notifies when the reload fails', async () => {
-    useTemplatesStore.setState({ reload: () => Promise.reject(new Error('offline')) });
-    renderAt('/');
-    await userEvent.click(await screen.findByRole('button', { name: 'Reload templates' }));
-    expect(await screen.findByText(/Failed to reload templates: offline/)).toBeInTheDocument();
-  });
-
-  it('/queries renders its page', async () => {
-    renderAt('/queries');
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'Query Manager' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New query' })).toBeInTheDocument();
   });
 
   it('/view/:uuid renders the ad-hoc query tab', async () => {
@@ -90,7 +74,7 @@ describe('routes', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
-  it.each(['/no/such/page', '/share/tpl-1?p=e30&execute=1', '/exportimport'])(
+  it.each(['/no/such/page', '/queries', '/share/tpl-1?p=e30&execute=1', '/exportimport'])(
     'redirects an unknown hash, such as %s, to /',
     async (path) => {
       const router = renderAt(path);
