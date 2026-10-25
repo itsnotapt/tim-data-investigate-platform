@@ -33,7 +33,6 @@ from tim_api.runs.router import router as runs_router
 from tim_api.runs.runner import Runner
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
 from tim_api.tagged_events.router import router as tagged_events_router
-from tim_api.templates.router import router as templates_router
 
 logger = logging.getLogger("tim_api")
 
@@ -144,7 +143,6 @@ def create_app(
     app.include_router(presets_router)
     app.include_router(query_runs_router)
     app.include_router(runs_router)
-    app.include_router(templates_router)
     register_exception_handlers(app)
     install_openapi(app)
     # Added last = outermost: CORS wraps logging so even error responses carry CORS headers.

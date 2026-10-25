@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { executionMetrics, kustoSchema, rows, templates, type MockRow } from './data';
+import { executionMetrics, kustoSchema, rows, type MockRow } from './data';
 
 /** Every API call the app made, for assertions. */
 interface ApiCall {
@@ -11,7 +11,6 @@ interface ApiCall {
 }
 
 export interface ApiMockOptions {
-  templates?: readonly object[];
   rows?: readonly MockRow[];
   /** Polls answered 202 before a run completes (0 = POST answers 200 directly). */
   pendingPolls?: number;
@@ -29,7 +28,7 @@ export interface ApiMock {
 
 const RUN_ID = 'c1b7f1f6-9a34-4a52-8c1e-5f2e0f7b2a90';
 
-/** An instance with no actions: the mocked flows use templates and Kusto tabs. */
+/** An instance with no actions: the mocked flows use Kusto tabs. */
 const instance = {
   version: 'e2e',
   actions: [],
@@ -71,7 +70,6 @@ export const problem = (
 export async function mockApi(page: Page, options: ApiMockOptions = {}): Promise<ApiMock> {
   const calls: ApiCall[] = [];
   const data = options.rows ?? rows;
-  const tpls = options.templates ?? templates;
   const pendingPolls = options.pendingPolls ?? 1;
   const polls = new Map<string, number>();
 
@@ -104,11 +102,6 @@ export async function mockApi(page: Page, options: ApiMockOptions = {}): Promise
       });
 
       if (path === '/api/instance' && method === 'GET') return json(route, instance);
-      if (path === '/api/templates/queries' && method === 'GET') return json(route, tpls);
-      if (path.startsWith('/api/templates/queries/') && method === 'GET') {
-        const found = (tpls as { uuid: string }[]).find((t) => path.endsWith(t.uuid));
-        return found ? json(route, found) : problem(route, 404, 'not-found', 'Not found');
-      }
       if (path === '/api/kusto/schema' && method === 'POST') return json(route, kustoSchema);
       if (path === '/api/kusto/query' && method === 'POST') {
         polls.set(RUN_ID, 0);

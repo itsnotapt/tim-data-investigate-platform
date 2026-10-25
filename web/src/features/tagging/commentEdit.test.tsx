@@ -56,7 +56,7 @@ beforeEach(async () => {
 });
 
 describe('comment column definitions', () => {
-  const defs = buildColumnDefs(raw, { Name: { editable: true } });
+  const defs = buildColumnDefs(raw);
   const editable = (field: string, data: unknown) => {
     const def = defs.find((d) => d.field === field) as ColDef;
     const e = def.editable;
@@ -64,7 +64,7 @@ describe('comment column definitions', () => {
   };
 
   it('only TagEvent.Comment can be edited, and only for saved rows with a determination', () => {
-    expect(editable('Name', rows[1])).toBe(false); // template override ignored
+    expect(editable('Name', rows[1])).toBe(false);
     expect(editable('EventId', rows[1])).toBe(false);
     expect(editable('TagEvent.Comment', rows[0])).toBe(false);
     expect(editable('TagEvent.Comment', rows[2])).toBe(false);

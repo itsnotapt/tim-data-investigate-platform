@@ -57,11 +57,11 @@ def _app() -> FastAPI:
 
     @app.get("/t/notfound")
     def notfound() -> None:
-        raise NotFoundError("template abc")
+        raise NotFoundError("preset abc")
 
     @app.get("/t/exists")
     def exists() -> None:
-        raise AlreadyExistsError("template abc")
+        raise AlreadyExistsError("preset abc")
 
     @app.get("/t/obo/{kind}")
     def obo(kind: Annotated[str, "kind"]) -> None:
@@ -166,6 +166,15 @@ def test_unknown_route_and_method_use_envelope(client: TestClient) -> None:
     response = client.post("/api/healthChecks/liveness")
     _check_envelope(response, 405, "http-405")
     assert "GET" in response.headers["allow"]
+
+
+def test_template_routes_are_unknown(client: TestClient) -> None:
+    for method, url in [
+        ("get", "/api/templates/queries"),
+        ("post", "/api/templates/queries"),
+        ("get", "/api/templates/queries/3f0c2a52-6d0e-4a1b-9a57-0d2d6b8f1c11"),
+    ]:
+        _check_envelope(client.request(method, url), 404, "not-found")
 
 
 def test_not_found_and_conflict_mapping(client: TestClient) -> None:

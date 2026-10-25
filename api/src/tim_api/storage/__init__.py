@@ -15,7 +15,6 @@ from tim_api.storage.base import (
     Storage,
     StorageError,
     StorageUnavailableError,
-    TemplateStore,
 )
 from tim_api.storage.factory import build_storage
 from tim_api.storage.memory import MemoryStorage
@@ -39,7 +38,6 @@ __all__ = [
     "Storage",
     "StorageError",
     "StorageUnavailableError",
-    "TemplateStore",
     "build_storage",
     "start_retention_loop",
     "sweep_expired",

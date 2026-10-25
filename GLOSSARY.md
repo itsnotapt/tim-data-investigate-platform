@@ -1,6 +1,6 @@
 # TIM
 
-TIM is a Kusto investigation platform: analysts run KQL, pivot from result rows into actions and query templates, and tag and comment on events.
+TIM is an investigation platform: analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id`.
 
 ## Language
 
@@ -11,15 +11,12 @@ An analyst's tree of tabs. Each pivot adds a child tab under the tab it was made
 _Avoid_: session, case
 
 **Tab**:
-One node of an investigation: a Kusto tab, a template tab or an action tab, with its results.
+One node of an investigation: a Kusto tab or an action tab, with its results.
 _Avoid_: display component, view
 
 **Kusto tab**:
 A tab holding free KQL with a cluster, a database and a time range.
 _Avoid_: ad-hoc tab
-
-**Template tab**:
-A tab that runs a snapshot of a query template with the analyst's params. Later edits to the template do not change it.
 
 **Action tab**:
 A tab that runs an action with the analyst's param values and shows the rows of its run. It keeps those values as they are, so a later change to the action does not change them.
@@ -35,6 +32,7 @@ The column view an analyst has chosen for a preset or action. New tabs opened fr
 
 **Action**:
 A named operation an analyst runs. A query action takes params and returns rows; a sink takes rows and writes them.
+_Avoid_: query, query template
 
 **Sink**:
 An action that takes the rows an analyst selected and writes them somewhere, such as a ticket queue. It has no params and returns no rows.
@@ -59,11 +57,11 @@ An input of a preset, a param or a query parameter, that takes its value from a 
 A preset whose inputs are all fixed. Opening it needs nothing more from the analyst.
 
 **New menu**:
-The nested, searchable menu of actions and presets, with query templates beside them, from which an analyst starts a tab.
+The nested, searchable menu of actions and presets from which an analyst starts a tab.
 
 **Param**:
-A named, typed value an action takes, or one a query template's form asks the analyst for.
-_Avoid_: argument, variable
+A named, typed value an action takes.
+_Avoid_: argument, variable, field, input
 
 **Query parameter**:
 A name declared in the KQL of an action tab of Run KQL and sent to Kusto as a Kusto query parameter, with a type. It is not a param of the action. In a preset it is an input, fixed or From row, and the preset can be copied as an action file.
@@ -107,35 +105,11 @@ The YAML file named by `TIM_CONNECTIONS_FILE` that lists the instance's connecti
 **Labels file**:
 The YAML file that lists the instance's labels. Each entry gives a label's key, name, colour and optionally a symbol.
 
-### Query templates
-
-**Query template**:
-A shared definition of a parameterised KQL query: its cluster and database, its params and fields, and its place in the menus.
-_Avoid_: saved query, stored query
-
-**View**:
-A query template that is a starting point for an investigation, offered in the New menu.
-
-**Query** (template type):
-A query template whose fields are filled from grid rows, offered as a pivot in the grid's context menu.
-
-**Field**:
-A template input filled from the clicked or selected grid rows when pivoting.
+### Running actions
 
 **Pivot**:
-Running an action, a preset or a query template from a grid row's context menu, with its params filled from the clicked or selected rows. It opens a child tab under the tab it came from.
+Running an action or a preset from a grid row's context menu, with its params filled from the clicked or selected rows. It opens a child tab under the tab it came from.
 _Avoid_: drill-down
-
-**Managed template**:
-A query template maintained outside TIM; it is read-only in the Query Manager.
-
-**Query Manager**:
-The page where query templates are created, edited and deleted.
-
-**Query options**:
-An analyst's own settings for a query template, such as hiding it from the menus.
-
-### Running actions
 
 **Run**:
 One execution of an action by the server for the analyst who started it. It ends succeeded, in error, timed out or cancelled.
@@ -148,7 +122,7 @@ The key-value facts a run reports, such as its duration, row count or a warning.
 A link to a run, or to one row of it, that any signed-in analyst holding it can open to see the run's rows.
 
 **Query run**:
-One execution of a Kusto tab's or template tab's KQL by the server on behalf of the analyst who started it. It ends completed, failed with an error, or timed out.
+One execution of a Kusto tab's KQL by the server on behalf of the analyst who started it. It ends completed, failed with an error, or timed out.
 _Avoid_: job
 
 ### Results

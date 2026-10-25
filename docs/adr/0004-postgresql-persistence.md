@@ -3,9 +3,9 @@ status: accepted
 date: 2026-09-29
 ---
 
-# PostgreSQL for templates, presets, column views, runs and annotations
+# PostgreSQL for runs, presets, column views and annotations
 
-TIM persists query templates, presets, column views, runs (with their rows), Kusto query runs and annotations, so it uses **one store: PostgreSQL**. The previous backend switched between Couchbase, Mongo/Cosmos and Redis via `DATABASE_TYPE`, each with different TTL handling and some broken; that switch is not carried over.
+TIM persists runs (with their rows), presets, column views, Kusto query runs and annotations, so it uses **one store: PostgreSQL**. The previous backend switched between Couchbase, Mongo/Cosmos and Redis via `DATABASE_TYPE`, each with different TTL handling and some broken; that switch is not carried over.
 
 - Access goes through a small repository interface (`api/src/tim_api/storage/`), with a Postgres implementation plus an in-memory one for unit tests.
 - Tooling:
@@ -13,7 +13,6 @@ TIM persists query templates, presets, column views, runs (with their rows), Kus
   - Alembic migrations
   - tests against a real Postgres, set with `TIM_TEST_DATABASE_URL` (or a temporary `pgserver` instance)
 - Schema:
-  - `query_templates`: `uuid` PK; scalar columns for list/filter fields (`name`, `query_type`, `is_deleted`, `is_managed`, `updated`, `created_by`, `updated_by`); JSON columns for `path`, `params`, `fields`, `columns`.
   - `presets`: `preset_id` PK, `owner` (from the token), `name`, `visibility` (`private` or `shared`), `action`, JSON columns `menu_path`, `params` and `inputs`, `created_at`, `updated_at`; index on `(created_at, preset_id)`.
   - `preset_hidden`: PK `(preset_id, analyst)`, `preset_id` references `presets` `ON DELETE CASCADE`. A row means the analyst hid the preset.
   - `column_views`: `view_id` PK, `owner` (from the token), `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id`, JSONB `state`, `created_at`, `updated_at`; index on `(created_at, view_id)` ([0022](0022-column-views-store-grid-state.md)).

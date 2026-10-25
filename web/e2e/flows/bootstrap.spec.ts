@@ -6,9 +6,9 @@ test('welcome page and account menu', async ({ page, api }) => {
   await expect(page.getByRole('heading', { name: 'Welcome to TIM' })).toBeVisible();
   await expect(page.getByText('The triage and investigation experience.')).toBeVisible();
   await expect(page.getByRole('button', { name: /get started/i })).toBeVisible();
-  // Bootstrap loaded the templates with the stub token.
-  await expect.poll(() => api.callsTo('GET', '/api/templates/queries').length).toBeGreaterThan(0);
-  expect(api.callsTo('GET', '/api/templates/queries')[0]?.authorization).toBe(
+  // Bootstrap loaded the instance with the stub token.
+  await expect.poll(() => api.callsTo('GET', '/api/instance').length).toBeGreaterThan(0);
+  expect(api.callsTo('GET', '/api/instance')[0]?.authorization).toBe(
     'Bearer dev:dev.user@example.com',
   );
   await shot(page, '01-welcome');

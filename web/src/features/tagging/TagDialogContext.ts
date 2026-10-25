@@ -8,7 +8,6 @@ export interface OpenTagDialogRequest {
   api: { applyTransaction(tx: { update: GridRowWithId[] }): unknown; deselectAll?(): void };
   /** Tab whose stored rows are rewritten. */
   uuid: string;
-  columnId?: string | null;
 }
 
 export type OpenTagDialog = (request: OpenTagDialogRequest) => void;

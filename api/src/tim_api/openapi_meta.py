@@ -70,12 +70,6 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("delete", "/api/columnViews/{viewId}"): ("deleteColumnView", (403, 404)),
     ("put", "/api/columnViews/{viewId}/hidden"): ("hideColumnView", (404,)),
     ("delete", "/api/columnViews/{viewId}/hidden"): ("unhideColumnView", (404,)),
-    ("get", "/api/templates/queries"): ("listTemplates", ()),
-    ("get", "/api/templates/queries/{uuid}"): ("getTemplate", (404,)),
-    ("post", "/api/templates/queries"): ("createTemplate", (409,)),
-    ("put", "/api/templates/queries/{uuid}"): ("replaceTemplate", (404,)),
-    ("patch", "/api/templates/queries/{uuid}"): ("patchTemplate", (404,)),
-    ("delete", "/api/templates/queries/{uuid}"): ("deleteTemplate", (404,)),
     ("post", "/api/taggedevents/savedEvents"): ("saveEvents", (502,)),
     ("post", "/api/taggedevents/tags"): ("tagEvents", (502,)),
     ("post", "/api/taggedevents/comments"): ("commentEvents", (502,)),
@@ -132,13 +126,6 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
                 operation["security"] = [{BEARER: []}]
             for status in statuses:
                 responses[str(status)] = _problem_response(status)
-            if operation_id == "createTemplate":
-                responses["201"]["headers"] = {
-                    "Location": {
-                        "description": "`/api/templates/queries/{uuid}`",
-                        "schema": {"type": "string"},
-                    }
-                }
     return spec
 
 

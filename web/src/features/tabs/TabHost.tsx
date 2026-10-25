@@ -33,7 +33,7 @@ export function TabHost({ registry = defaultRegistry }: { registry?: TabRegistry
         if (!tab) return null; // removed since it was visited
         const Component = registry[tab.componentName];
         return (
-          <Box key={`${id}:${tab.componentName}`} sx={{ display: id === uuid ? 'block' : 'none' }}>
+          <Box key={id} sx={{ display: id === uuid ? 'block' : 'none' }}>
             <Component uuid={id} />
           </Box>
         );

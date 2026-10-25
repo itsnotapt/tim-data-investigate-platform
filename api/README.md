@@ -40,9 +40,8 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `templates`, `presets`, `runs`, `query_runs`, `column_views` and `annotations`:
+`tim_api.storage` defines the persistence ports, bundled as `Storage` with `presets`, `runs`, `query_runs`, `column_views` and `annotations`:
 
-- `TemplateStore`;
 - `PresetStore`, for presets and each analyst's hidden marks;
 - `RunStore`, for runs and their rows;
 - `QueryRunStore`, for Kusto query runs;
@@ -54,7 +53,7 @@ There are two implementations:
 - `PostgresStorage`: SQLAlchemy 2 async with asyncpg (ADR-0004);
 - an in-memory store (`TIM_DATABASE_URL=memory://`): development only, rejected in production.
 
-Endpoints get stores through `tim_api.deps.get_template_store`, `get_preset_store`, `get_run_store`, `get_query_run_store` and `get_column_view_store`.
+Endpoints get stores through `tim_api.deps.get_preset_store`, `get_run_store`, `get_query_run_store` and `get_column_view_store`.
 
 **Migrations (Alembic).** The schema lives in `migrations/`. `tim_api.storage.postgres.metadata` is the model definition.
 
@@ -189,15 +188,14 @@ The build is multi-stage, on `python:3.12-slim-trixie` (Debian 13, from `mirror.
 Pydantic v2 models mirror the schemas in [api.md](../docs/api.md).
 
 - They use camelCase aliases, ignore unknown input fields, and serialise by alias.
-- They are in `actions/models.py`, `templates/models.py`, `presets/models.py`, `runs/models.py`, `query_runs/models.py`, `tagged_events/models.py` and `kusto/models.py`.
+- They are in `actions/models.py`, `presets/models.py`, `runs/models.py`, `query_runs/models.py`, `tagged_events/models.py` and `kusto/models.py`.
 - The shared base and UTC datetime type are in `models_common.py`.
 
 Rules:
 
-- **Request and response models are separate:** `QueryTemplateCreate` (POST), `QueryTemplateReplace` (PUT) and `QueryTemplate` (stored and returned; it also validates PATCH results).
-  - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `createdBy`, `updatedBy`, `updated`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
+- **Request and response models are separate:** `PresetFields` (POST and PUT), `StoredPreset` (stored) and `Preset` (returned).
+  - Server-owned fields are not fields on request models, so client values are dropped on parse. They are `presetId`, `owner`, `createdAt`, `updatedAt`, `requestedBy`, and the tagged-event `createdBy` and `dateTimeUtc`.
 - **Datetimes:** input without an offset is UTC, and offsets are converted. Output is `...Z`, with milliseconds only when the value has a sub-second part.
-- **Validation error locs** use Python attribute names when a value is missing and defaulted: `QueryField.from` appears as `from_`. The error handler (422 problem envelope) must map it back to `from`.
 - **Batch types** (`SavedEventBatch`, ...) enforce 1 to 1000 items.
 - **Cluster policy** is not in the models. It lives in `kusto/validation.py`: `validate_cluster_url`, which raises `InvalidClusterError`.
   - https only;
@@ -411,7 +409,7 @@ It is safe to re-run.
 | Handler | Answer |
 |---|---|
 | `HTTPException` | Its status, with headers kept, so `WWW-Authenticate` survives. Unknown statuses get `urn:tim:problem:http-<status>` |
-| `RequestValidationError` | 422 `validation`, with `errors` keyed by camelCase JSON path and `from_` mapped to `from`. Malformed JSON (a `json_invalid` error) gives 400 `bad-request` with `{"body": ["Malformed JSON"]}` |
+| `RequestValidationError` | 422 `validation`, with `errors` keyed by camelCase JSON path. Malformed JSON (a `json_invalid` error) gives 400 `bad-request` with `{"body": ["Malformed JSON"]}` |
 | `NotFoundError` | 404 |
 | `AlreadyExistsError` | 409 |
 | `StorageUnavailableError` | 503 |
@@ -441,18 +439,6 @@ Details are fixed strings. Exception messages are never echoed.
 - `_check` requires `action` in the catalogue, each param input to be a param of it with `from_columns`, and each query parameter input to be on an action that takes them (`Action.takes_query_parameters`), with a unique name that matches `PARAM_NAME`. Failures are `422` with `errors` keys `action`, `inputs.<i>.name` and `inputs.<i>.source`.
 - `presets/action_file.py` builds the actionFile response with the action's `preset_file`. `NoActionFileError` is `409` `no-action-file`; it also answers a Run KQL preset without a connection, database or query, for which `RunKql.preset_file` returns `None`. The file pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 - `_visible` answers `404` for an unknown preset or someone else's private one. `_owned` adds `403` for a change by a non-owner.
-
-## Template endpoints
-
-`templates/router.py` implements `/api/templates/queries`: list, get, POST 201, PUT (update only), PATCH, and soft DELETE 204.
-
-- Audit fields come from the principal and the clock. The clock is truncated to milliseconds, so `since=<updated>` round-trips.
-- PATCH uses the `jsonpatch` library on the stored JSON form.
-  - `/uuid`, `/createdBy`, `/updatedBy` and `/updated` are protected.
-  - `move`, `copy` and empty patches are rejected.
-  - The result is re-validated with `QueryTemplate`.
-  - All of these 400s use the `errors` envelope.
-- Restore is `replace /isDeleted false`.
 
 ## OpenAPI export and contract test
 

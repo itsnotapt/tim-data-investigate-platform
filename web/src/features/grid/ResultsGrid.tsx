@@ -25,7 +25,7 @@ import { DetailPanel } from './DetailPanel';
 import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs, prepareRows } from './columns';
-import type { GridRow, GridRowWithId, TemplateColumns } from './columns';
+import type { GridRow, GridRowWithId } from './columns';
 import { useDeterminationSymbols } from './determinationSymbols';
 import {
   buildSelectionColumnDef,
@@ -61,11 +61,9 @@ const gridTheme = themeBalham.withParams({
 
 export interface ResultsGridProps {
   rows: readonly GridRow[];
-  /** Template `columns` (ColDef overrides by column name, plus `default`). */
-  templateColumns?: TemplateColumns;
-  /** Template `columnId`: row-id column (default `EventId`). */
+  /** Row-id column (default `EventId`). */
   columnId?: string | null;
-  /** Column definitions to use instead of those built from the rows and `templateColumns`. */
+  /** Column definitions to use instead of those built from the rows. */
   columnDefs?: ColDef[];
   stats?: ExecutionStats;
   /**
@@ -114,7 +112,6 @@ export interface ResultsGridProps {
 
 export function ResultsGrid({
   rows,
-  templateColumns,
   columnId,
   columnDefs: givenColumnDefs,
   stats,
@@ -161,8 +158,8 @@ export function ResultsGrid({
 
   const rowData = useMemo(() => prepareRows(rows, columnId), [rows, columnId]);
   const columnDefs = useMemo(
-    () => givenColumnDefs ?? buildColumnDefs(rows, templateColumns),
-    [givenColumnDefs, rows, templateColumns],
+    () => givenColumnDefs ?? buildColumnDefs(rows),
+    [givenColumnDefs, rows],
   );
   const extraMenuItems = useMemo<GetExtraContextMenuItems | undefined>(() => {
     const groups = Array.isArray(getContextMenuItems)

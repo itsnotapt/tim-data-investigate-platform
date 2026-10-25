@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { useBootstrap, type BootstrapSteps } from './useBootstrap';
 
 /**
- * Renders the routes only when signed in and bootstrapped (templates, column views, tabs);
+ * Renders the routes only when signed in and bootstrapped (instance, column views, tabs);
  * otherwise the sign-in / loading / error states.
  */
 export function AuthGate({ children, steps }: { children: ReactNode; steps?: BootstrapSteps }) {
@@ -58,7 +58,7 @@ export function AuthGate({ children, steps }: { children: ReactNode; steps?: Boo
             variant="outlined"
             icon={<CircularProgress size={20} aria-label="Loading" />}
           >
-            Authenticating and loading queries...
+            Authenticating and loading...
           </Alert>
         </Container>
       );

@@ -30,8 +30,8 @@ server {
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Strict-Transport-Security $tim_hsts always;
     # Content-Security-Policy. Why each relaxation exists:
-    #  - script-src 'unsafe-eval': Handlebars compiles templates with `new Function` and the Kusto
-    #    language-service worker uses eval. Everything else is same-origin ('self'); there are no
+    #  - script-src 'unsafe-eval': only for the Kusto Monaco worker, whose language service uses
+    #    eval. Everything else is same-origin ('self'); there are no
     #    inline scripts (config.js is a same-origin file).
     #  - style-src 'unsafe-inline': emotion (MUI) and AG Grid inject <style> tags / style attributes.
     #  - worker-src 'self' blob:: Monaco workers are same-origin Vite chunks; blob: is kept for

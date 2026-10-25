@@ -7,7 +7,6 @@ import {
   columnViewsDao,
   displayComponentsDao,
   openTimDb,
-  queryOptionsDao,
   resetTimDb,
   rowResultsDao,
   type ColumnView,
@@ -38,17 +37,16 @@ afterEach(async () => {
 });
 
 describe('openTimDb', () => {
-  it('creates database "tim" v3 with the seven stores', async () => {
+  it('creates database "tim" v4 with the six stores', async () => {
     const db = await openTimDb();
     expect(db.name).toBe('tim');
-    expect(db.version).toBe(3);
+    expect(db.version).toBe(4);
     expect([...db.objectStoreNames].sort()).toEqual([
       'annotation_sync',
       'annotations',
       'applied_views',
       'column_views',
       'display_components',
-      'query_options',
       'row_results',
     ]);
   });
@@ -66,9 +64,10 @@ describe('openTimDb', () => {
     v1.close();
 
     const db = await openTimDb();
-    expect(db.version).toBe(3);
+    expect(db.version).toBe(4);
     expect(db.objectStoreNames).toContain('annotations');
     expect(db.objectStoreNames).toContain('applied_views');
+    expect(db.objectStoreNames).not.toContain('query_options');
     expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
@@ -87,8 +86,34 @@ describe('openTimDb', () => {
     v2.close();
 
     const db = await openTimDb();
-    expect(db.version).toBe(3);
+    expect(db.version).toBe(4);
     expect(db.objectStoreNames).toContain('applied_views');
+    expect(db.objectStoreNames).not.toContain('query_options');
+    expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
+  });
+
+  it('upgrades a v3 database, dropping query_options and keeping the rest', async () => {
+    const v3 = await openDB('tim', 3, {
+      upgrade(db) {
+        db.createObjectStore('display_components', { keyPath: 'componentUuid' });
+        db.createObjectStore('row_results');
+        db.createObjectStore('column_views', { keyPath: 'uuid' });
+        db.createObjectStore('query_options');
+        db.createObjectStore('annotations', { keyPath: 'id' });
+        db.createObjectStore('annotation_sync');
+        db.createObjectStore('applied_views', { keyPath: ['analyst', 'scope'] }).createIndex(
+          'analyst',
+          'analyst',
+        );
+      },
+    });
+    await v3.put('row_results', [{ row: 0 }], 'tab-1');
+    await v3.put('query_options', { hide: true }, 'tpl-1');
+    v3.close();
+
+    const db = await openTimDb();
+    expect(db.version).toBe(4);
+    expect(db.objectStoreNames).not.toContain('query_options');
     expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
@@ -105,7 +130,6 @@ describe('openTimDb', () => {
     await displayComponentsDao.getAll();
     await rowResultsDao.get('x');
     await columnViewsDao.list();
-    await queryOptionsDao.getAll();
     await resetTimDb();
     await openTimDb();
     expect(spy).toHaveBeenCalled();
@@ -209,15 +233,5 @@ describe('appliedViewsDao', () => {
     await appliedViewsDao.delete('alice', 'preset:p1');
     expect((await appliedViewsDao.list('alice')).map((a) => a.scope)).toEqual(['action:sign-ins']);
     expect(await appliedViewsDao.list('bob')).toEqual([applied('bob', 'action:sign-ins')]);
-  });
-});
-
-describe('queryOptionsDao', () => {
-  it('puts and gets all keyed by template uuid', async () => {
-    expect(await queryOptionsDao.getAll()).toEqual({});
-    await queryOptionsDao.put('t1', { hide: true });
-    await queryOptionsDao.put('t2', { hide: false });
-    await queryOptionsDao.put('t1', { hide: false });
-    expect(await queryOptionsDao.getAll()).toEqual({ t1: { hide: false }, t2: { hide: false } });
   });
 });

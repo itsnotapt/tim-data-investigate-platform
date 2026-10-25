@@ -1,10 +1,10 @@
 # Architecture
 
-TIM is a Kusto investigation platform. Analysts:
+TIM is an investigation platform. Analysts:
 
-- run KQL against Azure Data Explorer (Kusto) clusters;
-- pivot from result rows into actions and query templates;
-- tag or comment on events.
+- run actions against an instance's connections (Kusto, Snowflake);
+- pivot from result rows into other actions;
+- annotate rows by `id`.
 
 An investigation is a tree of tabs. Each pivot creates a child tab.
 
@@ -12,7 +12,7 @@ An investigation is a tree of tabs. Each pivot creates a child tab.
 |---|---|---|
 | Web | `web/` | React SPA served by nginx |
 | API | `api/` | Python 3.12, FastAPI |
-| Persistence | PostgreSQL | templates, presets, column views, runs and query runs ([ADR-0004](adr/0004-postgresql-persistence.md)) |
+| Persistence | PostgreSQL | presets, column views, runs, query runs and annotations ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Related docs:
 
@@ -27,21 +27,20 @@ Related docs:
  Browser (SPA, hash routes)
  +------------------------------+   MSAL popup    +------------------------+
  | React, MUI, AG Grid, Monaco  |---------------->| Entra ID               |
- | Handlebars template engine   |  token for      | (one app registration  |
+ |                              |  token for      | (one app registration  |
  | IndexedDB "tim"              |  api://<client> |  for SPA and API)      |
  +--------------+---------------+                 +-----------^------------+
                 | /api/*  (same origin)                       | OBO exchange
                 v                                             |
  +------------------------------+     +-----------------------+------------+
  | web container (nginx)        |---->| api container (FastAPI)            |
- | static files, /config.js,    |     |  templates, presets, runs,         |
+ | static files, /config.js,    |     |  presets, runs,                    |
  | security headers, /api proxy |     |  query runs, tag ingest            |
  +------------------------------+     +---+-------------+-----------+------+
                                           |             |           |
                                           v             |           |
                               +--------------------+    |           |
                               | PostgreSQL         |    |           |
-                              | query_templates    |    |           |
                               | presets,           |    |           |
                               | preset_hidden      |    |           |
                               | runs, run_rows     |    |           |
@@ -61,7 +60,6 @@ Related docs:
 Key points:
 
 - Investigation state (tabs, cached result rows, the column views applied per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
-- Templates are rendered to KQL in the browser. The API receives the final KQL text.
 - Queries run on the API. It exchanges the caller's token for a Kusto token (OBO), executes the query and stores the result as a query run. The SPA polls the query run.
 - Tag data is written through the API, as the app identity. It is read back with KQL, inside the user's own queries.
 - Labels, tags and comments are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
@@ -74,7 +72,6 @@ Key points:
 - react-router (hash routes) and zustand stores.
 - MUI 9 and AG Grid 36 Enterprise ([ADR-0006](adr/0006-ag-grid-enterprise.md)).
 - Monaco with `@kusto/monaco-kusto`.
-- Handlebars for KQL templates, and js-yaml for the template editor.
 - `idb` for IndexedDB.
 - `@azure/msal-browser` and `@azure/msal-react`.
 
@@ -84,12 +81,11 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, cluster select, time range picker, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `template-query`, `action-tab`, `instance`, `templates`, `templates-admin`, `new-query`, `presets`, `pivots`, `action-pivots`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share-links` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `kusto-query`, `action-tab`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share-links` |
 | `web/src/lib/api/` | Typed API client, problem handling, query-run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
 | `web/src/lib/config/` | Runtime config loader |
-| `web/src/lib/kql-templates/` | Template engine, escaping, param building, `getTagEvents` partial |
 | `web/src/lib/storage/` | IndexedDB database and DAOs |
 | `web/src/lib/monaco/`, `time-range/` | Editor setup, time range model |
 | `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
@@ -99,10 +95,10 @@ Key points:
 
 Features import `lib/*` and `components/*`. Between features:
 
-- **Public `index.ts`:** ten features have one: `new-query`, `presets`, `tree`, `templates`, `tagging`, `tabs`, `pivots`, `grid`, `column-views` and `action-column-views`. Most imports between features go through it.
-- **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline`, `template-query/runTemplateQuery` and `grid/rowUpdates`.
-- **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. Code loaded at startup imports `lib/kql-templates/params` directly. Those `index.ts` files pull in AG Grid and Handlebars (see [Bundle](#bundle)).
-- **Lazy pages:** `app/lazyPages.ts` imports the page components of `templates-admin`, `tabs` and `share-links` directly.
+- **Public `index.ts`:** every feature but `kusto-query` has one. Most imports between features go through it.
+- **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry`, `kusto-query/runPipeline` and `grid/rowUpdates`.
+- **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. The `index.ts` of `features/grid` pulls in AG Grid (see [Bundle](#bundle)).
+- **Lazy pages:** `app/lazyPages.ts` imports the page components of `tabs` and `share-links` directly.
 
 ### Routes
 
@@ -111,8 +107,7 @@ Routes are hash routes. Unknown hashes redirect to `#/`. Pages are lazy-loaded.
 | Route | Page |
 |---|---|
 | `#/` | Welcome |
-| `#/queries` | Query Manager (template administration) |
-| `#/view/:uuid` | A tab of any kind: Kusto, template or action (`uuid` is the tab's component uuid) |
+| `#/view/:uuid` | A tab of either kind: Kusto or action (`uuid` is the tab's component uuid) |
 | `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row's ordinal). It opens an action tab holding the run and replaces the URL with `#/view/<uuid>` ([Share links](#share-links)) |
 
 ### Bundle
@@ -125,7 +120,6 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - `vite.config.ts` puts AG Grid in its own `ag-grid` chunk.
   - A grid feature whose module is not registered logs AG Grid console error #200. The e2e fixture fails on AG Grid console errors.
 - **Monaco**, `@kusto/monaco-kusto` and their workers load when the first editor mounts (`web/src/lib/monaco/loader.ts`).
-- **Handlebars and js-yaml** load with the pages that use them.
 
 ### State and tab model
 
@@ -134,18 +128,17 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - Changes are written to IndexedDB through a debounced, serialised queue.
   - Removing a tab removes its whole subtree, and the row results of every removed tab.
   - Visited tabs stay mounted up to a cap of 100. The least recently visited are evicted.
-  - Each tab stores a snapshot of its template, so later template edits do not change existing tabs.
-- **`templatesStore`** caches the template list from the API, plus local query options.
+  - On load, a stored tab of an unknown kind is dropped, with its rows.
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
-- **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it after the templates.
-- **`columnViewsStore`** holds the column views of template and Kusto tabs, in IndexedDB `column_views`. Action tabs don't use it.
+- **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `columnViewsStore`.
+- **`columnViewsStore`** holds the column views of Kusto tabs, in IndexedDB `column_views`. Action tabs don't use it.
 - **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
-  - Bootstrap loads it before the templates.
+  - Bootstrap loads it first.
   - A refetch on every window focus replaces it only when its `version` differs. So a rolling update shows up without a reload.
   - A failed refetch keeps the instance already loaded.
 
-A tab is one of three kinds, named by `componentName`: `KustoQueryResult`, `TemplateQueryResult` and `ActionResult`.
+A tab is one of two kinds, named by `componentName`: `KustoQueryResult` and `ActionResult`.
 
 An action tab's params are `{action, params, presetId?}`: the action's key, the param values as plain values, as the browser sends them, and the preset the tab was opened from or saved as. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
 
@@ -167,7 +160,6 @@ Besides the common fields, an action tab's state holds:
 
 1. **Run.** A tab calls `runQuery` (`lib/api`), which sends `POST /api/kusto/query` with cluster, database and query.
    - Kusto tabs also send `startTime`/`endTime` from their time range.
-   - Template tabs render cluster, database and query with the template engine first, and send no time range. The template's KQL does its own time filtering ([ADR-0015](adr/0015-kql-templating.md)).
    - There is one run per tab. Starting a new run aborts the previous one, and so does removing the tab.
 2. **Poll.** A `200` response is final. On `202`, the client polls `GET /api/kusto/query/{id}`.
    - It starts at 500 ms and doubles every three polls, up to 30 s.
@@ -178,10 +170,9 @@ Besides the common fields, an action tab's state holds:
    - The tab state records the row count and execution stats.
    - The grid reloads rows from IndexedDB.
 4. **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
-   - **Template pivot.** The params come from the template's `fields`. It creates a child template tab with a template snapshot, and runs it when the data is complete.
    - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
    - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
-5. **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query using `{{> getTagEvents}}` returns the updated `TagEvent` column.
+5. **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query that invokes `getTagEvents()` returns the updated `TagEvent` column.
 
 An action tab runs differently:
 
@@ -224,15 +215,14 @@ One run is followed per tab. Starting another run stops following the previous o
 
 ### IndexedDB
 
-Database `tim` (version 3):
+Database `tim` (version 4):
 
 | Store | Key | Value |
 |---|---|---|
-| `display_components` | `componentUuid` | Tab: name (`KustoQueryResult`, `TemplateQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
+| `display_components` | `componentUuid` | Tab: name (`KustoQueryResult` or `ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
 | `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
-| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by template and Kusto tabs only |
+| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by Kusto tabs only |
 | `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>` |
-| `query_options` | template uuid (out-of-line) | `{hide?, ...}` |
 | `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
 
@@ -246,7 +236,6 @@ The New menu opens from the **New** button. It lists, in order:
 - A search box.
 - An **All / Mine / Others' / Hidden** filter for presets.
 - **Actions and presets**, one tree of folders.
-- **Views** and **Queries**, the query templates.
 
 **Actions and presets** share one namespace of folders.
 
@@ -438,7 +427,7 @@ A column view is a named, saved set of the results grid's columns and filters ([
 - It is private to its owner, or shared with everyone.
 - Others read a shared column view but do not change it. They apply it, hide it for themselves, or save their own copy.
 - Names are not unique. Last write wins.
-- Template and Kusto tabs keep their own column views, in the browser (`features/column-views`).
+- Kusto tabs keep their own column views, in the browser (`features/column-views`).
 
 **What's stored.** `state` is a partial AG Grid `GridState` (`features/action-column-views/columnViewState.ts`).
 
@@ -596,31 +585,6 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - **Flash.** A change that arrives from the feed, such as a teammate's, flashes the rows it changes.
 - **Row updates.** The grid keeps a map from each `id` to its rows. A changed `id` updates all of them with one AG Grid transaction.
 
-### Template engine
-
-`lib/kql-templates` creates an isolated Handlebars environment with HTML escaping off, because the output is KQL. Literal helpers do the escaping:
-
-- `{{array xs}}`: a verbatim string list;
-- `{{str x}}`: one verbatim `@'...'` literal;
-- `{{kql x}}`: one escaped `'...'` literal.
-
-A plain `{{x}}` is substituted unchanged. The partial `{{> getTagEvents}}` is built from the configured tag cluster and database (see [Kusto tables](#kusto-tables)).
-
-### Templates in the SPA
-
-`templatesStore` holds the shared templates (`QueryTemplate`, fields in [api.md](api.md#querytemplate)) and the browser-only query options.
-
-- **`queryType`** places a template.
-  - The New menu lists `view` templates in its Views submenu, and `query` templates in its Queries submenu, following each template's `path`.
-  - `query` templates, which require `fields`, are also the pivots in the grid's context menu.
-- **`params`** entries are filled in a form. `type` is a string by default, `array` (choices in `values`) or boolean. An entry may set `default`, `optional`, `multiple` and `hint`.
-- **`fields`** entries are filled from grid rows when pivoting.
-  - `type: multiple` takes the `from` column across the selected rows.
-  - `type: match` takes the columns whose name matches `regex`.
-  - Any other type copies the clicked row's value.
-- **`isManaged: true`** makes a template read-only in the Query Manager.
-- **Query options** are per template, in IndexedDB `query_options`. `hide` leaves the template out of the menus.
-
 ### Runtime configuration
 
 `index.html` loads `/config.js`, which sets `window.appConfig`.
@@ -663,7 +627,6 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 - `azure-kusto-data`, for queries, in the `tim-actions` `kusto` extra.
 - `azure-kusto-ingest` and `azure-identity`, for tag ingestion.
 - SQLAlchemy 2 with asyncpg, and Alembic, for PostgreSQL.
-- `jsonpatch`.
 
 ### Module layout (`api/src/tim_api`)
 
@@ -672,7 +635,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
 | `config.py` | Settings from `TIM_*` environment variables |
 | `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its template, preset, column-view, run, query-run and annotation stores |
+| `deps.py` | FastAPI dependencies returning the storage and its preset, column-view, run, query-run and annotation stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
@@ -683,7 +646,6 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `kusto/` | The Kusto tab's path: cluster validation, query client, `POST /api/kusto/schema` |
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `query_runs/` | Kusto query-run routes, models and their lifecycle (`runner.py`) |
-| `templates/` | Template routes and models |
 | `presets/` | `/api/presets` routes (`router.py`) and models |
 | `column_views/` | `/api/columnViews` routes (`router.py`) and models |
 | `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
@@ -1058,28 +1020,6 @@ The run follows the lifecycle above, with these differences:
 - Timeout and cancel work as for any run, through the sink's hooks.
 - `POST /api/actions/{key}/resolve` gives `404` for a sink, and a preset of a sink gives `422` (`action`: "A sink has no presets").
 
-### Templates
-
-Templates are stored in PostgreSQL (`query_templates`), shared by all users. The model is `QueryTemplate` in `templates/models.py`:
-
-- Handlebars KQL (`query`) and a `summary`;
-- `cluster` and `database`, which may both be templated;
-- `params` and `fields`;
-- column overrides (`columns`);
-- a menu path (`path`).
-
-The routes:
-
-- **`GET`** returns the list. It takes an optional `since` (an `updated` timestamp) and `includeDeleted`.
-- **`POST`** creates a template: `201`, with a `Location` header.
-- **`PUT`** replaces the editable fields.
-- **`PATCH`** applies an RFC 6902 JSON Patch (`add`, `replace`, `remove`, `test`) and re-validates the result.
-  - `PATCH {"op":"replace","path":"/isDeleted","value":false}` restores a template.
-  - `uuid`, `createdBy`, `updatedBy` and `updated` cannot be patched.
-- **`DELETE`** is a soft delete: `isDeleted: true`, idempotent, `204`.
-
-The server sets `updatedBy` and `updated` on every write.
-
 ### Presets
 
 Presets are stored in PostgreSQL (`presets`, `preset_hidden`) behind `PresetStore`. The models are in `presets/models.py`.
@@ -1168,7 +1108,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 
 ### Persistence
 
-`storage/` defines `TemplateStore`, `PresetStore`, `ColumnViewStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
+`storage/` defines `PresetStore`, `ColumnViewStore`, `RunStore`, `QueryRunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
 
 - `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`).
 - In development only, `memory://` selects an in-memory store. Production refuses it.
@@ -1176,7 +1116,6 @@ A change that changes nothing rolls back. It takes no version, writes no history
 
 | Table | Key | Notes |
 |---|---|---|
-| `query_templates` | `uuid` | Editable fields, `path`/`params`/`fields`/`columns` as JSONB, `is_deleted`, `updated`, `created_by`, `updated_by`; index on `(updated, uuid)` |
 | `presets` | `preset_id` | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)` |
 | `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
 | `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
@@ -1230,7 +1169,7 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
   - `Permissions-Policy`, with camera, microphone and geolocation off;
   - `Strict-Transport-Security`, behind an https proxy.
 - **The CSP** allows:
-  - only same-origin scripts, plus `unsafe-eval`, which Handlebars and the Kusto language service need;
+  - only same-origin scripts, plus `unsafe-eval`, which the Kusto Monaco worker needs;
   - same-origin and `login.microsoftonline.com` for `connect-src`;
   - a cross-origin `API_BASEPATH` origin, when set;
   - `frame-ancestors 'self'` and `object-src 'none'`.
@@ -1273,10 +1212,10 @@ uv run python -m tim_api.tagged_events.cli create-tables [--dry-run] [--cluster-
 - `--dry-run` prints the commands without running them.
 - Any failing command prints an error and exits non-zero.
 
-The SPA reads the data back with the `getTagEvents` partial (`web/src/lib/kql-templates/tagEvents.ts`).
+The Kusto tab reads the data back with the `getTagEvents` function, which the analyst's KQL defines. The query helper dialog (`web/src/features/kusto-query/queryHelperSamples.ts`) shows the definition, filled with the tag cluster and database.
 
-- A template includes `{{> getTagEvents}}` and calls `getTagEvents(T)` on a table with an `EventId` column.
-- For each `EventId`, the partial joins:
+- The query calls `getTagEvents(T)` on a table with an `EventId` column.
+- For each `EventId`, the function joins:
   - the latest `SavedEvent` (`IsSaved`);
   - the non-deleted `EventTag` tags (`Tags`);
   - the latest non-deleted `EventComment` (`Determination`, `Comment`, plus `Comments`).

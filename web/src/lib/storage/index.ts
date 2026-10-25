@@ -5,7 +5,6 @@ export {
   appliedViewsDao,
   columnViewsDao,
   displayComponentsDao,
-  queryOptionsDao,
   rowResultsDao,
 } from './daos';
 export type * from './types';

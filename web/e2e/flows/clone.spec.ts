@@ -1,24 +1,4 @@
 import { test, expect } from '../fixtures';
-import { openRunTemplateTab } from '../mocks/templates';
-
-test('cloning a template tab opens a sibling "Copy of ..." in edit mode', async ({ page }) => {
-  await openRunTemplateTab(page);
-  const original = page.url();
-
-  await page.getByRole('button', { name: 'Clone' }).click();
-  await expect(page).not.toHaveURL(original);
-  await expect(page.getByRole('textbox', { name: 'Summary' })).toHaveValue(
-    'Copy of Storm events in TEXAS',
-  );
-  await expect(page.getByRole('textbox', { name: 'State' })).toHaveValue('TEXAS');
-  await expect(page.getByRole('button', { name: 'Save & Run' })).toBeVisible();
-
-  // Both are root tabs in the tree (same parent: none).
-  await page.getByLabel('Query tree').hover();
-  await expect(page.getByText('Storm events in TEXAS', { exact: true })).toBeVisible();
-  await expect(page.getByText('Copy of Storm events in TEXAS')).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: /Select /i })).toHaveCount(2);
-});
 
 test('cloning a Kusto tab opens a new root tab with the same query', async ({ page }) => {
   await page.goto('/');
