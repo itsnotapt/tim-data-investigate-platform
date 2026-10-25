@@ -122,13 +122,84 @@
       ],
       "title": "lookup",
       "type": "object"
+    },
+    "snowflake": {
+      "additionalProperties": false,
+      "description": "A Snowflake account, reached with ``warehouse`` and, if given, ``role``. ``obo`` signs in\nas the analyst through External OAuth, with a token for ``scope``; ``workload_identity``\nsigns in as TIM's workload identity.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "type": {
+          "const": "snowflake",
+          "title": "Type",
+          "type": "string"
+        },
+        "auth": {
+          "enum": [
+            "obo",
+            "workload_identity"
+          ],
+          "title": "Auth",
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope"
+        },
+        "account": {
+          "title": "Account",
+          "type": "string"
+        },
+        "warehouse": {
+          "title": "Warehouse",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "type",
+        "auth",
+        "account",
+        "warehouse"
+      ],
+      "title": "snowflake",
+      "type": "object"
     }
   },
   "items": {
     "discriminator": {
       "mapping": {
         "kusto": "#/$defs/kusto",
-        "lookup": "#/$defs/lookup"
+        "lookup": "#/$defs/lookup",
+        "snowflake": "#/$defs/snowflake"
       },
       "propertyName": "type"
     },
@@ -138,6 +209,9 @@
       },
       {
         "$ref": "#/$defs/lookup"
+      },
+      {
+        "$ref": "#/$defs/snowflake"
       }
     ]
   },
