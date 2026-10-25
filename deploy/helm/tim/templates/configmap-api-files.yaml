@@ -1,16 +1,16 @@
-{{- if or .Values.connections .Values.labels }}
+{{- with include "tim.apiFilesConfigMap" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "tim.fullname" . }}-api-files
+  name: {{ . }}
   labels:
-    {{- include "tim.componentLabels" (list . "api") | nindent 4 }}
+    {{- include "tim.componentLabels" (list $ "api") | nindent 4 }}
 data:
-  {{- with .Values.connections }}
+  {{- with $.Values.connections }}
   connections.yaml: |
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with .Values.labels }}
+  {{- with $.Values.labels }}
   labels.yaml: |
     {{- toYaml . | nindent 4 }}
   {{- end }}

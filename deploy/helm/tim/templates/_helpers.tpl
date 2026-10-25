@@ -83,6 +83,14 @@ actions.files, or empty for none. */}}
 {{- end }}
 {{- end }}
 
+{{/* The ConfigMap of the connections and labels files: <fullname>-api-files, or empty when both
+values are empty. */}}
+{{- define "tim.apiFilesConfigMap" -}}
+{{- if or .Values.connections .Values.labels }}
+{{- printf "%s-api-files" (include "tim.fullname" .) }}
+{{- end }}
+{{- end }}
+
 {{- define "tim.apiServiceName" -}}
 {{- printf "%s-api" (include "tim.fullname" .) }}
 {{- end }}

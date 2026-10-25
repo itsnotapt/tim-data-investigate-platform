@@ -19,7 +19,7 @@ spec:
         {{- if .Values.actions.files }}
         checksum/actions: {{ include (print $.Template.BasePath "/configmap-actions.yaml") . | sha256sum }}
         {{- end }}
-        {{- if or .Values.connections .Values.labels }}
+        {{- if include "tim.apiFilesConfigMap" . }}
         checksum/api-files: {{ include (print $.Template.BasePath "/configmap-api-files.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.api.podAnnotations }}
@@ -113,10 +113,10 @@ spec:
           configMap:
             name: {{ . }}
         {{- end }}
-        {{- if or .Values.connections .Values.labels }}
+        {{- with include "tim.apiFilesConfigMap" . }}
         - name: api-files
           configMap:
-            name: {{ include "tim.fullname" . }}-api-files
+            name: {{ . }}
         {{- end }}
       {{- with .Values.api.nodeSelector }}
       nodeSelector:
