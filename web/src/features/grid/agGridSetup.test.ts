@@ -73,7 +73,6 @@ afterEach(() => {
 const validConfig = {
   auth: { clientId: 'id', authority: 'https://login.example.com/t' },
   redirectUri: 'https://tim.example.com/blank.html',
-  tagCluster: 'https://tags.kusto.windows.net',
 };
 
 // Modules are reloaded per test, so each gets a fresh runtime-config cache.

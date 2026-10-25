@@ -21,7 +21,6 @@ describe('App', () => {
       auth: { clientId: 'cid', authority: 'https://login.example/tenant' },
       redirectUri: 'http://localhost/blank.html',
       apiEndpoint: '/api',
-      tagCluster: 'https://tag.example',
     };
     resetConfigCache();
   });

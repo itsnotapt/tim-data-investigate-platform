@@ -69,7 +69,6 @@ export default defineConfig({
         TIM_MAX_ANNOTATION_IDS: '5',
         TIM_AUTH_TENANT_ID: '00000000-0000-0000-0000-000000000000',
         TIM_AUTH_CLIENT_ID: '00000000-0000-0000-0000-000000000000',
-        TIM_TAG_CLUSTER_URI: 'https://example.westeurope.kusto.windows.net',
       },
       timeout: 180_000,
     },

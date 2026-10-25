@@ -23,8 +23,6 @@ const configSchema = z.object({
   agGridLicenseKey: z.string().optional(),
   wikiUri: httpUrl.default(DEFAULT_WIKI_URI),
   issueUri: httpUrl.default(DEFAULT_ISSUE_URI),
-  tagCluster: httpUrl,
-  tagDatabase: z.string().min(1).default('Research'),
 });
 
 export type RuntimeConfig = z.infer<typeof configSchema>;
@@ -75,8 +73,6 @@ export function loadRuntimeConfig(windowConfig: unknown, env: EnvSource): Runtim
     agGridLicenseKey: w['agGridLicenseKey'] ?? e['VITE_AGGRID_LICENSE_KEY'],
     wikiUri: w['wikiUri'] ?? e['VITE_HELP_WIKI_URI'],
     issueUri: w['issueUri'] ?? e['VITE_HELP_ISSUE_URI'],
-    tagCluster: w['tagCluster'] ?? e['VITE_TAG_CLUSTER'],
-    tagDatabase: w['tagDatabase'] ?? e['VITE_TAG_DATABASE'],
   };
 
   const result = configSchema.safeParse(merged);

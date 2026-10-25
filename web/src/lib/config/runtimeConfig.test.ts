@@ -9,8 +9,6 @@ const fullWindow = {
   apiEndpoint: '/api/',
   wikiUri: 'https://wiki.example.com',
   issueUri: 'https://issues.example.com',
-  tagCluster: 'https://tags.kusto.windows.net',
-  tagDatabase: 'Tags',
 };
 
 const fullEnv = {
@@ -18,7 +16,6 @@ const fullEnv = {
   VITE_AUTH_AUTHORITY: 'https://login.env.com/tenant',
   VITE_AUTH_REDIRECT: 'https://env.example.com/blank.html',
   VITE_API_ENDPOINT: '/env-api',
-  VITE_TAG_CLUSTER: 'https://env.kusto.windows.net',
 };
 
 describe('loadRuntimeConfig', () => {
@@ -26,7 +23,6 @@ describe('loadRuntimeConfig', () => {
     const c = loadRuntimeConfig(fullWindow, fullEnv);
     expect(c.auth.clientId).toBe('cid');
     expect(c.redirectUri).toBe('https://app.example.com/blank.html');
-    expect(c.tagCluster).toBe('https://tags.kusto.windows.net');
     expect(c.apiEndpoint).toBe('/api');
   });
 
@@ -34,7 +30,6 @@ describe('loadRuntimeConfig', () => {
     const c = loadRuntimeConfig(undefined, fullEnv);
     expect(c.auth).toEqual({ clientId: 'env-cid', authority: 'https://login.env.com/tenant' });
     expect(c.apiEndpoint).toBe('/env-api');
-    expect(c.tagDatabase).toBe('Research');
   });
 
   it('merges per key, including nested auth fields', () => {
@@ -48,7 +43,7 @@ describe('loadRuntimeConfig', () => {
       loadRuntimeConfig({}, {});
     } catch (e) {
       const m = (e as Error).message;
-      for (const k of ['auth.clientId', 'auth.authority', 'redirectUri', 'tagCluster']) {
+      for (const k of ['auth.clientId', 'auth.authority', 'redirectUri']) {
         expect(m).toContain(k);
       }
     }
@@ -64,8 +59,8 @@ describe('loadRuntimeConfig', () => {
     const w = { ...fullWindow, auth: { clientId: '$AUTH_CLIENT_ID', authority: '' } };
     expect(() => loadRuntimeConfig(w, {})).toThrow(/auth\.clientId[\s\S]*auth\.authority/);
     // Placeholder falls through to the env fallback.
-    const c = loadRuntimeConfig({ ...fullWindow, tagCluster: '${TAG_CLUSTER}' }, fullEnv);
-    expect(c.tagCluster).toBe('https://env.kusto.windows.net');
+    const c = loadRuntimeConfig({ ...fullWindow, redirectUri: '${REDIRECT_URI}' }, fullEnv);
+    expect(c.redirectUri).toBe('https://env.example.com/blank.html');
   });
 
   it('treats agGridLicenseKey as optional', () => {
@@ -93,17 +88,13 @@ describe('loadRuntimeConfig', () => {
     ).toBe('https://x.com/api');
   });
 
-  it('VITE_TAG_* env vars work and nodeEnv is not part of the config', () => {
-    const { tagCluster: _t, tagDatabase: _d, ...rest } = fullWindow;
-    void _t;
-    void _d;
-    const c = loadRuntimeConfig(rest, {
-      VITE_TAG_CLUSTER: 'https://dev.kusto.windows.net',
-      VITE_TAG_DATABASE: 'DevTags',
-    });
-    expect(c.tagCluster).toBe('https://dev.kusto.windows.net');
-    expect(c.tagDatabase).toBe('DevTags');
-    expect(c).not.toHaveProperty('nodeEnv');
+  it('ignores a leftover tagCluster and tagDatabase, in window config or env', () => {
+    const window = { ...fullWindow, tagCluster: 'https://tags.kusto.windows.net', tagDatabase: 'T' };
+    const env = { VITE_TAG_CLUSTER: 'nope', VITE_TAG_DATABASE: 'T' };
+    expect(loadRuntimeConfig(window, env)).toEqual(loadRuntimeConfig(fullWindow, {}));
+  });
+
+  it('nodeEnv is not part of the config', () => {
     expect(loadRuntimeConfig({ ...fullWindow, nodeEnv: 'production' }, {})).not.toHaveProperty(
       'nodeEnv',
     );

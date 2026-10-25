@@ -11,7 +11,6 @@ export function configureTestApp(overrides: Record<string, unknown> = {}): void 
   window.appConfig = {
     auth: { clientId: 'id', authority: 'https://login.example.com/t' },
     redirectUri: 'https://tim.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
     apiEndpoint: TEST_API,
     ...overrides,
   };

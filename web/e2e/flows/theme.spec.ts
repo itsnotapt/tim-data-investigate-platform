@@ -56,7 +56,7 @@ async function serveConfigWithoutAuth(page: Page): Promise<void> {
     (route) =>
       route.fulfill({
         contentType: 'text/javascript',
-        body: "window.appConfig = { tagCluster: 'https://help.kusto.windows.net' };",
+        body: "window.appConfig = { wikiUri: 'https://wiki.example.com' };",
       }),
   );
 }

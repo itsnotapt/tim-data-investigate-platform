@@ -10,8 +10,6 @@ interface ImportMetaEnv {
   readonly VITE_AGGRID_LICENSE_KEY?: string;
   readonly VITE_HELP_WIKI_URI?: string;
   readonly VITE_HELP_ISSUE_URI?: string;
-  readonly VITE_TAG_CLUSTER?: string;
-  readonly VITE_TAG_DATABASE?: string;
 }
 
 interface ImportMeta {

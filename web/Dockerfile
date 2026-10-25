@@ -27,7 +27,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # nginx conf to /tmp/tim; nginx's pid and temp paths are in /tmp. conf.d/default.conf includes
 # /tmp/tim/nginx.conf.
 # Runtime env: see web/README.md. Required: BACKEND_URI, REDIRECT_URI, AUTH_CLIENT_ID,
-# AUTH_TENANT_ID, TAG_CLUSTER. AGGRID_LICENSE is optional (empty = AG Grid trial).
+# AUTH_TENANT_ID. AGGRID_LICENSE is optional (empty = AG Grid trial).
 USER 101
 EXPOSE 8080
 

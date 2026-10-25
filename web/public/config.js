@@ -11,6 +11,4 @@ window.appConfig = {
   agGridLicenseKey: '',
   wikiUri: 'https://github.com/itsnotapt/tim-data-investigate-platform/wiki',
   issueUri: 'https://github.com/itsnotapt/tim-data-investigate-platform/issues',
-  tagCluster: 'https://help.kusto.windows.net',
-  tagDatabase: 'Research',
 };
