@@ -28,7 +28,6 @@ const labels: InstanceLabel[] = [
 ];
 
 const row = (id: string | null, data: Record<string, unknown> = {}): LabelledRow => ({
-  _id: '0',
   row: 0,
   id,
   data,

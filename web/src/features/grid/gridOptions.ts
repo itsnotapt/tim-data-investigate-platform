@@ -11,11 +11,9 @@ import type {
 } from 'ag-grid-community';
 import type { CustomCellRendererProps } from 'ag-grid-react';
 import type { ComponentType } from 'react';
-import { DeterminationSymbol } from './DeterminationSymbol';
 import { aggFuncs } from './aggregation';
-import { ROW_ID_FIELD, scalarText } from './columns';
+import { gridRowId, scalarText } from './columns';
 import type { GridRowWithId } from './columns';
-import { rowClassRules } from './rowClasses';
 
 /** Side bar (screens 17, 18): Columns and Filters tool panels. */
 export const SIDE_BAR: SideBarDef['toolPanels'] & string[] = ['columns', 'filters'];
@@ -40,7 +38,7 @@ export function dateComparator(filterDate: Date, cellValue: unknown): number {
 
 /** Multi filter: text, number, date (sub-menus) and set filter. */
 export const defaultColDef: ColDef = {
-  // No type inference: object cells (TagEvent, arrays) would warn about a missing valueFormatter.
+  // No type inference: object and array cells would warn about a missing valueFormatter.
   cellDataType: false,
   enableValue: true,
   editable: false,
@@ -60,15 +58,11 @@ export const defaultColDef: ColDef = {
   enableRowGroup: true,
   sortable: true,
   resizable: true,
-  cellEditorPopup: true,
-  cellEditorPopupPosition: 'under',
-  cellEditor: 'agLargeTextCellEditor',
-  cellEditorParams: { maxLength: 300, cols: 100, rows: 6 },
   getQuickFilterText: (params) => quickFilterText(params.value),
 };
 
 export type ExtraMenuItems = (DefaultMenuItem | MenuItemDef)[];
-/** Extension point for pivots, tagging and details. */
+/** Extension point for pivots and details. */
 export type GetExtraContextMenuItems = (params: GetContextMenuItemsParams) => ExtraMenuItems;
 
 /** Extra items first, a separator, then copy / copy with headers / export. */
@@ -86,56 +80,22 @@ export function buildContextMenu(extra: ExtraMenuItems = []): ExtraMenuItems {
  * The grid's context menu. Its targets are the selected rows, so opening it on a row that isn't
  * selected selects just that row first.
  */
-export function makeGetContextMenuItems(
-  extra?: GetExtraContextMenuItems,
-  selectionColumnItems: ExtraMenuItems = [],
-): GetContextMenuItems {
+export function makeGetContextMenuItems(extra?: GetExtraContextMenuItems): GetContextMenuItems {
   return (params) => {
     if (params.node?.data && !params.node.isSelected()) params.node.setSelected(true, true);
-    const items = extra?.(params) ?? [];
-    return buildContextMenu(
-      params.column?.getColId() === SELECTION_COLUMN_ID
-        ? [...selectionColumnItems, ...items]
-        : items,
-    );
+    return buildContextMenu(extra?.(params) ?? []);
   };
 }
 
 /** Column id AG Grid gives the selection checkbox column. */
 export const SELECTION_COLUMN_ID = 'ag-Grid-SelectionColumn';
 
-/** The "Show determination symbols" menu item, ticked while they show. */
-export function determinationSymbolsMenuItem(
-  show: boolean,
-  setShow: (show: boolean) => void,
-): MenuItemDef {
-  return { name: 'Show determination symbols', checked: show, action: () => setShow(!show) };
-}
-
-/** Selection column: the checkbox, plus the row's determination symbol when `show` is on. */
-export function buildSelectionColumnDef(
-  show: boolean,
-  setShow: (show: boolean) => void,
-): SelectionColumnDef {
-  return {
-    ...selectionColumnDef(show ? DeterminationSymbol : undefined),
-    columnMenuItems: [determinationSymbolsMenuItem(show, setShow)],
-  };
-}
-
-/** Selection column: the checkbox and the row's `symbol`, always shown. */
-export function buildSymbolSelectionColumnDef(
-  symbol: ComponentType<CustomCellRendererProps>,
-): SelectionColumnDef {
-  return selectionColumnDef(symbol);
-}
-
 /**
- * Selection column, pinned left: the checkbox, and `symbol` when there is one. The width is the 7px
- * cell padding each side, the 16px checkbox, and the 6px gap and widest symbol.
+ * Selection column, pinned left: the checkbox, and the row's `symbol` when there is one. The width
+ * is the 7px cell padding each side, the 16px checkbox, and the 6px gap and widest symbol.
  */
-function selectionColumnDef(
-  symbol: ComponentType<CustomCellRendererProps> | undefined,
+export function buildSelectionColumnDef(
+  symbol?: ComponentType<CustomCellRendererProps>,
 ): SelectionColumnDef {
   const width = symbol ? 55 : 30;
   return {
@@ -160,13 +120,11 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
   // the analyst add their own from the column menu.
   calculatedColumns: true,
   defaultColDef,
-  getRowId: (p) => p.data[ROW_ID_FIELD],
+  getRowId: (p) => gridRowId(p.data),
   groupDisplayType: 'groupRows',
   groupRowRendererParams: { checkbox: true },
   maintainColumnOrder: true,
-  readOnlyEdit: true,
   rowBuffer: 20,
-  rowClassRules,
   rowSelection: {
     mode: 'multiRow',
     groupSelects: 'filteredDescendants',

@@ -52,9 +52,6 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | DELETE | `/api/columnViews/{viewId}` | 204 | 401, 403, 404, 422 | Delete a column view for good (owner only). |
 | PUT | `/api/columnViews/{viewId}/hidden` | 204 | 401, 404, 422 | Hide a column view for yourself (idempotent). |
 | DELETE | `/api/columnViews/{viewId}/hidden` | 204 | 401, 404, 422 | Unhide a column view for yourself (idempotent). |
-| POST | `/api/taggedevents/savedEvents` | 204 | 400, 401, 422, 502 | Save events (rows) to `SavedEvent`. |
-| POST | `/api/taggedevents/tags` | 204 | 400, 401, 422, 502 | Add or remove tags in `EventTag`. |
-| POST | `/api/taggedevents/comments` | 204 | 400, 401, 422, 502 | Add or remove comments in `EventComment`. |
 
 Every authenticated route can also return `500`. A malformed path parameter (for example a non-UUID) is a `422` validation error.
 
@@ -88,7 +85,7 @@ Every non-2xx response has this body:
 | 413 | `too-large` | Request body over the size limit. |
 | 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
-| 502 | `upstream` | Entra unreachable, token exchange failure, editor schema failure, or tag ingestion failure. |
+| 502 | `upstream` | Entra unreachable, token exchange failure, or editor schema failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
 
 ## Instance
@@ -513,28 +510,3 @@ Returns an array of `ColumnView`: the caller's own column views and the shared o
 | `savedFrom` | `{action, presetId?}` | The action, and the preset when there is one, of the tab it was saved from. Set by `POST`, then fixed. `action` is not blank. |
 | `state` | object | A partial AG Grid `GridState`: `columnOrder`, `columnSizing`, `columnVisibility`, `columnPinning`, `columnHeaderName`, `userColumns`, `sort`, `rowGroup`, `aggregation`, `pivot` and `filter`, with `partialColumnState: true` and the AG Grid `version`. Its keys are the browser's to decide. |
 | `createdAt`, `updatedAt` | datetime | Server-set. |
-
-## Tagged events
-
-Tag rows are ingested into the tag cluster ([Kusto tables](architecture.md#kusto-tables)) with the app identity.
-
-- The server sets `createdBy` (from the token) and `dateTimeUtc` (server clock) on every row.
-- Each body is a JSON array of 1 to 1000 items. Any invalid item fails the whole request with `422`.
-- Success is `204`. An ingestion failure is `502`.
-
-| Route | Item fields |
-|---|---|
-| `POST /api/taggedevents/savedEvents` | `eventId` (string, not blank), `eventTime` (datetime), `eventAsJson` (object, at most 1,000,000 bytes serialised) |
-| `POST /api/taggedevents/tags` | `eventId` (not blank), `tag` (not blank), `isDeleted` (boolean, default `false`) |
-| `POST /api/taggedevents/comments` | `eventId` (not blank), `determination` (not blank), `comment` (string or null), `isDeleted` (boolean, default `false`) |
-
-Example:
-
-```json
-[{ "eventId": "e-123", "tag": "phishing", "isDeleted": false }]
-```
-
-- The tables are append-only. Removing a tag or comment writes a new row with `isDeleted: true`.
-- The SPA uses `determination` values `malicious`, `suspicious` and `benign`. It uses `removed` (with `isDeleted: true`) to clear one.
-- The API accepts any non-blank string.
-- Writes are not transactional across the three routes.

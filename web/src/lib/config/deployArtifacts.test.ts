@@ -15,7 +15,6 @@ const baseEnv = {
   REDIRECT_URI: 'https://tim.example.com/blank.html',
   AUTH_CLIENT_ID: 'client',
   AUTH_TENANT_ID: 'tenant.example.com',
-  TAG_CLUSTER: 'https://tags.kusto.windows.net',
   AGGRID_LICENSE: 'license',
 };
 
@@ -56,6 +55,18 @@ describe.skipIf(!hasTools)('web container entrypoint', () => {
     runInNewContext(config, { window: sandbox });
     expect(sandbox.appConfig?.auth.clientId).toBe(evil);
     expect(sandbox.appConfig?.agGridLicenseKey).toBe(evil);
+  });
+
+  it('config.js has no tag cluster or database, even when TAG_* is still set', () => {
+    const { status, config } = runEntrypoint({
+      TAG_CLUSTER: 'https://tags.kusto.windows.net',
+      TAG_DATABASE: 'Tags',
+    });
+    expect(status).toBe(0);
+    const sandbox: { appConfig?: Record<string, unknown> } = {};
+    runInNewContext(config, { window: sandbox });
+    expect(sandbox.appConfig).not.toHaveProperty('tagCluster');
+    expect(sandbox.appConfig).not.toHaveProperty('tagDatabase');
   });
 
   it('AGGRID_LICENSE is optional; without it config.js has an empty agGridLicenseKey', () => {

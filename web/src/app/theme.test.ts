@@ -43,9 +43,6 @@ describe.each(['light', 'dark'] as const)('%s colour scheme', (scheme) => {
     ['text.secondary', 'background.default', TEXT],
     ['text.secondary', 'background.paper', TEXT],
     ['primary.main', 'background.default', TEXT],
-    ['text.primary', 'determination.malicious', TEXT],
-    ['text.primary', 'determination.suspicious', TEXT],
-    ['text.primary', 'determination.benign', TEXT],
     ['editor.border', 'background.default', NON_TEXT],
   ] as const)('%s on %s meets %s:1', (fg, bg, min) => {
     expect(contrast(colour(fg), colour(bg))).toBeGreaterThanOrEqual(min);
@@ -77,23 +74,6 @@ describe('palette values', () => {
     expect(palette.text.primary).toBe(text);
     expect(palette.editor.border).toBe(border);
   });
-
-  it.each(['light', 'dark'] as const)(
-    '%s scheme keeps the determination colours for the red, amber and green labels',
-    (scheme) => {
-      const palette = theme.colorSchemes[scheme]!.palette;
-      expect(palette.label).toMatchObject({
-        red: palette.determination.malicious,
-        amber: palette.determination.suspicious,
-        green: palette.determination.benign,
-      });
-      expect(palette.labelStripe).toMatchObject({
-        red: palette.stripe.malicious,
-        amber: palette.stripe.suspicious,
-        green: palette.stripe.benign,
-      });
-    },
-  );
 
   it('shows an unconfigured label in grey', () => {
     expect(UNCONFIGURED_LABEL_COLOUR).toBe('grey');

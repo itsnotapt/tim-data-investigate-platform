@@ -1,6 +1,6 @@
 import type { Annotations } from '../api/annotations';
 import { openTimDb, STORE } from './db';
-import type { AppliedView, ColumnView, DisplayComponent, RowResult } from './types';
+import type { AppliedView, DisplayComponent, RowResult } from './types';
 
 export const displayComponentsDao = {
   async getAll(): Promise<DisplayComponent[]> {
@@ -35,33 +35,6 @@ export const rowResultsDao = {
   async deleteMany(componentUuids: readonly string[]): Promise<void> {
     const tx = (await openTimDb()).transaction(STORE.rowResults, 'readwrite');
     await Promise.all([...componentUuids.map((id) => tx.store.delete(id)), tx.done]);
-  },
-};
-
-export const columnViewsDao = {
-  /** Sorted by name. */
-  async list(): Promise<ColumnView[]> {
-    const all = await (await openTimDb()).getAll(STORE.columnViews);
-    return all.sort((a, b) => a.name.localeCompare(b.name));
-  },
-  async put(view: ColumnView): Promise<void> {
-    await (await openTimDb()).put(STORE.columnViews, view);
-  },
-  /** Returns the updated view, or `undefined` if `uuid` does not exist. */
-  async rename(uuid: string, name: string): Promise<ColumnView | undefined> {
-    const tx = (await openTimDb()).transaction(STORE.columnViews, 'readwrite');
-    const existing = await tx.store.get(uuid);
-    if (!existing) {
-      await tx.done;
-      return undefined;
-    }
-    const updated = { ...existing, name };
-    await tx.store.put(updated);
-    await tx.done;
-    return updated;
-  },
-  async delete(uuid: string): Promise<void> {
-    await (await openTimDb()).delete(STORE.columnViews, uuid);
   },
 };
 

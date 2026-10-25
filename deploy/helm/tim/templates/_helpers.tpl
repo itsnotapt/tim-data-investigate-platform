@@ -118,10 +118,6 @@ values are empty. */}}
 {{- define "tim.validate" -}}
 {{- $_ := required "config.auth.tenantId is required" .Values.config.auth.tenantId }}
 {{- $_ := required "config.auth.clientId is required" .Values.config.auth.clientId }}
-{{- $_ := required "config.tags.clusterUri is required" .Values.config.tags.clusterUri }}
-{{- if not (hasPrefix "https://" .Values.config.tags.clusterUri) }}
-{{- fail "config.tags.clusterUri must be an https URL" }}
-{{- end }}
 {{- /* An api.image.repository other than TIM's (a derived image) needs a tag or digest (ADR-0008). */}}
 {{- $api := .Values.api.image }}
 {{- if and (ne $api.repository "ghcr.io/itsnotapt/tim-data-investigate-platform/backend") (not $api.tag) (not $api.digest) }}

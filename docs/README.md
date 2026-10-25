@@ -8,8 +8,8 @@ TIM is an investigation platform: analysts run actions against an instance's con
 |---|---|
 | [CODING_STANDARDS.md](../CODING_STANDARDS.md) | Coding rules a reviewer judges: docs, security, frontend, backend, tests |
 | [RULES.md](RULES.md) | Process: sources of truth, when to ask the user, git, PRs and releases |
-| [GLOSSARY.md](../GLOSSARY.md) | Domain vocabulary: investigations, tabs, actions, pivots, runs, annotations, tagging |
-| [architecture.md](architecture.md) | Parts of the system, data flow, web and api internals, annotations and the change feed, persistence, security model, Kusto tables |
+| [GLOSSARY.md](../GLOSSARY.md) | Domain vocabulary: investigations, tabs, actions, pivots, runs, annotations |
+| [architecture.md](architecture.md) | Parts of the system, data flow, web and api internals, annotations and the change feed, persistence and the security model |
 | [api.md](api.md) | HTTP API reference: endpoints, schemas, errors |
 | [actions.md](actions.md) | For operators and action authors: action files, their schema and `tim-api check` |
 | [development.md](development.md) | Local setup, running the stack, tests, linting, migrations, CI |

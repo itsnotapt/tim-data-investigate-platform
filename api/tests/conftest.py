@@ -23,7 +23,6 @@ REQUIRED_ENV = {
     "TIM_AUTH_TENANT_ID": "tenant-id",
     "TIM_AUTH_CLIENT_ID": "client-id",
     "TIM_AUTH_CLIENT_SECRET": "client-secret",  # OBO credential; required with an obo connection
-    "TIM_TAG_CLUSTER_URI": "https://tags.westeurope.kusto.windows.net",
     "TIM_DATABASE_URL": "postgresql+asyncpg://tim:s3cret-pw@localhost:5432/tim",
 }
 

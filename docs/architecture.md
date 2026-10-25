@@ -35,32 +35,23 @@ Related docs:
  +------------------------------+     +-----------------------+------------+
  | web container (nginx)        |---->| api container (FastAPI)            |
  | static files, /config.js,    |     |  presets, runs,                    |
- | security headers, /api proxy |     |  tag ingest                        |
- +------------------------------+     +---+-------------+-----------+------+
-                                          |             |           |
-                                          v             |           |
-                              +--------------------+    |           |
-                              | PostgreSQL         |    |           |
-                              | presets,           |    |           |
-                              | preset_hidden      |    |           |
-                              | runs, run_rows     |    |           |
-                              +--------------------+    |           |
-                      user token (OBO)  +---------------+           | app identity
-                                        v                           v
-                         +-------------------------+   +---------------------------+
-                         | Kusto clusters the user |   | Tag cluster / database    |
-                         | queries                 |   | SavedEvent, EventTag,     |
-                         +-------------------------+   | EventComment              |
-                                                       +-------------^-------------+
-                                      read back inside the user's own query
-                                      by the {{> getTagEvents}} partial (runs as the user)
+ | security headers, /api proxy |     |  annotations                       |
+ +------------------------------+     +---+-------------+------------------+
+                                          |             |
+                                          v             |
+                              +--------------------+    | user token (OBO)
+                              | PostgreSQL         |    |
+                              | presets,           |    v
+                              | preset_hidden      | +-------------------------+
+                              | runs, run_rows     | | Kusto clusters the user |
+                              +--------------------+ | queries                 |
+                                                     +-------------------------+
 ```
 
 Key points:
 
 - Investigation state (tabs, cached result rows, the column views applied per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
 - Actions run on the API. It exchanges the caller's token for each connection's token (OBO), runs the action's hook and stores the result as a run. The SPA polls the run and loads its rows.
-- Tag data is written through the API, as the app identity. It is read back with KQL, inside the user's own queries.
 - Labels, tags and comments are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
 
 ## Web architecture
@@ -80,7 +71,7 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `action-tab`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `column-views`, `action-column-views`, `tagging`, `share-links` |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `action-tab`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `action-column-views`, `share-links` |
 | `web/src/lib/api/` | Typed API client, problem handling, run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
@@ -90,7 +81,7 @@ Key points:
 | `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
 | `web/src/lib/uuid.ts` | `generateUuid` (v4 UUID via `crypto.randomUUID`) |
 | `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
-| `web/e2e/` | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `mocks/` and `fixtures.ts` (the mocked flows), screenshot helper |
+| `web/e2e/` | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `editor.ts` (`waitForEditor`), screenshot helper |
 
 Features import `lib/*` and `components/*`. Between features:
 
@@ -130,8 +121,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - On load, a stored tab of an unknown kind is dropped, with its rows.
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
-- **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `columnViewsStore`.
-- **`columnViewsStore`** holds the column views of the column-view bar, in IndexedDB `column_views`. Action tabs don't use it.
+- **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `instanceStore`.
 - **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
   - Bootstrap loads it first.
   - A refetch on every window focus replaces it only when its `version` differs. So a rolling update shows up without a reload.
@@ -155,7 +145,7 @@ Besides the common fields, an action tab's state holds:
 | `gridState` | The column and filter sections of the tab's grid, as the analyst last left them |
 | `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the action default), and the grid state just after it was put on |
 
-### Data flow: run, poll, pivot, tag
+### Data flow: run, poll, pivot
 
 1. **Run.** `runActionTab` sends `POST /api/runs` with the tab's `{action, params}`.
    - A `422` puts each `params.<name>` error in the tab's `paramErrors`, for every param the action declares. That includes the Query editor's `kql` or `sql` param, whose border and caption show it.
@@ -181,12 +171,11 @@ Besides the common fields, an action tab's state holds:
    - A `404` on the run shows "The run is no longer available; run again".
    - A `410` on the rows (results gone) shows "Results are no longer available; run again".
 
-From the rows, an analyst pivots or tags:
+From the rows, an analyst pivots:
 
 - **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
   - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
-- **Tag.** The tagging dialog posts to `/api/taggedevents/savedEvents`, `/tags` and `/comments`, in batches of at most 1000 items. The next run of a query that invokes `getTagEvents()` returns the updated `TagEvent` column.
 
 ### Share links
 
@@ -203,13 +192,12 @@ One run is followed per tab. Starting another run stops following the previous o
 
 ### IndexedDB
 
-Database `tim` (version 4):
+Database `tim` (version 5):
 
 | Store | Key | Value |
 |---|---|---|
 | `display_components` | `componentUuid` | Tab: name (`ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
 | `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
-| `column_views` | `uuid` | `{uuid, name, columnState}` (AG Grid column state). Used by the column-view bar only |
 | `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>` |
 | `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
@@ -414,7 +402,6 @@ A column view is a named, saved set of the results grid's columns and filters ([
 - It is private to its owner, or shared with everyone.
 - Others read a shared column view but do not change it. They apply it, hide it for themselves, or save their own copy.
 - Names are not unique. Last write wins.
-- The column-view bar keeps its own column views, in the browser (`features/column-views`).
 
 **What's stored.** `state` is a partial AG Grid `GridState` (`features/action-column-views/columnViewState.ts`).
 
@@ -586,7 +573,6 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 | `redirectUri` | MSAL redirect page (`/blank.html`) |
 | `apiEndpoint` | API origin; empty means same origin |
 | `agGridLicenseKey` | AG Grid Enterprise key; empty runs in trial mode |
-| `tagCluster`, `tagDatabase` | Tag tables location (database default `Research`) |
 | `wikiUri`, `issueUri` | Help links |
 
 `/config.js` and `index.html` are served uncached. Hashed assets under `/assets/` are cached for a year.
@@ -611,7 +597,6 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 - PyJWT, for token validation.
 - `msal`, for OBO.
 - `azure-kusto-data`, for queries, in the `tim-actions` `kusto` extra.
-- `azure-kusto-ingest` and `azure-identity`, for tag ingestion.
 - SQLAlchemy 2 with asyncpg, and Alembic, for PostgreSQL.
 
 ### Module layout (`api/src/tim_api`)
@@ -632,7 +617,6 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `presets/` | `/api/presets` routes (`router.py`) and models |
 | `column_views/` | `/api/columnViews` routes (`router.py`) and models |
-| `tagged_events/` | Tag routes, ingestion client, table schema, `create-tables` CLI |
 | `storage/` | Storage interfaces, PostgreSQL and in-memory implementations, retention loop |
 | `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export |
 
@@ -995,23 +979,9 @@ Rules:
 - Param values are not checked here. They are validated when a run starts.
 - Inputs are told apart by `source` and the boolean `fixed`, not by an OpenAPI discriminator.
 
-### Tagged events
-
-The three `POST /api/taggedevents/*` routes:
-
-1. validate a batch of 1 to 1000 items;
-2. add `createdBy` (from the token) and `dateTimeUtc` (server clock) to every row;
-3. ingest NDJSON through `ManagedStreamingIngestClient` (`azure-kusto-ingest`), using the table's JSON mapping.
-
-- Ingestion uses the app identity, not the user. That is `DefaultAzureCredential`, configured with the standard `AZURE_*` variables.
-- The ingest endpoint is `TIM_TAG_INGEST_URL`, or `https://ingest-<tag cluster host>`.
-- A failure gives `502`.
-- `TIM_TAG_INGEST_FAKE=true` (development only) swaps in an in-memory recorder.
-
 ### Annotations and the change feed
 
 An `id`'s annotations are its label, tags and comments ([ADR-0020](adr/0020-annotations-in-postgres.md)).
-Kusto tagging ([Tagged events](#tagged-events)) runs beside them.
 
 The wire shape is the same everywhere: `Annotations = {id, label: {key, by, at} | null, tags, comments, version}`. `version` is the version of the change that last touched the `id`.
 
@@ -1105,12 +1075,11 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
   - Analysts never name an endpoint, so the API cannot be used to forward user tokens to arbitrary hosts.
   - Hooks get a `token_for(scope)` callable and never see the analyst's token.
   - `GET /api/instance` shows a connection's name, title, type, editor and databases. It never shows its cluster, auth or scope.
-- **Connections run as the user** (OBO). Only tag ingestion and table creation use the app identity.
+- **Connections run as the user** (OBO).
 - **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's auth stub throws in a production build.
 - **Request bodies are capped:**
   - `TIM_MAX_REQUEST_BYTES` on the API (default 64 MiB, `413`);
   - `client_max_body_size 64m` on nginx;
-  - tagged-event batches to 1000 items, and each `eventAsJson` to 1,000,000 bytes serialised;
   - queries to 100,000 characters.
 - **API responses** carry `x-content-type-options: nosniff` and `cache-control: no-store`.
 - **The web container** (nginx, port 8080) sends these on every response, and has `server_tokens` off:
@@ -1128,50 +1097,3 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
 - **nginx proxies `/api/`** to `BACKEND_URI` unchanged, keeping the `/api` prefix, with a 620 s read timeout.
 - **The entrypoint** validates every value substituted into `config.js` and the nginx config. It escapes `config.js` content.
 - **Logs** never contain tokens, headers, bodies or query strings.
-
-## Kusto tables
-
-Tag data lives in three tables in the tag database of the tag cluster ([configuration.md](configuration.md)):
-
-- on the API: `TIM_TAG_CLUSTER_URI` and `TIM_TAG_DATABASE` (default `Research`);
-- on the web container: `TAG_CLUSTER` and `TAG_DATABASE`.
-
-The tables are append-only. When read, the latest row per key wins.
-
-| Table | Columns |
-|---|---|
-| `SavedEvent` | EventId:string, EventTime:datetime, DateTimeUtc:datetime, CreatedBy:string, EventAsJson:dynamic |
-| `EventTag` | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Tag:string, IsDeleted:bool |
-| `EventComment` | EventId:string, DateTimeUtc:datetime, CreatedBy:string, Comment:string, Determination:string, IsDeleted:bool |
-
-`EventComment.Determination` is `malicious`, `suspicious` or `benign`.
-
-- A comment with `removed` and `IsDeleted` clears it.
-- The grid sets a row class per value (`web/src/features/grid/rowClasses.ts`).
-
-The schema is defined in `api/src/tim_api/tagged_events/kusto_schema.py`. Each table has:
-
-- a JSON ingestion mapping, `<Table>Mapping`, where column `X` maps from `$.x`;
-- streaming ingestion enabled.
-
-Create or update the tables, mappings and policies from `api/`. The command is idempotent, and uses the app identity through `DefaultAzureCredential`:
-
-```
-uv run python -m tim_api.tagged_events.cli create-tables [--dry-run] [--cluster-uri URI] [--database NAME]
-```
-
-- `--cluster-uri` and `--database` default to `TIM_TAG_CLUSTER_URI` and `TIM_TAG_DATABASE`.
-- `--dry-run` prints the commands without running them.
-- Any failing command prints an error and exits non-zero.
-
-Tags are read back with a `getTagEvents` function that the analyst's KQL defines.
-
-- The query calls `getTagEvents(T)` on a table with an `EventId` column.
-- For each `EventId`, the function joins:
-  - the latest `SavedEvent` (`IsSaved`);
-  - the non-deleted `EventTag` tags (`Tags`);
-  - the latest non-deleted `EventComment` (`Determination`, `Comment`, plus `Comments`).
-- It packs them into a `TagEvent` column.
-- The query runs as the user, so users need read access to the tag database.
-
----

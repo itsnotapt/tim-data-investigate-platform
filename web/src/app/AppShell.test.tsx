@@ -16,7 +16,6 @@ beforeEach(() => {
   window.appConfig = {
     auth: { clientId: 'id', authority: 'https://login.example.com/t' },
     redirectUri: 'https://tim.example.com/blank.html',
-    tagCluster: 'https://tags.kusto.windows.net',
     wikiUri: 'https://wiki.example/tim',
     issueUri: 'https://issues.example/new',
   };

@@ -3,7 +3,7 @@
 TIM is an investigation platform. Analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id` so findings are shared with the team.
 
 - **`web/`**: React single-page app (TypeScript, Vite, AG Grid Enterprise, Monaco), served by nginx.
-- **`api/`**: FastAPI service (Python 3.12) that runs actions against connections on behalf of the signed-in user, stores presets, runs and annotations in PostgreSQL, and records tagged events in Kusto.
+- **`api/`**: FastAPI service (Python 3.12) that runs actions against connections on behalf of the signed-in user, stores presets, runs and annotations in PostgreSQL.
 - Sign-in is Microsoft Entra ID.
 
 ## Quickstart

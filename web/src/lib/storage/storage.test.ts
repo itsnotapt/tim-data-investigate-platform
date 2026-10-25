@@ -4,12 +4,10 @@ import { openDB } from 'idb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appliedViewsDao,
-  columnViewsDao,
   displayComponentsDao,
   openTimDb,
   resetTimDb,
   rowResultsDao,
-  type ColumnView,
   type DisplayComponent,
 } from './index';
 
@@ -37,15 +35,14 @@ afterEach(async () => {
 });
 
 describe('openTimDb', () => {
-  it('creates database "tim" v4 with the six stores', async () => {
+  it('creates database "tim" v5 with the five stores', async () => {
     const db = await openTimDb();
     expect(db.name).toBe('tim');
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect([...db.objectStoreNames].sort()).toEqual([
       'annotation_sync',
       'annotations',
       'applied_views',
-      'column_views',
       'display_components',
       'row_results',
     ]);
@@ -64,10 +61,11 @@ describe('openTimDb', () => {
     v1.close();
 
     const db = await openTimDb();
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect(db.objectStoreNames).toContain('annotations');
     expect(db.objectStoreNames).toContain('applied_views');
     expect(db.objectStoreNames).not.toContain('query_options');
+    expect(db.objectStoreNames).not.toContain('column_views');
     expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
@@ -86,9 +84,10 @@ describe('openTimDb', () => {
     v2.close();
 
     const db = await openTimDb();
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect(db.objectStoreNames).toContain('applied_views');
     expect(db.objectStoreNames).not.toContain('query_options');
+    expect(db.objectStoreNames).not.toContain('column_views');
     expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
@@ -112,8 +111,35 @@ describe('openTimDb', () => {
     v3.close();
 
     const db = await openTimDb();
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect(db.objectStoreNames).not.toContain('query_options');
+    expect(db.objectStoreNames).not.toContain('column_views');
+    expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
+  });
+
+  it('upgrades a v4 database, dropping column_views and keeping the rest', async () => {
+    const v4 = await openDB('tim', 4, {
+      upgrade(db) {
+        db.createObjectStore('display_components', { keyPath: 'componentUuid' });
+        db.createObjectStore('row_results');
+        db.createObjectStore('column_views', { keyPath: 'uuid' });
+        db.createObjectStore('annotations', { keyPath: 'id' });
+        db.createObjectStore('annotation_sync');
+        db.createObjectStore('applied_views', { keyPath: ['analyst', 'scope'] }).createIndex(
+          'analyst',
+          'analyst',
+        );
+      },
+    });
+    await v4.put('display_components', makeComponent('tab-1'));
+    await v4.put('row_results', [{ row: 0 }], 'tab-1');
+    await v4.put('column_views', { uuid: 'v1', name: 'Triage', columnState: [] });
+    v4.close();
+
+    const db = await openTimDb();
+    expect(db.version).toBe(5);
+    expect(db.objectStoreNames).not.toContain('column_views');
+    expect(await displayComponentsDao.getAll()).toEqual([makeComponent('tab-1')]);
     expect(await rowResultsDao.get('tab-1')).toEqual([{ row: 0 }]);
   });
 
@@ -129,7 +155,6 @@ describe('openTimDb', () => {
     const spy = vi.spyOn(indexedDB, 'open');
     await displayComponentsDao.getAll();
     await rowResultsDao.get('x');
-    await columnViewsDao.list();
     await resetTimDb();
     await openTimDb();
     expect(spy).toHaveBeenCalled();
@@ -184,29 +209,6 @@ describe('rowResultsDao', () => {
     await rowResultsDao.deleteMany(['a', 'b']);
     expect(await rowResultsDao.get('a')).toEqual([]);
     expect(await rowResultsDao.get('c')).toEqual([{ x: 3 }]);
-  });
-});
-
-describe('columnViewsDao', () => {
-  const view = (uuid: string, name: string): ColumnView => ({
-    uuid,
-    name,
-    columnState: [{ colId: 'TagEvent.Tags', hide: false }],
-  });
-
-  it('lists sorted by name, puts, renames and deletes', async () => {
-    expect(await columnViewsDao.list()).toEqual([]);
-    await columnViewsDao.put(view('1', 'Zed'));
-    await columnViewsDao.put(view('2', 'Alpha'));
-    expect((await columnViewsDao.list()).map((v) => v.name)).toEqual(['Alpha', 'Zed']);
-
-    const renamed = await columnViewsDao.rename('1', 'Beta');
-    expect(renamed).toEqual(view('1', 'Beta'));
-    expect((await columnViewsDao.list()).map((v) => v.name)).toEqual(['Alpha', 'Beta']);
-    expect(await columnViewsDao.rename('nope', 'x')).toBeUndefined();
-
-    await columnViewsDao.delete('2');
-    expect((await columnViewsDao.list()).map((v) => v.uuid)).toEqual(['1']);
   });
 });
 
