@@ -255,10 +255,28 @@ LIVE_CONNECTIONS = f"""\
 """
 
 
+LIVE_SQL = """SELECT :1 AS N, :2 AS S,
+  :3 = '2026-01-02 03:04:05 +02:00'::TIMESTAMP_TZ AS SAME_INSTANT,
+  ARRAY_SIZE(PARSE_JSON(:4)) AS K"""
+
+
 async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
+    """Run SQL with a query parameter of each kind Snowflake binds differently: a number, a
+    string, a datetime read as UTC, and a list read with ``PARSE_JSON``."""
+    parameters = [
+        {"name": "n", "type": "long", "value": 1},
+        {"name": "s", "type": "string", "value": "x"},
+        {"name": "at", "type": "datetime", "value": "2026-01-02T01:04:05Z"},
+        {"name": "upns", "type": "dynamic", "value": ["alice@contoso.com", "bob@contoso.com"]},
+    ]
     body = {
         "action": "tim.run_sql",
-        "params": {"connection": "warehouse", "sql": "SELECT 1 AS N, 'x' AS S", "idColumn": "N"},
+        "params": {
+            "connection": "warehouse",
+            "sql": LIVE_SQL,
+            "idColumn": "N",
+            "parameters": parameters,
+        },
     }
     run: dict[str, Any] = (await client.post("/api/runs", json=body)).json()
     async with asyncio.timeout(60):
@@ -266,9 +284,16 @@ async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
             await asyncio.sleep(0.5)
             run = (await client.get(f"/api/runs/{run['runId']}")).json()
     assert run["status"] == "succeeded", run.get("error", run)
-    assert [(c["name"], c["type"]) for c in run["columns"]] == [("N", "number"), ("S", "string")]
+    assert [(c["name"], c["type"]) for c in run["columns"]] == [
+        ("N", "number"),
+        ("S", "string"),
+        ("SAME_INSTANT", "boolean"),
+        ("K", "number"),
+    ]
     rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-    assert [(r["id"], r["data"]) for r in rows] == [("1", {"N": 1, "S": "x"})]
+    assert [(r["id"], r["data"]) for r in rows] == [
+        ("1", {"N": 1, "S": "x", "SAME_INSTANT": True, "K": 2})
+    ]
 
     schema = await client.post("/api/connections/warehouse/schema", json={"scope": {}})
     assert schema.status_code == 200

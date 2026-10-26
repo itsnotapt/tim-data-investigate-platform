@@ -1,12 +1,15 @@
 {
   "connector": "5.1.0",
-  "recorded": "2026-10-25",
+  "recorded": "2026-10-26",
   "statements": [
     {
       "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
       "params": [
         "alice@contoso.com"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -33,6 +36,9 @@
       "params": [
         42
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -59,6 +65,9 @@
       "params": [
         12345678901234567890
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -85,6 +94,9 @@
       "params": [
         18446744073709551616
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -111,6 +123,9 @@
       "params": [
         -1.5
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -139,6 +154,9 @@
           "$float": "nan"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -167,6 +185,9 @@
       "params": [
         true
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -193,6 +214,9 @@
       "params": [
         null
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -221,6 +245,9 @@
           "$datetime": "2026-01-02T03:04:05.123456"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -251,6 +278,9 @@
           "$datetime": "2026-01-02T03:04:05.123456+00:00"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -281,6 +311,9 @@
           "$datetime": "2026-01-02T03:04:05.123456+02:00"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -311,6 +344,9 @@
           "$date": "2026-01-02"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -344,6 +380,9 @@
           }
         ]
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "DatabaseError",
         "msg": "Cannot retrieve data on the status of this query. No information returned from server for query '<query id>'",
@@ -361,6 +400,9 @@
           }
         ]
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -394,6 +436,9 @@
           }
         ]
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "V",
@@ -423,6 +468,9 @@
         "x",
         2
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "A",
@@ -458,6 +506,9 @@
         "2026-01-02 03:04:05 +02:00",
         "{\"a\": 1}"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "N",
@@ -493,6 +544,9 @@
       "params": [
         "x"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "LIT",
@@ -519,6 +573,9 @@
       "params": [
         "[\"alice@contoso.com\", \"bob@contoso.com\"]"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ID",
@@ -545,6 +602,9 @@
       "params": [
         "[1, 2, 3]"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ID",
@@ -575,6 +635,9 @@
       "params": [
         "[]"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ID",
@@ -598,6 +661,9 @@
           "$datetime": "2026-01-02T00:00:00+00:00"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ID",
@@ -619,6 +685,9 @@
           "$datetime": "2026-01-02T01:00:00+00:00"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ID",
@@ -627,7 +696,11 @@
           "scale": 0
         }
       ],
-      "rows": []
+      "rows": [
+        [
+          1
+        ]
+      ]
     },
     {
       "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_LTZ >= :1 ORDER BY ID",
@@ -636,6 +709,9 @@
           "$datetime": "2026-01-02T03:00:00+00:00"
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ID",
@@ -644,13 +720,20 @@
           "scale": 0
         }
       ],
-      "rows": []
+      "rows": [
+        [
+          1
+        ]
+      ]
     },
     {
       "sql": "SELECT :1 AS A, :2 AS B",
       "params": [
         "only one"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "ProgrammingError",
         "msg": "SQL compilation error: error line 1 at position 16\nBind variable :2 not set.",
@@ -663,6 +746,9 @@
       "params": [
         "unused"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "description": [
         {
           "name": "ONE",
@@ -682,6 +768,9 @@
       "params": [
         "abc"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "ProgrammingError",
         "msg": "Numeric value 'abc' is not recognized",
@@ -694,6 +783,9 @@
       "params": [
         "TIM_RECORDING.PUBLIC.EVERY_TYPE"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "ProgrammingError",
         "msg": "SQL compilation error:\nsyntax error line 1 at position 14 unexpected ':'.",
@@ -706,6 +798,9 @@
       "params": [
         "x"
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "ProgrammingError",
         "msg": "SQL compilation error: error line 1 at position 7\nBind variable :name not set.",
@@ -720,6 +815,9 @@
           "a": 1
         }
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "ProgrammingError",
         "msg": "Binding data in type (dict) is not supported. Convert the value to a supported Python type (str, int, float, bool, bytes, date/datetime/time/timedelta) before binding it.",
@@ -735,6 +833,9 @@
           2
         ]
       ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
       "error": {
         "class": "ProgrammingError",
         "msg": "SQL compilation error: error line 1 at position 7\nBind variable :1 not set.",
@@ -743,40 +844,105 @@
       }
     },
     {
-      "sql": "SELECT :1 AS V, SYSTEM$TYPEOF(:1) AS T",
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE\n    WHERE AT_TZ IN (SELECT value::TIMESTAMP_TZ FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID",
       "params": [
-        {
-          "$datetime": "2026-01-02T03:04:05.123456+00:00"
-        }
+        "[\"2026-01-02T01:04:05.5Z\",\"2026-01-03T00:00:00Z\"]"
       ],
       "session": {
         "TIMEZONE": "UTC"
       },
       "description": [
         {
-          "name": "V",
-          "type_code": 8,
-          "precision": 0,
-          "scale": 9
-        },
-        {
-          "name": "T",
-          "type_code": 2,
-          "precision": null,
-          "scale": null
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
         }
       ],
       "rows": [
         [
-          {
-            "$datetime": "2026-01-02T03:04:05.123456"
-          },
-          "TIMESTAMP_NTZ(9)[SB16]"
+          1
         ]
       ]
     },
     {
-      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_TZ >= :1 ORDER BY ID",
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE\n    WHERE BIG IN (SELECT value::NUMBER(38, 0) FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID",
+      "params": [
+        "[12345678901234567890]"
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT PARSE_JSON(:1):app::STRING AS APP, ARRAY_SIZE(PARSE_JSON(:1):ids) AS N",
+      "params": [
+        "{\"app\":\"Teams\",\"ids\":[1,2]}"
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "APP",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "N",
+          "type_code": 0,
+          "precision": 9,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          "Teams",
+          2
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE (:1 IS NULL OR AT_TZ >= :1) ORDER BY ID",
+      "params": [
+        null
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE (:1 IS NULL OR AT_TZ >= :1) ORDER BY ID",
       "params": [
         {
           "$datetime": "2026-01-02T01:00:00+00:00"
@@ -800,11 +966,9 @@
       ]
     },
     {
-      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_LTZ >= :1 ORDER BY ID",
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID LIMIT :1",
       "params": [
-        {
-          "$datetime": "2026-01-02T03:00:00+00:00"
-        }
+        1
       ],
       "session": {
         "TIMEZONE": "UTC"
@@ -820,6 +984,31 @@
       "rows": [
         [
           1
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID LIMIT :1",
+      "params": [
+        null
+      ],
+      "session": {
+        "TIMEZONE": "UTC"
+      },
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        }
+      ],
+      "rows": [
+        [
+          1
+        ],
+        [
+          2
         ]
       ]
     }

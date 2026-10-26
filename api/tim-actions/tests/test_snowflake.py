@@ -13,7 +13,8 @@ from snowflake.connector import errors as sf_errors
 from snowflake_recording import BoundKey, bound_key, load, load_binds
 
 from tim_actions import Column, Hook, RunError
-from tim_actions.snowflake import RUN_SQL, SnowflakeConnection, SnowflakeHook
+from tim_actions.params import Param
+from tim_actions.snowflake import RUN_SQL, SnowflakeConnection, SnowflakeHook, bind_values
 from tim_actions.testing import Connections, RunResult, run_action
 from tim_actions.testing.snowflake import FakeSnowflake, SnowflakeCall
 
@@ -186,9 +187,8 @@ class FakeConnection:
 class FakeConnector:
     """``snowflake.connector.connect``: records each login and answers each statement from
     ``answers``, by the first key the statement contains, or with ``result``; a statement with
-    bound values from ``bound``, by ``bound_key``, recorded in the login's ``TIMEZONE`` or else
-    in none; ``login_error`` fails the login; with ``hold``, a query waits until it's aborted,
-    then answers."""
+    bound values from ``bound``, by ``bound_key`` with the login's ``TIMEZONE``; ``login_error``
+    fails the login; with ``hold``, a query waits until it's aborted, then answers."""
 
     def __init__(self) -> None:
         self.logins: list[dict[str, Any]] = []
@@ -215,10 +215,9 @@ class FakeConnector:
     ) -> tuple[list[Any], list[tuple[Any, ...]]] | Exception:
         if params is not None:
             timezone = self.logins[-1].get("session_parameters", {}).get("TIMEZONE")
-            for bound in (bound_key(command, params, timezone), bound_key(command, params, None)):
-                if bound in self.bound:
-                    return self.bound[bound]
-            return AssertionError("not recorded")
+            return self.bound.get(
+                bound_key(command, params, timezone), AssertionError("not recorded")
+            )
         for key, answer in self.answers.items():
             if key in command:
                 return answer
@@ -686,6 +685,52 @@ def test_a_bound_value_can_be_cast(recorded: FakeConnector) -> None:
     assert hook().query(sql, deadline=in_30s(), params=params).rows == [
         {"N": 123, "T": "2026-01-02T01:04:05Z", "J": '{"a": 1}'}
     ]
+
+
+def bound_rows(sql: str, params: list[Param], values: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The rows of ``sql`` with ``values`` bound as TIM binds a ``snowflake_query``'s params."""
+    return hook().query(sql, deadline=in_30s(), params=bind_values(params, values)).rows
+
+
+def test_many_datetimes_are_bound_as_utc_times_the_query_parses(recorded: FakeConnector) -> None:
+    sql = """SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE AT_TZ IN (SELECT value::TIMESTAMP_TZ FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""
+    # Row 1's AT_TZ is 03:04:05.5 +02:00.
+    ats = [datetime(2026, 1, 2, 1, 4, 5, 500000, tzinfo=UTC), datetime(2026, 1, 3, tzinfo=UTC)]
+    rows = bound_rows(sql, [Param("ats", "datetime", many=True)], {"ats": ats})
+    assert rows == [{"ID": 1}]
+
+
+def test_many_numbers_keep_every_digit(recorded: FakeConnector) -> None:
+    sql = """SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE BIG IN (SELECT value::NUMBER(38, 0) FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""
+    rows = bound_rows(sql, [Param("bigs", "number", many=True)], {"bigs": [12345678901234567890]})
+    assert rows == [{"ID": 1}]
+
+
+def test_a_json_value_is_bound_as_json_text_the_query_parses(recorded: FakeConnector) -> None:
+    sql = "SELECT PARSE_JSON(:1):app::STRING AS APP, ARRAY_SIZE(PARSE_JSON(:1):ids) AS N"
+    filter_ = {"app": "Teams", "ids": [1, 2]}
+    assert bound_rows(sql, [Param("filter", "json")], {"filter": filter_}) == [
+        {"APP": "Teams", "N": 2}
+    ]
+
+
+def test_an_optional_value_left_out_is_null(recorded: FakeConnector) -> None:
+    sql = (
+        "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE"
+        " WHERE (:1 IS NULL OR AT_TZ >= :1) ORDER BY ID"
+    )
+    since = [Param("since", "datetime", required=False)]
+    assert bound_rows(sql, since, {}) == [{"ID": 1}, {"ID": 2}]
+    assert bound_rows(sql, since, {"since": datetime(2026, 1, 2, 1, tzinfo=UTC)}) == [{"ID": 1}]
+
+
+def test_a_limit_can_be_bound_and_null_is_none(recorded: FakeConnector) -> None:
+    sql = "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID LIMIT :1"
+    limit = [Param("limit", "number", required=False)]
+    assert bound_rows(sql, limit, {"limit": 1}) == [{"ID": 1}]
+    assert bound_rows(sql, limit, {}) == [{"ID": 1}, {"ID": 2}]
 
 
 def test_a_position_without_a_value_ends_the_query_with_snowflakes_message(
