@@ -346,6 +346,135 @@
       "title": "kql_query",
       "type": "object"
     },
+    "snowflake_query": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "sql"
+              ]
+            },
+            {
+              "required": [
+                "sql_file"
+              ]
+            }
+          ]
+        }
+      ],
+      "description": "``snowflake_query``: fixed SQL on a fixed Snowflake connection. Its params are bound\nserver-side by position, in the order they are declared: ``:1`` is the first. The SQL is\nsent unchanged (ADR-0019).",
+      "properties": {
+        "type": {
+          "const": "snowflake_query",
+          "title": "Type",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z0-9_.-]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "menu": {
+          "default": "",
+          "title": "Menu",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "pivot": {
+          "enum": [
+            "row",
+            "rows",
+            "none"
+          ],
+          "title": "Pivot",
+          "type": "string"
+        },
+        "params": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Param"
+          },
+          "title": "Params",
+          "type": "array"
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Column"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Columns"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "connection": {
+          "pattern": "^[a-z0-9-]+$",
+          "title": "Connection",
+          "type": "string"
+        },
+        "sql": {
+          "title": "Sql",
+          "type": "string"
+        },
+        "sql_file": {
+          "description": "A file next to the action file that holds sql",
+          "title": "Sql file",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key",
+        "name",
+        "pivot",
+        "connection"
+      ],
+      "title": "snowflake_query",
+      "type": "object"
+    },
     "storm_summary": {
       "additionalProperties": false,
       "description": "Storm events counted by state and event type over a time window.",
@@ -459,6 +588,7 @@
   "discriminator": {
     "mapping": {
       "kql_query": "#/$defs/kql_query",
+      "snowflake_query": "#/$defs/snowflake_query",
       "storm_summary": "#/$defs/storm_summary"
     },
     "propertyName": "type"
@@ -466,6 +596,9 @@
   "oneOf": [
     {
       "$ref": "#/$defs/kql_query"
+    },
+    {
+      "$ref": "#/$defs/snowflake_query"
     },
     {
       "$ref": "#/$defs/storm_summary"
