@@ -8,7 +8,6 @@ import type {
   SelectionColumnDef,
   SideBarDef,
   StatusPanelDef,
-  ValueGetterFunc,
 } from 'ag-grid-community';
 import type { CustomCellRendererProps } from 'ag-grid-react';
 import type { ComponentType } from 'react';
@@ -37,12 +36,6 @@ export function dateComparator(filterDate: Date, cellValue: unknown): number {
   return Date.parse(scalarText(cellValue)) - filterDate.getTime();
 }
 
-/** A cell's value for the number filter: a `BigInt` as the nearest number, which it can compare. */
-const numberFilterValue: ValueGetterFunc = ({ column, getValue }) => {
-  const value: unknown = getValue(column.getColId());
-  return typeof value === 'bigint' ? Number(value) : value;
-};
-
 /** Multi filter: text, number, date (sub-menus) and set filter. */
 export const defaultColDef: ColDef = {
   // No type inference: object and array cells would warn about a missing valueFormatter.
@@ -53,7 +46,7 @@ export const defaultColDef: ColDef = {
   filterParams: {
     filters: [
       { filter: 'agTextColumnFilter', display: 'subMenu' },
-      { filter: 'agNumberColumnFilter', display: 'subMenu', filterValueGetter: numberFilterValue },
+      { filter: 'agNumberColumnFilter', display: 'subMenu' },
       {
         filter: 'agDateColumnFilter',
         display: 'subMenu',

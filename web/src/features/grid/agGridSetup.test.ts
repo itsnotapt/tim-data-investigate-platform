@@ -24,6 +24,7 @@ vi.mock('ag-grid-community', () => ({
       'GridStateModule',
       'LargeTextEditorModule',
       'NumberFilterModule',
+      'BigIntFilterModule',
       'QuickFilterModule',
       'RenderApiModule',
       'RowApiModule',

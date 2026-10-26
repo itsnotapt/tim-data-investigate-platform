@@ -1,6 +1,5 @@
 import { apiScopes, getAuthClient } from '../auth';
 import { getConfig } from '../config/runtimeConfig';
-import { parseJson, stringifyJson } from '../json';
 import { ApiError, CLIENT_PROBLEM, apiErrorFromResponse } from './errors';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -100,7 +99,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       return await doFetch(buildUrl(options.baseUrl, req.path, req.query), {
         method: req.method ?? 'GET',
         headers,
-        body: req.body === undefined ? undefined : stringifyJson(req.body),
+        body: req.body === undefined ? undefined : JSON.stringify(req.body),
         signal: controller.signal,
       });
     } catch (e) {
@@ -146,7 +145,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       if (req.accept !== undefined)
         return { status: res.status, data: (await res.text()) as T, traceId };
       try {
-        return { status: res.status, data: parseJson(await res.text()) as T, traceId };
+        return { status: res.status, data: (await res.json()) as T, traceId };
       } catch (e) {
         throw new ApiError(
           {

@@ -96,7 +96,14 @@ def _string(value: Any) -> str:
     return value
 
 
+_WHOLE_NUMBER = re.compile(r"-?[0-9]+")
+
+
 def _number(value: Any) -> int | float:
+    """A JSON number, or a whole number as a string of digits: the web sends one beyond
+    ±(2^53 - 1) as its digits, which a JSON number would round."""
+    if isinstance(value, str) and _WHOLE_NUMBER.fullmatch(value):
+        return int(value)
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise _Invalid("Must be a number")
     return value

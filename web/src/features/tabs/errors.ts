@@ -1,4 +1,3 @@
-import { stringifyJson } from '../../lib/json';
 import type { StoredError } from './types';
 
 /**
@@ -21,7 +20,7 @@ export function toStoredError(error: unknown): StoredError | null {
 function safeString(value: unknown): string {
   if (typeof value === 'object') {
     try {
-      return stringifyJson(value);
+      return JSON.stringify(value);
     } catch {
       return 'Unknown error';
     }

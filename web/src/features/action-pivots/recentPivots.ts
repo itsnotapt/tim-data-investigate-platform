@@ -1,5 +1,4 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
-import { parseJson, stringifyJson } from '../../lib/json';
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>;
 
@@ -18,7 +17,7 @@ interface RecentPivotsState {
 
 function read(storage: Storage): string[] {
   try {
-    const stored: unknown = parseJson(storage.getItem(RECENT_PIVOTS_KEY) ?? '[]');
+    const stored: unknown = JSON.parse(storage.getItem(RECENT_PIVOTS_KEY) ?? '[]');
     return Array.isArray(stored) ? stored.filter((k) => typeof k === 'string').slice(0, KEEP) : [];
   } catch {
     return [];
@@ -34,7 +33,7 @@ export function createRecentPivotsStore(
     record: (key) => {
       const keys = [key, ...get().keys.filter((k) => k !== key)].slice(0, KEEP);
       try {
-        storage.setItem(RECENT_PIVOTS_KEY, stringifyJson(keys));
+        storage.setItem(RECENT_PIVOTS_KEY, JSON.stringify(keys));
       } catch {
         // The keys still apply for this page.
       }

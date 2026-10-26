@@ -62,7 +62,8 @@ def test_dev_rows_generates_a_value_per_declared_column(tmp_path: Path) -> None:
         tmp_path,
         "type: dev_rows\nkey: g\nname: G\npivot: none\ngenerate: 2\nid: Host\ncolumns:\n"
         "  - {name: Host, type: string}\n  - {name: Bytes, type: number}\n"
-        "  - {name: Blocked, type: boolean}\n  - {name: Seen, type: datetime}\n"
+        "  - {name: Hash, type: bigint}\n  - {name: Blocked, type: boolean}\n"
+        "  - {name: Seen, type: datetime}\n"
         "  - {name: Took, type: timespan}\n  - {name: Extra, type: json}\n",
     )
     assert run(action)[0] == (
@@ -70,6 +71,7 @@ def test_dev_rows_generates_a_value_per_declared_column(tmp_path: Path) -> None:
         {
             "Host": "Host-1",
             "Bytes": 1,
+            "Hash": 18446744073709551617,
             "Blocked": False,
             "Seen": "2026-01-01T00:01:00Z",
             "Took": "PT1S",

@@ -1,5 +1,4 @@
 import type { CatalogueAction, InstanceConnection, Preset } from '../../lib/api';
-import { stringifyJson } from '../../lib/json';
 import { initialParams, isUnset } from '../action-tab/paramValues';
 import { pillName, queryParameters, setPill } from '../action-tab/queryParameters';
 import { presetValues } from './openPreset';
@@ -26,7 +25,7 @@ const firstValue = (row: Record<string, unknown>, columns: readonly string[]): u
 function distinct(values: readonly unknown[]): unknown[] {
   const seen = new Map<string, unknown>();
   for (const value of values) {
-    const key = stringifyJson(value);
+    const key = JSON.stringify(value);
     if (!seen.has(key)) seen.set(key, value);
   }
   return [...seen.values()];

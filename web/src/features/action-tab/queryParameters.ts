@@ -1,5 +1,4 @@
 import type { CatalogueAction, CatalogueParam, PresetInput } from '../../lib/api';
-import { stringifyJson } from '../../lib/json';
 import { parseParamText } from './paramValues';
 
 /** An input of a preset that is a query parameter: a name in its query, with a type. */
@@ -155,7 +154,7 @@ export function setPill(
 export function valueText(type: QueryParameterType, value: unknown): string {
   if (value === null || value === undefined) return '';
   return type === 'dynamic' || typeof value === 'object'
-    ? stringifyJson(value)
+    ? JSON.stringify(value)
     : `${value as string | number | boolean}`;
 }
 

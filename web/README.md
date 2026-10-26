@@ -205,7 +205,6 @@ Tests use the shared MSW server.
 
 - `lib/uuid`: `generateUuid`, which wraps `crypto.randomUUID`.
 - `lib/isEmpty`: tells whether a value, array or object is empty.
-- `lib/json`: `parseJson` and `stringifyJson`, the only JSON path in `src/`. Whole numbers beyond ±(2^53 − 1) stay exact as `BigInt`. Read response bodies with `parseJson(await res.text())`. ESLint bans bare `JSON.parse`, `JSON.stringify` and `Response.json()`.
 - `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are a TIM link, Help (Wiki Page and Report a bug, from config, in a new tab), Settings (Appearance) and Account (Sign in, Sign out).
 - `app/AuthGate`: wraps the routes. Signed out shows "You must sign-in first.", loading shows progress, and an error shows its message with Retry.
 - `SideTree`: rendered inside `AuthGate`. The main content is offset by `SIDE_TREE_COLLAPSED_WIDTH`.
@@ -335,7 +334,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
     It accepts a list of groups: group 0 is followed by "Show details", and later non-empty groups come after a separator;
   - `onGridReady` exposes the grid api;
   - `toolbarExtra` sits beside the quick filter.
-- Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters (the number filter compares a `BigInt` as the nearest number), row grouping with a `dcount` aggregation, and a status bar.
+- Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters, row grouping with a `dcount` aggregation, and a status bar.
   - The status bar shows execution time, CPU, memory in MB, and total, filtered and selected counts. An action tab adds "View: name" after the execution stats.
   - `ResultsGrid` takes `sideBar`, `statusPanels`, `context` and `onStateUpdated` for that. `onStateUpdated` is not called while the tab is hidden.
 - Per-tab column state: pass `stateKey`, the tab uuid. The state is kept in memory only, in `tabColumnState`.
@@ -356,7 +355,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 - `DetailPanel`: a persistent right drawer, 900px wide.
   - It is positioned absolutely in the grid container, so that hidden tabs hide it.
   - It has a "Result Details" accordion, and a visible close button.
-- Content: object values show as YAML, with control characters stripped before dumping. A `BigInt` shows as a plain integer. Empty values are hidden.
+- Content: object values show as YAML, with control characters stripped before dumping. Empty values are hidden.
 - Opening: a "Show details" context-menu item opens it.
   - The item comes after the caller's `getContextMenuItems` items, and is disabled on group rows.
   - While open, the panel follows the focused cell's row.
@@ -395,7 +394,8 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A late answer is ignored. A failure goes to the snackbar.
   - It hands `{kind, schema, connection, scope}` to its `onSchema` callback. It does not touch the editor.
 - `editorSchemaAdapters.ts`: `applyEditorSchema`, one adapter per schema kind, applied by the Query editor in `ActionTab.tsx`. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
-- `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
+- `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns. A `bigint` column gets cell data type `bigint`.
+- `roundedColumns.ts` finds the `number` columns with a whole number beyond ±(2^53 − 1). `NumberHeader.tsx` is their header, with the warning icon.
 - Tests pass `onRun` to `ActionTab` instead of running.
 
 ## Share links (`src/features/share-links`)

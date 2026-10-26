@@ -599,6 +599,36 @@ async def test_columns_are_declared_first_then_inferred_in_first_seen_order(
         ]
 
 
+async def test_a_declared_bigint_column_is_served_as_digit_strings(
+    storage: Storage, auth: AuthKit
+) -> None:
+    action = Rows(
+        key="acme.bigint",
+        name="Bigint",
+        pivot="none",
+        columns=(Column("Hash", "bigint"),),
+        rows=(
+            {"Hash": 12345678901234567890, "Count": 12345678901234567890},
+            {"Hash": -5},
+            {"Hash": None},
+            {"Hash": "77"},
+        ),
+    )
+    async with open_env(storage, auth, [action]) as env:
+        run = (await env.start("acme.bigint")).json()
+        assert run["columns"] == [
+            {"name": "Hash", "type": "bigint", "declared": True},
+            {"name": "Count", "type": "number", "declared": False},
+        ]
+        rows = (await env.rows(run["runId"])).json()["rows"]
+        assert [row["data"] for row in rows] == [
+            {"Hash": "12345678901234567890", "Count": 12345678901234567890},
+            {"Hash": "-5"},
+            {"Hash": None},
+            {"Hash": "77"},
+        ]
+
+
 async def test_a_declared_tim_column_is_not_one_of_the_runs_columns(
     storage: Storage, auth: AuthKit
 ) -> None:

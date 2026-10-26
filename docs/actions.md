@@ -106,14 +106,21 @@ Annotations are kept by `id`, so a row needs one to be annotated.
 
 Dates and times in a file stay strings, as the browser sends them.
 
-The api sends whole numbers as exact JSON numbers, however large: a Kusto `long`, a Snowflake `NUMBER(38, 0)`. A JavaScript client must parse them without rounding. TIM's web keeps those beyond ±(2^53 − 1) as `BigInt`.
+A `number` param accepts a whole number written as a string of digits (`-?[0-9]+`) and turns it into an integer. The web sends one beyond ±(2^53 − 1) that way, from a pivot on a `bigint` column or a number typed in a pill.
 
 ### Columns
 
 An action can declare some or all of its result columns. Each entry takes:
 
-- `name` and `type`: `string`, `number`, `boolean`, `datetime`, `timespan` or `json`;
+- `name` and `type`: `string`, `number`, `boolean`, `datetime`, `timespan`, `json` or `bigint`;
 - optionally `title`, `hidden`, `width` (pixels), `pinned` (`left` or `right`), `sort` (`asc` or `desc`), `group` and `calculated`.
+
+A `bigint` column holds whole numbers that a `number` column would round.
+
+- Only an action file declares it; Kusto and Snowflake columns are never `bigint`.
+- The API serves its whole-number values as strings of digits, such as `"12345678901234567890"`, and other values as they are.
+- The grid shows `BigInt` values, and sorts, copies and filters them exactly. A value that isn't a whole number shows as "Invalid BigInt".
+- The browser rounds a whole number beyond ±(2^53 − 1) in a `number` column. Such a column shows a warning icon in its header, whose tooltip suggests declaring it `bigint`.
 
 A `calculated` column isn't in the result.
 

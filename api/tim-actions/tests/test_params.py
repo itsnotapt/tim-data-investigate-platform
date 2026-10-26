@@ -29,6 +29,8 @@ def test_a_valid_string_passes_through() -> None:
         ("sql", "SELECT 1", "SELECT 1"),
         ("number", 3, 3),
         ("number", 2.5, 2.5),
+        ("number", "12345678901234567890", 12345678901234567890),
+        ("number", "-3", -3),
         ("boolean", False, False),
         ("datetime", "2026-10-20T08:00:00+02:00", datetime(2026, 10, 20, 6, 0, tzinfo=UTC)),
         ("datetime", "2026-10-20T08:00:00Z", datetime(2026, 10, 20, 8, 0, tzinfo=UTC)),
@@ -49,7 +51,8 @@ def test_each_kind_converts_its_wire_value(
     ("kind", "value"),
     [
         ("string", 3),
-        ("number", "3"),
+        ("number", "3.5"),
+        ("number", "12a"),
         ("number", True),
         ("boolean", "true"),
         ("boolean", 1),

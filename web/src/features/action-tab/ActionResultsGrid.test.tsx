@@ -331,68 +331,91 @@ describe('ActionResultsGrid', () => {
 });
 
 describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
-  const hashes: RunRow[] = [
-    { row: 0, id: 'h-0', data: { Hash: 12345678901234567890n } },
-    { row: 1, id: 'h-1', data: { Hash: 5 } },
-    { row: 2, id: 'h-2', data: { Hash: 9007199254740993n } },
-  ];
-  const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'number', declared: false }];
-
-  async function hashGrid(uuid: string) {
+  async function bigGrid(uuid: string, shown: readonly RunRow[], runColumns: RunColumn[]) {
     let api: GridApi | undefined;
     render(
       <ActionResultsGrid
         uuid={uuid}
         action="dev.hashes"
-        rows={hashes}
-        runColumns={hashColumns}
+        rows={shown}
+        runColumns={runColumns}
         height={400}
         onGridReady={(e) => (api = e.api)}
       />,
     );
-    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(shown.length));
     return api!;
   }
-  const shown = (api: GridApi) => {
-    const values: unknown[] = [];
+  const values = (api: GridApi) => {
+    const found: unknown[] = [];
     api.forEachNodeAfterFilterAndSort((node) =>
-      values.push(api.getCellValue({ rowNode: node, colKey: 'Hash' })),
+      found.push(api.getCellValue({ rowNode: node, colKey: 'Hash' })),
     );
-    return values;
+    return found;
   };
 
-  it('filters them with the number filter', async () => {
-    const api = await hashGrid('big-filter');
+  describe('in a bigint column', () => {
+    const hashes: RunRow[] = [
+      { row: 0, id: 'h-0', data: { Hash: '12345678901234567890' } },
+      { row: 1, id: 'h-1', data: { Hash: '5' } },
+      { row: 2, id: 'h-2', data: { Hash: '-9007199254740993' } },
+      { row: 3, id: 'h-3', data: { Hash: null } },
+    ];
+    const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'bigint', declared: true }];
 
-    await act(async () => {
-      await api.setColumnFilterModel('Hash', {
-        filterType: 'multi',
-        filterModels: [null, { filterType: 'number', type: 'greaterThan', filter: 1e16 }],
+    it('filters them exactly with the bigint filter', async () => {
+      const api = await bigGrid('bigint-filter', hashes, hashColumns);
+
+      await act(async () => {
+        await api.setColumnFilterModel('Hash', {
+          filterType: 'multi',
+          filterModels: [
+            null,
+            { filterType: 'bigint', type: 'lessThan', filter: '-9007199254740992' },
+          ],
+        });
+        api.onFilterChanged();
       });
-      api.onFilterChanged();
+
+      await waitFor(() => expect(values(api)).toEqual([-9007199254740993n]));
     });
 
-    await waitFor(() => expect(shown(api)).toEqual([12345678901234567890n]));
+    it('sorts them exactly', async () => {
+      const api = await bigGrid('bigint-sort', hashes, hashColumns);
+
+      act(() => {
+        api.applyColumnState({ state: [{ colId: 'Hash', sort: 'desc' }] });
+      });
+
+      expect(values(api)).toEqual([12345678901234567890n, 5n, -9007199254740993n, null]);
+    });
+
+    it('copies one exactly', async () => {
+      const api = await bigGrid('bigint-copy', hashes, hashColumns);
+
+      act(() => {
+        api.setFocusedCell(0, 'Hash');
+        api.copyToClipboard();
+      });
+
+      await waitFor(() => expect(clipboard).toBe('12345678901234567890'));
+    });
   });
 
-  it('sorts them among numbers', async () => {
-    const api = await hashGrid('big-sort');
+  it('warns in the header of a number column that has them', async () => {
+    await bigGrid(
+      'number-warning',
+      [
+        { row: 0, id: 'n-0', data: { Hash: 2 ** 64, Count: 5 } },
+        { row: 1, id: 'n-1', data: { Hash: 7, Count: 2 ** 53 - 1 } },
+      ],
+      [
+        { name: 'Hash', type: 'number', declared: false },
+        { name: 'Count', type: 'number', declared: false },
+      ],
+    );
 
-    act(() => {
-      api.applyColumnState({ state: [{ colId: 'Hash', sort: 'desc' }] });
-    });
-
-    expect(shown(api)).toEqual([12345678901234567890n, 9007199254740993n, 5]);
-  });
-
-  it('copies one exactly', async () => {
-    const api = await hashGrid('big-copy');
-
-    act(() => {
-      api.setFocusedCell(0, 'Hash');
-      api.copyToClipboard();
-    });
-
-    await waitFor(() => expect(clipboard).toBe('12345678901234567890'));
+    const warnings = await screen.findAllByLabelText(/Declare the column as bigint/);
+    expect(warnings.map((w) => w.closest('[col-id]')?.getAttribute('col-id'))).toEqual(['Hash']);
   });
 });

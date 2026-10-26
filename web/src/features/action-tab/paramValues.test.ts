@@ -7,21 +7,16 @@ describe('parseParamText', () => {
     expect(parseParamText('number', '1.5')).toEqual({ value: 1.5 });
   });
 
-  it('keeps a whole number beyond ±(2^53 − 1) in a number param exact', () => {
-    expect(parseParamText('number', '12345678901234567890')).toEqual({
-      value: 12345678901234567890n,
+  it('keeps a whole number beyond ±(2^53 − 1) in a number param as its digits', () => {
+    expect(parseParamText('number', ' 12345678901234567890 ')).toEqual({
+      value: '12345678901234567890',
     });
-    expect(parseParamText('number', '-9007199254740993')).toEqual({ value: -9007199254740993n });
+    expect(parseParamText('number', '-9007199254740993')).toEqual({ value: '-9007199254740993' });
+    expect(parseParamText('number', '1e20')).toEqual({ value: 1e20 });
   });
 
   it('refuses a number param that is not a number', () => {
     expect(parseParamText('number', '12a')).toEqual({ error: 'Must be a number' });
-  });
-
-  it('keeps a whole number beyond ±(2^53 − 1) inside a json param exact', () => {
-    expect(parseParamText('json', '[{"id": 12345678901234567890, "n": 1}]')).toEqual({
-      value: [{ id: 12345678901234567890n, n: 1 }],
-    });
   });
 
   it('refuses a json param that is not JSON', () => {

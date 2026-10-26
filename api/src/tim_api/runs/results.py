@@ -85,6 +85,14 @@ def _type_of(value: Any) -> ColumnType | None:
     return "json"
 
 
+def _bigint_value(value: Any) -> Any:
+    """A ``bigint`` column's value as TIM serves it: a whole number as its digits, anything
+    else as it is."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return value
+
+
 class ResultBuilder:
     """Turns each row ``run`` yields into a stored row, and keeps the row count, the bytes
     (compact JSON per row, summed) and the columns: declared ones first, then the rest in
@@ -130,6 +138,8 @@ class ResultBuilder:
             raise ResultLimitError(f"Result exceeds limit of {self._max_bytes} bytes")
         data: dict[str, Any] = sanitise_nul(pydantic_core.from_json(encoded))
         for name, value in data.items():
+            if self._declared.get(name) == "bigint":
+                data[name] = _bigint_value(value)
             self._infer(name, value)
         stored = RunRow(row=self.row_count, id=self._id(row), data=data)
         self.row_count += 1

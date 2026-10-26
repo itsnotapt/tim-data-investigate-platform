@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNotify } from '../../components/useNotify';
 import { getEditorSchema, type CatalogueParam, type EditorSchema } from '../../lib/api';
-import { parseJson, stringifyJson } from '../../lib/json';
 
 type Scope = Record<string, unknown>;
 
@@ -25,7 +24,7 @@ export type SchemaHandler = (
 const cache = new Map<string, Promise<EditorSchema | undefined>>();
 
 const cacheKey = (connection: string, scope: Scope): string =>
-  stringifyJson([connection, Object.entries(scope).sort(([a], [b]) => (a < b ? -1 : 1))]);
+  JSON.stringify([connection, Object.entries(scope).sort(([a], [b]) => (a < b ? -1 : 1))]);
 
 /**
  * The editor schema of `connection` for `scope`, cached per pair. A failed fetch is not cached.
@@ -85,7 +84,7 @@ export function useEditorSchema(
   const key = target ? cacheKey(target.connection, target.scope) : null;
   useEffect(() => {
     if (!onSchema || key === null) return;
-    const [connection, entries] = parseJson(key) as [string, [string, unknown][]];
+    const [connection, entries] = JSON.parse(key) as [string, [string, unknown][]];
     const scope = Object.fromEntries(entries);
     const controller = new AbortController();
     const { signal } = controller;

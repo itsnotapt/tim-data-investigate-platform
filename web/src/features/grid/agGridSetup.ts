@@ -1,4 +1,5 @@
 import {
+  BigIntFilterModule,
   CellApiModule,
   CellStyleModule,
   ClientSideRowModelApiModule,
@@ -48,7 +49,7 @@ import { getConfig } from '../../lib/config/runtimeConfig';
 
 /**
  * The AG Grid modules for the grid features in use (each pulls in its own dependencies): client-side
- * row model and transactions, multi / text / number / date / set filters, quick filter, row grouping
+ * row model and transactions, multi / text / number / bigint / date / set filters, quick filter, row grouping
  * with aggregation, pivot mode (columns tool panel), row and cell selection, side bar, status bar,
  * context and column menus, calculated columns (an action's declared `calculated` columns), clipboard, CSV / Excel export, the large text editor, row / cell styles,
  * tooltips, column state and autosize.
@@ -67,6 +68,7 @@ const MODULES: Module[] = [
   GridStateModule,
   TextFilterModule,
   NumberFilterModule,
+  BigIntFilterModule,
   DateFilterModule,
   CustomFilterModule,
   QuickFilterModule,

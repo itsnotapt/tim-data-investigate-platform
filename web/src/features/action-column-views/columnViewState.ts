@@ -1,5 +1,4 @@
 import type { GridState, GridStateKey } from 'ag-grid-community';
-import { stringifyJson } from '../../lib/json';
 
 /**
  * A column view's state: the column and filter sections of AG Grid's `GridState`, with
@@ -191,7 +190,7 @@ export function ignoredKeys(view: ColumnViewState): GridStateKey[] {
 
 /** JSON with object keys sorted, so key order doesn't count. */
 function canonical(value: unknown): string {
-  return stringifyJson(value, (_, v: unknown) =>
+  return JSON.stringify(value, (_, v: unknown) =>
     v && typeof v === 'object' && !Array.isArray(v)
       ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
       : v,

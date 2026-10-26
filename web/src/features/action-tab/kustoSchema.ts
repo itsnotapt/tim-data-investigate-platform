@@ -1,4 +1,3 @@
-import { parseJson } from '../../lib/json';
 /**
  * Unwraps the schema document for `setSchemaFromShowSchema` (the wire shape is tolerated in
  * several variants). Accepted: the parsed document (`{Databases: ...}`), an object
@@ -29,7 +28,7 @@ function withDatabaseDefaults(schema: object): object {
 
 function unwrapSchema(value: unknown, depth = 0): object {
   if (depth > 4) throw new Error('Unrecognised Kusto schema response.');
-  if (typeof value === 'string') return unwrapSchema(parseJson(value), depth + 1);
+  if (typeof value === 'string') return unwrapSchema(JSON.parse(value) as unknown, depth + 1);
   if (Array.isArray(value)) return unwrapSchema(value[0], depth + 1);
   if (value && typeof value === 'object') {
     const o = value as Record<string, unknown>;
