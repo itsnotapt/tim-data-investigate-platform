@@ -26,8 +26,9 @@ def provider() -> Provider:
         action_types.append(KqlQuery)
         hooks.append(KustoHook)
     if _installed("snowflake.connector"):  # the snowflake extra
-        from tim_actions.snowflake import RUN_SQL, SnowflakeHook
+        from tim_actions.snowflake import RUN_SQL, SnowflakeHook, SnowflakeQuery
 
         actions.append(RUN_SQL)
+        action_types.append(SnowflakeQuery)
         hooks.append(SnowflakeHook)
     return Provider(actions=actions, action_types=action_types, hooks=hooks)

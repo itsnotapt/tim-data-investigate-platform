@@ -362,7 +362,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - A **fixed input** has a `value`, which is saved with the preset.
 - A **From row input** has `fromColumns`: it takes the value from the first of these columns that the rows have. With no columns, the tab asks the analyst for it.
 - A preset with every input fixed is a bookmark.
-- A **query parameter** input has a name and a `type`, and is fixed or From row like a param. It is allowed only on an action with a `json` param named `parameters`, which is Run KQL. The preset's `parameters` value is built from these inputs.
+- A **query parameter** input has a name and a `type`, and is fixed or From row like a param. It is allowed only on an action with a `json` param named `parameters`, which Run KQL and Run SQL have. The query parameters are an ordered list, and the preset's `parameters` value is built from these inputs in that order.
 - Values are validated when a run starts, not when the preset is saved.
 
 **Preset pivots.** A preset can pivot when it has From row inputs and each has columns. The grid's [Pivot ▸ menu](#action-pivots) offers it when every target row has one of each input's columns.
@@ -379,20 +379,23 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - Name, menu folder (folders separated by `/`) and **Share with everyone**.
 - For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
 - A **Query parameters** section, on an action that takes them. Add a parameter: its name is suggested from the names in the query. Pick its type, then **Fixed** with a value, or **From row** with columns.
+  - Each row shows its number, `:N` for SQL and N for KQL, and has **Move up** and **Move down** buttons. For KQL the order sets the order of the `declare` statement. For SQL it sets the position each is bound to.
+  - SQL offers no `timespan` type.
 - A preview of what the action receives, one line for every param of the action.
   - A From row input shows as `<column of the clicked row>`.
-  - For query parameters it shows the `declare query_parameters` line before the query, and a line per query parameter.
+  - For query parameters on KQL it shows the `declare query_parameters` line before the query, and a line per query parameter.
   - A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
+  - On SQL each query parameter's line starts with its `:N`, and a fixed value shows as its text, with no Kusto literal.
   - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
-- After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
+- After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL or Run SQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
 - On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
 
 **Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
 
 - `GET /api/presets` returns the caller's presets and the shared ones, oldest first, each with `owned` and `hidden` for the caller.
 - The server assigns `presetId`, `owner` (from the token) and the timestamps.
-- It checks that `action` is in the catalogue, that each param input is a param of it with `from_columns`, and that query parameter inputs are on an action that takes them, with unique names that are Kusto identifiers.
+- It checks that `action` is in the catalogue, that each param input is a param of it with `from_columns`, and that query parameter inputs are on an action that takes them, with unique names that are identifiers (a letter or `_`, then letters, digits and `_`).
 - `404` for an unknown preset or someone else's private one. `403` for a change by someone who does not own it.
 
 ### Column views
@@ -639,8 +642,9 @@ Database migrations are in `api/migrations` (Alembic).
 | `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`) |
+| `query_parameters.py` | What Run KQL and Run SQL share: `TakesQueryParameters`, the base of an action with a `parameters` param, `checked_parameters`, which checks it, and `preset_file_params`, which makes a preset's query parameters the params of its action file |
 | `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
-| `snowflake.py` | The `snowflake` connection type (`SnowflakeConnection`, `SnowflakeHook`) and the built-in Run SQL action; needs the `snowflake` extra |
+| `snowflake.py` | The `snowflake` connection type (`SnowflakeConnection`, `SnowflakeHook`), the built-in Run SQL action and the `snowflake_query` action type, and how values are bound (`bind_value`, `bind_values`); needs the `snowflake` extra |
 | `builtin.py` | TIM's built-in provider |
 | `testing/` | `tim_actions.testing`: `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`, and `plugin.py`, the `pytest11` plugin with the `tim_analyst`, `tim_connections`, `tim_kusto` and `tim_snowflake` fixtures ([actions.md](actions.md#testing)) |
 
@@ -670,7 +674,7 @@ TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distributio
 
 - Each connection type is included when its extra is installed.
   - The `kusto` extra adds the `kusto` connection type, the `kql_query` action type and the action **Run KQL** (`tim.run_kql`).
-  - The `snowflake` extra adds the `snowflake` connection type and the action **Run SQL** (`tim.run_sql`).
+  - The `snowflake` extra adds the `snowflake` connection type, the `snowflake_query` action type and the action **Run SQL** (`tim.run_sql`).
 - With neither extra, the provider is empty.
 
 Loading happens once, in the lifespan, before storage is opened:
@@ -836,7 +840,8 @@ The `snowflake` connection type (`tim_actions/snowflake.py`, extra `snowflake`) 
 
 `SnowflakeHook` runs the synchronous `snowflake-connector-python` client on a worker thread, with one login per query and no pooling across analysts.
 
-- It sends the SQL with `paramstyle` numeric, and sets the time left until the run's deadline as the session's `STATEMENT_TIMEOUT_IN_SECONDS`.
+- `SnowflakeHook.query(sql, *, deadline, params=())` sends the SQL unchanged, with `params` bound server-side by position (`paramstyle` numeric): `:1` is the first. The connector's default `pyformat` binds on the client, so it isn't used.
+- It logs in with the session parameter `TIMEZONE=UTC`, so a bound datetime, which is UTC without its offset, is read in UTC. It also sets the time left until the run's deadline as the session's `STATEMENT_TIMEOUT_IN_SECONDS`.
 - It runs the query asynchronously, so `cancel()` aborts it on Snowflake by its query id, and refuses new ones.
 - Columns are declared from Snowflake's types: numbers, booleans and datetimes keep their kind, `VARIANT`, `OBJECT`, `ARRAY` and the geography, geometry, vector and map types are `json`, and the rest are `string`.
 - Result values are serialised (datetime as UTC ISO 8601, decimal, binary as hex).
@@ -876,7 +881,7 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
 - `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
-- `parameters`, optional, `json`: the query parameters, `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params` checks the entries and answers `params.parameters.<name>` or `params.parameters`.
+- `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
 A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 
@@ -884,9 +889,22 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 
 - `connection`: a Snowflake connection;
 - `sql`: a `sql` param scoped by the `connection` param;
-- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`.
+- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
+- `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` with the types of Run KQL but `timespan` ([actions.md](actions.md#query-parameters-of-run-sql)). `check_params` checks them as for Run KQL.
 
-The run sends `sql` unchanged through `SnowflakeHook.query`. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
+The run sends `sql` unchanged through `SnowflakeHook.query`, with the parameters bound by position, `:1` the first. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
+
+A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter.
+
+**`snowflake_query`** (`SnowflakeQuery`, with `SnowflakeQueryFile` as its file model) is a file-capable action type with the fields `connection` and `sql`.
+
+- In files, `sql` can be a `sql_file` sidecar.
+- Its params are bound by position, `:1` the first param in the file.
+- A param's kind is one of `string`, `number`, `boolean`, `datetime` or `json`. Other kinds stop startup.
+- `many` params and `json` are bound as JSON text.
+- A `datetime` is bound as a UTC datetime.
+- A missing optional value is bound as `NULL`.
+- A position with no param is Snowflake's error "Bind variable :N not set" when the run executes.
 
 **`kql_query`** (`KqlQuery`, with `KqlQueryFile` as its file model) is a file-capable action type with the fields `connection`, `database` and `kql`. In files, `kql` can be a `kql_file` sidecar.
 
@@ -1006,13 +1024,17 @@ The routes, under `/api/presets`:
 - **`PUT /{presetId}`** replaces the whole preset. Only the owner can. `owner` and `createdAt` are kept.
 - **`DELETE /{presetId}`** deletes it for good, with every hidden mark on it. Only the owner can.
 - **`PUT` and `DELETE /{presetId}/hidden`** hide and unhide it for the caller only.
-- **`GET /{presetId}/actionFile`** returns the preset as an action file in YAML (`presets/action_file.py`). It asks the action's `preset_file`; `409` `no-action-file` when the action has none, or when a Run KQL preset lacks a connection, database or query.
+- **`GET /{presetId}/actionFile`** returns the preset as an action file in YAML (`presets/action_file.py`). It asks the action's `preset_file`. It answers `409` `no-action-file` when:
+  - the action has no `preset_file`;
+  - a Run KQL preset lacks a connection, database or query;
+  - a Run SQL preset lacks a connection or SQL;
+  - a Run SQL preset has a `timespan` query parameter.
 
 Rules:
 
 - `404` for an unknown preset, or someone else's private one.
 - `403` for a `PUT` or `DELETE` by anyone but the owner.
-- `422` for an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter on an action that takes none (`errors["inputs.<i>.source"]`), or a query parameter name that is not a Kusto identifier or is used twice.
+- `422` for an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter on an action that takes none (`errors["inputs.<i>.source"]`), or a query parameter name that is not an identifier or is used twice.
 - Param values are not checked here. They are validated when a run starts.
 - Inputs are told apart by `source` and the boolean `fixed`, not by an OpenAPI discriminator.
 

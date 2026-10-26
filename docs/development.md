@@ -63,7 +63,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
     - The connection is one from `~/.snowflake/connections.toml`. Its warehouse is used, and its role must be able to create a database and a role.
     - The script creates and keeps `TIM_RECORDING`, `TIM_RECORDING_HIDDEN` and the role `TIM_RECORDING_READER`, granted to the signed-in user. The hook signs in as that role, with no secondary roles.
     - The fixture keeps only the databases `SNOWFLAKE`, `SNOWFLAKE_SAMPLE_DATA` (one schema), `TIM_RECORDING` and `TIM_RECORDING_HIDDEN`.
-    - The same run records `fixtures/snowflake_binds.json`: statements with values bound server-side on the hook's login, some again in a session whose `TIMEZONE` is UTC.
+    - The same run records `fixtures/snowflake_binds.json`: statements whose values `SnowflakeHook.query` binds, in the hook's session, including the values `bind_values` makes of a `snowflake_query`'s params. The replay answers a bound statement only from a recording in the login's `TIMEZONE`.
     - Query IDs in error messages are replaced with `<query id>`. Check both fixtures for other account-specific data, such as names, users and URLs, before you commit them.
   - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
 - **`pytest` fails below 80 % coverage**, even when every test passes.

@@ -11,7 +11,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
-from typing import Any, ClassVar, Literal, Protocol, cast
+from typing import Annotated, Any, ClassVar, Literal, Protocol, cast
 
 import snowflake.connector
 from pydantic import field_validator
@@ -19,11 +19,17 @@ from snowflake.connector import errors as sf_errors
 
 from tim_actions import connections
 from tim_actions._common import NonBlankStr
-from tim_actions.action import Action
+from tim_actions.action import Action, QueryParameter, QueryParameterType
 from tim_actions.columns import Column, ColumnType
-from tim_actions.connections import Connection
+from tim_actions.connections import Connection, ConnectionName
+from tim_actions.files import ActionDocument, Sidecar
 from tim_actions.hooks import EditorSchema, Hook, TokenFor
-from tim_actions.params import Param
+from tim_actions.params import Param, ParamKind
+from tim_actions.query_parameters import (
+    QUERY_PARAMETER_TYPES,
+    TakesQueryParameters,
+    params_and_values,
+)
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext, RunError
 
@@ -153,6 +159,37 @@ def error_message(exc: sf_errors.Error) -> str:
     return (exc.raw_msg or str(exc)).strip()[:_MAX_ERROR_CHARS]
 
 
+# --- binding ------------------------------------------------------------------------------
+
+BIND_KINDS: tuple[ParamKind, ...] = ("string", "number", "boolean", "datetime", "json")
+"""The param kinds whose values Snowflake binds."""
+
+
+def _json_text(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def bind_value(kind: ParamKind, value: Any, *, many: bool = False) -> Any:
+    """What is bound for ``value``, of param kind ``kind``: JSON text for a list (``many``) and
+    for JSON, which the query parses with ``PARSE_JSON``; the value itself for the rest, a
+    datetime in UTC. ``None`` is bound as ``NULL``."""
+    if kind not in BIND_KINDS:
+        raise ValueError(f"a {kind} param can't be bound in Snowflake")
+    if value is None:
+        return None
+    if many:
+        return _json_text([_datetime(v) if kind == "datetime" else v for v in value])
+    if kind == "json":
+        return _json_text(value)
+    return value
+
+
+def bind_values(params: Sequence[Param], values: Mapping[str, Any]) -> list[Any]:
+    """What is bound for validated param ``values``, in the order of ``params``: ``:1`` is the
+    first param's value. A param without a value is bound as ``NULL``."""
+    return [bind_value(p.kind, values.get(p.name), many=p.many) for p in params]
+
+
 # --- the editor schema -------------------------------------------------------------------
 
 
@@ -203,7 +240,9 @@ class SdkCursor(Protocol):
 
     def execute(self, command: str) -> object: ...
 
-    def execute_async(self, command: str) -> dict[str, Any]: ...
+    def execute_async(
+        self, command: str, params: Sequence[Any] | None = None
+    ) -> dict[str, Any]: ...
 
     def get_results_from_sfqid(self, sfqid: str) -> None: ...
 
@@ -245,8 +284,8 @@ class SnowflakeHook(Hook):
         self._cancelled = False
 
     def get_conn(self, *, deadline: datetime | None = None) -> SdkConnection:
-        """A login to the account, as the connection's auth says, with the time left until
-        ``deadline``, if given, as each statement's timeout."""
+        """A login to the account, as the connection's auth says, in a session whose time zone
+        is UTC, with the time left until ``deadline``, if given, as each statement's timeout."""
         login: dict[str, Any] = {
             "account": self.connection.account,
             "warehouse": self.connection.warehouse,
@@ -260,20 +299,24 @@ class SnowflakeHook(Hook):
             login |= {"authenticator": "oauth", "token": self.token_for(self.connection.obo_scope)}
         else:
             login |= {"authenticator": "WORKLOAD_IDENTITY", "workload_identity_provider": "AZURE"}
+        # A bound datetime is UTC with its offset dropped; Snowflake reads it in this time zone.
+        session: dict[str, Any] = {"TIMEZONE": "UTC"}
         if deadline is not None:
             seconds = max(int((deadline - datetime.now(UTC)).total_seconds()), 1)
-            login["session_parameters"] = {"STATEMENT_TIMEOUT_IN_SECONDS": seconds}
+            session["STATEMENT_TIMEOUT_IN_SECONDS"] = seconds
+        login["session_parameters"] = session
         return self.connect_factory(**login)
 
-    def query(self, sql: str, *, deadline: datetime) -> SnowflakeResult:
-        """Run ``sql``, with the time left until ``deadline`` as its timeout. Raises ``RunError``
-        with Snowflake's message when the login or the query fails."""
+    def query(self, sql: str, *, deadline: datetime, params: Sequence[Any] = ()) -> SnowflakeResult:
+        """Run ``sql`` with ``params`` bound server-side by position, ``:1`` the first, and the
+        time left until ``deadline`` as its timeout. Raises ``RunError`` with Snowflake's message
+        when the login or the query fails."""
         self._refuse_if_cancelled()
         try:
             conn = self.get_conn(deadline=deadline)
             try:
                 cursor = conn.cursor()
-                query_id = cursor.execute_async(sql)["queryId"]
+                query_id = cursor.execute_async(sql, list(params) or None)["queryId"]
                 with self._lock:
                     self._running = (conn, query_id)
                     cancelled = self._cancelled
@@ -330,22 +373,67 @@ class SnowflakeHook(Hook):
 # --- Run SQL ------------------------------------------------------------------------------
 
 
-class RunSql(Action):
-    """``tim.run_sql``: ad-hoc SQL on a Snowflake connection, each row's ``id`` read from the
-    ``idColumn`` param's column."""
+BOUND_PARAMETER_TYPES: Mapping[QueryParameterType, ParamKind] = {
+    name: kind for name, kind in QUERY_PARAMETER_TYPES.items() if name != "timespan"
+}
+"""The types a Run SQL query parameter can be, each with the param kind of its value. Snowflake
+has no ``timespan``."""
+
+
+class RunSql(TakesQueryParameters):
+    """``tim.run_sql``: ad-hoc SQL on a Snowflake connection, its query parameters bound by
+    position, each row's ``id`` read from the ``idColumn`` param's column."""
+
+    parameter_types = BOUND_PARAMETER_TYPES
 
     def row_id(self, params: Mapping[str, Any]) -> RowId | None:
         column = params.get("idColumn")
         return IdColumns([column]) if column else None
 
+    def preset_file(
+        self,
+        *,
+        key: str,
+        name: str,
+        menu: str,
+        params: Mapping[str, Any],
+        query_parameters: Sequence[QueryParameter],
+    ) -> SnowflakeQueryFile | None:
+        """A ``snowflake_query`` action with the preset's connection, SQL and Id column, and its
+        query parameters as params in their order (``preset_file_params``); ``None`` when the
+        preset lacks the connection or SQL."""
+        file_params = self.preset_file_params(params, query_parameters, ("connection", "sql"))
+        if file_params is None:
+            return None
+        return SnowflakeQueryFile(
+            type="snowflake_query",
+            key=key,
+            name=name,
+            menu=menu,
+            pivot=file_params.pivot,
+            connection=params["connection"],
+            sql=params["sql"],
+            id=params.get("idColumn") or None,
+            params=file_params.params,
+        )
+
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
-        connection = params["connection"]
-        hook = ctx.hook(connection)
-        if not isinstance(hook, SnowflakeHook):
-            raise RunError(f"{connection} is not a Snowflake connection")
-        result = hook.query(params["sql"], deadline=ctx.deadline)
-        ctx.declare_columns(result.columns)
-        yield from result.rows
+        entries = self.parameter_entries(params)
+        binds = bind_values(*params_and_values(entries))
+        yield from _run_query(ctx, params["connection"], params["sql"], binds)
+
+
+def _run_query(
+    ctx: RunContext, connection: str, sql: str, params: Sequence[Any]
+) -> Iterator[Mapping[str, Any]]:
+    """Run ``sql`` with ``params`` bound by position on ``connection``, as a run of ``ctx``:
+    Snowflake's columns are declared."""
+    hook = ctx.hook(connection)
+    if not isinstance(hook, SnowflakeHook):
+        raise RunError(f"{connection} is not a Snowflake connection")
+    result = hook.query(sql, deadline=ctx.deadline, params=params)
+    ctx.declare_columns(result.columns)
+    yield from result.rows
 
 
 RUN_SQL = RunSql(
@@ -362,6 +450,50 @@ RUN_SQL = RunSql(
             required=False,
             help="The column that gives each row its id",
         ),
+        Param(
+            "parameters",
+            "json",
+            title="Query parameters",
+            required=False,
+            help="[{name, type, value}]: bound by position, :1 the first",
+        ),
     ),
     pivot="none",
 )
+
+
+# --- snowflake_query ----------------------------------------------------------------------
+
+
+class SnowflakeQueryFile(ActionDocument):
+    connection: ConnectionName
+    sql: Annotated[NonBlankStr, Sidecar()]
+
+
+class SnowflakeQuery(Action):
+    """``snowflake_query``: fixed SQL on a fixed Snowflake connection. Its params are bound
+    server-side by position, in the order they are declared: ``:1`` is the first. The SQL is
+    sent unchanged (ADR-0019)."""
+
+    type_name = "snowflake_query"
+    File = SnowflakeQueryFile
+
+    connection: ConnectionName
+    sql: NonBlankStr
+
+    @field_validator("params")
+    @classmethod
+    def _bound_params(cls, value: Sequence[Param]) -> Sequence[Param]:
+        for param in value:
+            if param.kind not in BIND_KINDS:
+                raise ValueError(
+                    f"{param.name}: a snowflake_query param is bound by position, so its kind "
+                    f"is one of {', '.join(BIND_KINDS)}, not {param.kind}"
+                )
+        return value
+
+    def connections(self) -> Mapping[str, str]:
+        return {self.connection: "snowflake"}
+
+    def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
+        yield from _run_query(ctx, self.connection, self.sql, bind_values(self.params, params))
