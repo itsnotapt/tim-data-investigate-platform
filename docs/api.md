@@ -232,7 +232,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 | `finishedAt` | datetime | Once the run has ended. |
 | `expiresAt` | datetime | |
 | `details` | object | Scalars: `duration` (seconds), `inputRowCount` for a sink, `rowCount` when a query action succeeded, then the action's own, in the order reported. A `warning` holds problems with the rows' `id`s, which never fail the run: an `id` column no row carries (`Id column CorrelationId not in results`), and rows whose `id` is over 512 characters, which get no `id` (`N row(s) have an id over 512 characters and get no id`). An action's own `warning` comes first, joined with `; `. |
-| `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first, without TIM's own `tim:` columns, and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan` or `json`. |
+| `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first, without TIM's own `tim:` columns, and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json` or `bigint`; only an action file declares `bigint`, and its whole-number values are served as strings of digits. |
 | `rowCount` | integer | When succeeded. |
 | `error` | string | A message safe to show, when `error` or `timedOut`. |
 

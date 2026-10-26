@@ -9,7 +9,9 @@ from pydantic.dataclasses import dataclass
 
 from tim_actions._common import STRICT, NonBlankStr
 
-ColumnType = Literal["string", "number", "boolean", "datetime", "timespan", "json"]
+ColumnType = Literal["string", "number", "bigint", "boolean", "datetime", "timespan", "json"]
+"""A ``bigint`` column holds whole numbers of any size, which TIM serves as strings of digits:
+the web would round a JSON number beyond ±(2^53 - 1)."""
 
 TIM_COLUMNS = ("tim:label", "tim:tags", "tim:commentText", "tim:comments")
 """TIM's own grid columns. A declared one only gives the grid its settings: it holds no data and

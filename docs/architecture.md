@@ -257,7 +257,7 @@ The action tab has a header, a pills bar and inner tabs.
   | Many-valued | Chips. Pasted text is split on newlines, tabs, commas and semicolons |
   | With `choices` | A pick list |
   | `connection` | A pick list of the instance's connections of the param's `connectionType` |
-  | `string`, `number` | Text |
+  | `string`, `number` | Text. A `number` typed beyond ±(2^53 − 1) is kept as its digits, not rounded |
   | `datetime` | A field, calendar and clock in UTC (Kusto's timezone). Pasting an ISO datetime from a result row sets it |
   | `timespan` | Preset chips for common lookbacks (15 minutes to 30 days), and an amount with a unit. Stored as an ISO 8601 duration |
   | `json` | JSON text |
@@ -308,6 +308,7 @@ The results grid is AG Grid with its client-side row model, keyed by each row's 
 - The action's declared `columns` become `initial*` settings, so a restored column state wins over them.
 - Its declared `calculated` columns become AG Grid calculated columns ([actions.md](actions.md#columns)).
 - Analysts can add their own calculated columns from the column menu.
+- A `bigint` column shows `BigInt` values, with the text, bigint and set filters in its multi filter. A `number` column with a whole number beyond ±(2^53 − 1) has a warning icon in its header ([actions.md](actions.md#columns)).
 - A succeeded run with no rows shows "The run succeeded with no rows." instead of a grid.
 - CSV and Excel export are AG Grid's own.
 
@@ -754,6 +755,7 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
 - **`tim_actions.validate_params`** validates and converts the values in a request:
   - a `datetime` is an ISO 8601 string, UTC when it has no offset;
   - a `timespan` is an ISO 8601 duration or `HH:MM:SS`;
+  - a `number` is a JSON number, or a whole number as a string of digits, which becomes an integer;
   - a `many` param is a list;
   - a `connection` param is the name of a connection of its `connection_type`;
   - a missing or blank value takes the default;

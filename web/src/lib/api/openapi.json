@@ -337,6 +337,7 @@
             "enum": [
               "string",
               "number",
+              "bigint",
               "boolean",
               "datetime",
               "timespan",
@@ -874,6 +875,7 @@
             "enum": [
               "string",
               "number",
+              "bigint",
               "boolean",
               "datetime",
               "timespan",
@@ -1654,6 +1656,7 @@
             "enum": [
               "string",
               "number",
+              "bigint",
               "boolean",
               "datetime",
               "timespan",

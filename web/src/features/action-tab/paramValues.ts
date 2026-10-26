@@ -13,6 +13,7 @@ const ISO_DURATION = new RegExp(
   String.raw`^-?P(?=\d|T\d)(?:${NUM}W)?(?:${NUM}D)?(?:T(?=\d)(?:${NUM}H)?(?:${NUM}M)?(?:${NUM}S)?)?$`,
   'i',
 );
+const WHOLE_NUMBER = /^-?\d+$/;
 const CLOCK_DURATION = /^-?\d+:\d{2}:\d{2}(\.\d+)?$/;
 
 /** Parses one value typed for a param of `kind`; the same rules as the server's. */
@@ -22,7 +23,9 @@ export function parseParamText(kind: Kind, text: string): Parsed {
   switch (kind) {
     case 'number': {
       const n = Number(trimmed);
-      return Number.isFinite(n) ? { value: n } : { error: 'Must be a number' };
+      if (!Number.isFinite(n)) return { error: 'Must be a number' };
+      // Beyond ±(2^53 − 1) a number rounds; the server takes a whole number as its digits too.
+      return { value: Number.isSafeInteger(n) || !WHOLE_NUMBER.test(trimmed) ? n : trimmed };
     }
     case 'datetime':
       return ISO_DATETIME.test(trimmed) && !Number.isNaN(Date.parse(trimmed))

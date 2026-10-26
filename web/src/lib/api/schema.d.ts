@@ -509,7 +509,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
+            type: "string" | "number" | "bigint" | "boolean" | "datetime" | "timespan" | "json";
             /** Width */
             width?: number | null;
         };
@@ -769,7 +769,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
+            type: "string" | "number" | "bigint" | "boolean" | "datetime" | "timespan" | "json";
         };
         /**
          * Instance
@@ -1093,7 +1093,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "string" | "number" | "boolean" | "datetime" | "timespan" | "json";
+            type: "string" | "number" | "bigint" | "boolean" | "datetime" | "timespan" | "json";
         };
         /**
          * RunRow

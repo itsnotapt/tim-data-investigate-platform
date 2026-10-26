@@ -39,6 +39,7 @@ import {
 import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
+import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
 
 /** The param that names the column giving each row its id (Run KQL's Id column). */
 const ID_PARAM = 'idColumn';
@@ -93,6 +94,7 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
  * side bar, with the view's name in the status bar.
  * The row a share link named is focused, with its History open, once it has arrived.
+ * A `number` column's header warns when it holds whole numbers beyond ±(2^53 − 1), which round.
  */
 export function ActionResultsGrid({
   uuid,
@@ -120,6 +122,12 @@ export function ActionResultsGrid({
     () => buildActionColumnDefs(declaredColumns, runColumns, own),
     [declaredColumns, runColumns, own],
   );
+  const numberColumns = useMemo(
+    () =>
+      (runColumns ?? declaredColumns ?? []).filter((c) => c.type === 'number').map((c) => c.name),
+    [runColumns, declaredColumns],
+  );
+  const rounded = useMemo(() => roundedColumns(rows, numberColumns), [rows, numberColumns]);
   /** The `columns:` block of the grid's `state`, for the Action file panel and Copy column settings. */
   const actionFile = useCallback(
     (state: GridState) => actionFileColumns({ state, declared: declaredColumns, runColumns, own }),
@@ -300,22 +308,24 @@ export function ActionResultsGrid({
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-      <ResultsGrid
-        {...rest}
-        sideBar={ACTION_SIDE_BAR}
-        statusPanels={ACTION_STATUS_PANELS}
-        context={context}
-        onStateUpdated={keep}
-        rows={given}
-        columnDefs={columnDefs}
-        getContextMenuItems={menu}
-        getMainMenuItems={getMainMenuItems}
-        rowClassRules={rowClassRules}
-        selectionSymbol={LabelSymbol}
-        onCellKeyDown={onCellKeyDown}
-        onCellFocused={onCellFocused}
-        onGridReady={ready}
-      />
+      <RoundedColumnsContext value={rounded}>
+        <ResultsGrid
+          {...rest}
+          sideBar={ACTION_SIDE_BAR}
+          statusPanels={ACTION_STATUS_PANELS}
+          context={context}
+          onStateUpdated={keep}
+          rows={given}
+          columnDefs={columnDefs}
+          getContextMenuItems={menu}
+          getMainMenuItems={getMainMenuItems}
+          rowClassRules={rowClassRules}
+          selectionSymbol={LabelSymbol}
+          onCellKeyDown={onCellKeyDown}
+          onCellFocused={onCellFocused}
+          onGridReady={ready}
+        />
+      </RoundedColumnsContext>
       {historyPanel}
       {dialog}
     </Box>

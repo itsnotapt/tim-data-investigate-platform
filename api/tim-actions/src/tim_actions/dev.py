@@ -76,6 +76,8 @@ def _generated(column: Column, n: int) -> Any:
             return f"{column.name}-{n}"
         case "number":
             return n
+        case "bigint":
+            return 2**64 + n
         case "boolean":
             return n % 2 == 0
         case "datetime":

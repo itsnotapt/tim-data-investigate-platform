@@ -394,7 +394,8 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A late answer is ignored. A failure goes to the snackbar.
   - It hands `{kind, schema, connection, scope}` to its `onSchema` callback. It does not touch the editor.
 - `editorSchemaAdapters.ts`: `applyEditorSchema`, one adapter per schema kind, applied by the Query editor in `ActionTab.tsx`. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
-- `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns.
+- `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns. A `bigint` column gets cell data type `bigint`.
+- `roundedColumns.ts` finds the `number` columns with a whole number beyond ±(2^53 − 1). `NumberHeader.tsx` is their header, with the warning icon.
 - Tests pass `onRun` to `ActionTab` instead of running.
 
 ## Share links (`src/features/share-links`)
