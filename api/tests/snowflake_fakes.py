@@ -42,13 +42,14 @@ def described(*columns: tuple[str, int]) -> list[Any]:
 
 
 class FakeConnector:
-    """``snowflake.connector.connect``: records each login and statement, and answers each
-    statement from ``answers``, by the first key it contains, or with ``result``.
+    """``snowflake.connector.connect``: records each login, statement and its bound values, and
+    answers each statement from ``answers``, by the first key it contains, or with ``result``.
     ``login_error`` fails the login; with ``hold``, a query waits until it's aborted."""
 
     def __init__(self) -> None:
         self.logins: list[dict[str, Any]] = []
         self.executed: list[str] = []
+        self.binds: list[Sequence[Any] | None] = []  # the values bound to each async statement
         self.answers: dict[str, Answer | Exception] = {}
         self.result: Answer | Exception = ([], [])
         self.login_error: Exception | None = None
@@ -89,6 +90,7 @@ class FakeCursor:
 
     def execute_async(self, command: str, params: Sequence[Any] | None = None) -> dict[str, Any]:
         self.sdk.executed.append(command)
+        self.sdk.binds.append(params)
         return {"queryId": "01b2-query"}
 
     def get_results_from_sfqid(self, sfqid: str) -> None:

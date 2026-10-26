@@ -28,6 +28,23 @@ export interface QueryParameter {
 export const isParametersParam = (param: CatalogueParam): boolean =>
   param.name === 'parameters' && param.kind === 'json';
 
+/**
+ * Whether an action with `params` binds its query parameters by position, `:1` the first: its
+ * connection is a Snowflake one.
+ */
+export const bindsByPosition = (params: readonly CatalogueParam[]): boolean =>
+  params.some((p) => p.name === 'connection' && p.connectionType === 'snowflake');
+
+/** A query parameter's place in the list: `:N` when bound by position, otherwise `N`. */
+export const positionLabel = (index: number, bound: boolean): string =>
+  bound ? `:${index + 1}` : `${index + 1}`;
+
+/** The types the action's query parameters can be declared with: SQL has no `timespan`. */
+export const queryParameterTypes = (action: CatalogueAction): readonly QueryParameterType[] =>
+  bindsByPosition(action.params)
+    ? QUERY_PARAMETER_TYPES.filter((type) => type !== 'timespan')
+    : QUERY_PARAMETER_TYPES;
+
 /** Whether the action takes query parameters. */
 export const takesQueryParameters = (action: CatalogueAction): boolean =>
   action.params.some(isParametersParam);
@@ -85,7 +102,7 @@ const PILL_KINDS: Record<QueryParameterType, Pick<CatalogueParam, 'kind' | 'many
 
 /**
  * The tab's pills: each param but `parameters`, which gives one pill per query parameter in its
- * place, with the values keyed by pill name.
+ * place, with the values keyed by pill name. A query parameter bound by position says which.
  */
 export function pills(
   params: readonly CatalogueParam[],
@@ -93,16 +110,18 @@ export function pills(
 ): { params: CatalogueParam[]; values: Record<string, unknown> } {
   const entries = queryParameters(values.parameters);
   const pillValues = { ...values };
+  const bound = bindsByPosition(params);
+  const position = (i: number) => (bound ? ` ${positionLabel(i, true)}` : '');
   for (const entry of entries) pillValues[pillName(entry.name)] = entry.value;
   return {
     params: params.flatMap((p) =>
       isParametersParam(p)
-        ? entries.map((entry): CatalogueParam => ({
+        ? entries.map((entry, i): CatalogueParam => ({
             name: pillName(entry.name),
             title: entry.name,
             required: true,
             ...PILL_KINDS[entry.type],
-            help: `Query parameter, ${entry.type}`,
+            help: `Query parameter${position(i)}, ${entry.type}`,
           }))
         : [p],
     ),

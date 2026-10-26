@@ -5,7 +5,7 @@ is faked at ``token_for``, and Snowflake at the connector."""
 import asyncio
 import os
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,6 +91,45 @@ async def test_run_sql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
     assert (login["authenticator"], login["token"]) == ("oauth", f"obo:{ALICE}:{SCOPE}")
     assert env.sdk.executed == ["SELECT * FROM SIGNINS"]
     assert env.obo.calls[0] == (ALICE, SCOPE)
+
+
+async def test_run_sqls_query_parameters_are_bound_by_position(env: Env) -> None:
+    sql = "SELECT * FROM SIGNINS WHERE UPN = :1 AND AT >= :2"
+    started = await env.start(
+        sql=sql,
+        parameters=[
+            {"name": "upn", "type": "string", "value": "alice@contoso.com"},
+            {"name": "since", "type": "datetime", "value": "2026-01-02T00:00:00Z"},
+        ],
+    )
+    assert started.json()["status"] == "succeeded", started.json().get("error")
+    assert env.sdk.executed == [sql]
+    assert env.sdk.binds == [["alice@contoso.com", datetime(2026, 1, 2, tzinfo=UTC)]]
+
+
+@pytest.mark.parametrize(
+    ("parameters", "errors"),
+    [
+        (
+            [{"name": "within", "type": "timespan", "value": "PT1H"}],
+            {
+                "params.parameters": [
+                    "within: type must be one of string, long, real, bool, datetime, dynamic"
+                ]
+            },
+        ),
+        (
+            [{"name": "since", "type": "datetime", "value": "yesterday"}],
+            {"params.parameters.since": ["Must be an ISO 8601 datetime"]},
+        ),
+    ],
+)
+async def test_bad_query_parameters_are_unprocessable(
+    env: Env, parameters: Any, errors: dict[str, list[str]]
+) -> None:
+    response = await env.start(sql="SELECT :1", parameters=parameters)
+    assert (response.status_code, response.json()["errors"]) == (422, errors)
+    assert env.sdk.logins == []
 
 
 async def test_with_workload_identity_run_sql_runs_as_tim(env: Env) -> None:

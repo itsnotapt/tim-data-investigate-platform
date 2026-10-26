@@ -1,5 +1,6 @@
 """``GET /api/presets/{presetId}/actionFile``: a preset as an action file, which ``tim-api check``
-accepts. Built-in providers, with a Kusto connection and the ``kql_query`` fixtures."""
+accepts. Built-in providers, with a Kusto connection and the ``kql_query`` fixtures, or with
+Snowflake connections."""
 
 import os
 from collections.abc import AsyncIterator
@@ -11,6 +12,8 @@ import pytest
 import yaml
 from app_factory import AuthKit
 from kusto_fakes import FakeObo, connections_file, open_client
+from snowflake_fakes import CONNECTIONS as SNOWFLAKE_CONNECTIONS
+from snowflake_fakes import open_client as open_snowflake_client
 from test_action_files import FIXTURES
 
 from tim_api.cli import main
@@ -56,6 +59,35 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "long",
             "fixed": False,
             "fromColumns": ["Limit"],
+        },
+    ],
+}
+
+
+SQL = """SELECT * FROM SIGNINS
+WHERE UPN IN (SELECT value::string FROM TABLE(FLATTEN(PARSE_JSON(:1)))) AND AT >= :2
+"""
+
+RUN_SQL_PRESET: dict[str, Any] = {
+    "name": "Sign-ins of users",
+    "menuPath": ["Identity"],
+    "visibility": "shared",
+    "action": "tim.run_sql",
+    "params": {"connection": "warehouse", "sql": SQL, "idColumn": "ID"},
+    "inputs": [
+        {
+            "name": "upns",
+            "source": "queryParameter",
+            "type": "dynamic",
+            "fixed": False,
+            "fromColumns": ["UPN"],
+        },
+        {
+            "name": "since",
+            "source": "queryParameter",
+            "type": "datetime",
+            "fixed": True,
+            "value": "2026-10-01T00:00:00Z",
         },
     ],
 }
@@ -171,3 +203,73 @@ async def test_the_action_file_of_someone_elses_private_preset_is_not_found(
     unknown = await client.get("/api/presets/00000000-0000-0000-0000-000000000000/actionFile")
 
     assert (response.status_code, unknown.status_code) == (404, 404)
+
+
+@pytest.fixture
+async def snowflake_client(
+    auth: AuthKit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[httpx.AsyncClient]:
+    async with open_snowflake_client(auth, tmp_path, monkeypatch, obo=FakeObo()) as client:
+        yield client
+
+
+async def test_a_run_sql_preset_is_a_snowflake_query_action_file_with_its_params_in_order(
+    snowflake_client: httpx.AsyncClient,
+) -> None:
+    response = await action_file(snowflake_client, RUN_SQL_PRESET)
+
+    assert response.status_code == 200
+    assert "sql: |" in response.text
+    assert yaml.safe_load(response.text) == {
+        "type": "snowflake_query",
+        "key": "sign-ins-of-users",
+        "name": "Sign-ins of users",
+        "menu": "Identity",
+        "pivot": "rows",
+        "connection": "warehouse",
+        "sql": SQL,
+        "id": "ID",
+        "params": [
+            {"name": "upns", "kind": "json", "many": True, "from_columns": ["UPN"]},
+            {"name": "since", "kind": "datetime", "default": "2026-10-01T00:00:00Z"},
+        ],
+    }
+
+
+async def test_tim_api_check_accepts_the_snowflake_query_action_file(
+    snowflake_client: httpx.AsyncClient,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = await action_file(snowflake_client, RUN_SQL_PRESET)
+    actions = tmp_path / "actions"
+    actions.mkdir()
+    (actions / "preset.yaml").write_text(response.text)
+    connections = tmp_path / "check-connections.yaml"
+    connections.write_text(SNOWFLAKE_CONNECTIONS)
+    for key in [key for key in os.environ if key.startswith("TIM_")]:
+        monkeypatch.delenv(key)
+
+    code = main(["check", "--actions", str(actions), "--connections", str(connections)])
+
+    out, err = capsys.readouterr()
+    assert (code, err) == (0, ""), err
+    assert out.splitlines()[-1].startswith("OK: "), out
+
+
+async def test_a_run_sql_preset_with_a_timespan_has_no_action_file(
+    snowflake_client: httpx.AsyncClient,
+) -> None:
+    within = {
+        "name": "within",
+        "source": "queryParameter",
+        "type": "timespan",
+        "fixed": True,
+        "value": "PT1H",
+    }
+    preset = {**RUN_SQL_PRESET, "inputs": [*RUN_SQL_PRESET["inputs"], within]}
+    response = await action_file(snowflake_client, preset)
+
+    assert response.status_code == 409
+    assert response.json()["type"].endswith(":no-action-file")

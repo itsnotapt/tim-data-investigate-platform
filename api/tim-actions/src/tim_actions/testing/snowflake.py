@@ -15,10 +15,11 @@ from tim_actions.snowflake import SdkConnection, SnowflakeHook, SnowflakeResult
 
 @dataclass(frozen=True)
 class SnowflakeCall:
-    """A query a run sent: the connection and the SQL."""
+    """A query a run sent: the connection, the SQL and the values bound to it, ``:1`` first."""
 
     connection: str
     sql: str
+    params: tuple[Any, ...] = ()
 
 
 class FakeSnowflake:
@@ -34,8 +35,10 @@ class FakeSnowflake:
             def get_conn(self, *, deadline: datetime | None = None) -> SdkConnection:
                 raise AssertionError("tim_snowflake reaches no Snowflake account")
 
-            def query(self, sql: str, *, deadline: datetime) -> SnowflakeResult:
-                return fake._query(self.connection.name, sql)
+            def query(
+                self, sql: str, *, deadline: datetime, params: Sequence[Any] = ()
+            ) -> SnowflakeResult:
+                return fake._query(SnowflakeCall(self.connection.name, sql, tuple(params)))
 
         self.hook: type[SnowflakeHook] = Hook
         """The hook class that answers for Snowflake connections."""
@@ -49,10 +52,10 @@ class FakeSnowflake:
         exception is raised as it is."""
         self._answers.append(RunError(error) if isinstance(error, str) else error)
 
-    def _query(self, connection: str, sql: str) -> SnowflakeResult:
-        self.calls.append(SnowflakeCall(connection, sql))
+    def _query(self, call: SnowflakeCall) -> SnowflakeResult:
+        self.calls.append(call)
         if not self._answers:
-            raise AssertionError(f"no answer queued for Snowflake query {sql}")
+            raise AssertionError(f"no answer queued for Snowflake query {call.sql}")
         answer = self._answers.popleft()
         if isinstance(answer, BaseException):
             raise answer
