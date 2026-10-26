@@ -182,14 +182,16 @@ The connections file lists the instance's **connections**: the fixed endpoints a
     TEXAS: {Region: South, Division: West South Central}
 ```
 
-Every entry has `name`, `title`, `type` and `auth`, and an optional `scope`, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it ([Writing connection types and hooks](#writing-connection-types-and-hooks)); an unknown `type` or field stops startup, with the file and line.
+Every entry has `name`, `title`, `type` and `auth`, and a `scope` for `obo` that some connection types default, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it ([Writing connection types and hooks](#writing-connection-types-and-hooks)); an unknown `type` or field stops startup, with the file and line.
 
 `auth` says whose identity the system behind the connection sees.
 
 - **`obo`** runs as the analyst.
   - TIM exchanges the analyst's token for the connection's `scope` ([ADR-0009](adr/0009-obo-token-exchange.md)).
   - An instance that has an `obo` connection needs the OBO credential ([configuration.md](configuration.md#authentication)).
-- **`workload_identity`** runs as TIM, so every analyst gets TIM's access. The example's `regions` connection is one. A connection type lists the `auth` values it supports; `kusto` supports only `obo`.
+- **`workload_identity`** runs as TIM, so every analyst gets TIM's access. The example's `regions` connection is one. A connection type lists the `auth` values it supports; `snowflake` supports both, `kusto` only `obo`.
+  - A `scope` on it stops startup: the connections file refuses it with "scope is only for auth obo".
+  - An instance whose connections all use `workload_identity` needs no OBO credential.
 
 Every analyst sees every connection. The system behind it enforces access.
 
@@ -200,6 +202,19 @@ The `kusto` connection type, from the `kusto` extra of `tim-actions`:
 | `cluster` | yes | The cluster's https URL, checked and normalised to `https://<host>` at startup. |
 | `databases` | no | Database names suggested for the `database` param of actions on this connection. The analyst can type another. |
 | `scope` | no | The OBO scope, `{cluster}/.default` when left out. |
+
+The `snowflake` connection type, from the `snowflake` extra of `tim-actions`:
+
+| Field | Required | Description |
+|---|---|---|
+| `auth` | yes | `obo` or `workload_identity`. |
+| `account` | yes | The account identifier, such as `myorg-myaccount`. A URL or host name stops startup. |
+| `warehouse` | yes | The warehouse that runs the queries. |
+| `role` | no | The role to use. Without it, the user's default role. |
+| `scope` | for `obo` | The OBO scope, such as `api://<app id>/session:role-any`. There is no default. |
+
+- With `obo`, TIM logs in to Snowflake as the analyst, with an Entra token for `scope` that Snowflake's External OAuth security integration accepts. [deployment.md](deployment.md#snowflake-app-registration-and-external-oauth) sets it up.
+- With `workload_identity`, TIM logs in as itself through Snowflake workload identity federation, with a service user the operator creates ([deployment.md](deployment.md#snowflake-workload-identity)).
 
 An action names its connections in two ways:
 
@@ -231,12 +246,17 @@ The example's [`labels.yaml`](../examples/instance/config/labels.yaml):
 
 - The file lists at least one label, and no other fields.
 - The first nine labels take the keys 1 to 9 in the grid.
-- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or `idColumn` of Run KQL).
+- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or `idColumn` of Run KQL or Run SQL).
 - Keep a `key` for good. Annotations store it, so renaming it leaves the old key on every `id` that has it, shown grey. Change `name`, `colour` or `symbol` instead.
 
 ## Built-in actions
 
-The built-in provider adds the `kql_query` action type and the **Run KQL** action. Both need the `kusto` extra.
+The built-in provider adds, for each extra of `tim-actions` that is installed, the connection type and actions in this table, and the `kql_query` action type for `kusto`.
+
+| Extra | Adds |
+|---|---|
+| `kusto` | The `kusto` connection type, the `kql_query` action type and **Run KQL**. |
+| `snowflake` | The `snowflake` connection type and **Run SQL**. |
 
 ### Run KQL
 
@@ -297,6 +317,22 @@ The sidecar of the example's `storm-events.yaml` declares its params with `decla
 Declare `many` and `json` params as `dynamic`, and the others as their Kusto type.
 
 An optional param without a value is not sent, so the default in `declare query_parameters` applies.
+
+### Run SQL
+
+**Run SQL** (`tim.run_sql`) runs ad-hoc SQL on a Snowflake connection, as the analyst or, for a `workload_identity` connection, as TIM. It is in the catalogue when the `snowflake` extra is installed and the connections file has a `snowflake` connection.
+
+| Param | Description |
+|---|---|
+| `connection` | A `snowflake` connection. |
+| `sql` | The query, written in the tab's Query editor. It completes databases, and the columns of the tables the query names in `FROM` and `JOIN` (`db.schema.table`, the path perhaps shortened, with an optional alias), from the connection. After `DB.` it offers schemas, after a table's alias or name its columns; `DB.SCHEMA.` gives tables and `DB.SCHEMA.TABLE.` gives columns. |
+| `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
+
+- The query is sent as written, with the numeric parameter style.
+- The run's time limit is the session's `STATEMENT_TIMEOUT_IN_SECONDS`, and cancelling the run aborts the query on Snowflake.
+- Column types become TIM column types. A Snowflake error ends the run with Snowflake's message.
+- An `obo` error answers the start request, and no run starts. A login or query failure is a run error.
+- Run SQL is not offered as a pivot.
 
 ## Checking files
 
@@ -576,6 +612,10 @@ The package registers a `pytest11` plugin, so the fixtures need no import.
   - `respond(rows, columns=, details=)` queues an answer, and `fail(message)` or `fail(exception)` queues a failure. A message ends the run with it.
   - `calls` lists each query as `KustoCall(connection, database, kql, parameters)`.
   - A query with no answer queued fails the test, and so does reaching a Kusto cluster, as the editor schema does.
+- **`tim_snowflake`** is a fake of the Snowflake hook, and needs the `snowflake` extra. It answers the Snowflake connections added to `tim_connections` without a hook.
+  - `respond(rows, columns=)` queues an answer, and `fail(message)` or `fail(exception)` queues a failure. A message ends the run with it.
+  - `calls` lists each query as `SnowflakeCall(connection, sql)`.
+  - A query with no answer queued fails the test, and so does reaching a Snowflake account, as the editor schema does.
 
 The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them.
 

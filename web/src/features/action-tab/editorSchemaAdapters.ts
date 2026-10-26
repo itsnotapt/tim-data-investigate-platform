@@ -2,6 +2,7 @@ import type { CodeEditorInstance } from '../../components/CodeEditor';
 import { getKustoWorkerFor } from '../../lib/monaco';
 import type { LoadedEditorSchema } from './editorSchema';
 import { normalizeSchema } from './kustoSchema';
+import { setSqlSchema, type SqlSchema } from './sqlSchema';
 
 /** Gives an editor the schema of one `kind`. */
 type Adapter = (
@@ -18,6 +19,8 @@ const adapters: Record<string, Adapter> = {
     const database = typeof scope.database === 'string' ? scope.database : '';
     await worker.setSchemaFromShowSchema(normalizeSchema(schema), connection, database);
   },
+  // A Snowflake account's databases, schemas, tables and columns.
+  sql: (editor, { schema }, signal) => setSqlSchema(editor, schema as SqlSchema, signal),
 };
 
 /**

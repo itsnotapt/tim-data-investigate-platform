@@ -16,7 +16,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2",
     "asyncpg>=0.32.0",
     "alembic>=1.20.0",
-    "tim-actions[kusto]",
+    "tim-actions[kusto,snowflake]",
 ]
 
 [project.scripts]
@@ -75,7 +75,7 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --cov -m \"not slow\""
-markers = ["slow: takes more than ~5 s (deselect with -m \"not slow\")", "kusto: integration test against a real Kusto cluster (needs TIM_TEST_KUSTO_CLUSTER)"]
+markers = ["slow: takes more than ~5 s (deselect with -m \"not slow\")", "kusto: integration test against a real Kusto cluster (needs TIM_TEST_KUSTO_CLUSTER)", "snowflake: integration test against a real Snowflake account (needs TIM_TEST_SNOWFLAKE_ACCOUNT)"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

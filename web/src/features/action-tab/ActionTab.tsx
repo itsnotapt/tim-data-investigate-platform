@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import { NotifyContext } from '../../components/notifyContext';
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
+import type { EditorLanguage } from '../../lib/monaco';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
 import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
@@ -46,6 +47,11 @@ export interface ActionTabProps extends TabComponentProps {
 type InnerTab = 'query' | 'results' | 'run';
 
 const NO_CONNECTIONS: readonly InstanceConnection[] = [];
+/** The editor language of a query param's kind; other kinds are plain text. */
+const EDITOR_LANGUAGES: Partial<Record<CatalogueParam['kind'], EditorLanguage>> = {
+  kql: 'kusto',
+  sql: 'sql',
+};
 const defaultRun = (uuid: string) => void runActionTab(uuid);
 const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
 
@@ -104,7 +110,7 @@ function QueryEditor({
         }}
       >
         <CodeEditor
-          language={param.kind === 'kql' ? 'kusto' : 'plaintext'}
+          language={EDITOR_LANGUAGES[param.kind] ?? 'plaintext'}
           path={`${uuid}.${param.name}.${param.kind}`}
           ariaLabel={param.title}
           value={typeof value === 'string' ? value : ''}

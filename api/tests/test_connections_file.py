@@ -23,7 +23,7 @@ def connections_file(tmp_path: Path, text: str) -> Path:
 
 
 def check(capsys: pytest.CaptureFixture[str], *args: str) -> tuple[int, str, str]:
-    """``tim-api check`` with the installed providers: the built-ins, with Kusto."""
+    """``tim-api check`` with the installed providers: the built-ins, with Kusto and Snowflake."""
     code = main(["check", *args])
     out, err = capsys.readouterr()
     return code, out, err
@@ -39,11 +39,22 @@ SECURITY = """\
 """
 
 
-def test_check_accepts_a_kusto_connection(
+WAREHOUSE = """\
+- name: warehouse
+  title: Warehouse
+  type: snowflake
+  auth: workload_identity
+  account: myorg-myaccount
+  warehouse: ANALYSTS
+"""
+
+
+def test_check_accepts_a_kusto_and_a_snowflake_connection(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    code, out, err = check(capsys, "--connections", str(connections_file(tmp_path, SECURITY)))
-    assert (code, out, err) == (0, "OK: 1 actions, 1 connections, 3 labels\n", "")
+    path = connections_file(tmp_path, SECURITY + WAREHOUSE)
+    code, out, err = check(capsys, "--connections", str(path))
+    assert (code, out, err) == (0, "OK: 2 actions, 2 connections, 3 labels\n", "")
 
 
 def test_check_reports_each_problem_at_its_line(
@@ -65,7 +76,7 @@ def test_check_reports_each_problem_at_its_line(
   cluster: https://other.kusto.windows.net
 - name: lake
   title: Lake
-  type: snowflake
+  type: lake
   auth: obo
 - name: logs
   title: Logs
@@ -81,8 +92,8 @@ def test_check_reports_each_problem_at_its_line(
         "Invalid instance:",
         f"  - {path}:7: [1].name: String should match pattern '^[a-z0-9-]+$'",
         f"  - {path}:12: [2].name: duplicate connection name security",
-        f"  - {path}:19: [3].type: unknown connection type 'snowflake' (installed connection "
-        "types: kusto)",
+        f"  - {path}:19: [3].type: unknown connection type 'lake' (installed connection "
+        "types: kusto, snowflake)",
         f"  - {path}:25: [4].cluster: must not contain a path",
         f"  - {path}:26: [4].database: Extra inputs are not permitted",
     ]
@@ -99,24 +110,30 @@ def test_check_reports_a_connections_file_that_is_not_a_list(
     )
 
 
-def test_check_without_a_kusto_connection_leaves_run_kql_out(
+def test_check_without_connections_leaves_run_kql_and_run_sql_out(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert check(capsys) == (
         0,
         "Action tim.run_kql left out: no kusto connection for its connection param\n"
+        "Action tim.run_sql left out: no snowflake connection for its connection param\n"
         "OK: 0 actions, 0 connections, 3 labels\n",
         "",
     )
 
 
-def test_schema_connections_describes_the_kusto_type(
+def test_schema_connections_describes_the_kusto_and_snowflake_types(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert main(["schema", "connections"]) == 0
     schema = json.loads(capsys.readouterr().out)
-    kusto = schema["$defs"]["kusto"]
-    assert (schema["type"], schema["items"]) == ("array", {"$ref": "#/$defs/kusto"})
+    kusto, snowflake = schema["$defs"]["kusto"], schema["$defs"]["snowflake"]
+    assert schema["type"] == "array"
+    assert schema["items"]["discriminator"]["mapping"] == {
+        "kusto": "#/$defs/kusto",
+        "snowflake": "#/$defs/snowflake",
+    }
+    assert snowflake["required"] == ["name", "title", "type", "auth", "account", "warehouse"]
     assert kusto["properties"]["type"]["const"] == "kusto"
     assert kusto["required"] == ["name", "title", "type", "auth", "cluster"]
     assert kusto["additionalProperties"] is False

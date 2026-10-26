@@ -1,0 +1,947 @@
+{
+  "connector": "5.1.0",
+  "recorded": "2026-10-25",
+  "statements": [
+    {
+      "sql": "SELECT * FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID",
+      "description": [
+        {
+          "name": "ID",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        },
+        {
+          "name": "BIG",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 0
+        },
+        {
+          "name": "PRICE",
+          "type_code": 0,
+          "precision": 10,
+          "scale": 2
+        },
+        {
+          "name": "RATIO",
+          "type_code": 1,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "OK",
+          "type_code": 13,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "DAY",
+          "type_code": 3,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "AT_TIME",
+          "type_code": 12,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "AT_NTZ",
+          "type_code": 8,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "AT_LTZ",
+          "type_code": 6,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "AT_TZ",
+          "type_code": 7,
+          "precision": 0,
+          "scale": 9
+        },
+        {
+          "name": "DOC",
+          "type_code": 5,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "OBJ",
+          "type_code": 9,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "ARR",
+          "type_code": 10,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "BYTES",
+          "type_code": 11,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "PLACE",
+          "type_code": 14,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "SHAPE",
+          "type_code": 15,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "VEC",
+          "type_code": 16,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          1,
+          12345678901234567890,
+          {
+            "$decimal": "1.50"
+          },
+          0.25,
+          "alice@contoso.com",
+          true,
+          {
+            "$date": "2026-01-02"
+          },
+          {
+            "$time": "03:04:05.123000"
+          },
+          {
+            "$datetime": "2026-01-02T03:04:05.123456"
+          },
+          {
+            "$datetime": "2026-01-01T19:04:05-08:00"
+          },
+          {
+            "$datetime": "2026-01-02T03:04:05.500000+02:00"
+          },
+          "{\n  \"a\": [\n    1,\n    2\n  ]\n}",
+          "{\n  \"k\": \"v\"\n}",
+          "[\n  1,\n  \"two\"\n]",
+          {
+            "$bytes": "yv4="
+          },
+          "{\n  \"coordinates\": [\n    1,\n    2\n  ],\n  \"type\": \"Point\"\n}",
+          "{\n  \"coordinates\": [\n    3.000000000000000e+00,\n    4.000000000000000e+00\n  ],\n  \"type\": \"Point\"\n}",
+          [
+            1.5,
+            2.0,
+            3.0
+          ]
+        ],
+        [
+          2,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT 'NaN'::FLOAT AS NOT_A_NUMBER, '-inf'::FLOAT AS MINUS_INFINITY, 0.1::NUMBER(38, 20) AS TENTH, 1234567890.123456789::NUMBER(38, 9) AS PRECISE",
+      "description": [
+        {
+          "name": "NOT_A_NUMBER",
+          "type_code": 1,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "MINUS_INFINITY",
+          "type_code": 1,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "TENTH",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 20
+        },
+        {
+          "name": "PRECISE",
+          "type_code": 0,
+          "precision": 38,
+          "scale": 9
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$float": "nan"
+          },
+          {
+            "$float": "-inf"
+          },
+          {
+            "$decimal": "0.10000000000000000000"
+          },
+          {
+            "$decimal": "1234567890.123456789"
+          }
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT * FROM TIM_RECORDING.PUBLIC.NOPE",
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL compilation error:\nObject 'TIM_RECORDING.PUBLIC.NOPE' does not exist or not authorized. Your primary role TIM_RECORDING_READER must have at least one privilege granted on TABLE TIM_RECORDING.PUBLIC.NOPE.",
+        "errno": 2003,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELEC 1",
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL compilation error:\nsyntax error line 1 at position 0 unexpected 'SELEC'.",
+        "errno": 1003,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT SYSTEM$WAIT(10)",
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "Statement reached its statement or warehouse timeout of 2 second(s) and was canceled.",
+        "errno": 630,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SELECT SYSTEM$WAIT(30)",
+      "error": {
+        "class": "ProgrammingError",
+        "msg": "SQL execution canceled",
+        "errno": 604,
+        "sqlstate": null
+      }
+    },
+    {
+      "sql": "SHOW TERSE DATABASES",
+      "description": [
+        {
+          "name": "created_on",
+          "type_code": 6,
+          "precision": 0,
+          "scale": 3
+        },
+        {
+          "name": "name",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "kind",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "database_name",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "schema_name",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          {
+            "$datetime": "2026-10-24T17:51:48.994000-07:00"
+          },
+          "SNOWFLAKE",
+          "APPLICATION",
+          null,
+          null
+        ],
+        [
+          {
+            "$datetime": "2026-10-24T17:51:54.114000-07:00"
+          },
+          "SNOWFLAKE_SAMPLE_DATA",
+          "IMPORTED DATABASE",
+          null,
+          null
+        ],
+        [
+          {
+            "$datetime": "2026-10-24T18:07:08.608000-07:00"
+          },
+          "TIM_RECORDING",
+          "STANDARD",
+          null,
+          null
+        ],
+        [
+          {
+            "$datetime": "2026-10-24T21:10:51.879000-07:00"
+          },
+          "TIM_RECORDING_HIDDEN",
+          "STANDARD",
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT table_schema, table_name, column_name, data_type FROM \"SNOWFLAKE\".INFORMATION_SCHEMA.COLUMNS WHERE table_schema <> 'INFORMATION_SCHEMA' ORDER BY table_schema, table_name, ordinal_position",
+      "description": [
+        {
+          "name": "TABLE_SCHEMA",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "TABLE_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "COLUMN_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "DATA_TYPE",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": []
+    },
+    {
+      "sql": "SELECT table_schema, table_name, column_name, data_type FROM \"SNOWFLAKE_SAMPLE_DATA\".INFORMATION_SCHEMA.COLUMNS WHERE table_schema <> 'INFORMATION_SCHEMA' ORDER BY table_schema, table_name, ordinal_position",
+      "description": [
+        {
+          "name": "TABLE_SCHEMA",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "TABLE_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "COLUMN_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "DATA_TYPE",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_CUSTKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_NAME",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_ADDRESS",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_NATIONKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_PHONE",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_ACCTBAL",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_MKTSEGMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "CUSTOMER",
+          "C_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_ORDERKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_PARTKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_SUPPKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_LINENUMBER",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_QUANTITY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_EXTENDEDPRICE",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_DISCOUNT",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_TAX",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_RETURNFLAG",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_LINESTATUS",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_SHIPDATE",
+          "DATE"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_COMMITDATE",
+          "DATE"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_RECEIPTDATE",
+          "DATE"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_SHIPINSTRUCT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_SHIPMODE",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "LINEITEM",
+          "L_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "NATION",
+          "N_NATIONKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "NATION",
+          "N_NAME",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "NATION",
+          "N_REGIONKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "NATION",
+          "N_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_ORDERKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_CUSTKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_ORDERSTATUS",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_TOTALPRICE",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_ORDERDATE",
+          "DATE"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_ORDERPRIORITY",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_CLERK",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_SHIPPRIORITY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "ORDERS",
+          "O_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_PARTKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_NAME",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_MFGR",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_BRAND",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_TYPE",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_SIZE",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_CONTAINER",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_RETAILPRICE",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PART",
+          "P_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "PARTSUPP",
+          "PS_PARTKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PARTSUPP",
+          "PS_SUPPKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PARTSUPP",
+          "PS_AVAILQTY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PARTSUPP",
+          "PS_SUPPLYCOST",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "PARTSUPP",
+          "PS_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "REGION",
+          "R_REGIONKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "REGION",
+          "R_NAME",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "REGION",
+          "R_COMMENT",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_SUPPKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_NAME",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_ADDRESS",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_NATIONKEY",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_PHONE",
+          "TEXT"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_ACCTBAL",
+          "NUMBER"
+        ],
+        [
+          "TPCH_SF1",
+          "SUPPLIER",
+          "S_COMMENT",
+          "TEXT"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT table_schema, table_name, column_name, data_type FROM \"TIM_RECORDING\".INFORMATION_SCHEMA.COLUMNS WHERE table_schema <> 'INFORMATION_SCHEMA' ORDER BY table_schema, table_name, ordinal_position",
+      "description": [
+        {
+          "name": "TABLE_SCHEMA",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "TABLE_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "COLUMN_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "DATA_TYPE",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": [
+        [
+          "Mixed Case",
+          "Sign-ins",
+          "User Name",
+          "TEXT"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "ID",
+          "NUMBER"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "BIG",
+          "NUMBER"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "PRICE",
+          "NUMBER"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "RATIO",
+          "FLOAT"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "NAME",
+          "TEXT"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "OK",
+          "BOOLEAN"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "DAY",
+          "DATE"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "AT_TIME",
+          "TIME"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "AT_NTZ",
+          "TIMESTAMP_NTZ"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "AT_LTZ",
+          "TIMESTAMP_LTZ"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "AT_TZ",
+          "TIMESTAMP_TZ"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "DOC",
+          "VARIANT"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "OBJ",
+          "OBJECT"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "ARR",
+          "ARRAY"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "BYTES",
+          "BINARY"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "PLACE",
+          "GEOGRAPHY"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "SHAPE",
+          "GEOMETRY"
+        ],
+        [
+          "PUBLIC",
+          "EVERY_TYPE",
+          "VEC",
+          "VECTOR"
+        ],
+        [
+          "PUBLIC",
+          "NAMES",
+          "ID",
+          "NUMBER"
+        ],
+        [
+          "PUBLIC",
+          "NAMES",
+          "NAME",
+          "TEXT"
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT table_schema, table_name, column_name, data_type FROM \"TIM_RECORDING_HIDDEN\".INFORMATION_SCHEMA.COLUMNS WHERE table_schema <> 'INFORMATION_SCHEMA' ORDER BY table_schema, table_name, ordinal_position",
+      "description": [
+        {
+          "name": "TABLE_SCHEMA",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "TABLE_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "COLUMN_NAME",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        },
+        {
+          "name": "DATA_TYPE",
+          "type_code": 2,
+          "precision": null,
+          "scale": null
+        }
+      ],
+      "rows": []
+    }
+  ]
+}

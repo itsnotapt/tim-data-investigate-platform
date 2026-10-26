@@ -62,8 +62,8 @@ The file is a YAML list of the instance's connections. Each entry has:
 | `name`  | yes | Lowercase letters, digits and `-`, unique in the file. Actions and the browser refer to the connection by it. |
 | `title` | yes | What analysts see. |
 | `type`  | yes | A connection type installed in the image; `tim-api schema connections` lists them. |
-| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity` is in the model, but the `kusto` type supports only `obo`. |
-| `scope` | no | The scope an `obo` token is requested for; the type may default it. |
+| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity`: runs as TIM; the `snowflake` type supports it, the `kusto` type supports only `obo`. |
+| `scope` | for `obo` | The scope an `obo` token is requested for; the type may default it (`kusto` does, `snowflake` doesn't). Any other `auth` refuses it ("scope is only for auth obo"). |
 
 The `kusto` connection type adds `cluster` (required), `databases` (optional) and `scope`:
 
@@ -80,6 +80,15 @@ A `cluster` is checked when the file is read. A rejected value stops startup wit
 - Its port is omitted or `443`.
 - Its host is a valid domain name; an internationalised name is converted to punycode.
 
+The `snowflake` connection type adds `account`, `warehouse`, `role` (optional) and `scope`:
+
+| Field       | Description |
+| ----------- | ----------- |
+| `account`   | The account identifier, such as `myorg-myaccount`. A URL or host name stops startup. |
+| `warehouse` | The warehouse that runs the queries. Required. |
+| `role`      | The role to use. Optional. |
+| `scope`     | The OBO scope, such as `api://<app id>/session:role-any`. Required for `obo`, with no default. `workload_identity` refuses it. |
+
 ```yaml
 - name: samples
   title: Samples (help cluster)
@@ -92,7 +101,7 @@ A `cluster` is checked when the file is read. A rejected value stops startup wit
 - A problem in the file stops startup. It is reported as `<file>:<line>: <field>: <message>` ([operations.md](operations.md#startup-failures-from-the-files)).
 - Check a file before deploying it with `tim-api check --connections <file>` ([operations.md](operations.md#tim-api-check)).
 - The api's OBO credential is needed when a connection uses `obo` ([Authentication](#authentication)).
-- `GET /api/instance` lists each connection's name, type, title, editor and databases. It never lists the cluster, auth or scope.
+- `GET /api/instance` lists each connection's name, type, title, editor and databases. It never lists the cluster, account, auth or scope.
 
 ### Actions
 
@@ -173,6 +182,8 @@ The web container's nginx allows request bodies up to 64 MB and waits up to 620 
 | ------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | `TIM_TEST_DATABASE_URL`                                                        | `pytest`, Playwright | Postgres server for storage tests, and the e2e api's database, which Playwright empties at the start of each run; falls back to `pgserver`. |
 | `TIM_TEST_KUSTO_CLUSTER`, `TIM_TEST_KUSTO_QUERY_DATABASE` | `pytest -m kusto` | A real cluster for the live tests `test_run_kql_on_a_real_cluster` and `test_kql_query_binds_params_on_a_real_cluster` (database default `Research`). It authenticates through `DefaultAzureCredential`, for example with your Azure CLI login, see [development.md](development.md#live-kusto-tests). |
+| `TIM_TEST_SNOWFLAKE_ACCOUNT`, `TIM_TEST_SNOWFLAKE_WAREHOUSE`, `TIM_TEST_SNOWFLAKE_SCOPE` | `pytest -m snowflake` | A real account for the live tests `test_run_sql_on_a_real_account` and `test_run_sql_on_a_real_account_through_tims_obo_exchange`; they skip unless the account is set. The analyst's token comes from `DefaultAzureCredential`, for example your Azure CLI login, see [development.md](development.md#things-that-arent-obvious). |
+| `TIM_TEST_AUTH_TENANT_ID`, `TIM_TEST_AUTH_CLIENT_ID`, `TIM_TEST_AUTH_CLIENT_SECRET` | `pytest -m snowflake` | The API app registration that `test_run_sql_on_a_real_account_through_tims_obo_exchange` validates tokens for and makes the on-behalf-of exchange as; it skips without the client ID. |
 | `UPDATE_SNAPSHOTS=1`                                                           | `pytest`          | Rewrites OpenAPI snapshots, see [development.md](development.md#api-types).                            |
 | `E2E_PORT`                                                                     | Playwright        | Vite's port for e2e runs. Default `5180`, a whole number from 1 to 65534. The api takes the next port. |
 | `E2E_SHOTS=1`                                                                  | Playwright        | Writes e2e screenshots to `web/e2e/.screenshots` (git-ignored); without it the helpers do nothing.     |
