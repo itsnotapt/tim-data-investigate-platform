@@ -1,5 +1,6 @@
 """What a real Snowflake account answered, as recorded by ``record_snowflake.py``: for each
-statement, the connector's description and rows, or the error it raised. Values the connector
+statement, and the values bound to it, the connector's description and rows, or the error it
+raised. Values the connector
 gives that JSON can't hold (``Decimal``, ``datetime``, ``bytes``, ...) are stored tagged, such as
 ``{"$decimal": "1.50"}``."""
 
@@ -16,6 +17,7 @@ from typing import Any
 from snowflake.connector import errors as sf_errors
 
 RECORDING = Path(__file__).parent / "fixtures" / "snowflake.json"
+BINDS_RECORDING = Path(__file__).parent / "fixtures" / "snowflake_binds.json"
 
 Answer = tuple[list[Any], list[tuple[Any, ...]]] | Exception
 
