@@ -329,3 +329,70 @@ describe('ActionResultsGrid', () => {
     expect(await navigator.clipboard.readText()).toBe('http://localhost:3000/#/runs/r1?row=1');
   });
 });
+
+describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
+  const hashes: RunRow[] = [
+    { row: 0, id: 'h-0', data: { Hash: 12345678901234567890n } },
+    { row: 1, id: 'h-1', data: { Hash: 5 } },
+    { row: 2, id: 'h-2', data: { Hash: 9007199254740993n } },
+  ];
+  const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'number', declared: false }];
+
+  async function hashGrid(uuid: string) {
+    let api: GridApi | undefined;
+    render(
+      <ActionResultsGrid
+        uuid={uuid}
+        action="dev.hashes"
+        rows={hashes}
+        runColumns={hashColumns}
+        height={400}
+        onGridReady={(e) => (api = e.api)}
+      />,
+    );
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
+    return api!;
+  }
+  const shown = (api: GridApi) => {
+    const values: unknown[] = [];
+    api.forEachNodeAfterFilterAndSort((node) =>
+      values.push(api.getCellValue({ rowNode: node, colKey: 'Hash' })),
+    );
+    return values;
+  };
+
+  it('filters them with the number filter', async () => {
+    const api = await hashGrid('big-filter');
+
+    await act(async () => {
+      await api.setColumnFilterModel('Hash', {
+        filterType: 'multi',
+        filterModels: [null, { filterType: 'number', type: 'greaterThan', filter: 1e16 }],
+      });
+      api.onFilterChanged();
+    });
+
+    await waitFor(() => expect(shown(api)).toEqual([12345678901234567890n]));
+  });
+
+  it('sorts them among numbers', async () => {
+    const api = await hashGrid('big-sort');
+
+    act(() => {
+      api.applyColumnState({ state: [{ colId: 'Hash', sort: 'desc' }] });
+    });
+
+    expect(shown(api)).toEqual([12345678901234567890n, 9007199254740993n, 5]);
+  });
+
+  it('copies one exactly', async () => {
+    const api = await hashGrid('big-copy');
+
+    act(() => {
+      api.setFocusedCell(0, 'Hash');
+      api.copyToClipboard();
+    });
+
+    await waitFor(() => expect(clipboard).toBe('12345678901234567890'));
+  });
+});

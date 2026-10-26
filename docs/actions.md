@@ -106,6 +106,8 @@ Annotations are kept by `id`, so a row needs one to be annotated.
 
 Dates and times in a file stay strings, as the browser sends them.
 
+The api sends whole numbers as exact JSON numbers, however large: a Kusto `long`, a Snowflake `NUMBER(38, 0)`. A JavaScript client must parse them without rounding. TIM's web keeps those beyond ±(2^53 − 1) as `BigInt`.
+
 ### Columns
 
 An action can declare some or all of its result columns. Each entry takes:

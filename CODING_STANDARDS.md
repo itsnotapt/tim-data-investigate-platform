@@ -37,6 +37,7 @@ Commands are in [docs/development.md](docs/development.md).
 
 - Components are function components with hooks.
 - Every HTTP call to the API goes through the client in `web/src/lib/api/`.
+- JSON in `web/src` goes through `parseJson` and `stringifyJson` in `web/src/lib/json.ts`, never bare `JSON.parse`, `JSON.stringify` or `Response.json()`; read a response body with `parseJson(await res.text())`. They keep whole numbers beyond ±(2^53 − 1) exact as `BigInt`. Bare `JSON.parse` rounds them, and bare `JSON.stringify` throws on a `BigInt`. ESLint enforces it (`no-restricted-properties`, `no-restricted-syntax`); tests are exempt.
 - Only `web/src/lib/auth/` imports MSAL; the rest of the app uses that module.
 - A default export is allowed only for a page loaded lazily in `web/src/app/lazyPages.ts`; everything else uses named exports.
 - Unit and component tests sit next to the code as `*.test.ts` or `*.test.tsx`. A user flow gets a Playwright spec in `web/e2e/flows/`, run against the real api through `web/e2e/realApi.ts`. The `@smoke` flows, which run on every PR, are the sign-in flows in `real-api.spec.ts`; don't tag others `@smoke`. The other flows run on `main` and on release PRs.

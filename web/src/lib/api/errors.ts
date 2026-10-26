@@ -1,3 +1,4 @@
+import { parseJson } from '../json';
 import type { components } from './schema';
 
 export type ProblemDetails = components['schemas']['ProblemDetails'];
@@ -55,7 +56,7 @@ export async function apiErrorFromResponse(res: Response): Promise<ApiError> {
   const headerTrace = res.headers.get('x-trace-id') ?? undefined;
   let body: unknown;
   try {
-    body = await res.json();
+    body = parseJson(await res.text());
   } catch {
     body = undefined;
   }

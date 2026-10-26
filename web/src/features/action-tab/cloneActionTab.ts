@@ -1,3 +1,4 @@
+import { parseJson, stringifyJson } from '../../lib/json';
 import { useTabsStore, type TabsStore } from '../tabs';
 
 /** Clones an action tab as a sibling titled "Copy of <title>", with its params and not run. */
@@ -10,7 +11,7 @@ export function cloneActionTab(uuid: string, store: TabsStore = useTabsStore): s
     title: `Copy of ${tab.title}`,
     params: {
       action: tab.params.action,
-      params: JSON.parse(JSON.stringify(tab.params.params)) as Record<string, unknown>,
+      params: parseJson(stringifyJson(tab.params.params)) as Record<string, unknown>,
     },
   });
 }

@@ -1,5 +1,6 @@
 import type { Notify } from '../../components/notifyContext';
 import { getRun, isApiError, startRun, type Run, type SinkInput } from '../../lib/api';
+import { parseJson, stringifyJson } from '../../lib/json';
 import { runPollDelay } from '../action-tab';
 
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem'>;
@@ -43,7 +44,7 @@ interface PendingRun {
 
 function readPending(storage: Storage): PendingRun[] {
   try {
-    const stored: unknown = JSON.parse(storage.getItem(PENDING_SINK_RUNS_KEY) ?? '[]');
+    const stored: unknown = parseJson(storage.getItem(PENDING_SINK_RUNS_KEY) ?? '[]');
     if (!Array.isArray(stored)) return [];
     return stored.filter(
       (p): p is PendingRun =>
@@ -59,7 +60,7 @@ function readPending(storage: Storage): PendingRun[] {
 
 function writePending(storage: Storage, pending: PendingRun[]): void {
   try {
-    storage.setItem(PENDING_SINK_RUNS_KEY, JSON.stringify(pending));
+    storage.setItem(PENDING_SINK_RUNS_KEY, stringifyJson(pending));
   } catch {
     // Followed still on this page; only a reload loses it.
   }

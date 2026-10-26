@@ -10,6 +10,13 @@ describe('detail text', () => {
     expect(detailText({ s: 'a\u0001b' })).toBe('s: ab\n');
     expect(detailText(5)).toBe('5');
   });
+  it('dumps a whole number beyond 2^53 exactly, as a number', () => {
+    expect(detailText({ id: 12345678901234567890n, raw: { hash: [-9007199254740993n] } })).toBe(
+      'id: 12345678901234567890\nraw:\n  hash:\n    - -9007199254740993\n',
+    );
+    expect(detailText(12345678901234567890n)).toBe('12345678901234567890');
+  });
+
   it('hides empty values', () => {
     const entries = detailEntries({ a: '', b: null, c: {}, d: [], e: 0, f: 'ok' });
     expect(entries.map((e) => e.key)).toEqual(['e', 'f']);

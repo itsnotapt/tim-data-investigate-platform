@@ -1,4 +1,5 @@
 import type { CatalogueAction, CatalogueParam, InstanceConnection } from '../../lib/api';
+import { exactNumber, parseJson, stringifyJson } from '../../lib/json';
 import { scalarText } from '../grid/columns';
 
 type Kind = CatalogueParam['kind'];
@@ -22,7 +23,8 @@ export function parseParamText(kind: Kind, text: string): Parsed {
   switch (kind) {
     case 'number': {
       const n = Number(trimmed);
-      return Number.isFinite(n) ? { value: n } : { error: 'Must be a number' };
+      if (!Number.isFinite(n)) return { error: 'Must be a number' };
+      return { value: exactNumber(trimmed, n) };
     }
     case 'datetime':
       return ISO_DATETIME.test(trimmed) && !Number.isNaN(Date.parse(trimmed))
@@ -34,7 +36,7 @@ export function parseParamText(kind: Kind, text: string): Parsed {
         : { error: 'Must be an ISO 8601 duration or HH:MM:SS' };
     case 'json':
       try {
-        return { value: JSON.parse(trimmed) as unknown };
+        return { value: parseJson(trimmed) };
       } catch {
         return { error: 'Must be JSON' };
       }
@@ -127,7 +129,7 @@ export function splitPasted(text: string): string[] {
 /** A value as text in an editor. */
 export function valueText(value: unknown): string {
   if (value === undefined || value === null) return '';
-  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  if (typeof value === 'object') return stringifyJson(value, undefined, 2);
   return scalarText(value);
 }
 
@@ -209,7 +211,7 @@ export function paramText(value: unknown): string {
   if (Array.isArray(value) && value.every((v) => v === null || typeof v !== 'object')) {
     return value.map(valueText).join(', ');
   }
-  return typeof value === 'object' && value !== null ? JSON.stringify(value) : valueText(value);
+  return typeof value === 'object' && value !== null ? stringifyJson(value) : valueText(value);
 }
 
 const MAX_SHOWN = 3;
@@ -239,15 +241,13 @@ export function summarize(
       .join(', ');
     return clip(value.length > MAX_SHOWN ? `${shown} +${value.length - MAX_SHOWN}` : shown);
   }
-  return clip(typeof value === 'object' ? JSON.stringify(value) : valueText(value));
+  return clip(typeof value === 'object' ? stringifyJson(value) : valueText(value));
 }
 
 /** Whether two sets of plain param values are the same, an unset value counting as absent. */
 export function sameParams(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
   const names = new Set([...Object.keys(a), ...Object.keys(b)]);
   return [...names].every((name) =>
-    isUnset(a[name]) && isUnset(b[name])
-      ? true
-      : JSON.stringify(a[name]) === JSON.stringify(b[name]),
+    isUnset(a[name]) && isUnset(b[name]) ? true : stringifyJson(a[name]) === stringifyJson(b[name]),
   );
 }

@@ -176,6 +176,27 @@ describe('pivotIntoAction', () => {
     expect(notified.map((n) => n.message)).toEqual(['Opened Sign-ins: needs Result']);
   });
 
+  it('pivots on a whole number beyond 2^53 exactly, both ways', async () => {
+    let sent = '';
+    server.use(
+      http.post(apiUrl('/api/actions/sign-ins/resolve'), async ({ request }) => {
+        sent = await request.text();
+        return new HttpResponse(
+          '{"params":{"users":[12345678901234567890],"result":"Failure"},"missing":[],"reasons":{}}',
+          { headers: { 'Content-Type': 'application/json' } },
+        );
+      }),
+    );
+    const { store, pivot } = setup();
+
+    const uuid = await pivot([{ User: 12345678901234567890n, Result: 'Failure' }]);
+
+    expect(sent).toBe('{"pivot":{"rows":[{"User":12345678901234567890,"Result":"Failure"}]}}');
+    expect(store.getState().tabs[uuid!]?.params.params).toMatchObject({
+      users: [12345678901234567890n],
+    });
+  });
+
   it('says why when the server refuses the pivot, and opens no tab', async () => {
     server.use(
       http.post(apiUrl('/api/actions/sign-ins/resolve'), () =>

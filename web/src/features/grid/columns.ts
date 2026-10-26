@@ -1,4 +1,5 @@
 import type { ColDef } from 'ag-grid-community';
+import { stringifyJson } from '../../lib/json';
 
 /** Row as stored (raw column name to value). */
 export type GridRow = Record<string, unknown>;
@@ -11,7 +12,7 @@ export const gridRowId = (row: { row: number }): string => String(row.row);
 /** Text of a cell value: objects as JSON, other values via `String`. */
 export function scalarText(value: unknown): string {
   if (value === null || value === undefined) return '';
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'object') return stringifyJson(value);
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint')
     return String(value);
