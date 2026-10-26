@@ -1,3 +1,5 @@
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
@@ -19,7 +21,9 @@ import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import type { CatalogueAction, Preset, PresetFields } from '../../lib/api';
 import {
-  QUERY_PARAMETER_TYPES,
+  bindsByPosition,
+  positionLabel,
+  queryParameterTypes,
   takesQueryParameters,
   type QueryParameterType,
 } from '../action-tab/queryParameters';
@@ -51,20 +55,28 @@ export interface SavePresetDialogProps {
 }
 
 /**
- * One query parameter the dialog declares: its name, picked from the names in the query or typed,
- * its type, and a fixed value or the columns of the clicked row to read.
+ * One query parameter the dialog declares, at its place in the order: its name, picked from the
+ * names in the query or typed, its type, and a fixed value or the columns of the clicked row to
+ * read. Bound by position, it shows the position, `:1` the first.
  */
 function QueryParameterFields({
   index,
   form,
+  bound,
+  types,
   suggestions,
   onChange,
+  onMove,
   onRemove,
 }: {
   index: number;
   form: PresetForm;
+  bound: boolean;
+  types: readonly QueryParameterType[];
   suggestions: readonly string[];
   onChange: (changes: Partial<QueryParameterForm>) => void;
+  /** Swaps it with the one before (`-1`) or after (`1`). */
+  onMove: (by: -1 | 1) => void;
   onRemove: () => void;
 }) {
   const qp = form.queryParameters[index]!;
@@ -77,6 +89,9 @@ function QueryParameterFields({
       spacing={1}
       sx={{ alignItems: 'flex-start', flexWrap: 'wrap', rowGap: 1 }}
     >
+      <Typography sx={{ minWidth: 24, pt: 1, fontFamily: 'monospace' }}>
+        {positionLabel(index, bound)}
+      </Typography>
       <Autocomplete
         freeSolo
         openOnFocus
@@ -103,7 +118,7 @@ function QueryParameterFields({
         slotProps={{ select: { native: true } }}
         sx={{ width: 120 }}
       >
-        {QUERY_PARAMETER_TYPES.map((type) => (
+        {types.map((type) => (
           <option key={type} value={type}>
             {type}
           </option>
@@ -139,6 +154,30 @@ function QueryParameterFields({
           sx={{ flex: 1, minWidth: 160 }}
         />
       )}
+      <Tooltip title="Move up">
+        <span>
+          <IconButton
+            aria-label="Move up"
+            size="small"
+            disabled={index === 0}
+            onClick={() => onMove(-1)}
+          >
+            <ArrowUpwardIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Tooltip title="Move down">
+        <span>
+          <IconButton
+            aria-label="Move down"
+            size="small"
+            disabled={index === form.queryParameters.length - 1}
+            onClick={() => onMove(1)}
+          >
+            <ArrowDownwardIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
       <Tooltip title="Remove">
         <IconButton aria-label="Remove" size="small" onClick={onRemove}>
           <DeleteIcon fontSize="small" />
@@ -171,6 +210,14 @@ export function SavePresetDialog({
   const setQueryParameters = (change: (all: QueryParameterForm[]) => QueryParameterForm[]) =>
     setForm((f) => ({ ...f, queryParameters: change(f.queryParameters) }));
   const suggestions = suggestedNames(action, params, form);
+  const bound = bindsByPosition(action.params);
+  const types = queryParameterTypes(action);
+  const moveQueryParameter = (from: number, to: number) =>
+    setQueryParameters((all) => {
+      const moved = [...all];
+      [moved[from], moved[to]] = [moved[to]!, moved[from]!];
+      return moved;
+    });
 
   const save = async (write: (fields: PresetFields) => Promise<Preset>) => {
     setSaving(true);
@@ -281,12 +328,15 @@ export function SavePresetDialog({
                   key={i}
                   index={i}
                   form={form}
+                  bound={bound}
+                  types={types}
                   suggestions={suggestions}
                   onChange={(changes) =>
                     setQueryParameters((all) =>
                       all.map((qp, j) => (j === i ? { ...qp, ...changes } : qp)),
                     )
                   }
+                  onMove={(by) => moveQueryParameter(i, i + by)}
                   onRemove={() => setQueryParameters((all) => all.filter((_, j) => j !== i))}
                 />
               ))}

@@ -97,3 +97,33 @@ def load() -> dict[str, Answer]:
             rows = [tuple(decode(v) for v in row) for row in statement["rows"]]
             answers[statement["sql"]] = (description, rows)
     return answers
+
+
+BoundKey = tuple[str, str, str | None]
+
+
+def bound_key(sql: str, params: Sequence[Any], timezone: str | None) -> BoundKey:
+    """What a recorded statement with bound values is looked up by: its text, its values and the
+    session's ``TIMEZONE``, if set."""
+    return sql, json.dumps(encode(list(params))), timezone
+
+
+def load_binds() -> dict[BoundKey, Answer]:
+    """The recorded answer to each statement with bound values, by ``bound_key``."""
+    recording = json.loads(BINDS_RECORDING.read_text())
+    answers: dict[BoundKey, Answer] = {}
+    for statement in recording["statements"]:
+        key = bound_key(
+            statement["sql"],
+            decode(statement["params"]),
+            statement.get("session", {}).get("TIMEZONE"),
+        )
+        if "error" in statement:
+            answers[key] = decode_error(statement["error"])
+        else:
+            description = [SimpleNamespace(**d) for d in statement["description"]]
+            answers[key] = (
+                description,
+                [tuple(decode(v) for v in row) for row in statement["rows"]],
+            )
+    return answers

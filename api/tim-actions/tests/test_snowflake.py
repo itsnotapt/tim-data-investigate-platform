@@ -10,10 +10,11 @@ from typing import Any
 
 import pytest
 from snowflake.connector import errors as sf_errors
-from snowflake_recording import load
+from snowflake_recording import BoundKey, bound_key, load, load_binds
 
 from tim_actions import Column, Hook, RunError
-from tim_actions.snowflake import RUN_SQL, SnowflakeConnection, SnowflakeHook
+from tim_actions.params import Param
+from tim_actions.snowflake import RUN_SQL, SnowflakeConnection, SnowflakeHook, bind_values
 from tim_actions.testing import Connections, RunResult, run_action
 from tim_actions.testing.snowflake import FakeSnowflake, SnowflakeCall
 
@@ -78,6 +79,39 @@ def test_run_sql_runs_the_query_and_reports_snowflakes_columns(
     assert tim_snowflake.calls == [SnowflakeCall("warehouse", "SELECT * FROM T")]
 
 
+def test_run_sqls_query_parameters_are_bound_in_their_order(
+    tim_snowflake: FakeSnowflake, tim_connections: Connections
+) -> None:
+    tim_connections.add(CONNECTION)
+    tim_snowflake.respond([])
+    sql = "SELECT * FROM T WHERE UPN IN (SELECT value FROM TABLE(FLATTEN(PARSE_JSON(:1))))"
+    parameters = [
+        {"name": "upns", "type": "dynamic", "value": ["alice@contoso.com", "bob@contoso.com"]},
+        {"name": "since", "type": "datetime", "value": "2026-01-02T03:00:00+02:00"},
+        {"name": "limit", "type": "long", "value": 10},
+        {"name": "ratio", "type": "real", "value": 0.5},
+        {"name": "ok", "type": "bool", "value": True},
+        {"name": "who", "type": "string", "value": "alice"},
+        {"name": "doc", "type": "dynamic", "value": {"a": 1}},
+    ]
+    run_sql(tim_connections, {"sql": sql, "parameters": parameters})
+    assert tim_snowflake.calls == [
+        SnowflakeCall(
+            "warehouse",
+            sql,
+            (
+                '["alice@contoso.com","bob@contoso.com"]',
+                datetime(2026, 1, 2, 1, tzinfo=UTC),
+                10,
+                0.5,
+                True,
+                "alice",
+                '{"a":1}',
+            ),
+        )
+    ]
+
+
 def test_without_an_id_column_the_rows_have_no_id(
     tim_snowflake: FakeSnowflake, tim_connections: Connections
 ) -> None:
@@ -118,13 +152,14 @@ class FakeCursor:
 
     def execute_async(self, command: str, params: Sequence[Any] | None = None) -> dict[str, Any]:
         self.sdk.executed.append(command)
+        self.sdk.binds.append(params)
         return {"queryId": "01b2-query"}
 
     def get_results_from_sfqid(self, sfqid: str) -> None:
         self.sdk.querying.set()
         if self.sdk.hold:
             self.sdk.aborted_event.wait(10)
-        answer = self.sdk.answer(self.sdk.executed[-1])
+        answer = self.sdk.answer(self.sdk.executed[-1], self.sdk.binds[-1])
         if isinstance(answer, Exception):
             raise answer
         self.description, self._rows = answer
@@ -151,12 +186,15 @@ class FakeConnection:
 
 class FakeConnector:
     """``snowflake.connector.connect``: records each login and answers each statement from
-    ``answers``, by the first key the statement contains, or with ``result``; ``login_error``
+    ``answers``, by the first key the statement contains, or with ``result``; a statement with
+    bound values from ``bound``, by ``bound_key`` with the login's ``TIMEZONE``; ``login_error``
     fails the login; with ``hold``, a query waits until it's aborted, then answers."""
 
     def __init__(self) -> None:
         self.logins: list[dict[str, Any]] = []
         self.executed: list[str] = []
+        self.binds: list[Sequence[Any] | None] = []  # the values bound to each async statement
+        self.bound: dict[BoundKey, tuple[list[Any], list[tuple[Any, ...]]] | Exception] = {}
         self.result: tuple[list[Any], list[tuple[Any, ...]]] | Exception = ([], [])
         self.answers: dict[str, tuple[list[Any], list[tuple[Any, ...]]] | Exception] = {}
         self.login_error: Exception | None = None
@@ -172,7 +210,14 @@ class FakeConnector:
             raise self.login_error
         return FakeConnection(self)
 
-    def answer(self, command: str) -> tuple[list[Any], list[tuple[Any, ...]]] | Exception:
+    def answer(
+        self, command: str, params: Sequence[Any] | None = None
+    ) -> tuple[list[Any], list[tuple[Any, ...]]] | Exception:
+        if params is not None:
+            timezone = self.logins[-1].get("session_parameters", {}).get("TIMEZONE")
+            return self.bound.get(
+                bound_key(command, params, timezone), AssertionError("not recorded")
+            )
         for key, answer in self.answers.items():
             if key in command:
                 return answer
@@ -423,6 +468,7 @@ def test_an_account_that_is_not_an_identifier_is_refused(account: str) -> None:
 @pytest.fixture
 def recorded(sdk: FakeConnector) -> FakeConnector:
     sdk.answers = dict(load())
+    sdk.bound = load_binds()
     sdk.result = AssertionError("not recorded")
     return sdk
 
@@ -597,3 +643,103 @@ def test_the_editor_schema_is_the_tree_snowflake_shows_the_role(recorded: FakeCo
             ],
         },
     ]
+
+
+def test_values_are_bound_by_position_and_a_position_can_be_used_again(
+    recorded: FakeConnector,
+) -> None:
+    result = hook().query("SELECT :1 AS A, :2 AS B, :1 AS C", deadline=in_30s(), params=["x", 2])
+    assert result.rows == [{"A": "x", "B": 2, "C": "x"}]
+
+
+def test_a_datetime_is_compared_with_timestamp_columns_as_utc(recorded: FakeConnector) -> None:
+    sql = "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE {} >= :1 ORDER BY ID"
+    # Row 1 is at 01:04:05.5 and 03:04:05 UTC.
+    one_am, three_am = datetime(2026, 1, 2, 1, tzinfo=UTC), datetime(2026, 1, 2, 3, tzinfo=UTC)
+    assert hook().query(sql.format("AT_TZ"), deadline=in_30s(), params=[one_am]).rows == [{"ID": 1}]
+    assert hook().query(sql.format("AT_LTZ"), deadline=in_30s(), params=[three_am]).rows == [
+        {"ID": 1}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("column", "cast", "values", "ids"),
+    [
+        ("NAME", "string", '["alice@contoso.com", "bob@contoso.com"]', [1]),
+        ("ID", "number", "[1, 2, 3]", [1, 2]),
+        ("ID", "number", "[]", []),
+    ],
+)
+def test_many_values_are_bound_as_json_text_the_query_parses(
+    recorded: FakeConnector, column: str, cast: str, values: str, ids: list[int]
+) -> None:
+    sql = f"""SELECT ID, NAME FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE {column} IN (SELECT value::{cast} FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""  # noqa: S608 - the test's own literals
+    rows = hook().query(sql, deadline=in_30s(), params=[values]).rows
+    assert [row["ID"] for row in rows] == ids
+
+
+def test_a_bound_value_can_be_cast(recorded: FakeConnector) -> None:
+    sql = "SELECT :1::NUMBER(38, 0) AS N, :2::TIMESTAMP_TZ AS T, :3::VARIANT AS J"
+    params = ["123", "2026-01-02 03:04:05 +02:00", '{"a": 1}']
+    assert hook().query(sql, deadline=in_30s(), params=params).rows == [
+        {"N": 123, "T": "2026-01-02T01:04:05Z", "J": '{"a": 1}'}
+    ]
+
+
+def bound_rows(sql: str, params: list[Param], values: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The rows of ``sql`` with ``values`` bound as TIM binds a ``snowflake_query``'s params."""
+    return hook().query(sql, deadline=in_30s(), params=bind_values(params, values)).rows
+
+
+def test_many_datetimes_are_bound_as_utc_times_the_query_parses(recorded: FakeConnector) -> None:
+    sql = """SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE AT_TZ IN (SELECT value::TIMESTAMP_TZ FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""
+    # Row 1's AT_TZ is 03:04:05.5 +02:00.
+    ats = [datetime(2026, 1, 2, 1, 4, 5, 500000, tzinfo=UTC), datetime(2026, 1, 3, tzinfo=UTC)]
+    rows = bound_rows(sql, [Param("ats", "datetime", many=True)], {"ats": ats})
+    assert rows == [{"ID": 1}]
+
+
+def test_many_numbers_keep_every_digit(recorded: FakeConnector) -> None:
+    sql = """SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE BIG IN (SELECT value::NUMBER(38, 0) FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""
+    rows = bound_rows(sql, [Param("bigs", "number", many=True)], {"bigs": [12345678901234567890]})
+    assert rows == [{"ID": 1}]
+
+
+def test_a_json_value_is_bound_as_json_text_the_query_parses(recorded: FakeConnector) -> None:
+    sql = "SELECT PARSE_JSON(:1):app::STRING AS APP, ARRAY_SIZE(PARSE_JSON(:1):ids) AS N"
+    filter_ = {"app": "Teams", "ids": [1, 2]}
+    assert bound_rows(sql, [Param("filter", "json")], {"filter": filter_}) == [
+        {"APP": "Teams", "N": 2}
+    ]
+
+
+def test_an_optional_value_left_out_is_null(recorded: FakeConnector) -> None:
+    sql = (
+        "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE"
+        " WHERE (:1 IS NULL OR AT_TZ >= :1) ORDER BY ID"
+    )
+    since = [Param("since", "datetime", required=False)]
+    assert bound_rows(sql, since, {}) == [{"ID": 1}, {"ID": 2}]
+    assert bound_rows(sql, since, {"since": datetime(2026, 1, 2, 1, tzinfo=UTC)}) == [{"ID": 1}]
+
+
+def test_a_limit_can_be_bound_and_null_is_none(recorded: FakeConnector) -> None:
+    sql = "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID LIMIT :1"
+    limit = [Param("limit", "number", required=False)]
+    assert bound_rows(sql, limit, {"limit": 1}) == [{"ID": 1}]
+    assert bound_rows(sql, limit, {}) == [{"ID": 1}, {"ID": 2}]
+
+
+def test_a_position_without_a_value_ends_the_query_with_snowflakes_message(
+    recorded: FakeConnector,
+) -> None:
+    with pytest.raises(RunError, match=r"Bind variable :2 not set\.$"):
+        hook().query("SELECT :1 AS A, :2 AS B", deadline=in_30s(), params=["only one"])
+
+
+def test_a_query_without_values_binds_none(sdk: FakeConnector) -> None:
+    hook().query("SELECT ':1' AS LIT", deadline=in_30s())
+    assert sdk.binds == [None]

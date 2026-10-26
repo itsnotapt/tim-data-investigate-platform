@@ -28,11 +28,29 @@ const runKql: CatalogueAction = {
   pivot: null,
 };
 
+const runSql: CatalogueAction = {
+  ...runKql,
+  key: 'tim.run_sql',
+  name: 'Run SQL',
+  params: [
+    {
+      name: 'connection',
+      title: 'Connection',
+      kind: 'connection',
+      connectionType: 'snowflake',
+      required: true,
+      many: false,
+    },
+    { name: 'sql', title: 'Query', kind: 'sql', required: true, many: false },
+    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+  ],
+};
+
 const KQL = 'SigninLogs | where UserPrincipalName == Upn and TimeGenerated > Since';
 const tab = { connection: 'security', database: 'Samples', kql: KQL };
 
 /** The presets API, keeping what was saved. */
-function setup(params: Record<string, unknown>) {
+function setup(params: Record<string, unknown>, action: CatalogueAction = runKql) {
   const saved: PresetFields[] = [];
   const api = {
     list: () => Promise.resolve([]),
@@ -47,7 +65,7 @@ function setup(params: Record<string, unknown>) {
   };
   render(
     <SavePresetDialog
-      action={runKql}
+      action={action}
       params={params}
       onClose={() => {}}
       store={createPresetsStore({ api })}
@@ -176,5 +194,69 @@ describe('SavePresetDialog query parameters', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     expect(saved[0]).toMatchObject({ params: tab, inputs: [] });
+  });
+
+  it('moves a query parameter up, which declares it first', async () => {
+    const { saved, dialog } = setup({
+      ...tab,
+      parameters: [
+        { name: 'Upn', type: 'string', value: 'alice@example.com' },
+        { name: 'Within', type: 'timespan', value: 'PT1H' },
+      ],
+    });
+
+    expect(within(parameter(1)).getByRole('button', { name: 'Move up' })).toBeDisabled();
+    await userEvent.click(within(parameter(2)).getByRole('button', { name: 'Move up' }));
+
+    expect(lines()).toContain('declare query_parameters(Within:timespan, Upn:string);');
+    expect(within(parameter(2)).getByRole('button', { name: 'Move down' })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(saved[0]?.inputs?.map((i) => i.name)).toEqual(['Within', 'Upn']);
+  });
+});
+
+describe('SavePresetDialog query parameters of SQL', () => {
+  const SQL = 'SELECT * FROM SIGNINS WHERE UPN = :1 AND AT >= :2';
+  const sqlTab = { connection: 'warehouse', sql: SQL };
+
+  it('shows each one at the position it is bound to, and moving one changes it', async () => {
+    const { saved, dialog } = setup(
+      {
+        ...sqlTab,
+        parameters: [
+          { name: 'since', type: 'datetime', value: '2026-10-01T00:00:00Z' },
+          { name: 'upns', type: 'dynamic', value: ['alice@example.com', 'bob@example.com'] },
+        ],
+      },
+      runSql,
+    );
+    expect(within(parameter(1)).getByText(':1')).toBeInTheDocument();
+    expect(lines()).toEqual([
+      'Connection = warehouse',
+      `Query = ${SQL}`,
+      ':1 since = 2026-10-01T00:00:00Z',
+      ':2 upns = ["alice@example.com","bob@example.com"]',
+    ]);
+
+    await userEvent.click(within(parameter(1)).getByRole('button', { name: 'Move down' }));
+    await userEvent.click(within(parameter(1)).getByRole('button', { name: 'From row' }));
+    await userEvent.type(within(parameter(1)).getByRole('textbox', { name: 'Columns' }), 'UPN');
+
+    expect(within(parameter(1)).getByRole('combobox', { name: 'Name' })).toHaveValue('upns');
+    expect(lines().slice(2)).toEqual([
+      ':1 upns = <UPN of the clicked row>',
+      ':2 since = 2026-10-01T00:00:00Z',
+    ]);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(saved[0]?.inputs?.map((i) => i.name)).toEqual(['upns', 'since']);
+  });
+
+  it('offers no timespan, which Snowflake has not', async () => {
+    const { dialog } = setup(sqlTab, runSql);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add query parameter' }));
+    const types = within(within(parameter(1)).getByRole('combobox', { name: 'Type' }))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+    expect(types).toEqual(['string', 'long', 'real', 'bool', 'datetime', 'dynamic']);
   });
 });

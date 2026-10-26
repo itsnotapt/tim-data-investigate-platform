@@ -21,12 +21,18 @@ from pydantic import field_validator
 
 from tim_actions import connections
 from tim_actions._common import NonBlankStr
-from tim_actions.action import Action, QueryParameter, QueryParameterType
+from tim_actions.action import Action, QueryParameter
 from tim_actions.columns import Column, ColumnType
 from tim_actions.connections import Connection, ConnectionName
 from tim_actions.files import ActionDocument, Sidecar
 from tim_actions.hooks import EditorSchema, Hook, TokenFor
-from tim_actions.params import PARAM_NAME, Param, ParamKind, ParamsError, validate_params
+from tim_actions.params import Param, ParamKind
+from tim_actions.query_parameters import (
+    QUERY_PARAMETER_TYPES,
+    CheckedParameter,
+    TakesQueryParameters,
+    params_and_values,
+)
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
 
@@ -291,18 +297,6 @@ def query_parameters(params: Sequence[Param], values: Mapping[str, Any]) -> dict
     }
 
 
-QUERY_PARAMETER_TYPES: Mapping[QueryParameterType, ParamKind] = {
-    "string": "string",
-    "long": "number",
-    "real": "number",
-    "bool": "boolean",
-    "datetime": "datetime",
-    "timespan": "timespan",
-    "dynamic": "json",
-}
-"""The Kusto types a Run KQL query parameter can declare, each with the param kind of its value."""
-
-
 def declare_statement(declared: Sequence[tuple[str, str]]) -> str:
     """``declare query_parameters(name:type, …);`` and a newline, to go before the KQL; empty
     without query parameters."""
@@ -320,52 +314,11 @@ class DeclaredParameters:
     parameters: dict[str, str]
 
 
-def declared_parameters(entries: Any) -> DeclaredParameters:
-    """Run KQL's ``parameters`` param, ``[{name, type, value}]``, checked and as sent to Kusto.
-    Raises ``ParamsError`` keyed ``params.parameters`` when the list is malformed, and
-    ``params.parameters.<name>`` when a value doesn't fit its type."""
-    if entries is None:
-        return DeclaredParameters("", {})
-    if not isinstance(entries, list) or not all(
-        isinstance(entry, dict) and set(entry) == {"name", "type", "value"} for entry in entries
-    ):
-        raise ParamsError({"params.parameters": ["Must be a list of {name, type, value}"]})
-    problems: list[str] = []
-    names: list[str] = [str(entry["name"]) for entry in entries]
-    for entry in entries:
-        name = entry["name"]
-        if not isinstance(name, str) or not PARAM_NAME.match(name):
-            problems.append(
-                f"{name}: name must start with a letter or _ and hold only letters, digits and _"
-            )
-        elif names.count(name) > 1:
-            problems.append(f"{name}: names must be unique")
-        elif entry["type"] not in QUERY_PARAMETER_TYPES:
-            problems.append(f"{name}: type must be one of {', '.join(QUERY_PARAMETER_TYPES)}")
-    if problems:
-        raise ParamsError({"params.parameters": list(dict.fromkeys(problems))})
-    params = [Param(entry["name"], QUERY_PARAMETER_TYPES[entry["type"]]) for entry in entries]
-    values = {entry["name"]: entry["value"] for entry in entries}
-    errors: dict[str, list[str]] = {}
-    try:
-        converted = validate_params(params, values)
-    except ParamsError as exc:
-        errors = {
-            f"params.parameters.{key.removeprefix('params.')}": m for key, m in exc.errors.items()
-        }
-        converted = {}
-    for entry in entries:
-        value = converted.get(entry["name"])
-        if entry["type"] == "long" and value is not None:
-            if isinstance(value, float) and not value.is_integer():
-                errors[f"params.parameters.{entry['name']}"] = ["Must be a whole number"]
-            else:
-                converted[entry["name"]] = int(value)
-    if errors:
-        raise ParamsError(errors)
+def declared_parameters(entries: Sequence[CheckedParameter]) -> DeclaredParameters:
+    """Run KQL's checked ``parameters`` entries as sent to Kusto."""
     return DeclaredParameters(
-        declare_statement([(entry["name"], entry["type"]) for entry in entries]),
-        query_parameters(params, converted),
+        declare_statement([(entry.param.name, entry.type) for entry in entries]),
+        query_parameters(*params_and_values(entries)),
     )
 
 
@@ -640,31 +593,15 @@ class KustoHook(Hook):
 _PRESET_FILE_PARAMS = ("connection", "database", "kql")
 
 
-class RunKql(Action):
+class RunKql(TakesQueryParameters):
     """``tim.run_kql``: ad-hoc KQL on a Kusto connection, each row's ``id`` read from the
     ``idColumn`` param's column."""
+
+    parameter_types = QUERY_PARAMETER_TYPES
 
     def row_id(self, params: Mapping[str, Any]) -> RowId | None:
         column = params.get("idColumn")
         return IdColumns([column]) if column else None
-
-    def check_params(
-        self, values: Mapping[str, Any], *, connections: Mapping[str, str] | None = None
-    ) -> dict[str, Any]:
-        """The params' own checks, and those of each ``parameters`` entry."""
-        errors: dict[str, list[str]] = {}
-        checked: dict[str, Any] = {}
-        try:
-            checked = super().check_params(values, connections=connections)
-        except ParamsError as exc:
-            errors = exc.errors
-        try:
-            declared_parameters(values.get("parameters"))
-        except ParamsError as exc:
-            errors |= exc.errors
-        if errors:
-            raise ParamsError(errors)
-        return checked
 
     def preset_file(
         self,
@@ -676,39 +613,28 @@ class RunKql(Action):
         query_parameters: Sequence[QueryParameter],
     ) -> KqlQueryFile | None:
         """A ``kql_query`` action with the preset's connection, database and Id column, and its
-        query parameters declared before the KQL; ``None`` when the preset lacks the connection,
-        database or KQL. Each query parameter is a param: a fixed one with its value as the
-        default, a From row one with its columns. A ``dynamic`` one is a ``json`` param, ``many``
-        unless its fixed value is not a list. Like the preset, it pivots on ``rows`` when every
-        From row query parameter has columns."""
-        if not all(isinstance(params.get(n), str) and params[n] for n in _PRESET_FILE_PARAMS):
+        query parameters declared before the KQL, as params (``preset_file_params``); ``None``
+        when the preset lacks the connection, database or KQL."""
+        file_params = self.preset_file_params(params, query_parameters, _PRESET_FILE_PARAMS)
+        if file_params is None:
             return None
         declare = declare_statement([(p.name, p.type) for p in query_parameters])
-        file_params = []
-        for p in query_parameters:
-            kind = QUERY_PARAMETER_TYPES[p.type]
-            many = p.type == "dynamic" and (p.from_columns is not None or isinstance(p.value, list))
-            if p.from_columns is None:
-                file_params.append(Param(p.name, kind, many=many, default=p.value))
-            else:
-                file_params.append(Param(p.name, kind, many=many, from_columns=p.from_columns))
-        from_row = [p.from_columns for p in query_parameters if p.from_columns is not None]
         id_column = params.get("idColumn")
         return KqlQueryFile(
             type="kql_query",
             key=key,
             name=name,
             menu=menu,
-            pivot="rows" if from_row and all(from_row) else "none",
+            pivot=file_params.pivot,
             connection=params["connection"],
             database=params["database"],
             kql=declare + params["kql"],
             id=id_column or None,
-            params=tuple(file_params),
+            params=file_params.params,
         )
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
-        declared = declared_parameters(params.get("parameters"))
+        declared = declared_parameters(self.parameter_entries(params))
         yield from _run_query(
             ctx,
             params["connection"],

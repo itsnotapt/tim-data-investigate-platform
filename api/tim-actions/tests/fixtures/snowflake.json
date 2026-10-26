@@ -1,6 +1,6 @@
 {
   "connector": "5.1.0",
-  "recorded": "2026-10-25",
+  "recorded": "2026-10-26",
   "statements": [
     {
       "sql": "SELECT * FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID",
@@ -134,7 +134,7 @@
             "$datetime": "2026-01-02T03:04:05.123456"
           },
           {
-            "$datetime": "2026-01-01T19:04:05-08:00"
+            "$datetime": "2026-01-02T03:04:05+00:00"
           },
           {
             "$datetime": "2026-01-02T03:04:05.500000+02:00"
@@ -293,7 +293,7 @@
       "rows": [
         [
           {
-            "$datetime": "2026-10-24T17:51:48.994000-07:00"
+            "$datetime": "2026-10-25T00:51:48.994000+00:00"
           },
           "SNOWFLAKE",
           "APPLICATION",
@@ -302,7 +302,7 @@
         ],
         [
           {
-            "$datetime": "2026-10-24T17:51:54.114000-07:00"
+            "$datetime": "2026-10-25T00:51:54.114000+00:00"
           },
           "SNOWFLAKE_SAMPLE_DATA",
           "IMPORTED DATABASE",
@@ -311,7 +311,7 @@
         ],
         [
           {
-            "$datetime": "2026-10-24T18:07:08.608000-07:00"
+            "$datetime": "2026-10-25T01:07:08.608000+00:00"
           },
           "TIM_RECORDING",
           "STANDARD",
@@ -320,7 +320,7 @@
         ],
         [
           {
-            "$datetime": "2026-10-24T21:10:51.879000-07:00"
+            "$datetime": "2026-10-25T04:10:51.879000+00:00"
           },
           "TIM_RECORDING_HIDDEN",
           "STANDARD",

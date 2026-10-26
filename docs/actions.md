@@ -253,12 +253,12 @@ The example's [`labels.yaml`](../examples/instance/config/labels.yaml):
 
 ## Built-in actions
 
-The built-in provider adds, for each extra of `tim-actions` that is installed, the connection type and actions in this table, and the `kql_query` action type for `kusto`.
+The built-in provider adds, for each extra of `tim-actions` that is installed, the connection type and actions in this table, and the `kql_query` action type for `kusto` and the `snowflake_query` action type for `snowflake`.
 
 | Extra | Adds |
 |---|---|
 | `kusto` | The `kusto` connection type, the `kql_query` action type and **Run KQL**. |
-| `snowflake` | The `snowflake` connection type and **Run SQL**. |
+| `snowflake` | The `snowflake` connection type, the `snowflake_query` action type and **Run SQL**. |
 
 ### Run KQL
 
@@ -276,9 +276,9 @@ The run's time limit is passed to Kusto as the server timeout, cancelling the ru
 
 #### Query parameters of Run KQL
 
-`parameters` is a list of `{name, type, value}`. The `type` is `string`, `long`, `real`, `bool`, `datetime`, `timespan` or `dynamic`.
+`parameters` is an ordered list of `{name, type, value}`. The `type` is `string`, `long`, `real`, `bool`, `datetime`, `timespan` or `dynamic`.
 
-- TIM puts `declare query_parameters(Name:type, ...);` and a newline before the KQL, and sends the values as Kusto query parameters. The KQL uses the names as it would any query parameter.
+- TIM puts `declare query_parameters(Name:type, ...);` and a newline before the KQL, with the parameters in the list's order, and sends the values as Kusto query parameters. The KQL uses the names as it would any query parameter.
 - A bad value answers `422` with `errors["params.parameters.<name>"]`, such as "Must be an ISO 8601 datetime", "Required" or, for a `long`, "Must be a whole number".
 - A structural problem answers `422` with `errors["params.parameters"]`: a bad name, a bad type, a duplicate name or a value that is not a list.
 - A [preset](../GLOSSARY.md) of Run KQL can have query parameters as inputs, and be copied as an action file: [GET /api/presets/{presetId}/actionFile](api.md#get-apipresetspresetidactionfile).
@@ -329,12 +329,70 @@ An optional param without a value is not sent, so the default in `declare query_
 | `connection` | A `snowflake` connection. |
 | `sql` | The query, written in the tab's Query editor. It completes databases, and the columns of the tables the query names in `FROM` and `JOIN` (`db.schema.table`, the path perhaps shortened, with an optional alias), from the connection. After `DB.` it offers schemas, after a table's alias or name its columns; `DB.SCHEMA.` gives tables and `DB.SCHEMA.TABLE.` gives columns. |
 | `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
+| `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-sql). |
 
-- The query is sent as written, with the numeric parameter style.
+- The query is sent as written, with its query parameters bound by position ([How Snowflake binds params](#how-snowflake-binds-params)).
 - The run's time limit is the session's `STATEMENT_TIMEOUT_IN_SECONDS`, and cancelling the run aborts the query on Snowflake.
 - Column types become TIM column types. A Snowflake error ends the run with Snowflake's message.
 - An `obo` error answers the start request, and no run starts. A login or query failure is a run error.
 - Run SQL is not offered as a pivot.
+
+#### Query parameters of Run SQL
+
+`parameters` is an ordered list of `{name, type, value}`, with the types of [Run KQL](#query-parameters-of-run-kql) but `timespan`: `string`, `long`, `real`, `bool`, `datetime` or `dynamic`.
+
+- The entries are bound by position, in the list's order: `:1` is the first, `:2` the second. The SQL uses `:1`, `:2` and so on, and the names are only labels.
+- A `dynamic` value is bound as JSON text, which the SQL parses with `PARSE_JSON(:N)`.
+- Bad entries answer `422` as for Run KQL, at `params.parameters` and `params.parameters.<name>`.
+- A [preset](../GLOSSARY.md) of Run SQL can have query parameters as inputs, and be copied as an action file unless one of them is a `timespan`: [GET /api/presets/{presetId}/actionFile](api.md#get-apipresetspresetidactionfile).
+
+### `snowflake_query`
+
+A `snowflake_query` action runs fixed SQL on a fixed `snowflake` connection, as the analyst or, for a `workload_identity` connection, as TIM. Besides the common fields it takes:
+
+| Field | Required | Description |
+|---|---|---|
+| `connection` | yes | The name of a `snowflake` connection. Startup fails when it is missing or of another type. |
+| `sql` or `sql_file` | one of them | The query, inline or in a sidecar next to the action file. |
+
+```yaml
+type: snowflake_query
+key: example.recent_orders
+name: Recent orders
+pivot: rows
+connection: warehouse
+params:
+  - name: customers
+    kind: string
+    many: true
+    from_columns: [CustomerId]
+  - name: since
+    kind: datetime
+    required: false
+sql: |
+  SELECT * FROM SALES.PUBLIC.ORDERS
+  WHERE CUSTOMER_ID IN (SELECT value::string FROM TABLE(FLATTEN(PARSE_JSON(:1))))
+    AND (:2 IS NULL OR ORDERED_AT >= :2)
+```
+
+The run's time limit, cancelling and the column types work as for Run SQL.
+
+#### How Snowflake binds params
+
+The SQL is sent unchanged, and the values are bound server-side by position ([ADR-0019](adr/0019-params-are-bound.md)).
+
+- `:1` is the first param in the file, `:2` the second, and so on. The params' names are not used in the SQL.
+- A param's `kind` is `string`, `number`, `boolean`, `datetime` or `json`. A `timespan`, `sql`, `kql` or `connection` param stops startup.
+- A position with no param is Snowflake's own run-time error, "Bind variable :N not set".
+
+| Kind | Bound as |
+|---|---|
+| `string`, `number`, `boolean` | Itself. |
+| `datetime` | A UTC datetime. The session's `TIMEZONE` is always `UTC`, so Snowflake reads it in UTC. |
+| `json` | Compact JSON text. The SQL parses it with `PARSE_JSON(:N)`. |
+| `many` of any kind | JSON text of the list, with `datetime` elements as ISO 8601 with `Z`. The SQL parses it, e.g. `SELECT value::string FROM TABLE(FLATTEN(PARSE_JSON(:1)))`. |
+
+An optional param without a value is bound as `NULL`.
 
 ## Checking files
 
@@ -477,7 +535,7 @@ def resolve(self, context: PivotContext) -> Resolved:
 `Action.check_params(values, *, connections=None)` validates the values of a run when it starts and returns them converted, by param name. It raises `ParamsError`.
 
 - The default is `tim_actions.validate_params`.
-- Override it to check more, such as the entries of a `json` param. Run KQL does so for `parameters`.
+- Override it to check more, such as the entries of a `json` param. Run KQL and Run SQL do so for `parameters`.
 
 ### Presets as action files
 
@@ -485,8 +543,11 @@ An action type can say how a preset of its actions becomes an action file by ove
 
 - It returns an `ActionDocument`, or `None`, the default, when a preset of the action has no action file.
   - `RunKql.preset_file` returns `None` for a preset that lacks a connection, database or query.
+  - `RunSql.preset_file` returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter.
+  - The document of `RunSql.preset_file` is a `snowflake_query`, with a param per query parameter in the preset's order.
   - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
-- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries.
+- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries, in order.
+- `tim_actions.query_parameters` holds what Run KQL and Run SQL share. `TakesQueryParameters` is their base class: it checks `parameters` against its `parameter_types`, each query parameter type with the param kind of its value. `checked_parameters` does the check, and `preset_file_params` turns a preset's query parameters into the file's params.
 - `Action.has_preset_file` is whether the type overrides it. It becomes `actionFile` in the catalogue.
 - `tim_actions.action_file_yaml(document)` writes the document as the YAML of an action file.
 
@@ -616,7 +677,7 @@ The package registers a `pytest11` plugin, so the fixtures need no import.
   - A query with no answer queued fails the test, and so does reaching a Kusto cluster, as the editor schema does.
 - **`tim_snowflake`** is a fake of the Snowflake hook, and needs the `snowflake` extra. It answers the Snowflake connections added to `tim_connections` without a hook.
   - `respond(rows, columns=)` queues an answer, and `fail(message)` or `fail(exception)` queues a failure. A message ends the run with it.
-  - `calls` lists each query as `SnowflakeCall(connection, sql)`.
+  - `calls` lists each query as `SnowflakeCall(connection, sql, params)`, where `params` is a tuple of the values bound, `:1` first.
   - A query with no answer queued fails the test, and so does reaching a Snowflake account, as the editor schema does.
 
 The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them.

@@ -5,7 +5,7 @@ is faked at ``token_for``, and Snowflake at the connector."""
 import asyncio
 import os
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,6 +91,45 @@ async def test_run_sql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
     assert (login["authenticator"], login["token"]) == ("oauth", f"obo:{ALICE}:{SCOPE}")
     assert env.sdk.executed == ["SELECT * FROM SIGNINS"]
     assert env.obo.calls[0] == (ALICE, SCOPE)
+
+
+async def test_run_sqls_query_parameters_are_bound_by_position(env: Env) -> None:
+    sql = "SELECT * FROM SIGNINS WHERE UPN = :1 AND AT >= :2"
+    started = await env.start(
+        sql=sql,
+        parameters=[
+            {"name": "upn", "type": "string", "value": "alice@contoso.com"},
+            {"name": "since", "type": "datetime", "value": "2026-01-02T00:00:00Z"},
+        ],
+    )
+    assert started.json()["status"] == "succeeded", started.json().get("error")
+    assert env.sdk.executed == [sql]
+    assert env.sdk.binds == [["alice@contoso.com", datetime(2026, 1, 2, tzinfo=UTC)]]
+
+
+@pytest.mark.parametrize(
+    ("parameters", "errors"),
+    [
+        (
+            [{"name": "within", "type": "timespan", "value": "PT1H"}],
+            {
+                "params.parameters": [
+                    "within: type must be one of string, long, real, bool, datetime, dynamic"
+                ]
+            },
+        ),
+        (
+            [{"name": "since", "type": "datetime", "value": "yesterday"}],
+            {"params.parameters.since": ["Must be an ISO 8601 datetime"]},
+        ),
+    ],
+)
+async def test_bad_query_parameters_are_unprocessable(
+    env: Env, parameters: Any, errors: dict[str, list[str]]
+) -> None:
+    response = await env.start(sql="SELECT :1", parameters=parameters)
+    assert (response.status_code, response.json()["errors"]) == (422, errors)
+    assert env.sdk.logins == []
 
 
 async def test_with_workload_identity_run_sql_runs_as_tim(env: Env) -> None:
@@ -216,10 +255,28 @@ LIVE_CONNECTIONS = f"""\
 """
 
 
+LIVE_SQL = """SELECT :1 AS N, :2 AS S,
+  :3 = '2026-01-02 03:04:05 +02:00'::TIMESTAMP_TZ AS SAME_INSTANT,
+  ARRAY_SIZE(PARSE_JSON(:4)) AS K"""
+
+
 async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
+    """Run SQL with a query parameter of each kind Snowflake binds differently: a number, a
+    string, a datetime read as UTC, and a list read with ``PARSE_JSON``."""
+    parameters = [
+        {"name": "n", "type": "long", "value": 1},
+        {"name": "s", "type": "string", "value": "x"},
+        {"name": "at", "type": "datetime", "value": "2026-01-02T01:04:05Z"},
+        {"name": "upns", "type": "dynamic", "value": ["alice@contoso.com", "bob@contoso.com"]},
+    ]
     body = {
         "action": "tim.run_sql",
-        "params": {"connection": "warehouse", "sql": "SELECT 1 AS N, 'x' AS S", "idColumn": "N"},
+        "params": {
+            "connection": "warehouse",
+            "sql": LIVE_SQL,
+            "idColumn": "N",
+            "parameters": parameters,
+        },
     }
     run: dict[str, Any] = (await client.post("/api/runs", json=body)).json()
     async with asyncio.timeout(60):
@@ -227,9 +284,16 @@ async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
             await asyncio.sleep(0.5)
             run = (await client.get(f"/api/runs/{run['runId']}")).json()
     assert run["status"] == "succeeded", run.get("error", run)
-    assert [(c["name"], c["type"]) for c in run["columns"]] == [("N", "number"), ("S", "string")]
+    assert [(c["name"], c["type"]) for c in run["columns"]] == [
+        ("N", "number"),
+        ("S", "string"),
+        ("SAME_INSTANT", "boolean"),
+        ("K", "number"),
+    ]
     rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-    assert [(r["id"], r["data"]) for r in rows] == [("1", {"N": 1, "S": "x"})]
+    assert [(r["id"], r["data"]) for r in rows] == [
+        ("1", {"N": 1, "S": "x", "SAME_INSTANT": True, "K": 2})
+    ]
 
     schema = await client.post("/api/connections/warehouse/schema", json={"scope": {}})
     assert schema.status_code == 200

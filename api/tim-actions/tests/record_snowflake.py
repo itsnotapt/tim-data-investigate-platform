@@ -12,10 +12,10 @@ role, and no secondary roles, as TIM does with a reader role.
 Of the databases ``SHOW TERSE DATABASES`` lists, only those in ``DATABASES`` are kept, so none of
 your own; of ``SNOWFLAKE_SAMPLE_DATA``'s columns, only those of one schema.
 
-It also records, into ``fixtures/snowflake_binds.json``, what the account answers to statements with
-values bound server-side (``paramstyle=numeric``) on the hook's login: Python types, typed binds,
-repeated and unused positions, casts, JSON arrays for many values, and binds it refuses; and the
-statements of ``BINDS_IN_UTC`` again in a session whose ``TIMEZONE`` is UTC.
+It also records, into ``fixtures/snowflake_binds.json``, what the account answers to statements
+whose values ``SnowflakeHook.query`` binds, in the hook's session: Python types, typed binds,
+repeated and unused positions, casts, JSON arrays for many values, binds it refuses, and the values
+``bind_values`` makes of a ``snowflake_query``'s params.
 
     uv run python tests/record_snowflake.py <connection name>
 """
@@ -27,7 +27,7 @@ import threading
 import time
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any
 
 import snowflake.connector
 from snowflake.connector import errors as sf_errors
@@ -40,7 +40,8 @@ from snowflake_recording import (
 )
 
 from tim_actions import RunError
-from tim_actions.snowflake import SnowflakeConnection, SnowflakeHook
+from tim_actions.params import Param
+from tim_actions.snowflake import SnowflakeConnection, SnowflakeHook, bind_values
 
 ROLE = "TIM_RECORDING_READER"
 QUERY_ID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
@@ -100,7 +101,18 @@ IDS_IN = FROM_JSON.format(column="ID", cast="number")
 # Row 1 is at 01:04:05.5 and 03:04:05 UTC, so each returns it only if the bound time is read as UTC.
 AT_TZ_FROM = "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_TZ >= :1 ORDER BY ID"
 AT_LTZ_FROM = "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE AT_LTZ >= :1 ORDER BY ID"
-# Each statement and its values, bound as the hook binds them.
+MANY_AT_TZ = """SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE AT_TZ IN (SELECT value::TIMESTAMP_TZ FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""
+MANY_BIG = """SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE
+    WHERE BIG IN (SELECT value::NUMBER(38, 0) FROM TABLE(FLATTEN(PARSE_JSON(:1)))) ORDER BY ID"""
+JSON_FIELDS = "SELECT PARSE_JSON(:1):app::STRING AS APP, ARRAY_SIZE(PARSE_JSON(:1):ids) AS N"
+OPTIONAL_SINCE = (
+    "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE WHERE (:1 IS NULL OR AT_TZ >= :1) ORDER BY ID"
+)
+OPTIONAL_LIMIT = "SELECT ID FROM TIM_RECORDING.PUBLIC.EVERY_TYPE ORDER BY ID LIMIT :1"
+SINCE = Param("since", "datetime", required=False)
+LIMIT = Param("limit", "number", required=False)
+# Each statement and the values the hook binds to it.
 BINDS: list[tuple[str, list[Any]]] = [
     *(
         (TYPED, [value])
@@ -144,12 +156,28 @@ BINDS: list[tuple[str, list[Any]]] = [
     ("SELECT :name AS V", ["x"]),
     (TYPED, [{"a": 1}]),
     (TYPED, [[1, 2]]),
-]
-# Recorded again in a session whose TIMEZONE is UTC, not the account's default.
-BINDS_IN_UTC: list[tuple[str, list[Any]]] = [
-    (TYPED, [AT.replace(tzinfo=UTC)]),
-    (AT_TZ_FROM, [datetime(2026, 1, 2, 1, tzinfo=UTC)]),
-    (AT_LTZ_FROM, [datetime(2026, 1, 2, 3, tzinfo=UTC)]),
+    # As TIM binds a snowflake_query's params.
+    (
+        MANY_AT_TZ,
+        bind_values(
+            [Param("ats", "datetime", many=True)],
+            {
+                "ats": [
+                    datetime(2026, 1, 2, 1, 4, 5, 500000, tzinfo=UTC),
+                    datetime(2026, 1, 3, tzinfo=UTC),
+                ]
+            },
+        ),
+    ),
+    (MANY_BIG, bind_values([Param("bigs", "number", many=True)], {"bigs": [12345678901234567890]})),
+    (
+        JSON_FIELDS,
+        bind_values([Param("filter", "json")], {"filter": {"app": "Teams", "ids": [1, 2]}}),
+    ),
+    (OPTIONAL_SINCE, bind_values([SINCE], {})),
+    (OPTIONAL_SINCE, bind_values([SINCE], {"since": datetime(2026, 1, 2, 1, tzinfo=UTC)})),
+    (OPTIONAL_LIMIT, bind_values([LIMIT], {"limit": 1})),
+    (OPTIONAL_LIMIT, bind_values([LIMIT], {})),
 ]
 
 
@@ -160,7 +188,7 @@ class Recorder:
         self.connection_name = connection_name
         self.statements: list[dict[str, Any]] = []
         self.params: list[Any] | None = None  # the values of the statement being recorded
-        self.session: dict[str, Any] = {}  # session parameters added to the hook's
+        self.timezone: str | None = None  # the TIMEZONE of the hook's last login
         self.querying = threading.Event()
 
     def connect(self, **login: Any) -> "RecordingConnection":
@@ -173,16 +201,18 @@ class Recorder:
             "enable_server_session_keep_alive_auto_detection",
         )
         kept = {k: login[k] for k in keep if k in login}
-        if self.session:
-            kept["session_parameters"] = kept.get("session_parameters", {}) | self.session
+        self.timezone = kept.get("session_parameters", {}).get("TIMEZONE")
         conn = snowflake.connector.connect(connection_name=self.connection_name, **kept)
         conn.cursor().execute("USE SECONDARY ROLES NONE")
         return RecordingConnection(self, conn)
 
     def record(self, sql: str, **answer: Any) -> None:
-        params = {} if self.params is None else {"params": encode(self.params)}
-        session = {"session": self.session} if self.session else {}
-        self.statements.append({"sql": sql, **params, **session, **answer})
+        bound: dict[str, Any] = {}
+        if self.params is not None:
+            bound["params"] = encode(self.params)
+            if self.timezone:
+                bound["session"] = {"TIMEZONE": self.timezone}
+        self.statements.append({"sql": sql, **bound, **answer})
 
 
 class RecordingConnection:
@@ -259,18 +289,13 @@ def query(hook: SnowflakeHook, sql: str, *, seconds: int = 60) -> None:
 
 
 def query_bound(hook: SnowflakeHook, recorder: Recorder, sql: str, params: list[Any]) -> None:
-    """``sql`` with ``params`` bound, as ``SnowflakeHook.query`` runs a statement."""
+    """``sql`` with ``params`` bound by ``SnowflakeHook.query``."""
     recorder.params = params
-    conn = hook.get_conn(deadline=datetime.now(UTC) + timedelta(seconds=60))
     try:
-        # The hook doesn't bind values yet, so the recorder's own cursor takes them.
-        cursor = cast(RecordingCursor, conn.cursor())
-        cursor.get_results_from_sfqid(cursor.execute_async(sql, params)["queryId"])
-        cursor.fetchall()
-    except sf_errors.Error as exc:
+        hook.query(sql, deadline=datetime.now(UTC) + timedelta(seconds=60), params=params)
+    except RunError as exc:
         print(f"{sql} {params!r}: {exc}")
     finally:
-        conn.close()
         recorder.params = None
 
 
@@ -327,10 +352,6 @@ def main(connection_name: str) -> None:
     recorder.statements = []
     for sql, params in BINDS:
         query_bound(hook(), recorder, sql, params)
-    recorder.session = {"TIMEZONE": "UTC"}
-    for sql, params in BINDS_IN_UTC:
-        query_bound(hook(), recorder, sql, params)
-    recorder.session = {}
     write(BINDS_RECORDING, recorder.statements)
 
 

@@ -426,14 +426,14 @@ Returns an array of `Preset`: the caller's own presets and the shared ones, olde
 
 Returns the preset as an action file ([actions.md](actions.md#action-files)): the YAML of an action that runs what the preset runs, as `application/yaml`. An operator adds it to the instance's action files, and `tim-api check` accepts it.
 
-- Only presets of Run KQL have one, as a `kql_query` action. `409` with the slug `no-action-file` for the others.
-  - A Run KQL preset that lacks a connection, database or query answers it too. The problem message is "This preset has no action file".
+- Only presets of Run KQL and Run SQL have one, as a `kql_query` or `snowflake_query` action. `409` with the slug `no-action-file` for the others.
+  - A Run KQL preset that lacks a connection, database or query answers it too, and so does a Run SQL preset that lacks a connection or SQL, or has a `timespan` query parameter. The problem message is "This preset has no action file".
 - `404` for an unknown preset, or someone else's private one.
 - The file is built from the preset:
   - `key` is a slug of the preset's name, and `menu` is its `menuPath` joined with `/`.
   - `pivot` is `rows` when the preset has From row query parameters and every one of them has columns, as a preset is a pivot. Otherwise it is `none`.
-  - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from `idColumn`.
-  - Each query parameter is a param of the file. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`.
+  - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from `idColumn`. For Run SQL, `sql` is the query as it is.
+  - Each query parameter is a param of the file, in the preset's order. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`. In a `snowflake_query`, the order sets the position each is bound to, `:1` the first.
 
 ### PUT, DELETE /api/presets/{presetId}/hidden
 
@@ -465,8 +465,8 @@ An input is a param of the preset's action that declares `from_columns` (`source
 
 | Field | Type | Rules |
 |---|---|---|
-| `name` | string | The param's name, or the query parameter's: a Kusto identifier, starting with a letter or `_`, unique among the inputs. |
-| `source` | `param` \| `queryParameter` | A query parameter is allowed only on an action that takes them: one with a `json` param named `parameters`, as Run KQL has. |
+| `name` | string | The param's name, or the query parameter's: an identifier, starting with a letter or `_`, unique among the inputs. |
+| `source` | `param` \| `queryParameter` | A query parameter is allowed only on an action that takes them: one with a `json` param named `parameters`, as Run KQL and Run SQL have. |
 | `type` | `string` \| `long` \| `real` \| `bool` \| `datetime` \| `timespan` \| `dynamic` | Query parameter only: the type it is declared with. |
 | `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
 | `value` | JSON | Fixed only: the value saved with the preset. |

@@ -60,7 +60,7 @@ A named, typed value an action takes.
 _Avoid_: argument, variable, field, input
 
 **Query parameter**:
-A name declared in the KQL of an action tab of Run KQL and sent to Kusto as a Kusto query parameter, with a type. It is not a param of the action. In a preset it is an input, fixed or From row, and the preset can be copied as an action file.
+One named, typed value of an action tab of Run KQL or Run SQL, sent to the connection as a bound value: to Kusto by name as a Kusto query parameter, to Snowflake by position, `:1` the first. An action tab's query parameters are an ordered list, whose order is the `declare` order for KQL and the bind position (`:N`) for SQL. It is not a param of the action. In a preset it is an input, fixed or From row, and the preset can be copied as an action file.
 _Avoid_: KQL variable
 
 **Action type** (for action authors):

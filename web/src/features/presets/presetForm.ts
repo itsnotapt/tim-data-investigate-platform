@@ -7,8 +7,10 @@ import type {
 } from '../../lib/api';
 import { isUnset, paramText } from '../action-tab/paramValues';
 import {
+  bindsByPosition,
   isParametersParam,
   parseValue,
+  positionLabel,
   queryParameters,
   valueText,
   type QueryParameterType,
@@ -180,12 +182,15 @@ export function formFields(
 /** The types whose Kusto literals wrap the value in the type's name. */
 const WRAPPED = new Set<QueryParameterType>(['datetime', 'timespan', 'dynamic']);
 
-/** A fixed query parameter as Kusto receives it, or its type when it has no value yet. */
-function literalText({ type, value }: QueryParameterForm): string {
+/**
+ * A fixed query parameter as the connection receives it, or its type when it has no value yet:
+ * a Kusto literal, or for a bound value its text, JSON for `dynamic`.
+ */
+function literalText({ type, value }: QueryParameterForm, bound: boolean): string {
   const parsed = parseValue(type, value).value;
   if (parsed === undefined) return `<${type}>`;
   const text = valueText(type, parsed);
-  return WRAPPED.has(type) ? `${type}(${text})` : text;
+  return !bound && WRAPPED.has(type) ? `${type}(${text})` : text;
 }
 
 /** What a From row input reads: the columns of the clicked row, or none to ask when opened. */
@@ -194,8 +199,8 @@ const fromRowText = (columns: readonly string[]): string =>
 
 /**
  * One line per param of the action: its value, the columns of the clicked row it reads, or when
- * it is unset the placeholder for its type. Query parameters are declared before the query, and
- * have a line each in place of the `parameters` param's.
+ * it is unset the placeholder for its type. Query parameters have a line each in place of the
+ * `parameters` param's: declared before KQL, or for SQL with the position each is bound to.
  */
 export function previewLines(
   action: CatalogueAction,
@@ -203,13 +208,15 @@ export function previewLines(
   form: PresetForm,
 ): string[] {
   const declared = form.queryParameters;
+  const bound = bindsByPosition(action.params);
   return action.params.flatMap((p) => {
     const mode = form.modes[p.name];
     if (isParametersParam(p)) {
-      return declared.map((qp) =>
-        qp.fixed
-          ? `${qp.name} = ${literalText(qp)}`
-          : `${qp.name} = ${fromRowText(columnList(qp.columns))}`,
+      return declared.map(
+        (qp, i) =>
+          `${bound ? `${positionLabel(i, true)} ` : ''}${qp.name} = ${
+            qp.fixed ? literalText(qp, bound) : fromRowText(columnList(qp.columns))
+          }`,
       );
     }
     const line = `${p.title} = ${mode && !mode.fixed ? fromRowText(mode.columns) : valueOrType(p, params[p.name])}`;
