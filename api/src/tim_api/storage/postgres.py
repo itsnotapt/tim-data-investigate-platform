@@ -107,7 +107,8 @@ run_rows = Table(
     Column("run_id", Uuid, ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False),
     Column("ordinal", Integer, nullable=False),
     Column("id", Text),
-    Column("data", _JSON, nullable=False),
+    # json, not jsonb: a row keeps the key order the run produced, at every depth (ADR-0004).
+    Column("data", JSON(none_as_null=True), nullable=False),
     PrimaryKeyConstraint("run_id", "ordinal"),
     prefixes=["UNLOGGED"],
 )

@@ -8,6 +8,7 @@ implementation must pass unchanged. Each test needs an empty store.
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -204,6 +205,22 @@ class RunContract:
         got = await storage.runs.get(run.run_id, T0)
         assert got is not None
         assert list(got.details) == list(details)
+
+    async def test_rows_keep_their_key_order(self, storage: Storage) -> None:
+        run = make_run()
+        await storage.runs.create(run)
+        alert = {"alertId": "a-1", "severity": "high", "device": "pc-7", "files": [], "mitre": []}
+        data: dict[str, Any] = {
+            "EventId": 4624,
+            "SHA256": "e3b0",
+            "Score": 0.5,
+            "MD5": "d41d",
+            "SHA1": "da39",
+            "Alert": alert,
+        }
+        await storage.runs.add_rows(run.run_id, [RunRow(row=0, id=None, data=data)])
+        (got,) = await storage.runs.rows(run.run_id, 0, 1)
+        assert json.dumps(got.data) == json.dumps(data)
 
     @pytest.mark.parametrize("status", [RunStatus.ERROR, RunStatus.TIMED_OUT, RunStatus.CANCELLED])
     async def test_any_other_outcome_deletes_the_rows(

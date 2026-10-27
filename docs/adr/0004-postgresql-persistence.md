@@ -18,7 +18,11 @@ TIM persists runs (with their rows), presets, column views and annotations, so i
   - `column_views`: `view_id` PK, `owner` (from the token), `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id`, JSONB `state`, `created_at`, `updated_at`; index on `(created_at, view_id)` ([0022](0022-column-views-store-grid-state.md)).
   - `column_view_hidden`: PK `(view_id, analyst)`, `view_id` references `column_views` `ON DELETE CASCADE`. A row means the analyst hid the column view.
   - `runs`: `run_id` PK, `owner`, `status`, `action`, `params`, `details`, `columns`, `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`.
-  - `run_rows`: `UNLOGGED`, PK `(run_id, ordinal)`, `id`, `data jsonb`, `ON DELETE CASCADE` ([0012](0012-query-run-limits-and-lifecycle.md)).
+  - `run_rows`: `UNLOGGED`, PK `(run_id, ordinal)`, `id`, `data json`, `ON DELETE CASCADE` ([0012](0012-query-run-limits-and-lifecycle.md)).
+    - `data` is `json`, not `jsonb`, so a row keeps the key order the run produced.
+    - `jsonb` sorts an object's keys (shorter first, then by bytes) at every level.
+    - Nothing queries inside a row, so no `jsonb` operator or index is lost.
+    - `runs.details` is `json` for the same reason.
   - `annotation_clock`, `id_state`, `label_changes`, `tags`, `comments` ([0020](0020-annotations-in-postgres.md)).
 - Retention: runs expire via `expires_at`, and a periodic cleanup task deletes expired runs. A startup sweep marks runs left `running` as `error`. Values are in [ADR-0012](0012-query-run-limits-and-lifecycle.md).
 - Data from the previous stores is not migrated.
