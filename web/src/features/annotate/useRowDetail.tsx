@@ -36,7 +36,7 @@ export interface RowDetailState {
  * the feed updates it. A comment added from it goes into the store as the analyst's own.
  */
 export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): RowDetailState {
-  const [open, setOpen] = useState(false);
+  // The row the panel shows; null while it's closed.
   const [row, setRow] = useState<LabelledRow | null>(null);
   // The annotations last read from the store; the shown row's only when the ids match. Until
   // the store answers for a new id, the row's own copy shows.
@@ -62,29 +62,25 @@ export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): Ro
     };
   }, [id]);
 
-  const openOn = useCallback((target: LabelledRow) => {
-    setRow(target);
-    setOpen(true);
-  }, []);
-  const menu = useMemo(() => buildRowDetailMenu(openOn), [openOn]);
+  // Updates from the current row, not a captured one: the grid can call its handlers before it
+  // has the ones from the latest render.
+  const close = useCallback(() => setRow(null), []);
+  const menu = useMemo(() => buildRowDetailMenu(setRow), []);
   const keys = useMemo(
-    () => makeRowDetailKeys((target) => (open ? setOpen(false) : openOn(target))),
-    [open, openOn],
+    () => makeRowDetailKeys((target) => setRow((current) => (current ? null : target))),
+    [],
   );
-  const onCellFocused = useCallback(
-    (e: CellFocusedEvent<GridRowWithId>) => {
-      if (!open || e.rowIndex === null) return;
-      const data = e.api.getDisplayedRowAtIndex(e.rowIndex)?.data;
-      if (data) setRow(data);
-    },
-    [open],
-  );
+  const onCellFocused = useCallback((e: CellFocusedEvent<GridRowWithId>) => {
+    if (e.rowIndex === null) return;
+    const data = e.api.getDisplayedRowAtIndex(e.rowIndex)?.data;
+    if (data) setRow((current) => current && data);
+  }, []);
   const onCommented = useCallback(async (changes: Annotations[]) => {
     await getAnnotationStore().apply(changes, 'own');
     pollAnnotationsSoon();
   }, []);
 
-  const panel = open && (
+  const panel = row !== null && (
     <RowDetail
       row={row}
       annotations={annotations}
@@ -92,8 +88,8 @@ export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): Ro
       columns={columns ?? NO_COLUMNS}
       idParam={idParam}
       onCommented={onCommented}
-      onClose={() => setOpen(false)}
+      onClose={close}
     />
   );
-  return { menu, keys, onCellFocused, panel, open: openOn };
+  return { menu, keys, onCellFocused, panel, open: setRow };
 }
