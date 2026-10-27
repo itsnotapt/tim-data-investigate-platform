@@ -354,7 +354,9 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 
 [architecture.md](../docs/architecture.md#grid-annotating) describes the behaviour.
 
-- `RowDetail.tsx`: the right-hand side panel, 900px wide, capped at 100% of the grid's container. It is positioned absolutely in the grid container, so that hidden tabs hide it.
+- `RowDetail.tsx`: the right-hand side panel, 900px wide, capped at 100% of the grid's container. It is positioned absolutely in the grid container, so that hidden tabs hide it. It holds the header, and the band with the `id`, label and tags.
+- `RowFields.tsx`: the row's fields, with clamping and a copy button on each value.
+- `CommentsAndHistory.tsx`: the comment box and the `id`'s history, in a section that folds.
 - `useRowDetail.tsx`: opens and closes the panel and follows the focused row. `ActionResultsGrid` calls it, with the context menu item and the D key.
 - `detailText.ts`: lays out the fields: the run's column order, objects in a YAML-like layout, and the text each copy button copies.
 - `ResultsGrid` passes `onCellFocused` and `onCellKeyDown` through, for the panel to follow the row.
