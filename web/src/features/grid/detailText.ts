@@ -23,22 +23,7 @@ export interface DetailEntry {
   lines: DetailLine[] | null;
   /** What its copy button copies: an object's or array's 2-space indented JSON, else `text`. */
   copy: string;
-  /** A path, hash, command line, IP, SID, object or long text: shown in a monospace font. */
-  technical: boolean;
 }
-
-/** An IPv6 address: hex groups and colons, with `::` or all eight groups. */
-const isIpv6 = (text: string) =>
-  /^[0-9a-f:]+$/i.test(text) && (text.includes('::') || text.split(':').length === 8);
-
-/** Whether a text value is a path, hash, command line, IP or SID, or longer than 60 characters. */
-const isTechnical = (text: string) =>
-  text.length > 60 ||
-  (/[\\/=;{}]/.test(text) && !/^[\d/]+$/.test(text)) ||
-  /^(?=.*[a-f])[0-9a-f-]{12,}$/i.test(text) ||
-  isIpv6(text) ||
-  /^\d{1,3}(\.\d{1,3}){3}$/.test(text) ||
-  /^S-1-/.test(text);
 
 /** A scalar, or an empty array or object: strings as they are, every other value typed. */
 function scalar(value: unknown): DetailSegment {
@@ -106,7 +91,6 @@ function entry(key: string, value: unknown): DetailEntry {
       text: lines.map(lineText).join('\n'),
       lines,
       copy: JSON.stringify(value, null, 2),
-      technical: true,
     };
   }
   const text =
@@ -115,7 +99,7 @@ function entry(key: string, value: unknown): DetailEntry {
       : typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'
         ? String(value)
         : '';
-  return { key, text, lines: null, copy: text, technical: isTechnical(text) };
+  return { key, text, lines: null, copy: text };
 }
 
 /**

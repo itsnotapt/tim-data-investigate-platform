@@ -99,26 +99,4 @@ describe('detailEntries', () => {
     expect(text?.copy).toBe('h1');
     expect(number?.copy).toBe('2048');
   });
-
-  it('marks paths, hashes, command lines, IPs, SIDs, objects and long text as technical', () => {
-    const technical = (value: unknown) => detailEntries({ v: value })[0]?.technical;
-    expect(technical('C:\\Windows\\System32\\svchost.exe')).toBe(true);
-    expect(technical('/usr/bin/curl')).toBe(true);
-    expect(technical('cmd.exe /c whoami')).toBe(true);
-    expect(technical('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')).toBe(
-      true,
-    );
-    expect(technical('6f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b')).toBe(true);
-    expect(technical('10.0.0.12')).toBe(true);
-    expect(technical('S-1-5-21-3623811015-3361044348-30300820-1013')).toBe(true);
-    expect(technical({ a: 1 })).toBe(true);
-    expect(technical('word '.repeat(13))).toBe(true);
-    expect(technical('alice')).toBe(false);
-    expect(technical('Logon succeeded for the account')).toBe(false);
-    expect(technical(443)).toBe(false);
-    expect(technical('2026-10-01T08:00:00Z')).toBe(false);
-    expect(technical('1729900800000')).toBe(false);
-    expect(technical('10/26/2026')).toBe(false);
-    expect(technical('2001:db8::8a2e:370:7334')).toBe(true);
-  });
 });

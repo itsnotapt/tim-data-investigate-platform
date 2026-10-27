@@ -46,9 +46,9 @@ function Value({ entry }: { entry: DetailEntry }) {
       sx={{
         flex: 1,
         minWidth: 0,
-        ...(entry.technical
-          ? { fontFamily: MONO, fontSize: 12.5, lineHeight: 1.5 }
-          : { fontSize: 13, lineHeight: 1.45 }),
+        fontFamily: MONO,
+        fontSize: 12.5,
+        lineHeight: 1.5,
       }}
     >
       <Box
