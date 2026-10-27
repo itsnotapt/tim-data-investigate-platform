@@ -185,7 +185,7 @@ A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` f
 - **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
   - A `404` (unknown or expired run) or a `410` (results gone) shows only "This result is no longer available".
   - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<uuid>`. A run still going is followed, and the tab fills in when it ends.
-  - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens its History panel, and `linkedRow` is cleared. It is also cleared when the run ends without success, when the stored rows don't have that row, and when a new run of the tab starts.
+  - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens Row detail on it, and `linkedRow` is cleared. It is also cleared when the run ends without success, when the stored rows don't have that row, and when a new run of the tab starts.
 - **Run.** Run starts a new run as the recipient, with the tab's params. For an action the instance does not know, the rows still show and Run is disabled.
 
 One run is followed per tab. Starting another run stops following the previous one.
@@ -531,19 +531,34 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Annotate…** (T) opens the Annotate dialog. It saves the label, the tags and a comment as one change.
   - **Comment…** (C) opens the same dialog with the comment only.
   - They are disabled, with the reason as a tooltip, in the same cases as **Label ▸** (see Targets).
-- **History.** The menu has **History** (H) after **Annotate…** and **Comment…**. It acts on the clicked or focused row only.
-  - It is disabled, with the reason as a tooltip, for a row without an `id`. The key H shows the reason in a toast.
-  - It opens the History panel.
-- **The History panel.** A side panel (`HistoryPanel.tsx`, opened by `useHistoryPanel.tsx`) for one `id`. From the top it shows:
-  - the `id`;
-  - its current label, with who set it and when;
-  - its tags;
-  - a comment box;
-  - the history, newest first: label changes as "old → new", and comments as a thread;
-  - the row's fields.
-- **Commenting from the panel.** Ctrl or Cmd+Enter, or **Add comment**, appends the comment to the `id`. Comments are append-only.
-- **Closing the panel.** **Close history** closes it.
-- **Following the row.** The panel follows the focused row (`onCellFocused` on `ResultsGrid`). It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it and it reads the history again (`GET /api/annotations/history`).
+- **Row detail.** The menu has **Row detail** (D) after **Annotate…** and **Comment…**, in the same group. It acts on the clicked or focused row only.
+  - It is never disabled, also on a row without an `id`.
+  - It opens Row detail on that row. D closes it.
+- **Menu order.** In an action tab the menu lists:
+  - **Label ▸**, **Annotate…**, **Comment…** and **Row detail**;
+  - the action's extra items, such as pivots;
+  - the sinks, **Copy column settings** and **Copy link**;
+  - copy and export.
+- **Row detail layout.** The side panel (`RowDetail.tsx`, opened by `useRowDetail.tsx`) is 900px wide, capped at 100% of the grid's container. Its header reads "Row detail · row N · D closes · ↑↓ move rows", with a close button. From the top it shows:
+  - a header band with:
+    - the `id` and a copy button;
+    - its current label with a swatch;
+    - who set the label and when;
+    - its tags;
+  - for a row without an `id`, the reason in place of the band: "No id: set Id column and run again to annotate" or "No id: this action gives its rows no id";
+  - the row's fields;
+  - the **Comments and history** section.
+- **The fields.** They follow the run's column order: the declared columns first, then the order the query returned them, hidden columns included (`web/src/features/grid/detailText.ts`).
+  - The grid's column moves are ignored. Keys not among the columns come last.
+  - Empty values are left out.
+  - Objects show in a YAML-like layout.
+  - A value of more than 180 characters or more than 3 lines is clamped, with **Show all (N characters)**.
+  - Each value and the `id` has a copy button. Objects copy as JSON. A toast reports "Copied <name>".
+- **Comments and history.** This section holds a comment box, then the `id`'s history, newest first: label changes as "old → new", and comments as a thread.
+  - Ctrl or Cmd+Enter, or **Add comment**, appends the comment to the `id`. Comments are append-only.
+  - The section folds, and the fold holds for every row while the page is open.
+  - A comment draft is kept per `id` while the analyst moves between rows, and dropped when the panel closes.
+- **Following the row.** Row detail follows the focused row (`onCellFocused` and `onCellKeyDown` on `ResultsGrid`), and keyboard focus stays in the grid. It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it. The history comes from `GET /api/annotations/history`.
 - **The Annotate dialog.**
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
   - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
@@ -551,7 +566,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Comment.** A text field. It is added to every target.
   - **Save.** Sends one `PATCH /api/annotations`. Ctrl or Cmd+Enter saves. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
-- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. H opens History on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
+- **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. D opens or closes Row detail on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
 - **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
   - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";

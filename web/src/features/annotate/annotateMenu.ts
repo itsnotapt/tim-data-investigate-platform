@@ -27,57 +27,29 @@ export function buildAnnotateMenu({
     if (rows.length === 0) return [];
     const reason = whyUnlabellable(targetIds(rows), max, idParam);
     const state = { disabled: reason !== null, tooltip: reason ?? undefined };
-    const items: ExtraMenuItems = [
+    return [
       { name: 'Annotate…', shortcut: 'T', ...state, action: () => open('annotate', rows) },
       { name: 'Comment…', shortcut: 'C', ...state, action: () => open('comment', rows) },
-    ];
-    return items;
+    ] satisfies ExtraMenuItems;
   };
 }
 
-export interface HistoryMenuOptions {
-  /** The action takes its rows' id from an Id column param. */
-  idParam: boolean;
-  /** Opens the History panel on `row`. */
-  open: (row: LabelledRow) => void;
-  notify: (message: string) => void;
-}
-
-/** Why `row` has no history to show, else `null`. */
-const whyNoHistory = (row: LabelledRow, idParam: boolean) =>
-  whyUnlabellable(targetIds([row]), Infinity, idParam);
-
-/** History (H) for the right-clicked row; disabled, with the reason, for a row without an id. */
-export function buildHistoryMenu({ idParam, open }: HistoryMenuOptions): GetExtraContextMenuItems {
+/** Row detail (D) for the right-clicked row, with or without an id. */
+export function buildRowDetailMenu(open: (row: LabelledRow) => void): GetExtraContextMenuItems {
   return (params) => {
     const row = params.node?.data as LabelledRow | undefined;
     if (!row) return [];
-    const reason = whyNoHistory(row, idParam);
-    const items: ExtraMenuItems = [
-      {
-        name: 'History',
-        shortcut: 'H',
-        disabled: reason !== null,
-        tooltip: reason ?? undefined,
-        action: () => open(row),
-      },
-    ];
-    return items;
+    return [
+      { name: 'Row detail', shortcut: 'D', action: () => open(row) },
+    ] satisfies ExtraMenuItems;
   };
 }
 
-/** H opens the History panel on the focused row. A row without an id gives the reason in a toast. */
-export function makeHistoryKeys({ idParam, open, notify }: HistoryMenuOptions) {
-  return (e: CellKeyDownEvent<GridRowWithId>) => {
-    const key = e.event as KeyboardEvent | null | undefined;
-    if (!key || key.ctrlKey || key.metaKey || key.altKey || key.key.toLowerCase() !== 'h') return;
-    const row = e.node.data;
-    if (!row || e.api.getEditingCells().length > 0) return;
-    key.preventDefault();
-    const reason = whyNoHistory(row, idParam);
-    if (reason !== null) return notify(reason);
-    open(row);
-  };
+/** The key event when it is a plain key press with no cell being edited, else null. */
+function plainKey(e: CellKeyDownEvent<GridRowWithId>): KeyboardEvent | null {
+  const key = e.event as KeyboardEvent | null | undefined;
+  if (!key || key.ctrlKey || key.metaKey || key.altKey) return null;
+  return e.api.getEditingCells().length > 0 ? null : key;
 }
 
 const KEYS: Record<string, AnnotateMode> = { t: 'annotate', c: 'comment' };
@@ -88,15 +60,26 @@ const KEYS: Record<string, AnnotateMode> = { t: 'annotate', c: 'comment' };
  */
 export function makeAnnotateKeys({ idParam, max, open, notify }: AnnotateMenuOptions) {
   return (e: CellKeyDownEvent<GridRowWithId>) => {
-    const key = e.event as KeyboardEvent | null | undefined;
-    if (!key || key.ctrlKey || key.metaKey || key.altKey) return;
-    const mode = KEYS[key.key.toLowerCase()];
-    if (!mode || e.api.getEditingCells().length > 0) return;
+    const key = plainKey(e);
+    const mode = key && KEYS[key.key.toLowerCase()];
+    if (!key || !mode) return;
     const rows = targetRows(e.api, e.node);
     if (rows.length === 0) return;
     key.preventDefault();
     const reason = whyUnlabellable(targetIds(rows), max, idParam);
     if (reason !== null) return notify(reason);
     open(mode, rows);
+  };
+}
+
+/** D opens Row detail on the focused row, or closes it when it's open. */
+export function makeRowDetailKeys(toggle: (row: LabelledRow) => void) {
+  return (e: CellKeyDownEvent<GridRowWithId>) => {
+    const key = plainKey(e);
+    if (!key || key.key.toLowerCase() !== 'd') return;
+    const row = e.node.data;
+    if (!row) return;
+    key.preventDefault();
+    toggle(row);
   };
 }

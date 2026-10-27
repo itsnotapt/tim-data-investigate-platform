@@ -9,7 +9,7 @@ test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
 const GONE = 'This result is no longer available';
 
-const history = (page: Page) => page.getByRole('complementary', { name: 'History' });
+const rowDetail = (page: Page) => page.getByRole('complementary', { name: 'Row detail' });
 
 /** The grid rows whose Host is `host`. */
 const rowsWith = (page: Page, host: string) =>
@@ -32,7 +32,7 @@ async function runJson(page: Page, rows: Record<string, unknown>[]) {
 
 const clipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
 
-test('a teammate opens a row link: the rows, the focused row and its History, and Run starts their own run', async ({
+test('a teammate opens a row link: the rows, the focused row with Row detail open, and Run starts their own run', async ({
   page,
   signIn,
   idPrefix,
@@ -40,7 +40,7 @@ test('a teammate opens a row link: the rows, the focused row and its History, an
   const a = `${idPrefix}-a`;
   const b = `${idPrefix}-b`;
   await runJson(page, [{ Host: a }, { Host: b }]);
-  // A label, so the teammate's History has an entry.
+  // A label, so the teammate's Row detail has a history entry.
   await rowsWith(page, b).locator('.ag-cell[col-id="Host"]').click();
   await page.keyboard.press('1');
   await expect(rowsWith(page, b)).toHaveClass(/tim-label-red/);
@@ -71,8 +71,8 @@ test('a teammate opens a row link: the rows, the focused row and its History, an
   ).toBeVisible();
   await expect(rowsWith(teammate.page, a)).toBeVisible();
   await expect(rowsWith(teammate.page, b)).toHaveClass(/ag-row-focus/);
-  await expect(history(teammate.page).locator('code')).toHaveText(b);
-  await expect(history(teammate.page).getByText('Malicious', { exact: true })).toBeVisible();
+  await expect(rowDetail(teammate.page).locator('code')).toHaveText(b);
+  await expect(rowDetail(teammate.page).getByText('Malicious', { exact: true })).toBeVisible();
   expect(started).toEqual([]);
 
   await teammate.page.getByRole('button', { name: 'Run' }).click();

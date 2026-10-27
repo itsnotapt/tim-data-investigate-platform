@@ -18,7 +18,7 @@ import {
   copyColumnSettingsItem,
   useActionColumnView,
 } from '../action-column-views';
-import { annotationColumnDefs, useAnnotating, useHistoryPanel } from '../annotate';
+import { annotationColumnDefs, useAnnotating, useRowDetail } from '../annotate';
 import type { GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -70,11 +70,11 @@ export type ActionResultsGridProps = Omit<
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
   runColumns?: readonly RunColumn[] | null;
-  /** More context menu items, after Label ▸, Show details, Annotate…, Comment… and History, before the sinks. */
+  /** More context menu items, after Label ▸, Annotate…, Comment… and Row detail, before the sinks. */
   getContextMenuItems?: GetExtraContextMenuItems;
   /** The run the rows came from, for each row's Copy link. */
   runId?: string | null;
-  /** The row a share link named: focused, with its History open, once it has arrived. */
+  /** The row a share link named: focused, with Row detail open on it, once it has arrived. */
   linkedRow?: number | null;
   /** Called once the linked row is focused. */
   onLinkedRowShown?: () => void;
@@ -87,13 +87,13 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
  * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
- * text columns, Label ▸, Annotate…, Comment…, History and their keys, the History panel, the
+ * text columns, Label ▸, Annotate…, Comment…, Row detail and their keys, the Row detail side panel, the
  * sinks, which take the rows, Copy column settings, and Copy link to the right-clicked row.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
  * side bar, with the view's name in the status bar.
- * The row a share link named is focused, with its History open, once it has arrived.
+ * The row a share link named is focused, with Row detail open on it, once it has arrived.
  * A `number` column's header warns when it holds whole numbers beyond ±(2^53 − 1), which round.
  */
 export function ActionResultsGrid({
@@ -204,6 +204,7 @@ export function ActionResultsGrid({
     }),
     [labels, max, idParam, notifyContext],
   );
+  const labelMenu = useMemo(() => buildLabelMenu(labelling), [labelling]);
   const sinks = useSinks(runColumns);
   const {
     menu: annotateMenu,
@@ -223,12 +224,12 @@ export function ActionResultsGrid({
     [sinks, max],
   );
   const {
-    menu: historyMenu,
-    keys: historyKeys,
+    menu: rowDetailMenu,
+    keys: rowDetailKeys,
     onCellFocused,
-    panel: historyPanel,
-    open: openHistory,
-  } = useHistoryPanel({ labels, idParam });
+    panel: rowDetail,
+    open: openRowDetail,
+  } = useRowDetail({ labels, idParam, columns: runColumns });
   const linkedShown = useRef(false);
   useEffect(() => {
     const grid = api.current;
@@ -242,9 +243,9 @@ export function ActionResultsGrid({
     grid.ensureNodeVisible(node, 'middle');
     const column = grid.getAllDisplayedColumns().find((c) => !c.getColId().startsWith('ag-Grid-'));
     if (node.rowIndex !== null && column) grid.setFocusedCell(node.rowIndex, column);
-    openHistory(node.data);
+    openRowDetail(node.data);
     onLinkedRowShown?.();
-  }, [linkedRow, gridReady, given, rows, openHistory, onLinkedRowShown]);
+  }, [linkedRow, gridReady, given, rows, openRowDetail, onLinkedRowShown]);
   const linkMenu = useCallback<GetExtraContextMenuItems>(
     ({ node }) => {
       if (runId === null) return [];
@@ -271,10 +272,10 @@ export function ActionResultsGrid({
   );
   const menu = useMemo(
     () => [
-      buildLabelMenu(labelling),
       ((params) => [
+        ...labelMenu(params),
         ...annotateMenu(params),
-        ...historyMenu(params),
+        ...rowDetailMenu(params),
       ]) satisfies GetExtraContextMenuItems,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
@@ -282,9 +283,9 @@ export function ActionResultsGrid({
       linkMenu,
     ],
     [
-      labelling,
+      labelMenu,
       annotateMenu,
-      historyMenu,
+      rowDetailMenu,
       getContextMenuItems,
       sinkMenu,
       copyColumnSettingsMenu,
@@ -301,9 +302,9 @@ export function ActionResultsGrid({
       if (!('column' in e)) return;
       labelKeys(e);
       annotateKeys(e);
-      historyKeys(e);
+      rowDetailKeys(e);
     },
-    [labelKeys, annotateKeys, historyKeys],
+    [labelKeys, annotateKeys, rowDetailKeys],
   );
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
@@ -326,7 +327,7 @@ export function ActionResultsGrid({
           onGridReady={ready}
         />
       </RoundedColumnsContext>
-      {historyPanel}
+      {rowDetail}
       {dialog}
     </Box>
   );

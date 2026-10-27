@@ -24,7 +24,7 @@ async function readRun(runId: string): Promise<Run | null> {
 
 /**
  * `#/runs/:runId?row=<n>`, a share link: opens the run in an ordinary tab, with the row it names
- * focused and its History open, and runs nothing. A run that is gone shows only that.
+ * focused and Row detail open on it, and runs nothing. A run that is gone shows only that.
  */
 export default function ShareLinkPage() {
   const { runId = '' } = useParams();

@@ -1,23 +1,26 @@
 import type { CellFocusedEvent, CellKeyDownEvent } from 'ag-grid-community';
-import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { NotifyContext } from '../../components/notifyContext';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
-import type { GetExtraContextMenuItems, GridRowWithId } from '../grid';
+import type { DetailColumns, GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import type { LabelledRow } from '../labels';
-import { buildHistoryMenu, makeHistoryKeys } from './annotateMenu';
-import { HistoryPanel } from './HistoryPanel';
+import { buildRowDetailMenu, makeRowDetailKeys } from './annotateMenu';
+import { RowDetail } from './RowDetail';
 
-export interface HistoryPanelOptions {
+const NO_COLUMNS: DetailColumns = [];
+
+export interface RowDetailOptions {
   labels: readonly InstanceLabel[];
   /** The action takes its rows' id from an Id column param. */
   idParam: boolean;
+  /** The run's columns: the order of the fields. */
+  columns?: DetailColumns | null;
 }
 
-export interface HistoryPanelState {
-  /** History, for the grid's context menu. */
+export interface RowDetailState {
+  /** Row detail, for the grid's context menu. */
   menu: GetExtraContextMenuItems;
-  /** H, for the grid's cell key handler. */
+  /** For the grid's key handler: D opens the panel on the focused row, or closes it. */
   keys: (e: CellKeyDownEvent<GridRowWithId>) => void;
   /** For the grid's cell focus handler: the open panel follows the focused row. */
   onCellFocused: (e: CellFocusedEvent<GridRowWithId>) => void;
@@ -28,18 +31,18 @@ export interface HistoryPanelState {
 }
 
 /**
- * History (H) on a grid's rows: the menu item, the key and the side panel. The panel follows the
+ * Row detail (D) on a grid's rows: the menu item, the key and the side panel. The panel follows the
  * focused row and takes the annotations of its `id` from the annotation store, so a change from
  * the feed updates it. A comment added from it goes into the store as the analyst's own.
  */
-export function useHistoryPanel({ labels, idParam }: HistoryPanelOptions): HistoryPanelState {
-  const notify = useContext(NotifyContext);
+export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): RowDetailState {
   const [open, setOpen] = useState(false);
   const [row, setRow] = useState<LabelledRow | null>(null);
-  // The annotations last read from the store; the shown row's only when the ids match.
+  // The annotations last read from the store; the shown row's only when the ids match. Until
+  // the store answers for a new id, the row's own copy shows.
   const [stored, setStored] = useState<Annotations | null>(null);
   const id = row?.id ?? null;
-  const annotations = stored !== null && stored.id === id ? stored : null;
+  const annotations = stored !== null && stored.id === id ? stored : (row?.annotations ?? null);
 
   useEffect(() => {
     if (id === null) return;
@@ -63,12 +66,11 @@ export function useHistoryPanel({ labels, idParam }: HistoryPanelOptions): Histo
     setRow(target);
     setOpen(true);
   }, []);
-  const options = useMemo(
-    () => ({ idParam, notify: (message: string) => notify?.(message), open: openOn }),
-    [idParam, notify, openOn],
+  const menu = useMemo(() => buildRowDetailMenu(openOn), [openOn]);
+  const keys = useMemo(
+    () => makeRowDetailKeys((target) => (open ? setOpen(false) : openOn(target))),
+    [open, openOn],
   );
-  const menu = useMemo(() => buildHistoryMenu(options), [options]);
-  const keys = useMemo(() => makeHistoryKeys(options), [options]);
   const onCellFocused = useCallback(
     (e: CellFocusedEvent<GridRowWithId>) => {
       if (!open || e.rowIndex === null) return;
@@ -83,10 +85,12 @@ export function useHistoryPanel({ labels, idParam }: HistoryPanelOptions): Histo
   }, []);
 
   const panel = open && (
-    <HistoryPanel
+    <RowDetail
       row={row}
       annotations={annotations}
       labels={labels}
+      columns={columns ?? NO_COLUMNS}
+      idParam={idParam}
       onCommented={onCommented}
       onClose={() => setOpen(false)}
     />
