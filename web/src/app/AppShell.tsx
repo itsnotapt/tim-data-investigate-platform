@@ -33,6 +33,8 @@ import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
 import { AuthGate } from './AuthGate';
+// PROTOTYPE (#170): the Row detail variant switcher.
+import { RowDetailSwitcher } from '../features/action-tab/rowDetailPrototype/RowDetailPrototype';
 import type { ThemeMode } from './themeKeys';
 
 interface ToolbarMenuProps {
@@ -196,6 +198,7 @@ function ShellContent() {
           <Outlet />
         </Suspense>
       </Box>
+      <RowDetailSwitcher />
     </>
   );
 }

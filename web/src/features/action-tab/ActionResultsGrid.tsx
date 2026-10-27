@@ -40,6 +40,11 @@ import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
+// PROTOTYPE (#170): Row detail variants, `?variant=` (rowDetailPrototype/RowDetailPrototype.tsx).
+import {
+  useRowDetailPrototype,
+  useRowDetailSettings,
+} from './rowDetailPrototype/RowDetailPrototype';
 
 /** The param that names the column giving each row its id (Run KQL's Id column). */
 const ID_PARAM = 'idColumn';
@@ -222,13 +227,16 @@ export function ActionResultsGrid({
     },
     [sinks, max],
   );
+  const history = useHistoryPanel({ labels, idParam });
+  const rowDetail = useRowDetailPrototype({ labels, idParam, runColumns });
+  const today = useRowDetailSettings().variant === 'today';
   const {
     menu: historyMenu,
     keys: historyKeys,
     onCellFocused,
     panel: historyPanel,
     open: openHistory,
-  } = useHistoryPanel({ labels, idParam });
+  } = today ? history : rowDetail;
   const linkedShown = useRef(false);
   useEffect(() => {
     const grid = api.current;
@@ -324,6 +332,7 @@ export function ActionResultsGrid({
           onCellKeyDown={onCellKeyDown}
           onCellFocused={onCellFocused}
           onGridReady={ready}
+          detailPanel={today}
         />
       </RoundedColumnsContext>
       {historyPanel}
