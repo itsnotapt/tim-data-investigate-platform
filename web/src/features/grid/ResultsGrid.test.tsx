@@ -56,15 +56,13 @@ describe('ResultsGrid', () => {
     expect(api.getColumn('ag-Grid-SelectionColumn')?.getActualWidth()).toBe(30);
   });
 
-  it("offers Show details, copy and export in a checkbox cell's context menu", async () => {
+  it("offers copy and export in a checkbox cell's context menu", async () => {
     const api = await ready();
     const items = (api.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
       node: api.getRowNode('0'),
       column: api.getColumn('ag-Grid-SelectionColumn'),
     });
     expect(items.map((i) => (typeof i === 'string' ? i : i.name))).toEqual([
-      'Show details',
-      'separator',
       'copy',
       'copyWithHeaders',
       'export',

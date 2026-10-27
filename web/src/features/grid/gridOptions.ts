@@ -62,7 +62,7 @@ export const defaultColDef: ColDef = {
 };
 
 export type ExtraMenuItems = (DefaultMenuItem | MenuItemDef)[];
-/** Extension point for pivots and details. */
+/** Extension point for annotating and pivots. */
 export type GetExtraContextMenuItems = (params: GetContextMenuItemsParams) => ExtraMenuItems;
 
 /** Extra items first, a separator, then copy / copy with headers / export. */

@@ -7,3 +7,9 @@ export const formatUtcDate = (d: Date): string =>
 /** `HH:MM` in UTC. */
 export const formatUtcTime = (d: Date): string =>
   `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+
+/** `YYYY-MM-DD HH:MM UTC`, from an ISO timestamp. */
+export const formatUtcDateTime = (iso: string): string => {
+  const d = new Date(iso);
+  return `${formatUtcDate(d)} ${formatUtcTime(d)} UTC`;
+};

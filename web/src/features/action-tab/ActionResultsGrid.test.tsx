@@ -6,6 +6,9 @@ import { load } from 'js-yaml';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
 import { SnackbarHost } from '../../components/SnackbarHost';
+import { getAnnotationStore } from '../../lib/annotations';
+import { annotated } from '../../test/annotationFakes';
+import type { LabelledRow } from '../labels';
 import { useTabsStore } from '../tabs';
 import { ActionResultsGrid } from './ActionResultsGrid';
 
@@ -261,7 +264,7 @@ describe('ActionResultsGrid', () => {
     expect(api.getCellValue({ rowNode: api.getRowNode('0')!, colKey: 'User' })).toBe('dave');
   });
 
-  it('focuses the linked row and opens its History once the row has arrived', async () => {
+  it('focuses the linked row and opens its Row detail once the row has arrived', async () => {
     const shown = vi.fn();
     let api: GridApi | undefined;
     const grid = (r: readonly RunRow[]) => (
@@ -279,12 +282,12 @@ describe('ActionResultsGrid', () => {
     );
     const { rerender } = render(grid(rows.slice(0, 1)));
     await waitFor(() => expect(api?.getDisplayedRowCount()).toBeGreaterThan(0));
-    expect(screen.queryByRole('complementary', { name: 'History' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Row detail' })).not.toBeInTheDocument();
     expect(shown).not.toHaveBeenCalled();
 
     rerender(grid(rows));
-    const history = await screen.findByRole('complementary', { name: 'History' });
-    expect(within(history).getByText('c-1')).toBeInTheDocument();
+    const detail = await screen.findByRole('complementary', { name: 'Row detail' });
+    expect(within(detail).getByText('c-1')).toBeInTheDocument();
     await waitFor(() => {
       const focused = api!.getFocusedCell();
       expect(focused).not.toBeNull();
@@ -327,6 +330,139 @@ describe('ActionResultsGrid', () => {
     act(() => (copyLink!.action as () => void)());
     expect(await screen.findByText('Copied a link to this row')).toBeInTheDocument();
     expect(await navigator.clipboard.readText()).toBe('http://localhost:3000/#/runs/r1?row=1');
+  });
+});
+
+describe('ActionResultsGrid Row detail', () => {
+  const idless: RunRow[] = [
+    { row: 0, id: null, data: { User: 'alice', Host: 'h1' } },
+    { row: 1, id: null, data: { User: 'bob', Host: 'h2' } },
+  ];
+  const names = (items: Item[]) => items.map((i) => (typeof i === 'string' ? i : i.name));
+  const menuOf = (api: GridApi, row: string) =>
+    (api.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+      api,
+      node: api.getRowNode(row),
+      column: api.getColumn('User'),
+    });
+  /** Presses `key` in the first row's User cell. */
+  const press = (api: GridApi, key: string) => {
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    act(() =>
+      (api.getGridOption('onCellKeyDown') as (e: unknown) => void)({
+        api,
+        node: api.getRowNode('0'),
+        column: api.getColumn('User'),
+        event,
+      }),
+    );
+    return event;
+  };
+  const panel = () => screen.queryByRole('complementary', { name: 'Row detail' });
+
+  it('offers Label ▸, Annotate…, Comment… and Row detail first, with Row detail never disabled', async () => {
+    const api = await renderGrid('menu', idless).api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    const items = menuOf(api, '0');
+    expect(names(items).slice(0, 5)).toEqual([
+      'Label',
+      'Annotate…',
+      'Comment…',
+      'Row detail',
+      'separator',
+    ]);
+    expect(names(items)).not.toContain('Show details');
+    expect(names(items)).not.toContain('History');
+    const rowDetail = find(items, 'Row detail');
+    expect(rowDetail?.shortcut).toBe('D');
+    expect(rowDetail?.disabled).toBeFalsy();
+  });
+
+  it('toggles with D on a row without an id, and H does nothing', async () => {
+    const api = await renderGrid('keys', idless).api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+
+    expect(press(api, 'h').defaultPrevented).toBe(false);
+    expect(panel()).not.toBeInTheDocument();
+    expect(press(api, 'd').defaultPrevented).toBe(true);
+    expect(within(panel()!).getByText('row 0', { exact: false })).toBeInTheDocument();
+    press(api, 'D');
+    expect(panel()).not.toBeInTheDocument();
+  });
+
+  it("follows the focused row, with the fields in the run's column order", async () => {
+    const api = await renderGrid('follow', rows, []).api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    press(api, 'd');
+    const terms = () =>
+      within(panel()!)
+        .getAllByRole('term')
+        .map((t) => t.textContent);
+    expect(terms()).toEqual(['Timestamp', 'User', 'row', 'Raw Bytes']);
+    expect(within(panel()!).getByText('alice')).toBeInTheDocument();
+
+    act(() => api.moveColumns(['Raw Bytes'], 0));
+    act(() => api.setFocusedCell(1, 'User'));
+    expect(await within(panel()!).findByText('row 1', { exact: false })).toBeInTheDocument();
+    expect(within(panel()!).getByText('bob')).toBeInTheDocument();
+    expect(terms()).toEqual(['Timestamp', 'User', 'row', 'Raw Bytes']);
+  });
+
+  it("keeps a row's comment draft while the focus moves, and drops it on close", async () => {
+    const user = userEvent.setup();
+    const shown = [rows[0]!, { ...rows[1]!, id: 'c-2' }];
+    const api = await renderGrid('drafts', shown, []).api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    press(api, 'd');
+    await user.type(within(panel()!).getByLabelText('Comment'), 'half typed');
+
+    act(() => api.setFocusedCell(1, 'User'));
+    await within(panel()!).findByText('row 1', { exact: false });
+    expect(within(panel()!).getByLabelText('Comment')).toHaveValue('');
+    act(() => api.setFocusedCell(0, 'User'));
+    await within(panel()!).findByText('row 0', { exact: false });
+    expect(within(panel()!).getByLabelText('Comment')).toHaveValue('half typed');
+
+    press(api, 'd');
+    press(api, 'd');
+    expect(within(panel()!).getByLabelText('Comment')).toHaveValue('');
+  });
+
+  it("shows the next row's label as soon as it moves there", async () => {
+    await getAnnotationStore().apply(
+      [annotated('f-2', 1, 'malicious', 'labeller@example.com')],
+      'feed',
+    );
+    const shown = [
+      { ...rows[0]!, id: 'f-1' },
+      { ...rows[1]!, id: 'f-2' },
+    ];
+    const api = await renderGrid('next-label', shown, []).api();
+    await waitFor(() =>
+      expect((api.getRowNode('1')?.data as LabelledRow | undefined)?.annotations).toBeDefined(),
+    );
+    press(api, 'd');
+
+    act(() => api.setFocusedCell(1, 'User'));
+    await within(panel()!).findByText('row 1', { exact: false });
+    expect(within(panel()!).queryByText('No label')).toBeNull();
+    expect(
+      within(panel()!).getByText('labeller@example.com', { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("updates the header when the feed changes the row's annotations", async () => {
+    const api = await renderGrid('feed', rows, []).api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    press(api, 'd');
+    expect(within(panel()!).queryByText('feed@example.com', { exact: false })).toBeNull();
+
+    await act(() =>
+      getAnnotationStore().apply([annotated('c-1', 9, 'malicious', 'feed@example.com')], 'feed'),
+    );
+    expect(
+      await within(panel()!).findByText('feed@example.com', { exact: false }),
+    ).toBeInTheDocument();
   });
 });
 

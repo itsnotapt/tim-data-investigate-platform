@@ -330,8 +330,8 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 - Columns: the union of all row keys.
 - Row id: the row's row number, `row`.
 - Extension points:
-  - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots, labelling and details.
-    It accepts a list of groups: group 0 is followed by "Show details", and later non-empty groups come after a separator;
+  - `getContextMenuItems(params)` returns extra items above copy, copy with headers and export, such as pivots and labelling.
+    It accepts a list of groups: non-empty groups after the first come after a separator;
   - `onGridReady` exposes the grid api;
   - `toolbarExtra` sits beside the quick filter.
 - Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters, row grouping with a `dcount` aggregation, and a status bar.
@@ -350,16 +350,16 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 - `savedColumnViewsStore.ts`: the column views from `GET /api/columnViews` (client: `src/lib/api/columnViews.ts`). `appliedViewsStore.ts`: the applied column views, through `appliedViewsDao`.
 - `loadAppliedViews(analyst)`: bootstrap's loader. It drops the applied column views of presets that are gone.
 
-### Detail panel
+### Row detail (`src/features/annotate`, `src/features/grid/detailText.ts`)
 
-- `DetailPanel`: a persistent right drawer, 900px wide.
-  - It is positioned absolutely in the grid container, so that hidden tabs hide it.
-  - It has a "Result Details" accordion, and a visible close button.
-- Content: object values show as YAML, with control characters stripped before dumping. Empty values are hidden.
-- Opening: a "Show details" context-menu item opens it.
-  - The item comes after the caller's `getContextMenuItems` items, and is disabled on group rows.
-  - While open, the panel follows the focused cell's row.
-- `ResultsGrid` prop `detailPanel` defaults to true. Set it to false to turn the panel off.
+[architecture.md](../docs/architecture.md#grid-annotating) describes the behaviour.
+
+- `RowDetail.tsx`: the right-hand side panel, 900px wide, capped at 100% of the grid's container. It is positioned absolutely in the grid container, so that hidden tabs hide it. It holds the header, and the band with the `id`, label and tags.
+- `RowFields.tsx`: the row's fields, with clamping and a copy button on each value.
+- `CommentsAndHistory.tsx`: the comment box and the `id`'s history, in a section that folds.
+- `useRowDetail.tsx`: opens and closes the panel and follows the focused row. `ActionResultsGrid` calls it, with the context menu item and the D key.
+- `detailText.ts`: lays out the fields: the run's column order, objects in a YAML-like layout, and the text each copy button copies.
+- `ResultsGrid` passes `onCellFocused` and `onCellKeyDown` through, for the panel to follow the row.
 
 ## Action tab (`src/features/action-tab`, `src/features/instance`)
 
@@ -386,7 +386,7 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Share links.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
 - `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
-  - Given `linkedRow`, it focuses that row and opens its History once the row has arrived, then calls `onLinkedRowShown`.
+  - Given `linkedRow`, it focuses that row and opens Row detail on it once the row has arrived, then calls `onLinkedRowShown`.
 - `StoredActionResultsGrid` (same file) reads `row_results` instead, after a reload.
 - `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.
   - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.

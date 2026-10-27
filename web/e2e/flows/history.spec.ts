@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { grid, openAction } from '../actionTab';
 import { test, expect } from '../realApi';
 
-const panel = (page: Page) => page.getByRole('complementary', { name: 'History' });
+const panel = (page: Page) => page.getByRole('complementary', { name: 'Row detail' });
 const entries = (page: Page) => panel(page).getByRole('list', { name: 'History' }).locator('li');
 
 /** The grid rows whose Host is `host` (the part of each row beside the pinned selection column). */
@@ -28,7 +28,7 @@ async function runJson(page: Page, rows: Record<string, unknown>[]) {
 const focusRow = (page: Page, host: string) =>
   rowsWith(page, host).locator('.ag-cell[col-id="Host"]').first().click();
 
-test('H opens the History of the focused row, which follows focus and a teammate’s comment', async ({
+test('D opens Row detail on the focused row, which follows focus and a teammate’s comment', async ({
   page,
   signIn,
   idPrefix,
@@ -40,13 +40,15 @@ test('H opens the History of the focused row, which follows focus and a teammate
   await runJson(page, [{ Host: a, Bytes: 2048 }, { Host: b }]);
 
   await focusRow(page, a);
+  await page.keyboard.press('d');
+  await expect(panel(page).locator('code')).toHaveText(a);
+  // Keyboard focus stays in the grid, so the label keys act on the row shown.
   await page.keyboard.press('1');
   await expect(rowsWith(page, a)).toHaveClass(/tim-label-red/);
+  await expect(panel(page).getByText('Malicious', { exact: true })).toBeVisible();
   await page.keyboard.press('3');
   await expect(rowsWith(page, a)).toHaveClass(/tim-label-green/);
-  await page.keyboard.press('h');
 
-  await expect(panel(page).locator('code')).toHaveText(a);
   await expect(panel(page).getByText('Benign', { exact: true })).toBeVisible();
   await expect(entries(page)).toHaveText([
     new RegExp(`^Malicious → Benign · ${me} · `),
@@ -89,15 +91,22 @@ test('H opens the History of the focused row, which follows focus and a teammate
   await expect(panel(page).getByText('No label', { exact: true })).toBeVisible();
   await expect(entries(page)).toHaveCount(0);
 
+  const fold = panel(page).getByRole('button', { name: /^Comments and history/ });
+  await fold.click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
   await focusRow(page, a);
+  await expect(panel(page).locator('code')).toHaveText(a);
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await expect(entries(page)).toHaveCount(0);
+  await fold.click();
   await expect(entries(page)).toHaveCount(5);
-  await panel(page).getByRole('button', { name: 'Close history' }).click();
+  await panel(page).getByRole('button', { name: 'Close row detail' }).click();
   await expect(panel(page)).toBeHidden();
 });
 
 const menuOption = (page: Page, text: string) => page.locator('.ag-menu-option', { hasText: text });
 
-test('History is on the right-click menu, and says why a row without an id has none', async ({
+test('Row detail is on the right-click menu, and says why a row without an id has no annotations', async ({
   page,
   idPrefix,
 }) => {
@@ -105,16 +114,20 @@ test('History is on the right-click menu, and says why a row without an id has n
   const none = `${idPrefix}-none`;
   await runJson(page, [{ Host: a }, { Other: none }]);
   await rowsWith(page, a).locator('.ag-cell[col-id="Host"]').click({ button: 'right' });
-  await menuOption(page, 'History').click();
+  await menuOption(page, 'Row detail').click();
   await expect(panel(page).locator('code')).toHaveText(a);
   await expect(entries(page)).toHaveCount(0);
-  await panel(page).getByRole('button', { name: 'Close history' }).click();
+  await panel(page).getByRole('button', { name: 'Close row detail' }).click();
 
   await grid(page).getByText(none).click({ button: 'right' });
-  await expect(menuOption(page, 'History')).toHaveAttribute('aria-disabled', 'true');
-  await page.keyboard.press('Escape');
+  await expect(menuOption(page, 'Row detail')).not.toHaveAttribute('aria-disabled', 'true');
+  await menuOption(page, 'Row detail').click();
+  await expect(panel(page)).toContainText('No id: set Id column and run again to annotate');
+  await expect(panel(page).getByRole('region', { name: 'Fields' })).toContainText(none);
+  await expect(panel(page).getByRole('textbox', { name: 'Comment' })).toBeHidden();
   await grid(page).getByText(none).click();
+  await page.keyboard.press('d');
+  await expect(panel(page)).toBeHidden();
   await page.keyboard.press('h');
-  await expect(page.getByText('No id: set Id column and run again to annotate')).toBeVisible();
   await expect(panel(page)).toBeHidden();
 });

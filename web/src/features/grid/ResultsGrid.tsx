@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
@@ -19,7 +19,6 @@ import type {
   StateUpdatedEvent,
   StatusPanelDef,
 } from 'ag-grid-community';
-import { DetailPanel } from './DetailPanel';
 import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs } from './columns';
@@ -58,9 +57,8 @@ export interface ResultsGridProps {
   /** Column definitions to use instead of those built from the rows. */
   columnDefs?: ColDef[];
   /**
-   * Extra context menu items, placed above copy / export. An array is a list of groups: the first
-   * group is followed by "Show details", each later non-empty group comes after a
-   * separator (pivots).
+   * Extra context menu items, placed above copy / export. An array is a list of groups: each
+   * non-empty group after the first comes after a separator (pivots).
    */
   getContextMenuItems?: GetExtraContextMenuItems | GetExtraContextMenuItems[];
   /** The column menu's items, instead of AG Grid's own. */
@@ -71,8 +69,6 @@ export interface ResultsGridProps {
   toolbarExtra?: ReactNode;
   /** CSS height of the grid. */
   height?: string | number;
-  /** Detail drawer, "Show details" context menu item, follows the focused cell. Default on. */
-  detailPanel?: boolean;
   /**
    * Identifies the grid (the tab uuid) so its column state survives the tab being hidden or
    * re-created. Without it column state is not kept.
@@ -83,7 +79,7 @@ export interface ResultsGridProps {
   /** The selection column's symbol, beside the checkbox. */
   selectionSymbol?: ComponentType<CustomCellRendererProps>;
   onCellKeyDown?: (event: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => void;
-  /** Called when a cell takes focus, after the detail panel follows it. */
+  /** Called when a cell takes focus. */
   onCellFocused?: (event: CellFocusedEvent<GridRowWithId>) => void;
   /** The side bar, instead of Columns and Filters. */
   sideBar?: SideBarDef;
@@ -103,12 +99,11 @@ export function ResultsGrid({
   onGridReady,
   toolbarExtra,
   height = 'calc(100vh - 200px)',
-  detailPanel = true,
   stateKey,
   rowClassRules,
   selectionSymbol,
   onCellKeyDown,
-  onCellFocused: givenOnCellFocused,
+  onCellFocused,
   sideBar,
   statusPanels,
   context: extraContext,
@@ -117,13 +112,6 @@ export function ResultsGrid({
   const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
   const { containerRef, attach, save } = useTabColumnState(stateKey);
-
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailRow, setDetailRow] = useState<GridRowWithId | null>(null);
-  const detailOpenRef = useRef(false);
-  useEffect(() => {
-    detailOpenRef.current = detailOpen;
-  }, [detailOpen]);
 
   const statusBar = useMemo(
     () =>
@@ -144,48 +132,19 @@ export function ResultsGrid({
       : getContextMenuItems
         ? [getContextMenuItems]
         : [];
-    if (!detailPanel && groups.length === 0) return undefined;
-    return (params) => {
-      const [first, ...rest] = groups;
-      const head: ExtraMenuItems = [
-        ...(first?.(params) ?? []),
-        ...(detailPanel
-          ? [
-              {
-                name: 'Show details',
-                disabled: !params.node?.data,
-                action: () => {
-                  setDetailRow((params.node?.data as GridRowWithId | undefined) ?? null);
-                  setDetailOpen(true);
-                },
-              },
-            ]
-          : []),
-      ];
-      return rest.reduce<ExtraMenuItems>((acc, g) => {
+    if (groups.length === 0) return undefined;
+    return (params) =>
+      groups.reduce<ExtraMenuItems>((acc, g) => {
         const items = g(params);
         if (items.length === 0) return acc;
         return [...acc, ...(acc.length > 0 ? ['separator' as const] : []), ...items];
-      }, head);
-    };
-  }, [detailPanel, getContextMenuItems]);
+      }, []);
+  }, [getContextMenuItems]);
   const selectionColumnDef = useMemo(
     () => buildSelectionColumnDef(selectionSymbol),
     [selectionSymbol],
   );
   const menu = useMemo(() => makeGetContextMenuItems(extraMenuItems), [extraMenuItems]);
-
-  // The open panel follows the focused cell's row.
-  const onCellFocused = useCallback(
-    (e: CellFocusedEvent<GridRowWithId>) => {
-      if (detailOpenRef.current && e.rowIndex !== null) {
-        const node = e.api.getDisplayedRowAtIndex(e.rowIndex);
-        if (node?.data) setDetailRow(node.data);
-      }
-      givenOnCellFocused?.(e);
-    },
-    [givenOnCellFocused],
-  );
 
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
@@ -236,9 +195,6 @@ export function ResultsGrid({
           }}
         />
       </div>
-      {detailPanel && (
-        <DetailPanel open={detailOpen} data={detailRow} onClose={() => setDetailOpen(false)} />
-      )}
     </Box>
   );
 }

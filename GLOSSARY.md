@@ -127,6 +127,10 @@ _Avoid_: EventId, event id, row id
 A row's position in its run's results, unique within the run where `id` can repeat.
 _Avoid_: ordinal, row id
 
+**Row detail**:
+The side panel showing one row's fields and, when the row has an `id`, its annotations and their history. It shows the row the analyst has moved to.
+_Avoid_: History panel, detail panel, Show details, Result Details
+
 ### Annotations
 
 **Annotations**:

@@ -1,4 +1,10 @@
-export { DetailFields } from './DetailPanel';
+export {
+  detailEntries,
+  type DetailColumns,
+  type DetailEntry,
+  type DetailLine,
+  type DetailSegment,
+} from './detailText';
 export { ResultsGrid } from './ResultsGrid';
 export { buildColumnDefs, gridRowId } from './columns';
 export type { GridRowWithId } from './columns';
