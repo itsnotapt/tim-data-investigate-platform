@@ -90,6 +90,8 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
     } <= found
 
     migrate(scratch_dsn)  # idempotent
+    migrate(scratch_dsn, "0007", down=True)
+    assert _tables(scratch_dsn) == ALL_TABLES
     migrate(scratch_dsn, "0006", down=True)
     assert _tables(scratch_dsn) == ALL_TABLES | {"query_runs"}
 
@@ -110,6 +112,37 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
     assert _tables(scratch_dsn) == set()
     migrate(scratch_dsn)  # and repeatable
     assert _tables(scratch_dsn) == ALL_TABLES
+
+
+def test_stored_rows_survive_the_change_of_run_rows_to_json(scratch_dsn: str) -> None:
+    migrate(scratch_dsn, "0007")
+
+    def store(conn: Connection) -> None:
+        run_id = uuid.uuid4()
+        conn.execute(
+            text(
+                "INSERT INTO runs (run_id, owner, status, action, params, details, started_at, "
+                "expires_at) VALUES (:run_id, 'alice', 'running', '{}', '{}', '{}', now(), now())"
+            ),
+            {"run_id": run_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO run_rows (run_id, ordinal, id, data) VALUES (:run_id, 0, 'e', :data)"
+            ),
+            {"run_id": run_id, "data": '{"b": 1, "a": {"y": 2}}'},
+        )
+        conn.commit()
+
+    def stored(conn: Connection) -> tuple[str, str]:
+        found = conn.execute(text("SELECT pg_typeof(data)::text, data::text FROM run_rows")).one()
+        return str(found[0]), str(found[1])
+
+    asyncio.run(_with_conn(scratch_dsn, store))
+    migrate(scratch_dsn)
+    assert asyncio.run(_with_conn(scratch_dsn, stored)) == ("json", '{"a": {"y": 2}, "b": 1}')
+    migrate(scratch_dsn, "0007", down=True)
+    assert asyncio.run(_with_conn(scratch_dsn, stored)) == ("jsonb", '{"a": {"y": 2}, "b": 1}')
 
 
 def test_run_rows_are_unlogged_and_runs_are_logged(scratch_dsn: str) -> None:

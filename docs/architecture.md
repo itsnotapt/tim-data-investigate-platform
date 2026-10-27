@@ -1121,7 +1121,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
 | `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
 | `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
-| `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSONB); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
+| `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
 | `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |
 | `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |
