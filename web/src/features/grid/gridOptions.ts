@@ -133,6 +133,8 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
     selectAll: 'filtered',
   },
   cellSelection: true,
+  // PROTOTYPE (#171): clicking away from the comment editor saves it.
+  stopEditingWhenCellsLoseFocus: true,
   sideBar: SIDE_BAR,
   statusBar: { statusPanels: STATUS_PANELS },
   skipHeaderOnAutoSize: true,

@@ -15,7 +15,8 @@
     "e2e": "playwright test",
     "e2e:smoke": "playwright test --grep @smoke",
     "e2e:headed": "playwright test --headed",
-    "gen:api": "openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts"
+    "gen:api": "openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts",
+    "prototype:171": "src/features/annotate/prototype171/run.sh"
   },
   "type": "module",
   "dependencies": {

@@ -1,0 +1,30 @@
+# PROTOTYPE (#171), throwaway: rows for the comments cell prototype.
+type: dev_rows
+key: proto-171-comments
+name: Comments cell prototype (#171)
+menu: Prototype
+pivot: rows
+description: Rows covering every comment case; the comments themselves are faked in the browser
+id: EventId
+columns:
+  - { name: Timestamp, type: datetime }
+  - { name: Host, type: string }
+  - { name: User, type: string }
+  - { name: EventId, type: string, title: Event id }
+rows:
+  - { Timestamp: '2026-10-21T01:11:00Z', Host: web-02, User: bob@example.com, EventId: evt-1007 }
+  - { Timestamp: '2026-10-22T02:12:00Z', Host: db-01, User: chen.wei@example.com, EventId: evt-1014 }
+  - { Timestamp: '2026-10-23T03:13:00Z', Host: vpn-gw, User: dana@example.com, EventId: evt-1021 }
+  - { Timestamp: '2026-10-24T04:14:00Z', Host: build-07, User: eli@example.com, EventId: evt-1028 }
+  - { Timestamp: '2026-10-22T03:15:00Z', Host: web-02, User: bob@example.com, EventId: evt-1021 }  # same id as row 3
+  - { Timestamp: '2026-10-25T05:15:00Z', Host: mail-02, User: alice@example.com, EventId: evt-1035 }
+  - { Timestamp: '2026-10-26T06:10:00Z', Host: dc-01, User: bob@example.com, EventId: evt-1042 }
+  - { Timestamp: '2026-10-20T07:11:00Z', Host: web-01, User: chen.wei@example.com, EventId: evt-1049 }
+  - { Timestamp: '2026-10-23T11:00:00Z', Host: vpn-gw, User: dana@example.com }  # no id
+  - { Timestamp: '2026-10-21T08:12:00Z', Host: web-02, User: dana@example.com, EventId: evt-1056 }
+  - { Timestamp: '2026-10-22T09:13:00Z', Host: db-01, User: eli@example.com, EventId: evt-1063 }
+  - { Timestamp: '2026-10-23T00:14:00Z', Host: vpn-gw, User: alice@example.com, EventId: evt-1070 }
+  - { Timestamp: '2026-10-24T01:15:00Z', Host: build-07, User: bob@example.com, EventId: evt-1077 }
+  - { Timestamp: '2026-10-25T02:10:00Z', Host: mail-02, User: chen.wei@example.com, EventId: evt-1084 }
+  - { Timestamp: '2026-10-26T03:11:00Z', Host: dc-01, User: dana@example.com, EventId: evt-1091 }
+  - { Timestamp: '2026-10-20T04:12:00Z', Host: web-01, User: eli@example.com, EventId: evt-1098 }

@@ -8,6 +8,7 @@ import {
   ColumnAutoSizeModule,
   CsvExportModule,
   CustomFilterModule,
+  CustomEditorModule, // PROTOTYPE (#171)
   DateFilterModule,
   EventApiModule,
   GridStateModule,
@@ -71,6 +72,7 @@ const MODULES: Module[] = [
   BigIntFilterModule,
   DateFilterModule,
   CustomFilterModule,
+  CustomEditorModule, // PROTOTYPE (#171)
   QuickFilterModule,
   RowSelectionModule,
   RowStyleModule,

@@ -8,6 +8,7 @@ import type {
   GridState,
 } from 'ag-grid-community';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
@@ -19,6 +20,14 @@ import {
   useActionColumnView,
 } from '../action-column-views';
 import { annotationColumnDefs, useAnnotating, useRowDetail } from '../annotate';
+// PROTOTYPE (#171)
+import {
+  isPrototypeVariant,
+  PROTOTYPE_VARIANTS,
+  prototypeCommentsColumnDefs,
+  VARIANT_NAMES,
+} from '../annotate/prototype171/commentsCellPrototype';
+import { PrototypeSwitcher } from '../annotate/prototype171/PrototypeSwitcher';
 import type { GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -117,7 +126,19 @@ export function ActionResultsGrid({
       false,
   );
   const notifyContext = useContext(NotifyContext);
-  const own = useMemo(() => [...annotationColumnDefs(), labelColumnDef(labels)], [labels]);
+  // PROTOTYPE (#171): ?variant=A|B|C swaps the comments column for a prototype one.
+  const [search] = useSearchParams();
+  const rawVariant = import.meta.env.DEV ? search.get('variant') : null;
+  const variant = isPrototypeVariant(rawVariant) ? rawVariant : null;
+  const own = useMemo(
+    () => [
+      ...(variant
+        ? [...prototypeCommentsColumnDefs(variant), ...annotationColumnDefs().slice(1)]
+        : annotationColumnDefs()),
+      labelColumnDef(labels),
+    ],
+    [labels, variant],
+  );
   const columnDefs = useMemo(
     () => buildActionColumnDefs(declaredColumns, runColumns, own),
     [declaredColumns, runColumns, own],
@@ -329,6 +350,7 @@ export function ActionResultsGrid({
       </RoundedColumnsContext>
       {rowDetail}
       {dialog}
+      {variant && <PrototypeSwitcher variants={PROTOTYPE_VARIANTS} names={VARIANT_NAMES} />}
     </Box>
   );
 }
