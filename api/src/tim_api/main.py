@@ -27,7 +27,13 @@ from tim_api.openapi_meta import install_openapi
 from tim_api.presets.router import router as presets_router
 from tim_api.runs.connections import Connections
 from tim_api.runs.router import router as runs_router
-from tim_api.runs.runner import RACE_SECONDS, Runner
+from tim_api.runs.runner import (
+    CANCEL_POLL_SECONDS,
+    RACE_SECONDS,
+    STALE_HEARTBEAT_SECONDS,
+    STALE_SWEEP_SECONDS,
+    Runner,
+)
 from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
 
 logger = logging.getLogger("tim_api")
@@ -79,6 +85,9 @@ async def _lifespan(
         settings,
         slots=asyncio.Semaphore(settings.max_concurrent_runs),
         race_seconds=app.state.race_seconds,
+        cancel_poll_seconds=app.state.cancel_poll_seconds,
+        stale_heartbeat_seconds=app.state.stale_heartbeat_seconds,
+        stale_sweep_seconds=app.state.stale_sweep_seconds,
     )
     app.state.runner = runner
     await runner.mark_stale()
@@ -97,8 +106,12 @@ def create_app(
     storage_factory: StorageFactory = build_storage,
     race_seconds: float = RACE_SECONDS,
     providers: Sequence[Provider] | None = None,
+    cancel_poll_seconds: float = CANCEL_POLL_SECONDS,
+    stale_heartbeat_seconds: float = STALE_HEARTBEAT_SECONDS,
+    stale_sweep_seconds: float = STALE_SWEEP_SECONDS,
 ) -> FastAPI:
-    """Build the app. ``storage_factory`` and ``race_seconds`` default to production behaviour.
+    """Build the app. ``storage_factory`` and the ``*_seconds`` timings default to production
+    behaviour.
 
     ``providers`` replaces discovery through the ``tim.actions`` entry points.
     """
@@ -110,6 +123,9 @@ def create_app(
     )
 
     app.state.race_seconds = race_seconds
+    app.state.cancel_poll_seconds = cancel_poll_seconds
+    app.state.stale_heartbeat_seconds = stale_heartbeat_seconds
+    app.state.stale_sweep_seconds = stale_sweep_seconds
 
     @app.get("/api/healthChecks/liveness", status_code=status.HTTP_204_NO_CONTENT)
     def liveness() -> Response:

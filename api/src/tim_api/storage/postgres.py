@@ -94,8 +94,11 @@ runs = Table(
     Column("finished_at", _TS),
     Column("expires_at", _TS, nullable=False),
     Column("cancel_requested", Boolean, nullable=False, server_default=text("false")),
+    # Not indexed (ADR-0004).
+    Column("heartbeat_at", _TS, nullable=False),
     Index("ix_runs_expires_at", "expires_at"),
-    # The startup sweep only ever looks at runs still ``running``.
+    # The sweep reaches the few runs still ``running`` through this index, then checks each
+    # one's heartbeat.
     Index("ix_runs_running_started", "started_at", postgresql_where=text("status = 'running'")),
 )
 
@@ -229,6 +232,7 @@ def _run_values(run: Run) -> dict[str, Any]:
         "row_count": run.row_count,
         "error": run.error,
         "started_at": run.started_at,
+        "heartbeat_at": run.started_at,
         "finished_at": run.finished_at,
         "expires_at": run.expires_at,
     }
@@ -405,16 +409,17 @@ class PostgresRunStore(RunStore):
         async with self._db.begin() as conn:
             await conn.execute(stmt)
 
-    async def cancel_requested(self, run_ids: Collection[UUID]) -> set[UUID]:
+    async def heartbeat(self, run_ids: Collection[UUID], now: datetime) -> dict[UUID, bool]:
         if not run_ids:
-            return set()
-        stmt = select(runs.c.run_id).where(
-            runs.c.run_id.in_(list(run_ids)),
-            runs.c.status == RunStatus.RUNNING.value,
-            runs.c.cancel_requested.is_(True),
+            return {}
+        stmt = (
+            update(runs)
+            .where(runs.c.run_id.in_(list(run_ids)), runs.c.status == RunStatus.RUNNING.value)
+            .values(heartbeat_at=now)
+            .returning(runs.c.run_id, runs.c.cancel_requested)
         )
         async with self._db.begin() as conn:
-            return set((await conn.execute(stmt)).scalars())
+            return {r.run_id: r.cancel_requested for r in await conn.execute(stmt)}
 
     async def delete_expired(self, now: datetime, limit: int) -> int:
         # SKIP LOCKED: replicas sweeping at once take different runs.
@@ -434,9 +439,16 @@ class PostgresRunStore(RunStore):
     async def mark_stale_running_as_error(
         self, before: datetime, *, message: str, finished_at: datetime, expires_at: datetime
     ) -> int:
+        # SKIP LOCKED: replicas sweeping at once take different runs, and a run whose heartbeat
+        # or finish is being written is left for the next sweep.
+        stale_runs = (
+            select(runs.c.run_id)
+            .where(runs.c.status == RunStatus.RUNNING.value, runs.c.heartbeat_at < before)
+            .with_for_update(skip_locked=True)
+        )
         stmt = (
             update(runs)
-            .where(runs.c.status == RunStatus.RUNNING.value, runs.c.started_at < before)
+            .where(runs.c.run_id.in_(stale_runs.scalar_subquery()))
             .values(
                 status=RunStatus.ERROR.value,
                 error=message,

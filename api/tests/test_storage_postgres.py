@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from collections.abc import Iterator
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -14,6 +15,7 @@ from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 from storage_contract import T0, make_run
 
+from tim_api.runs.models import RunStatus
 from tim_api.storage import PostgresStorage, StorageUnavailableError, sweep_expired
 from tim_api.storage.postgres import metadata
 
@@ -55,6 +57,14 @@ def _tables(dsn: str) -> set[str]:
     return result
 
 
+def _run_columns(dsn: str) -> set[str]:
+    def run(conn: Connection) -> set[str]:
+        return {str(c["name"]) for c in inspect(conn).get_columns("runs")}
+
+    result: set[str] = asyncio.run(_with_conn(dsn, run))
+    return result
+
+
 ALL_TABLES = {
     "runs",
     "run_rows",
@@ -90,6 +100,9 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
     } <= found
 
     migrate(scratch_dsn)  # idempotent
+    assert "heartbeat_at" in _run_columns(scratch_dsn)
+    migrate(scratch_dsn, "0008", down=True)
+    assert "heartbeat_at" not in _run_columns(scratch_dsn)
     migrate(scratch_dsn, "0007", down=True)
     assert _tables(scratch_dsn) == ALL_TABLES
     migrate(scratch_dsn, "0006", down=True)
@@ -180,6 +193,40 @@ async def test_python_none_is_sql_null(postgres_dsn: str) -> None:
 
         assert await _with_conn(postgres_dsn, rows, autocommit=True) is True
     finally:
+        await storage.aclose()
+
+
+async def test_a_sweep_skips_a_run_another_transaction_is_writing(postgres_dsn: str) -> None:
+    async def empty(conn: Any) -> None:
+        await conn.execute(text("TRUNCATE runs, run_rows"))
+
+    await _with_conn(postgres_dsn, empty, autocommit=True)
+    storage = PostgresStorage(postgres_dsn)
+    engine = create_async_engine(postgres_dsn)
+    try:
+        busy, stale = make_run(started=T0), make_run(started=T0)
+        for run in (busy, stale):
+            await storage.runs.create(run)
+        async with engine.begin() as writing:
+            await writing.execute(
+                text("SELECT 1 FROM runs WHERE run_id = :id FOR UPDATE"), {"id": busy.run_id}
+            )
+            async with asyncio.timeout(5):
+                count = await storage.runs.mark_stale_running_as_error(
+                    T0 + timedelta(minutes=1),
+                    message="Run interrupted by server restart",
+                    finished_at=T0,
+                    expires_at=T0 + timedelta(hours=1),
+                )
+        assert count == 1
+        skipped = await storage.runs.get(busy.run_id, T0)
+        assert skipped is not None
+        assert skipped.status is RunStatus.RUNNING
+        swept = await storage.runs.get(stale.run_id, T0)
+        assert swept is not None
+        assert swept.status is RunStatus.ERROR
+    finally:
+        await engine.dispose()
         await storage.aclose()
 
 

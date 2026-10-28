@@ -13,7 +13,12 @@ from tim_actions import Provider
 from tim_api.auth import TokenValidator, get_token_validator
 from tim_api.config import Settings, get_settings
 from tim_api.main import create_app
-from tim_api.runs.runner import RACE_SECONDS
+from tim_api.runs.runner import (
+    CANCEL_POLL_SECONDS,
+    RACE_SECONDS,
+    STALE_HEARTBEAT_SECONDS,
+    STALE_SWEEP_SECONDS,
+)
 from tim_api.storage import MemoryStorage, Storage
 
 
@@ -22,6 +27,9 @@ def create_test_app(
     storage_factory: Callable[[Settings], Storage] | None = None,
     race_seconds: float = RACE_SECONDS,
     providers: Sequence[Provider] | None = (),
+    cancel_poll_seconds: float = CANCEL_POLL_SECONDS,
+    stale_heartbeat_seconds: float = STALE_HEARTBEAT_SECONDS,
+    stale_sweep_seconds: float = STALE_SWEEP_SECONDS,
 ) -> FastAPI:
     """``create_app`` backed by the in-memory store unless a ``storage_factory`` is given.
 
@@ -34,6 +42,9 @@ def create_test_app(
         storage_factory=storage_factory or (lambda _settings: MemoryStorage()),
         race_seconds=race_seconds,
         providers=providers,
+        cancel_poll_seconds=cancel_poll_seconds,
+        stale_heartbeat_seconds=stale_heartbeat_seconds,
+        stale_sweep_seconds=stale_sweep_seconds,
     )
 
 

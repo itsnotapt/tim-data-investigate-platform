@@ -44,6 +44,7 @@ class MemoryRunStore(RunStore):
         self._runs: dict[UUID, Run] = {}
         self._rows: dict[UUID, dict[int, RunRow]] = {}
         self._cancel: set[UUID] = set()
+        self._heartbeats: dict[UUID, datetime] = {}
         self._lock = asyncio.Lock()
 
     async def create(self, run: Run) -> Run:
@@ -52,6 +53,7 @@ class MemoryRunStore(RunStore):
                 raise AlreadyExistsError(str(run.run_id))
             self._runs[run.run_id] = run.model_copy(deep=True)
             self._rows[run.run_id] = {}
+            self._heartbeats[run.run_id] = run.started_at
             return run.model_copy(deep=True)
 
     async def get(self, run_id: UUID, now: datetime) -> Run | None:
@@ -120,9 +122,15 @@ class MemoryRunStore(RunStore):
             if run is not None and run.status is RunStatus.RUNNING:
                 self._cancel.add(run_id)
 
-    async def cancel_requested(self, run_ids: Collection[UUID]) -> set[UUID]:
+    async def heartbeat(self, run_ids: Collection[UUID], now: datetime) -> dict[UUID, bool]:
         async with self._lock:
-            return {run_id for run_id in run_ids if run_id in self._cancel}
+            alive: dict[UUID, bool] = {}
+            for run_id in run_ids:
+                run = self._runs.get(run_id)
+                if run is not None and run.status is RunStatus.RUNNING:
+                    self._heartbeats[run_id] = now
+                    alive[run_id] = run_id in self._cancel
+            return alive
 
     async def delete_expired(self, now: datetime, limit: int) -> int:
         async with self._lock:
@@ -131,6 +139,7 @@ class MemoryRunStore(RunStore):
             )[:limit]
             for run in expired:
                 del self._runs[run.run_id], self._rows[run.run_id]
+                del self._heartbeats[run.run_id]
                 self._cancel.discard(run.run_id)
             return len(expired)
 
@@ -141,7 +150,7 @@ class MemoryRunStore(RunStore):
             stale = [
                 r
                 for r in self._runs.values()
-                if r.status is RunStatus.RUNNING and r.started_at < before
+                if r.status is RunStatus.RUNNING and self._heartbeats[r.run_id] < before
             ]
             for run in stale:
                 self._runs[run.run_id] = run.model_copy(

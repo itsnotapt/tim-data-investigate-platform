@@ -26,6 +26,11 @@ from tim_actions import Column, Param, Provider
 from tim_api.auth.dependencies import get_obo_provider
 from tim_api.auth.principal import Principal
 from tim_api.runs.models import RunStatus
+from tim_api.runs.runner import (
+    CANCEL_POLL_SECONDS,
+    STALE_HEARTBEAT_SECONDS,
+    STALE_SWEEP_SECONDS,
+)
 from tim_api.storage import Storage
 
 ALICE = "alice@example.com"
@@ -90,7 +95,14 @@ class Env:
 
 @asynccontextmanager
 async def open_env(
-    storage: Storage, auth: AuthKit, actions: Sequence[Any], race_seconds: float = 0.5
+    storage: Storage,
+    auth: AuthKit,
+    actions: Sequence[Any],
+    race_seconds: float = 0.5,
+    *,
+    cancel_poll_seconds: float = CANCEL_POLL_SECONDS,
+    stale_heartbeat_seconds: float = STALE_HEARTBEAT_SECONDS,
+    stale_sweep_seconds: float = STALE_SWEEP_SECONDS,
 ) -> AsyncIterator[Env]:
     os.environ["TIM_CONNECTIONS_FILE"] = str(FAKE_CONNECTIONS)
     CancellableHook.built.clear()
@@ -99,6 +111,9 @@ async def open_env(
         storage_factory=lambda _s: storage,
         race_seconds=race_seconds,
         providers=[Provider(actions=actions, hooks=[CancellableHook])],
+        cancel_poll_seconds=cancel_poll_seconds,
+        stale_heartbeat_seconds=stale_heartbeat_seconds,
+        stale_sweep_seconds=stale_sweep_seconds,
     )
     auth.install(app)
     app.dependency_overrides[get_obo_provider] = lambda: obo
@@ -672,7 +687,7 @@ async def test_a_run_cannot_reach_a_connection_its_action_did_not_declare(
         assert CancellableHook.built == []
 
 
-async def test_startup_marks_runs_left_running_past_the_timeout_as_interrupted(
+async def test_startup_marks_runs_whose_heartbeat_stopped_as_interrupted(
     storage: Storage, auth: AuthKit
 ) -> None:
     from datetime import UTC, datetime, timedelta
@@ -681,19 +696,40 @@ async def test_startup_marks_runs_left_running_past_the_timeout_as_interrupted(
 
     now = datetime.now(UTC)
     stale = make_run(started=now - timedelta(minutes=11))
-    recent = make_run(started=now - timedelta(minutes=1))
-    for run in (stale, recent):
+    alive = make_run(started=now - timedelta(minutes=11))
+    for run in (stale, alive):
         await storage.runs.create(run)
         await storage.runs.add_rows(run.run_id, make_rows(0, 2))
+    await storage.runs.heartbeat({stale.run_id}, now - timedelta(minutes=1))
+    await storage.runs.heartbeat({alive.run_id}, now)
     async with open_env(storage, auth, []):
         got = await storage.runs.get(stale.run_id, now)
         assert got is not None
         assert (got.status, got.error) == (RunStatus.ERROR, "Run interrupted by server restart")
         assert got.finished_at is not None
         assert await storage.runs.has_rows(stale.run_id) is False
-        untouched = await storage.runs.get(recent.run_id, now)
+        untouched = await storage.runs.get(alive.run_id, now)
         assert untouched is not None
         assert untouched.status is RunStatus.RUNNING
+        assert await storage.runs.has_rows(alive.run_id) is True
+
+
+async def test_a_running_app_marks_runs_whose_heartbeat_stopped_as_interrupted(
+    storage: Storage, auth: AuthKit
+) -> None:
+    from datetime import UTC, datetime
+
+    from storage_contract import make_rows, make_run
+
+    async with open_env(
+        storage, auth, [], stale_heartbeat_seconds=0.3, stale_sweep_seconds=0.1
+    ) as env:
+        stale = make_run(started=datetime.now(UTC))
+        await storage.runs.create(stale)
+        await storage.runs.add_rows(stale.run_id, make_rows(0, 2))
+        got = await env.wait(str(stale.run_id))
+        assert (got["status"], got["error"]) == ("error", "Run interrupted by server restart")
+        assert await storage.runs.has_rows(stale.run_id) is False
 
 
 async def test_shutdown_ends_runs_in_flight_as_interrupted(storage: Storage, auth: AuthKit) -> None:
@@ -727,6 +763,54 @@ async def test_a_cancel_reaches_a_run_executing_in_another_process(
         ended = await other.wait(run_id)
         assert ended["status"] == "cancelled"
         assert hook.cancelled.is_set()
+
+
+async def test_a_run_older_than_the_timeout_is_left_alone_while_its_process_executes_it(
+    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import datetime, timedelta
+
+    monkeypatch.setenv("TIM_MAX_CONCURRENT_RUNS", "1")
+    monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "1")
+    # The sweeps run often and the margin is shorter than the wait for a slot.
+    timings = {
+        "cancel_poll_seconds": 0.05,
+        "stale_heartbeat_seconds": 0.5,
+        "stale_sweep_seconds": 0.1,
+    }
+    async with open_env(storage, auth, [WAITS], race_seconds=0.1, **timings) as executing:
+        busy = (await executing.start("acme.waits")).json()["runId"]
+        await executing.hook()
+        late = (await executing.start("acme.waits")).json()
+        assert (await executing.wait(busy))["status"] == "timedOut"
+        started = datetime.fromisoformat(late["startedAt"])
+        while datetime.now(started.tzinfo) - started <= timedelta(seconds=1.05):  # noqa: ASYNC110
+            await asyncio.sleep(0.01)
+        async with open_env(storage, auth, [], **timings) as other:
+            ended = await other.wait(late["runId"])
+        assert ended["status"] == "timedOut"
+
+
+async def test_a_run_another_process_swept_is_cancelled_where_it_executes(
+    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TIM_MAX_CONCURRENT_RUNS", "1")
+    async with open_env(
+        storage, auth, [WAITS, SIGN_INS], race_seconds=0.1, cancel_poll_seconds=0.2
+    ) as executing:
+        run_id = (await executing.start("acme.waits")).json()["runId"]
+        hook = await executing.hook()
+        # A margin below the executing process's poll: its run looks stale.
+        async with open_env(
+            storage, auth, [], stale_heartbeat_seconds=0.05, stale_sweep_seconds=0.05
+        ) as sweeping:
+            swept = await sweeping.wait(run_id)
+        assert (swept["status"], swept["error"]) == ("error", "Run interrupted by server restart")
+        assert await asyncio.to_thread(hook.cancelled.wait, 0.5)  # within a poll or two
+        after = await executing.start("acme.sign_ins")  # its slot is free again
+        assert after.json()["status"] == "succeeded"
+        got = (await executing.client.get(f"/api/runs/{run_id}")).json()
+        assert (got["status"], got["error"]) == ("error", "Run interrupted by server restart")
 
 
 async def test_a_run_waiting_for_a_slot_is_running_and_can_be_cancelled(

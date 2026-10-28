@@ -8,7 +8,9 @@ unexpected failure, shutdown) is stored as the run's final state, and only a suc
 its rows.
 
 Cancel reaches the process executing a run directly, or through the run's stored cancel request,
-which each process polls for the runs it executes.
+which each process polls for the runs it executes. The same poll writes those runs' heartbeat;
+each process sweeps for runs whose heartbeat has gone stale, because their process is gone, and
+ends them as ``error``.
 """
 
 from __future__ import annotations
@@ -39,6 +41,10 @@ TIMEOUT_MESSAGE = "Run exceeded the time limit of {seconds} seconds"
 GENERIC_ERROR_MESSAGE = "The run failed unexpectedly"
 RACE_SECONDS = 1.0
 CANCEL_POLL_SECONDS = 1.0
+# A run whose heartbeat is older than this has lost its process; the sweep ends it.
+STALE_HEARTBEAT_SECONDS = 15.0
+# How often each process sweeps, after the sweep at startup.
+STALE_SWEEP_SECONDS = 30.0
 # How long a cancelled or timed-out run waits for Hook.cancel() or the worker before it ends
 # anyway.
 CANCEL_GRACE_SECONDS = 10.0
@@ -352,6 +358,8 @@ class Runner:
         race_seconds: float = RACE_SECONDS,
         clock: Clock = _utcnow,
         cancel_poll_seconds: float = CANCEL_POLL_SECONDS,
+        stale_heartbeat_seconds: float = STALE_HEARTBEAT_SECONDS,
+        stale_sweep_seconds: float = STALE_SWEEP_SECONDS,
     ) -> None:
         self.store = store
         self.settings = settings
@@ -359,8 +367,10 @@ class Runner:
         self.clock = clock
         self._race_seconds = race_seconds
         self._cancel_poll_seconds = cancel_poll_seconds
+        self._stale_heartbeat_seconds = stale_heartbeat_seconds
+        self._stale_sweep_seconds = stale_sweep_seconds
         self._active: dict[UUID, tuple[_ActiveRun, asyncio.Task[Run]]] = {}
-        self._watcher: asyncio.Task[None] | None = None
+        self._watchers: list[asyncio.Task[None]] = []
 
     def _expires(self) -> datetime:
         return self.clock() + timedelta(seconds=self.settings.run_retention_seconds)
@@ -413,30 +423,45 @@ class Runner:
         return task.result() if task in done else run
 
     def start_watching(self) -> None:
-        """Poll for cancel requests made through other processes."""
-        self._watcher = asyncio.create_task(self._watch(), name="tim-run-cancel-watcher")
+        """Write the heartbeat of this process's runs and poll for their cancel requests, and
+        sweep for runs whose process is gone."""
+        self._watchers = [
+            asyncio.create_task(self._heartbeat(), name="tim-run-heartbeat"),
+            asyncio.create_task(self._sweep(), name="tim-run-stale-sweep"),
+        ]
 
-    async def _watch(self) -> None:
+    async def _heartbeat(self) -> None:
         while True:
             await asyncio.sleep(self._cancel_poll_seconds)
             if not self._active:
                 continue
+            active = set(self._active)
             try:
-                requested = await self.store.cancel_requested(set(self._active))
+                still_running = await self.store.heartbeat(active, self.clock())
             except Exception:
-                logger.exception("Polling for run cancel requests failed")
+                logger.exception("Run heartbeat failed")
                 continue
-            for run_id in requested:
+            for run_id in active:
                 local = self._active.get(run_id)
-                if local is not None:
+                if local is None:
+                    continue
+                # A run no longer running has ended elsewhere, e.g. through another process's
+                # sweep; it is cancelled here too, and finish leaves it as it is.
+                if run_id not in still_running or still_running[run_id]:
                     local[0].cancel_requested.set()
 
+    async def _sweep(self) -> None:
+        while True:
+            await asyncio.sleep(self._stale_sweep_seconds)
+            await self.mark_stale()
+
     async def mark_stale(self) -> int:
-        """Startup sweep: runs left ``running`` longer than the timeout become ``error``."""
+        """Sweep: runs whose heartbeat is stale, because their process is gone, become
+        ``error``."""
         now = self.clock()
         try:
             count = await self.store.mark_stale_running_as_error(
-                now - timedelta(seconds=self.settings.run_timeout_seconds),
+                now - timedelta(seconds=self._stale_heartbeat_seconds),
                 message=INTERRUPTED_MESSAGE,
                 finished_at=now,
                 expires_at=self._expires(),
@@ -450,10 +475,10 @@ class Runner:
 
     async def aclose(self) -> None:
         """Shutdown: runs in flight end as ``error``."""
-        if self._watcher is not None:
-            self._watcher.cancel()
+        for watcher in self._watchers:
+            watcher.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await self._watcher
+                await watcher
         tasks = [task for _, task in self._active.values()]
         for task in tasks:
             task.cancel()
