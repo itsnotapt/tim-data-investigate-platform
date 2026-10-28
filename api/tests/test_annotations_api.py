@@ -434,7 +434,7 @@ async def test_the_history_gives_an_id_s_label_changes_newest_first(
     datetime.fromisoformat(entries[0]["at"])
 
 
-async def test_the_history_threads_comments_with_label_changes_newest_first(
+async def test_the_history_gives_each_author_s_comment_with_the_label_changes_newest_first(
     storage: Storage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
@@ -449,7 +449,6 @@ async def test_the_history_threads_comments_with_label_changes_newest_first(
     ] == [
         ("comment", BOB, "same C2 as c-2"),
         ("label", "malicious"),
-        ("comment", BOB, "beacons every 60s"),
         ("comment", ALICE, "first look"),
     ]
     assert set(entries[0]) == {"kind", "author", "at", "text"}

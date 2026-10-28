@@ -29,7 +29,7 @@
         "type": "object"
       },
       "AnnotationHistory": {
-        "description": "``GET /api/annotations/history``: an id's label changes and comments, newest first.",
+        "description": "``GET /api/annotations/history``: an id's label changes and each author's comment,\nnewest first.",
         "properties": {
           "entries": {
             "items": {
@@ -648,7 +648,7 @@
         "type": "object"
       },
       "CommentEntry": {
-        "description": "A version of an author's comment in an id's history; ``text`` is empty when it cleared\nthe comment.",
+        "description": "An author's comment in an id's history, as they last saved it.",
         "properties": {
           "at": {
             "title": "At",

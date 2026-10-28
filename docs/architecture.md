@@ -538,10 +538,9 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - **Annotate… and Comment….** The menu has both after **Label ▸**, for the same target rows.
   - **Annotate…** (T) opens the Annotate dialog. It saves the label, the tags and the analyst's comment as one change.
   - **Comment…** (C) opens the same dialog with the comment only.
-  - On one row, the comment box starts with the analyst's comment. Emptying it clears the comment.
-  - On several rows the box starts empty.
+  - On one id, the comment box starts with the analyst's comment. On several ids it starts empty.
   - When the analyst has a comment on some of those ids, the dialog says "Replaces your comment on N of these ids".
-  - An empty box leaves comments alone.
+  - An empty box leaves comments alone, even on one id.
   - They are disabled, with the reason as a tooltip, in the same cases as **Label ▸** (see Targets).
 - **Row detail.** The menu has **Row detail** (D) after **Annotate…** and **Comment…**, in the same group. It acts on the clicked or focused row only.
   - It is never disabled, also on a row without an `id`.
@@ -566,9 +565,9 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - Objects show in a YAML-like layout.
   - A value of more than 180 characters or more than 3 lines is clamped, with **Show all (N characters)**.
   - Each value and the `id` has a copy button. Objects copy as JSON. A toast reports "Copied <name>".
-- **Comments and history.** This section holds a comment box, then the other analysts' current comments, then the `id`'s history, newest first: label changes as "old → new", and every version of the comments.
-  - The box starts with the analyst's current comment. **Save** replaces it, and saving it empty clears it.
-  - In the history, an earlier version of an author's comment reads "· edited", and an empty one "· cleared their comment".
+- **Comments and history.** This section holds a comment box, then the other analysts' current comments, then the `id`'s history, newest first: label changes as "old → new", and each author's current comment.
+  - The box starts with the analyst's current comment. **Save** replaces it, and is disabled while the box is empty or unchanged.
+  - **Delete comment** shows when the analyst has a comment, and deletes it.
   - The section folds, and the fold holds for every row while the page is open.
   - A comment draft is kept per `id` while the analyst moves between rows, and dropped when the panel closes.
 - **Following the row.** Row detail follows the focused row (`onCellFocused` and `onCellKeyDown` on `ResultsGrid`), and keyboard focus stays in the grid. It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it. The history comes from `GET /api/annotations/history`.
@@ -576,7 +575,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
   - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
   - **Suggestions.** From `GET /api/tags/suggestions`, in the groups "Your recent tags" and "Most used".
-  - **Comment.** A text field. It replaces the analyst's comment on every target.
+  - **Comment.** A text field. It replaces the analyst's comment on every target. An empty field leaves comments alone.
   - **Save.** Sends one `PATCH /api/annotations`. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
 - **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. D opens or closes Row detail on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
@@ -1094,7 +1093,7 @@ The wire shape is the same everywhere: `Annotations = {id, label: {key, by, at} 
 3. It finds the ids that change: those whose label differs from the one asked for, those that gain or lose a tag, and, for a comment, those where the caller's current comment differs from the one asked for (a `null` comment differs only where the caller has one). `setTags` gains and loses the difference from the current tags.
 4. For those it upserts `id_state` with the version.
 5. For a changed label it sets the label, who set it (from the token) and when in `id_state`, and adds a row to `label_changes`.
-6. It inserts the added tags into `tags` and deletes the removed ones. It inserts a new version of the caller's comment into `comments`, with the author from the token. A clear inserts a row with empty text.
+6. It inserts the added tags into `tags` and deletes the removed ones. It upserts the caller's comment into `comments`, with the author from the token. A clear deletes the row.
 7. It answers with the changed ids' annotations and the version.
 
 A change that changes nothing rolls back. It takes no version, writes no history and answers `changes: []` with the current version.
@@ -1104,7 +1103,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - `id_state` has one row per `id` that was ever labelled. Clearing a label keeps the row, with `label: null`, so the removal reaches other browsers through the feed.
 - `label_changes` keeps every label change: the label, who changed it, when, and the version.
 - `tags` keeps the current tags of each `id`. A removed tag is deleted, with no history.
-- `comments` keeps every version of every comment as a row. An author's current comment on an `id` is their newest row, unless its text is empty. Versions are never removed.
+- `comments` keeps one row per `id` and author: their current comment. Saving replaces it and clearing deletes it, with no history.
 
 **The change feed** (`GET /api/annotations/changes?since=V`) gives the `id`s whose `id_state.version` is above `V`, as they now are, in version order.
 
@@ -1112,7 +1111,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - `next` is the version of the page's last change, and the `since` for the next request. `hasMore` says whether more follow.
 - Because versions are gapless and in commit order, a reader that has read up to `V` never misses a lower version that commits later.
 
-**History.** `GET /api/annotations/history?id=` reads `label_changes` and every version in `comments` for the `id` and merges them, newest first. A clear is a `comment` entry with empty text.
+**History.** `GET /api/annotations/history?id=` reads `label_changes` and the current rows of `comments` for the `id` and merges them, newest first.
 
 - Within one version, the label change comes before the comment.
 - Tags are not in it, and it has no paging.
@@ -1147,7 +1146,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |
 | `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |
 | `tags` | `(id, tag)` | `added_by`, `added_at` |
-| `comments` | none | `id`, `author`, `created_at`, `text` (empty for a clear), `version`; index on `(id, version)` |
+| `comments` | `(id, author)` | `saved_at`, `text`, `version` |
 
 `run_rows` is `UNLOGGED`, so it is not written to the WAL.
 

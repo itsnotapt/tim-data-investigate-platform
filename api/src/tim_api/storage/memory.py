@@ -302,7 +302,7 @@ class MemoryAnnotationStore(AnnotationStore):
         self._state: dict[str, Annotations] = {}
         # Who added each id's tags, and when: (id, tag) -> (by, at).
         self._tags_added: dict[tuple[str, str], tuple[str, datetime]] = {}
-        # Each id's label changes and comments, oldest first.
+        # Each id's label changes and each author's comment, oldest first.
         self._history: dict[str, list[HistoryEntry]] = {}
         self._version = 0
         self._lock = asyncio.Lock()
@@ -356,9 +356,13 @@ class MemoryAnnotationStore(AnnotationStore):
                 # The comment first, so that newest first the label change comes first.
                 history = self._history.setdefault(annotations.id, [])
                 if annotations.comments != (before.comments if before else []):
-                    history.append(
-                        CommentEntry(kind="comment", author=by, at=at, text=edit.comment or "")
-                    )
+                    history[:] = [
+                        e for e in history if not (e.kind == "comment" and e.author == by)
+                    ]
+                    if edit.comment is not None:
+                        history.append(
+                            CommentEntry(kind="comment", author=by, at=at, text=edit.comment)
+                        )
                 if annotations.label != (before.label if before else None):
                     history.append(LabelEntry(kind="label", label=edit.label, by=by, at=at))
                 self._state[annotations.id] = annotations

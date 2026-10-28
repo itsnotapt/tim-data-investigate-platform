@@ -415,7 +415,8 @@ export interface components {
         };
         /**
          * AnnotationHistory
-         * @description ``GET /api/annotations/history``: an id's label changes and comments, newest first.
+         * @description ``GET /api/annotations/history``: an id's label changes and each author's comment,
+         *     newest first.
          */
         AnnotationHistory: {
             /** Entries */
@@ -638,8 +639,7 @@ export interface components {
         };
         /**
          * CommentEntry
-         * @description A version of an author's comment in an id's history; ``text`` is empty when it cleared
-         *     the comment.
+         * @description An author's comment in an id's history, as they last saved it.
          */
         CommentEntry: {
             /** At */

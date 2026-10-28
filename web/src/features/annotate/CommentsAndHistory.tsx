@@ -65,10 +65,7 @@ function useHistory(id: string, version: number | undefined, call?: CallOptions)
   return { entries, error, reload: () => setReloads((n) => n + 1) };
 }
 
-/**
- * Each history entry, newest first: a label change as "old → new", a comment as is. A comment its
- * author later replaced reads as edited, and an empty one as cleared.
- */
+/** Each history entry, newest first: a label change as "old → new", a comment as is. */
 function HistoryItems({
   entries,
   labels,
@@ -89,20 +86,14 @@ function HistoryItems({
     <Box component="ul" aria-label="History" sx={{ listStyle: 'none', p: 0, m: 0 }}>
       {entries.map((entry, i) => {
         if (entry.kind === 'comment') {
-          const edited = entries
-            .slice(0, i)
-            .some((e) => e.kind === 'comment' && e.author === entry.author);
-          const state = entry.text === '' ? ' · cleared their comment' : edited ? ' · edited' : '';
           return (
             <Box component="li" key={i} sx={{ mb: 1.25 }}>
               <Typography variant="caption" color="text.secondary" component="div">
-                {`${entry.author} · ${formatUtcDateTime(entry.at)}${state}`}
+                {`${entry.author} · ${formatUtcDateTime(entry.at)}`}
               </Typography>
-              {entry.text !== '' && (
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>
-                  {entry.text}
-                </Typography>
-              )}
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>
+                {entry.text}
+              </Typography>
             </Box>
           );
         }
@@ -146,8 +137,8 @@ function OtherComments({ comments }: { comments: readonly Comment[] }) {
 }
 
 /**
- * Your comment on `id`, which Save replaces and saving empty clears, the others' comments, then the
- * history of `id`, under a heading that folds.
+ * Your comment on `id`, which Save replaces and Delete comment deletes, the others' comments, then
+ * the history of `id`, under a heading that folds.
  */
 export function CommentsAndHistory({
   id,
@@ -167,23 +158,19 @@ export function CommentsAndHistory({
   const mine = comments.find((c) => c.author === analyst)?.text ?? '';
   const others = comments.filter((c) => c.author !== analyst);
   const text = comment ?? mine;
-  const unchanged = text.trim() === mine;
+  const trimmed = text.trim();
 
-  const save = async () => {
-    if (unchanged || saving) return;
+  /** Sets your comment to `to`, or deletes it when `null`; `failed` says what didn't happen. */
+  const commentAs = async (to: string | null, failed: string) => {
     setSaving(true);
     setCommentError(null);
     try {
-      const trimmed = text.trim();
-      const { changes } = await changeAnnotations(
-        { ids: [id], comment: trimmed === '' ? null : trimmed },
-        call,
-      );
+      const { changes } = await changeAnnotations({ ids: [id], comment: to }, call);
       await onCommented(changes);
       setComment(undefined);
       reload();
     } catch (e) {
-      setCommentError(`Couldn't save the comment: ${reasonOf(e)}`);
+      setCommentError(`${failed}: ${reasonOf(e)}`);
     } finally {
       setSaving(false);
     }
@@ -233,8 +220,22 @@ export function CommentsAndHistory({
               value={text}
               onChange={(e) => setComment(e.target.value)}
             />
-            <Box sx={{ textAlign: 'right' }}>
-              <Button size="small" onClick={() => void save()} disabled={unchanged || saving}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+              {mine !== '' && (
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={() => void commentAs(null, "Couldn't delete the comment")}
+                  disabled={saving}
+                >
+                  Delete comment
+                </Button>
+              )}
+              <Button
+                size="small"
+                onClick={() => void commentAs(trimmed, "Couldn't save the comment")}
+                disabled={trimmed === '' || trimmed === mine || saving}
+              >
                 Save
               </Button>
             </Box>

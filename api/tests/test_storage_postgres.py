@@ -96,7 +96,6 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
         "ix_presets_created_id",
         "ix_column_views_created_id",
         "ix_id_state_version",
-        "ix_comments_id",
     } <= found
 
     migrate(scratch_dsn)  # idempotent

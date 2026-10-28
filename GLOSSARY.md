@@ -148,5 +148,5 @@ A free-text string of 1 to 100 characters on an `id`'s annotations. An `id` has 
 An analyst's note on an `id`'s annotations, with its author and time. An `id` has at most one comment per analyst, which only that analyst can replace or clear.
 
 **History**:
-The record of an `id`'s label changes and every version of its comments, each with who made it and when. Tags are not in it.
+The record of an `id`'s label changes and each analyst's current comment, each with who made it and when. Tags are not in it.
 _Avoid_: audit log, activity

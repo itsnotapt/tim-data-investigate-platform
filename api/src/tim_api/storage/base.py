@@ -244,8 +244,8 @@ class AnnotationStore(ABC):
 
     @abstractmethod
     async def history(self, id: str) -> list[HistoryEntry]:
-        """The label changes and comments of ``id``, newest first, the label change before the
-        comment of the same change; none for an id never changed."""
+        """The label changes of ``id`` and each author's comment, newest first, the label change
+        before the comment of the same change; none for an id never changed."""
 
     @abstractmethod
     async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:

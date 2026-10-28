@@ -76,8 +76,7 @@ class LabelEntry(ApiModel):
 
 
 class CommentEntry(ApiModel):
-    """A version of an author's comment in an id's history; ``text`` is empty when it cleared
-    the comment."""
+    """An author's comment in an id's history, as they last saved it."""
 
     kind: Literal["comment"]
     author: str
@@ -89,7 +88,8 @@ HistoryEntry = Annotated[LabelEntry | CommentEntry, Field(discriminator="kind")]
 
 
 class AnnotationHistory(ApiModel):
-    """``GET /api/annotations/history``: an id's label changes and comments, newest first."""
+    """``GET /api/annotations/history``: an id's label changes and each author's comment,
+    newest first."""
 
     entries: list[HistoryEntry]
 

@@ -37,7 +37,7 @@ async function commentInCell(page: Page, host: string, text: string) {
   await expect(editor).toBeHidden();
 }
 
-test('a comment edited in the grid reaches every row of its id and a teammate, keeps each version in History, and when cleared shows the teammate’s', async ({
+test('a comment edited in the grid reaches every row of its id and a teammate, is in History as last saved, and when cleared shows the teammate’s', async ({
   page,
   signIn,
   idPrefix,
@@ -80,11 +80,8 @@ test('a comment edited in the grid reaches every row of its id and a teammate, k
   await expect(box).toHaveValue('tcd 1 beacons\nevery 60s');
   await box.fill('beacons every 30s');
   await panel(page).getByRole('button', { name: 'Save' }).click();
-  await expect(entries(page)).toHaveText([
-    /beacons every 30s$/,
-    new RegExp(`^${idPrefix}\\.teammate@example\\.com · .*owner confirmed$`),
-    /· edited.*every 60s$/s,
-  ]);
+  const teammates = new RegExp(`^${idPrefix}\\.teammate@example\\.com · .*owner confirmed$`);
+  await expect(entries(page)).toHaveText([/beacons every 30s$/, teammates]);
   await expect(commentOf(page, a).first()).toHaveText('beacons every 30s+1');
 
   await commentInCell(page, a, '');
@@ -92,6 +89,6 @@ test('a comment edited in the grid reaches every row of its id and a teammate, k
     `${idPrefix}.teammate: owner confirmed`,
     `${idPrefix}.teammate: owner confirmed`,
   ]);
-  await expect(entries(page).first()).toHaveText(/cleared their comment$/);
+  await expect(entries(page)).toHaveText([teammates]);
   await expect(box).toHaveValue('');
 });

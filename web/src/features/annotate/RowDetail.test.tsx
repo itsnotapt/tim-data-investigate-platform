@@ -139,7 +139,7 @@ describe('RowDetail', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('shows the history newest first, label changes as old → new and comments as a thread', async () => {
+  it("shows the history newest first, label changes as old → new and each author's comment", async () => {
     renderPanel();
     await screen.findByRole('list', { name: 'History' });
     expect(historyItems()).toEqual([
@@ -177,35 +177,32 @@ describe('RowDetail', () => {
     await waitFor(() => expect(asked).toEqual(['h1', 'h1']));
   });
 
-  it('clears your comment when saved empty', async () => {
+  it("can't save an empty comment, and deletes yours with Delete comment", async () => {
     const { onCommented, user } = renderPanel({ annotations: commented });
+    await screen.findByRole('list', { name: 'History' });
     await user.clear(screen.getByRole('textbox', { name: 'Comment' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(onCommented).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Delete comment' }));
+    await waitFor(() => expect(onCommented).toHaveBeenCalledWith([{ ...annotations, version: 5 }]));
     expect(patches).toEqual([{ ids: ['h1'], comment: null }]);
+    await waitFor(() => expect(asked).toEqual(['h1', 'h1']));
   });
 
-  it('shows an earlier version of a comment as edited, and an empty one as cleared', async () => {
-    server.use(
-      http.get(apiUrl('/api/annotations/history'), () =>
-        HttpResponse.json({
-          entries: [
-            { kind: 'comment', author: BOB, at: '2026-10-21T10:09:00Z', text: '' },
-            { kind: 'comment', author: ALICE, at: '2026-10-21T10:08:00Z', text: 'same C2' },
-            { kind: 'comment', author: BOB, at: '2026-10-21T10:07:00Z', text: 'beacons' },
-            { kind: 'comment', author: ALICE, at: '2026-10-21T10:06:00Z', text: 'first look' },
-          ],
-        }),
-      ),
-    );
+  it('offers Delete comment only when you have a comment', async () => {
     renderPanel();
     await screen.findByRole('list', { name: 'History' });
-    expect(historyItems()).toEqual([
-      `${BOB} · 2026-10-21 10:09 UTC · cleared their comment`,
-      `${ALICE} · 2026-10-21 10:08 UTCsame C2`,
-      `${BOB} · 2026-10-21 10:07 UTC · editedbeacons`,
-      `${ALICE} · 2026-10-21 10:06 UTC · editedfirst look`,
-    ]);
+    expect(screen.queryByRole('button', { name: 'Delete comment' })).not.toBeInTheDocument();
+  });
+
+  it('keeps your comment and shows why when deleting it fails', async () => {
+    server.use(
+      http.patch(apiUrl('/api/annotations'), () => problemResponse(503, { detail: 'Try again' })),
+    );
+    const { onCommented, user } = renderPanel({ annotations: commented });
+    await user.click(screen.getByRole('button', { name: 'Delete comment' }));
+    expect(await screen.findByText(/Couldn't delete the comment: Try again/)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveValue('first look');
+    expect(onCommented).not.toHaveBeenCalled();
   });
 
   it('keeps the comment and shows why when saving it fails', async () => {

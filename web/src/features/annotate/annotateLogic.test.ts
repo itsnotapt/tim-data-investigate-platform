@@ -154,14 +154,16 @@ describe('changeBody', () => {
     ).toBeNull();
   });
 
-  it('sends your edited comment, and null when you empty it', () => {
+  it('sends your edited comment, and leaves it alone when you empty the box', () => {
     expect(
       changeBody(['a'], { ...nothing, comment: 'same C2 ', commentBefore: 'first look' }),
     ).toEqual({ ids: ['a'], comment: 'same C2' });
-    expect(changeBody(['a'], { ...nothing, comment: ' \n', commentBefore: 'first look' })).toEqual({
-      ids: ['a'],
-      comment: null,
-    });
+    expect(
+      changeBody(['a'], { ...nothing, comment: ' \n', commentBefore: 'first look' }),
+    ).toBeNull();
+    expect(
+      changeBody(['a'], { ...nothing, label: 'benign', comment: '', commentBefore: 'first look' }),
+    ).toEqual({ ids: ['a'], label: 'benign' });
   });
 
   it('keeps the label by leaving it out, and sends only the parts that change', () => {

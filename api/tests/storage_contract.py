@@ -739,9 +739,9 @@ class AnnotationContract:
             unchanged = await store.change(ids, edit, by=by, at=_minutes(1))
             assert (unchanged.changes, unchanged.version) == ([], 3)
         assert len(await store.history("a")) == 1
-        assert len(await store.history("b")) == 2
+        assert await store.history("b") == []
 
-    async def test_the_history_is_the_label_changes_and_comment_versions_newest_first(
+    async def test_the_history_is_the_label_changes_and_each_author_s_comment_newest_first(
         self, storage: Storage
     ) -> None:
         store = storage.annotations
@@ -756,14 +756,11 @@ class AnnotationContract:
         await store.change(["a"], label("malicious"), by="carol", at=_minutes(2))
         await store.change(["a"], label(None), by="alice", at=_minutes(3))
         await store.change(["a"], comment("same C2 as b"), by="alice", at=_minutes(4))
-        await store.change(["a"], comment(None), by="alice", at=_minutes(5))
+        await store.change(["a"], comment(None), by="bob", at=_minutes(5))
         assert await store.history("a") == [
-            CommentEntry(kind="comment", author="alice", at=_minutes(5), text=""),
             CommentEntry(kind="comment", author="alice", at=_minutes(4), text="same C2 as b"),
             LabelEntry(kind="label", label=None, by="alice", at=_minutes(3)),
             LabelEntry(kind="label", label="malicious", by="bob", at=_minutes(1)),
-            CommentEntry(kind="comment", author="bob", at=_minutes(1), text="beacons"),
-            CommentEntry(kind="comment", author="alice", at=T0, text="first look"),
         ]
         assert [e.kind for e in await store.history("b")] == ["label", "comment"]
         assert await store.history("never-changed") == []

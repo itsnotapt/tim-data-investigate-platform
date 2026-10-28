@@ -205,8 +205,8 @@ export interface DialogChoice {
 
 /**
  * The `PATCH /api/annotations` body for `choice` on `ids`, or `null` when it changes nothing. The
- * comment is sent when it differs from what the box started with; emptied, it is `null`, which
- * clears your comment.
+ * comment is sent when it isn't empty and differs from what the box started with; an empty box
+ * leaves comments alone.
  */
 export function changeBody(ids: readonly string[], choice: DialogChoice): AnnotationsChange | null {
   const comment = choice.comment.trim();
@@ -214,7 +214,7 @@ export function changeBody(ids: readonly string[], choice: DialogChoice): Annota
   if (choice.label !== undefined) body.label = choice.label;
   if (choice.edits.add.length > 0) body.addTags = [...choice.edits.add];
   if (choice.edits.remove.length > 0) body.removeTags = [...choice.edits.remove];
-  if (comment !== choice.commentBefore.trim()) body.comment = comment === '' ? null : comment;
+  if (comment !== '' && comment !== choice.commentBefore.trim()) body.comment = comment;
   return Object.keys(body).length === 1 ? null : body;
 }
 

@@ -58,11 +58,11 @@ def upgrade() -> None:
         "comments",
         sa.Column("id", sa.Text(), nullable=False),
         sa.Column("author", sa.Text(), nullable=False),
-        sa.Column("created_at", _ts(), nullable=False),
+        sa.Column("saved_at", _ts(), nullable=False),
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("version", sa.BigInteger(), nullable=False),
+        sa.PrimaryKeyConstraint("id", "author"),
     )
-    op.create_index("ix_comments_id", "comments", ["id", "version"])
 
 
 def downgrade() -> None:

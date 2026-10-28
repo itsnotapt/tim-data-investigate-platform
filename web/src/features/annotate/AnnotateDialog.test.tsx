@@ -185,8 +185,8 @@ describe('AnnotateDialog', () => {
     expect(patches).toEqual([]);
   });
 
-  it('on one id, starts with your comment, and emptying it clears it', async () => {
-    const { user, onClose } = renderDialog({
+  it('on one id, starts with your comment, and emptying it leaves it alone', async () => {
+    const { user } = renderDialog({
       mode: 'comment',
       targets: ['h1'],
       current: [withComments(annotations('h1', []), [BOB, 'beacons'], [ALICE, 'first look'])],
@@ -195,9 +195,8 @@ describe('AnnotateDialog', () => {
     expect(box).toHaveValue('first look');
     expect(save()).toBeDisabled();
     await user.clear(box);
-    await user.click(save());
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(patches).toEqual([{ ids: ['h1'], comment: null }]);
+    expect(save()).toBeDisabled();
+    expect(patches).toEqual([]);
   });
 
   it('on several ids, starts empty and says how many of your comments it replaces', async () => {

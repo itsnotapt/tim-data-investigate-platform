@@ -39,7 +39,7 @@ from sqlalchemy import (
     true,
     update,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB, distinct_on
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
@@ -213,10 +213,10 @@ comments = Table(
     metadata,
     Column("id", Text, nullable=False),
     Column("author", Text, nullable=False),
-    Column("created_at", _TS, nullable=False),
+    Column("saved_at", _TS, nullable=False),
     Column("text", Text, nullable=False),
     Column("version", BigInteger, nullable=False),
-    Index("ix_comments_id", "id", "version"),
+    PrimaryKeyConstraint("id", "author"),
 )
 
 
@@ -668,16 +668,6 @@ def _ids_param(ids: Collection[str]) -> Any:
     return bindparam("ids", list(ids), type_=ARRAY(Text))
 
 
-def _newest_comments(ids: Collection[str]) -> Any:
-    """The newest ``comments`` row of each author for each of ``ids``."""
-    return (
-        select(comments)
-        .where(comments.c.id == any_(_ids_param(ids)))
-        .ext(distinct_on(comments.c.id, comments.c.author))
-        .order_by(comments.c.id, comments.c.author, comments.c.version.desc())
-    )
-
-
 async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Annotations]:
     """The annotations of the ``id_state`` rows ``states``, in their order."""
     ids = _ids_param([state.id for state in states])
@@ -689,12 +679,11 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
     ):
         found_tags.setdefault(row.id, []).append(row.tag)
     found_comments: dict[str, list[Comment]] = {}
-    newest = _newest_comments([state.id for state in states]).subquery()
     for row in await conn.execute(
-        select(newest).where(newest.c.text != "").order_by(newest.c.version)
+        select(comments).where(comments.c.id == any_(ids)).order_by(comments.c.version)
     ):
         found_comments.setdefault(row.id, []).append(
-            Comment(author=row.author, at=row.created_at, text=row.text)
+            Comment(author=row.author, at=row.saved_at, text=row.text)
         )
     return [
         Annotations(
@@ -713,13 +702,16 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
 async def _commented(
     conn: AsyncConnection, ids: Collection[str], edit: AnnotationEdit, *, by: str
 ) -> list[str]:
-    """Those of ``ids`` whose comment by ``by`` the edit changes. Each row of ``comments`` is a
-    version of an author's comment, and an empty text is a cleared one (ADR-0023)."""
+    """Those of ``ids`` whose comment by ``by`` the edit changes."""
     if not edit.set_comment:
         return []
     own = {
-        row.id: row.text or None
-        for row in await conn.execute(_newest_comments(ids).where(comments.c.author == by))
+        row.id: row.text
+        for row in await conn.execute(
+            select(comments.c.id, comments.c.text).where(
+                comments.c.id == any_(_ids_param(ids)), comments.c.author == by
+            )
+        )
     }
     return [id for id in ids if own.get(id) != edit.comment]
 
@@ -813,15 +805,29 @@ class PostgresAnnotationStore(AnnotationStore):
                         ),
                         [{"tag_id": id, "tag_name": tag} for id, tag in removed],
                     )
-                if commented:
+                if commented and edit.comment is None:
                     await conn.execute(
-                        insert(comments),
+                        delete(comments).where(
+                            comments.c.id == any_(_ids_param(commented)), comments.c.author == by
+                        )
+                    )
+                elif commented:
+                    saved = pg_insert(comments)
+                    await conn.execute(
+                        saved.on_conflict_do_update(
+                            index_elements=[comments.c.id, comments.c.author],
+                            set_={
+                                "saved_at": saved.excluded.saved_at,
+                                "text": saved.excluded.text,
+                                "version": saved.excluded.version,
+                            },
+                        ),
                         [
                             {
                                 "id": id,
                                 "author": by,
-                                "created_at": at,
-                                "text": edit.comment or "",
+                                "saved_at": at,
+                                "text": edit.comment,
                                 "version": version,
                             }
                             for id in commented
@@ -885,7 +891,7 @@ class PostgresAnnotationStore(AnnotationStore):
                 found.append(((-row.version, 0), entry))
             for row in commented:
                 entry = CommentEntry(
-                    kind="comment", author=row.author, at=row.created_at, text=row.text
+                    kind="comment", author=row.author, at=row.saved_at, text=row.text
                 )
                 found.append(((-row.version, 1), entry))
         return [entry for _, entry in sorted(found, key=lambda f: f[0])]

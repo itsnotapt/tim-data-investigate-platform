@@ -66,7 +66,6 @@ test('D opens Row detail on the focused row, which follows focus and a teammate�
   await save.click();
   await expect(entries(page)).toHaveText([
     /beacons every 60s$/,
-    /first look$/,
     /^Malicious → Benign/,
     /^No label → Malicious/,
   ]);
@@ -89,8 +88,17 @@ test('D opens Row detail on the focused row, which follows focus and a teammate�
   await expect(teammate.page.getByText('Commented on 1 id')).toBeVisible();
 
   await page.bringToFront();
-  await expect(entries(page).first()).toHaveText(
-    new RegExp(`^${idPrefix}\\.teammate@example\\.com · .*owner confirmed$`),
+  const teammates = new RegExp(`^${idPrefix}\\.teammate@example\\.com · .*owner confirmed$`);
+  await expect(entries(page).first()).toHaveText(teammates);
+  await panel(page).getByRole('button', { name: 'Delete comment' }).click();
+  await expect(entries(page)).toHaveText([
+    teammates,
+    /^Malicious → Benign/,
+    /^No label → Malicious/,
+  ]);
+  await expect(comment).toHaveValue('');
+  await expect(rowsWith(page, a).locator('.ag-cell[col-id="tim:comments"]')).toHaveText(
+    `${idPrefix}.teammate: owner confirmed`,
   );
 
   await focusRow(page, b);
@@ -106,7 +114,7 @@ test('D opens Row detail on the focused row, which follows focus and a teammate�
   await expect(fold).toHaveAttribute('aria-expanded', 'false');
   await expect(entries(page)).toHaveCount(0);
   await fold.click();
-  await expect(entries(page)).toHaveCount(5);
+  await expect(entries(page)).toHaveCount(3);
   await panel(page).getByRole('button', { name: 'Close row detail' }).click();
   await expect(panel(page)).toBeHidden();
 });

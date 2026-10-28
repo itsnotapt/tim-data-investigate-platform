@@ -144,9 +144,9 @@ interface Suggestion {
 /**
  * The Annotate dialog: the label (Keep, a label, Clear), the tag editor with partial tags and
  * suggestions, and your comment, saved as one change, then the sink picked in After tagging, run…,
- * if any. As Comment…, the comment only. On one id the comment starts as yours, and emptying it
- * clears it; on several it starts empty, and an empty box leaves comments alone. Only the button
- * saves; a failed change keeps the dialog open with the error, and runs no sink.
+ * if any. As Comment…, the comment only. On one id the comment starts as yours; on several it
+ * starts empty. An empty box leaves comments alone. Only the button saves; a failed change keeps
+ * the dialog open with the error, and runs no sink.
  */
 export function AnnotateDialog({
   mode,
