@@ -75,3 +75,4 @@ Numbers are never reused, so the sequence has gaps.
 | [0020](0020-annotations-in-postgres.md) | Annotations in Postgres keyed by `id`, with a change feed | accepted | 2026-10-20 |
 | [0021](0021-tim-actions-and-derived-images.md) | The `tim-actions` distribution and derived images | accepted | 2026-10-20 |
 | [0022](0022-column-views-store-grid-state.md) | Column views store AG Grid's own state | accepted | 2026-10-20 |
+| [0023](0023-one-comment-per-analyst.md) | One comment per analyst per `id`, with every version kept | accepted | 2026-10-27 |
