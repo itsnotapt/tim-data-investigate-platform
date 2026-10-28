@@ -60,7 +60,7 @@
         "type": "object"
       },
       "Annotations": {
-        "description": "An id's annotations, as of ``version``: the version of the change that last touched it.",
+        "description": "An id's annotations, as of ``version``: the version of the change that last touched it.\n``comments`` holds each author's current comment, oldest first.",
         "properties": {
           "comments": {
             "items": {
@@ -104,7 +104,7 @@
         "type": "object"
       },
       "AnnotationsChange": {
-        "description": "``PATCH /api/annotations``: a change to every one of ``ids``.\n\n- Leaving ``label`` out keeps it; ``null`` clears it.\n- ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.\n- ``comment`` is appended to each id's comments.",
+        "description": "``PATCH /api/annotations``: a change to every one of ``ids``.\n\n- Leaving ``label`` out keeps it; ``null`` clears it.\n- ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.\n- ``comment`` sets the caller's comment on each id, replacing theirs; ``null`` clears it;\n  leaving it out keeps it (ADR-0023).",
         "properties": {
           "addTags": {
             "items": {
@@ -624,6 +624,7 @@
         "type": "object"
       },
       "Comment": {
+        "description": "An author's current comment on an id.",
         "properties": {
           "at": {
             "title": "At",
@@ -647,7 +648,7 @@
         "type": "object"
       },
       "CommentEntry": {
-        "description": "A comment in an id's history.",
+        "description": "A version of an author's comment in an id's history; ``text`` is empty when it cleared\nthe comment.",
         "properties": {
           "at": {
             "title": "At",
@@ -1952,7 +1953,7 @@
     },
     "/api/annotations": {
       "patch": {
-        "description": "Change every id's annotations in one transaction under one version: the label, the tags\n(added and removed, or replaced with ``setTags``) and a comment appended to each.",
+        "description": "Change every id's annotations in one transaction under one version: the label, the tags\n(added and removed, or replaced with ``setTags``) and the caller's comment.",
         "operationId": "changeAnnotations",
         "requestBody": {
           "content": {

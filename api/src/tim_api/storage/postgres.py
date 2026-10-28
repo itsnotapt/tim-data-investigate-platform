@@ -39,7 +39,7 @@ from sqlalchemy import (
     true,
     update,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB, distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
@@ -679,8 +679,15 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
     ):
         found_tags.setdefault(row.id, []).append(row.tag)
     found_comments: dict[str, list[Comment]] = {}
+    newest = (
+        select(comments)
+        .where(comments.c.id == any_(ids))
+        .ext(distinct_on(comments.c.id, comments.c.author))
+        .order_by(comments.c.id, comments.c.author, comments.c.version.desc())
+        .subquery()
+    )
     for row in await conn.execute(
-        select(comments).where(comments.c.id == any_(ids)).order_by(comments.c.version)
+        select(newest).where(newest.c.text != "").order_by(newest.c.version)
     ):
         found_comments.setdefault(row.id, []).append(
             Comment(author=row.author, at=row.created_at, text=row.text)
@@ -697,6 +704,25 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
         )
         for state in states
     ]
+
+
+async def _commented(
+    conn: AsyncConnection, ids: Collection[str], edit: AnnotationEdit, *, by: str
+) -> list[str]:
+    """Those of ``ids`` whose comment by ``by`` the edit changes. Each row of ``comments`` is a
+    version of an author's comment, and an empty text is a cleared one (ADR-0023)."""
+    if not edit.set_comment:
+        return []
+    own = {
+        row.id: row.text or None
+        for row in await conn.execute(
+            select(comments.c.id, comments.c.text)
+            .where(comments.c.id == any_(_ids_param(ids)), comments.c.author == by)
+            .ext(distinct_on(comments.c.id))
+            .order_by(comments.c.id, comments.c.version.desc())
+        )
+    }
+    return [id for id in ids if own.get(id) != edit.comment]
 
 
 class PostgresAnnotationStore(AnnotationStore):
@@ -740,7 +766,7 @@ class PostgresAnnotationStore(AnnotationStore):
                     after = edit.tags_after(before)
                     added += [(id, tag) for tag in sorted(after - before)]
                     removed += [(id, tag) for tag in sorted(before - after)]
-                commented = wanted if edit.comment is not None else []
+                commented = await _commented(conn, wanted, edit, by=by)
                 changed = sorted(
                     {*relabelled, *commented, *(id for id, _ in added), *(id for id, _ in removed)}
                 )
@@ -796,7 +822,7 @@ class PostgresAnnotationStore(AnnotationStore):
                                 "id": id,
                                 "author": by,
                                 "created_at": at,
-                                "text": edit.comment,
+                                "text": edit.comment or "",
                                 "version": version,
                             }
                             for id in commented

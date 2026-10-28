@@ -50,7 +50,7 @@ async def change_annotations(
     label_keys: Annotated[set[str], Depends(get_label_keys)],
 ) -> ChangedAnnotations:
     """Change every id's annotations in one transaction under one version: the label, the tags
-    (added and removed, or replaced with ``setTags``) and a comment appended to each."""
+    (added and removed, or replaced with ``setTags``) and the caller's comment."""
     edit = _edit(body, label_keys)
     ids = set(body.ids)
     if len(ids) > settings.max_annotation_ids:
@@ -65,12 +65,9 @@ def _edit(body: AnnotationsChange, label_keys: set[str]) -> AnnotationEdit:
     """The edit ``body`` asks for, with its tags and comment trimmed. Raises
     ``UnprocessableError`` when it is invalid."""
     set_label = "label" in body.model_fields_set
+    set_comment = "comment" in body.model_fields_set
     if not (
-        set_label
-        or body.add_tags
-        or body.remove_tags
-        or body.set_tags is not None
-        or body.comment is not None
+        set_label or body.add_tags or body.remove_tags or body.set_tags is not None or set_comment
     ):
         raise UnprocessableError(
             {"body": ["Give at least one change: label, addTags, removeTags, setTags or comment"]}
@@ -96,6 +93,7 @@ def _edit(body: AnnotationsChange, label_keys: set[str]) -> AnnotationEdit:
         add_tags=add_tags,
         remove_tags=remove_tags,
         set_tags=None if body.set_tags is None else _tags("setTags", body.set_tags),
+        set_comment=set_comment,
         comment=comment,
     )
 
