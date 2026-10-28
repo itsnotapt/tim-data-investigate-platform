@@ -47,7 +47,8 @@ class RunStore(ABC):
 
     @abstractmethod
     async def create(self, run: Run) -> Run:
-        """Insert a ``running`` run. Raises ``AlreadyExistsError`` on a duplicate ``run_id``."""
+        """Insert a ``running`` run, with ``heartbeat_at`` its ``started_at``. Raises
+        ``AlreadyExistsError`` on a duplicate ``run_id``."""
 
     @abstractmethod
     async def get(self, run_id: UUID, now: datetime) -> Run | None:
@@ -86,8 +87,9 @@ class RunStore(ABC):
         """Ask the process executing a ``running`` run to cancel it; a no-op otherwise."""
 
     @abstractmethod
-    async def cancel_requested(self, run_ids: Collection[UUID]) -> set[UUID]:
-        """Those of ``run_ids`` still ``running`` whose cancel has been requested."""
+    async def heartbeat(self, run_ids: Collection[UUID], now: datetime) -> dict[UUID, bool]:
+        """Set ``heartbeat_at`` to ``now`` for those of ``run_ids`` still ``running``; returns
+        each of them with whether its cancel has been requested."""
 
     @abstractmethod
     async def delete_expired(self, now: datetime, limit: int) -> int:
@@ -98,8 +100,8 @@ class RunStore(ABC):
     async def mark_stale_running_as_error(
         self, before: datetime, *, message: str, finished_at: datetime, expires_at: datetime
     ) -> int:
-        """Startup sweep: runs still ``running`` with ``started_at < before`` become ``error``
-        with ``message``, and their partial rows are deleted; returns how many."""
+        """Sweep: runs still ``running`` with ``heartbeat_at < before`` become ``error`` with
+        ``message``, and their partial rows are deleted; returns how many."""
 
 
 class PresetStore(ABC):

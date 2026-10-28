@@ -273,7 +273,9 @@ class RunContract:
                 uuid4(), status=RunStatus.ERROR, finished_at=T0, expires_at=T0, details={}
             )
 
-    async def test_cancel_requests_are_seen_only_while_running(self, storage: Storage) -> None:
+    async def test_a_heartbeat_returns_the_runs_still_running_and_their_cancel_requests(
+        self, storage: Storage
+    ) -> None:
         asked, running, ended = make_run(), make_run(), make_run()
         for run in (asked, running, ended):
             await storage.runs.create(run)
@@ -287,9 +289,12 @@ class RunContract:
             details={},
         )
         await storage.runs.request_cancel(ended.run_id)
-        ids = {asked.run_id, running.run_id, ended.run_id}
-        assert await storage.runs.cancel_requested(ids) == {asked.run_id}
-        assert await storage.runs.cancel_requested(set()) == set()
+        ids = {asked.run_id, running.run_id, ended.run_id, uuid4()}
+        assert await storage.runs.heartbeat(ids, _minutes(1)) == {
+            asked.run_id: True,
+            running.run_id: False,
+        }
+        assert await storage.runs.heartbeat(set(), _minutes(1)) == {}
 
     async def test_delete_expired_takes_a_few_at_a_time(self, storage: Storage) -> None:
         expired = [make_run(expires=_minutes(i)) for i in range(1, 4)]
@@ -305,13 +310,16 @@ class RunContract:
             assert await storage.runs.has_rows(run.run_id) is False
         await storage.runs.create(expired[0])  # really gone: the id can be used again
 
-    async def test_stale_running_runs_become_errors_without_rows(self, storage: Storage) -> None:
+    async def test_runs_with_a_stale_heartbeat_become_errors_without_rows(
+        self, storage: Storage
+    ) -> None:
         stale = make_run(started=_minutes(-30))
-        recent = make_run(started=_minutes(-1))
+        alive = make_run(started=_minutes(-30))
         done = make_run(started=_minutes(-30))
-        for run in (stale, recent, done):
+        for run in (stale, alive, done):
             await storage.runs.create(run)
             await storage.runs.add_rows(run.run_id, make_rows(0, 2))
+        await storage.runs.heartbeat({alive.run_id}, _minutes(-1))
         await storage.runs.finish(
             done.run_id,
             status=RunStatus.SUCCEEDED,
@@ -337,10 +345,13 @@ class RunContract:
             _minutes(60),
         )
         assert await storage.runs.has_rows(stale.run_id) is False
-        untouched = await storage.runs.get(recent.run_id, T0)
+        untouched = await storage.runs.get(alive.run_id, T0)
         assert untouched is not None
         assert untouched.status is RunStatus.RUNNING
-        assert await storage.runs.has_rows(recent.run_id) is True
+        assert await storage.runs.has_rows(alive.run_id) is True
+        ended = await storage.runs.get(done.run_id, T0)
+        assert ended is not None
+        assert ended.status is RunStatus.SUCCEEDED
         assert await storage.runs.has_rows(done.run_id) is True
 
     async def test_returned_objects_are_copies(self, storage: Storage) -> None:

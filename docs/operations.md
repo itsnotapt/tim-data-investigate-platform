@@ -170,9 +170,11 @@ The change feed carries annotations ([architecture.md](architecture.md#annotatio
 - **Sweep:** a background task deletes expired runs every `TIM_RUN_RETENTION_SWEEP_SECONDS` (default 300 s), and logs the count.
   - Runs, with their rows, go ten at a time, so no single delete holds locks for long.
   - A failed sweep is logged with a stack trace, and retried at the next interval.
-- **Startup:** some runs are left behind by a restart or crash. These are runs still `running` that started more than `TIM_RUN_TIMEOUT_SECONDS` ago.
-  - They are set to `error`, with the message `Run interrupted by server restart`.
+- **Stale run sweep:** a restart or crash leaves runs behind. Each process refreshes the heartbeat of the runs it executes every second.
+  - Runs still `running` with a heartbeat older than 15 s are set to `error`, with the message `Run interrupted by server restart`, and their rows are deleted.
+  - Every process sweeps at startup and then every 30 s.
   - A warning logs the count.
+  - A failed sweep is logged with a stack trace, and retried at the next interval.
 - **Shutdown:** runs in flight are stopped, and set to `error` the same way. A run's action keeps running in its thread until the process exits, but its rows are no longer stored.
 - A run that doesn't succeed has its rows deleted when it ends, so only succeeded runs hold rows.
 

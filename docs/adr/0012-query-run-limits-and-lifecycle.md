@@ -16,7 +16,7 @@ A run is started by `POST /api/runs`, and read with `GET /api/runs/{runId}` and 
 - **NUL characters.** PostgreSQL JSONB and TEXT cannot store U+0000. Rows, ids, details and error text have it replaced with U+FFFD before saving.
 - **Responses.** The `POST` waits up to 1 second. If the run finished it returns 200, otherwise 202 with the run still running. Reads and cancel of a run always answer 200. Invalid params come back as 422 before a run exists.
 - **Ownership and expiry.** Any signed-in analyst holding the `runId` can read a run and its rows; only the owner can cancel it, and anyone else gets the same 404 as for an unknown run. A 404 on a read means the run is unknown or expired. Runs expire `TIM_RUN_RETENTION_SECONDS` (default 24 h) after they last changed. A background sweep (`TIM_RUN_RETENTION_SWEEP_SECONDS`, default 300) deletes expired runs a few at a time, but reads treat an expired run as missing even before the sweep.
-- **Restarts.** At startup, runs still `running` for longer than the timeout are marked `error` ("Run interrupted by server restart"). On shutdown, in-flight runs are stopped and marked the same way.
+- **Restarts.** Each process refreshes a heartbeat on its runs every second, queued runs included. Every process sweeps at startup and every 30 seconds, and marks `running` runs whose heartbeat is older than 15 seconds `error` ("Run interrupted by server restart"); the process of such a run, if alive, cancels it. On shutdown, in-flight runs are stopped and marked the same way.
 - **Runs never raise.** Every outcome, including unexpected failures, is saved as the run's final state. Users see fixed, sanitised messages, or the message of the action's own `RunError`. Stack traces go to the log with the trace id.
 
 Decided by the user. Related: [0004](0004-postgresql-persistence.md), [0009](0009-obo-token-exchange.md), [configuration](../configuration.md), [api](../api.md).
@@ -32,6 +32,8 @@ Decided by the user. Related: [0004](0004-postgresql-persistence.md), [0009](000
 | One `jsonb` value per run | Simple | A cap of about 256 MiB, and every read loads the whole value |
 | AG Grid's server-side row model | No browser limit | Loses the quick filter, full export and filtered select-all; a later effort |
 | A logged `run_rows` | Survives crashes | WAL for every result row, which can be rerun |
+| Sweep by `started_at` older than the timeout | No new column | Ends live runs of other replicas that wait for a slot or run late |
+| Sweep by the time the run took its slot | Matches the timeout | A queued run on a healthy replica has no slot time and is still at risk |
 
 ## Consequences
 

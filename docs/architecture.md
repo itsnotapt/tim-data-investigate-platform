@@ -964,7 +964,7 @@ A run:
 Cancel (`POST /api/runs/{runId}/cancel`) sets `cancel_requested` on the run.
 
 - The process executing the run acts at once when it took the request.
-- Every process also polls each second for cancel requests to the runs it executes, so any replica can take the request.
+- Every process also polls each second for cancel requests to the runs it executes, so any replica can take the request. The poll is the heartbeat (see Housekeeping).
 - A run cancelled while it waits for a slot never takes one.
 
 `details` holds, in this order:
@@ -999,7 +999,15 @@ A run that is unknown or expired is `404`, and so is cancelling someone else's r
 
 Housekeeping:
 
-- At startup, runs still `running` for longer than `TIM_RUN_TIMEOUT_SECONDS` are set to `error` (`Run interrupted by server restart`).
+- **Heartbeat:** each run has a `heartbeat_at`, set to `started_at` when the run is created.
+  - Every cancel poll (each second) refreshes it for every run in the process's active set, including runs that wait for a slot.
+  - The refresh is one `UPDATE … RETURNING` of the runs still `running`. It also reads their `cancel_requested`.
+  - A run the heartbeat no longer finds `running` has ended elsewhere, for example through another process's sweep. The process cancels it locally: `Hook.cancel()` is called and the slot is freed. Its outcome isn't stored.
+- **Sweep:** runs still `running` whose heartbeat is older than 15 seconds have lost their process.
+  - They are set to `error` (`Run interrupted by server restart`), and their rows are deleted.
+  - Every process sweeps at startup and then every 30 seconds.
+  - PostgreSQL picks the runs with `SELECT … FOR UPDATE SKIP LOCKED`, so replicas sweeping at once take different runs.
+  - A failed sweep is logged and retried at the next interval.
 - At shutdown, runs in flight are stopped and marked `error` the same way.
 - A background loop deletes runs past `expiresAt` every `TIM_RUN_RETENTION_SWEEP_SECONDS` (300).
   - It deletes ten runs at a time, so each delete of their rows stays short.
@@ -1120,7 +1128,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
 | `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
 | `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
-| `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`; indexes on expiry and `running` runs |
+| `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`, `heartbeat_at`; indexes on expiry and `running` runs, none on `heartbeat_at` so its updates can be HOT |
 | `run_rows` | `(run_id, ordinal)` | `UNLOGGED`. `ordinal` (the row number), `id` (text), `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
 | `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |

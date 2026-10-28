@@ -237,8 +237,9 @@ A timeout and a cancel both:
 Ending and cancelling:
 
 - `RunStore.finish` writes the final state, and deletes the rows unless the run succeeded. It leaves a run that has already ended unchanged.
-- Cancel sets `cancel_requested` on the run, so a replica that doesn't execute it can take the request. `Runner.start_watching` polls `RunStore.cancel_requested` for this process's runs every second (`CANCEL_POLL_SECONDS`).
-- At startup, `Runner.mark_stale` marks runs `running` for longer than the timeout as `error` "Run interrupted by server restart".
+- Cancel sets `cancel_requested` on the run, so a replica that doesn't execute it can take the request. `Runner.start_watching` calls `RunStore.heartbeat` for this process's runs every second (`CANCEL_POLL_SECONDS`). It sets their `heartbeat_at` and returns each run still `running` with its `cancel_requested`.
+  - A run the heartbeat doesn't return has ended elsewhere, and is cancelled locally.
+- `Runner.mark_stale`, at startup and every `STALE_SWEEP_SECONDS` (30), marks runs `running` with a `heartbeat_at` older than `STALE_HEARTBEAT_SECONDS` (15) as `error` "Run interrupted by server restart".
 - `Runner.aclose`, at shutdown, does the same for runs in flight.
 
 Rows are in the `UNLOGGED` table `run_rows`. `GET /{runId}/rows` answers:
