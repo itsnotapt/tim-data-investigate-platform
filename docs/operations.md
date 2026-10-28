@@ -181,7 +181,7 @@ Every version of a comment stays in the `comments` table, so clearing a comment 
   ```
 
 - An empty text reads as a cleared comment, so History shows "· cleared their comment" for those versions.
-- Blank every version of the author's comments on the `id` to remove the whole thread. If the newest version keeps its text, that text stays the current comment.
+- Blank every version of the author's comment on the `id` to remove all of its text. If the newest version keeps its text, that text stays the current comment.
 - Don't `DELETE` the newest version of an author's comment: the version before it becomes the current comment again.
 - The change takes no version, so it isn't on the change feed. A browser that already holds the `id`'s annotations, which it keeps in IndexedDB, shows the old text until the `id` next changes.
 

@@ -1,17 +1,13 @@
 import type { ColDef } from 'ag-grid-community';
-import type { Annotations } from '../../lib/api';
 import { formatUtcDateTime } from '../../lib/utcFormat';
 import { CommentCell, CommentEditor } from './CommentCell';
-import { commentsOf, idOf, shownComment } from './comments';
+import { annotationsOf, commentsOf, idOf, isEditedComment, shownComment } from './comments';
 
 export const TAGS_COLUMN_ID = 'tim:tags';
 export const COMMENTS_COLUMN_ID = 'tim:comments';
 export const COMMENT_TEXT_COLUMN_ID = 'tim:commentText';
 
 const NO_TAGS = '(no tags)';
-
-const annotationsOf = (data: unknown): Annotations | undefined =>
-  (data as { annotations?: Annotations } | null | undefined)?.annotations;
 
 /**
  * The hidden Tags column: the row's tags. The set filter lists each tag once, plus "(no tags)";
@@ -89,8 +85,8 @@ export function commentsColumnDef({ analyst, saveComment }: CommentsColumnOption
     // The change goes to the api; the row updates when the annotation store has it.
     valueSetter: (p) => {
       const id = idOf(p.data);
-      if (id === null) return false;
-      const text = typeof p.newValue === 'string' ? p.newValue.trim() : '';
+      if (id === null || !isEditedComment(p.newValue)) return false;
+      const text = p.newValue.edited.trim();
       if (text !== (commentsOf(p.data, analyst).mine?.text ?? '')) saveComment(id, text);
       return false;
     },

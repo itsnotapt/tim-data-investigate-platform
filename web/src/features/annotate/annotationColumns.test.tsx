@@ -188,22 +188,25 @@ describe('the Comment column', () => {
       await user.type(box(), 'same C2{Shift>}{Enter}{/Shift}as h2');
       expect(stopEditing).not.toHaveBeenCalled();
       expect(box()).toHaveValue('same C2\nas h2');
-      expect(onValueChange).toHaveBeenLastCalledWith('same C2\nas h2');
+      expect(onValueChange).toHaveBeenLastCalledWith({ edited: 'same C2\nas h2' });
       await user.keyboard('{Enter}');
       expect(stopEditing).toHaveBeenCalledWith();
     });
   });
 
-  it('saves your trimmed text, or clears it when blank, and nothing when unchanged', () => {
+  it("saves the editor's trimmed text, or clears it when blank, and nothing when unchanged or not from the editor", () => {
     const set = (data: unknown, newValue: unknown) =>
       (def.valueSetter as (p: { data: unknown; newValue: unknown }) => boolean)({
         data,
         newValue,
       });
-    expect(set(row({ comments }), ' same C2 ')).toBe(false);
-    expect(set(row({ comments }), '  ')).toBe(false);
-    expect(set(row({ comments }), 'first look ')).toBe(false);
-    expect(set(noId, 'x')).toBe(false);
+    expect(set(row({ comments }), { edited: ' same C2 ' })).toBe(false);
+    expect(set(row({ comments }), { edited: '  ' })).toBe(false);
+    expect(set(row({ comments }), { edited: 'first look ' })).toBe(false);
+    expect(set(noId, { edited: 'x' })).toBe(false);
+    // A paste, or Delete over a range of cells.
+    expect(set(row({ comments }), 'pasted')).toBe(false);
+    expect(set(row({ comments }), null)).toBe(false);
     expect(saveComment.mock.calls).toEqual([
       ['h1', 'same C2'],
       ['h1', ''],

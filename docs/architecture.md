@@ -519,13 +519,15 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - A stored key that the labels file no longer lists shows grey, as its bare key, with no symbol.
   - Every row with the same `id` shows it, in any tab.
 - **The Label column.** Column `tim:label` holds the label's name. It is hidden until the analyst shows it, and it has a set filter and can be grouped.
-- **Comment column.** Column `tim:comments` has the header **Comment**, is shown, is about 280px wide and has a text filter on the shown text.
-  - **Cell.** It shows the analyst's own comment. Without one it shows the latest other comment, dimmed and italic, as "author: text", with the author's UPN before the `@`. A line break shows as ⏎.
+- **Comment column.** Column `tim:comments` has the header **Comment**. It is shown and about 280px wide. It has a text filter on the shown text.
+  - **Cell.** It shows the analyst's own comment. Without one it shows the latest other comment, dimmed and italic, as "author: text". The author is the UPN's part before the `@`. A line break shows as ⏎.
   - **+N.** A chip counts the other current comments the cell doesn't show.
   - **Tooltip.** It lists every current comment, the analyst's first, with author and time. A row without an `id` says it can't have comments.
-  - **Editor.** Double-click, Enter or F2 opens a popup editor under the cell. It holds the analyst's comment, with the others' read-only. Enter or clicking away saves, Shift+Enter is a new line, Esc cancels, and a blank text clears the comment. Typing a letter doesn't start an edit, so T, C, D and the label digits keep working.
-  - **Save.** It sends a `PATCH /api/annotations` for the row's `id`, so every row of that `id` updates. A failed save keeps the old value and shows the toast "Couldn't save the comment: …".
-  - **TIM's own column.** A declared `type` on it is ignored, the Action file panel writes it as `type: string`, and a saved column view's number filter on it is dropped when the view loads.
+  - **Editor.** Double-click, Enter or F2 opens a popup editor under the cell. It holds the analyst's comment. The others' comments are read-only. Enter saves. Clicking away saves. Shift+Enter is a new line. Esc cancels. A blank text clears the comment. Typing a letter doesn't start an edit, so T, C, D and the label digits keep working.
+  - **Save.** It sends a `PATCH /api/annotations` for the row's `id`. Every row of that `id` updates. A failed save keeps the old value and shows the toast "Couldn't save the comment: …".
+  - **TIM's own column.** A declared `type` on it is ignored.
+    - The Action file panel writes it as `type: string`.
+    - A saved column view's number filter on it is dropped when the view loads.
 - **Hidden columns.** The analyst can show two more. A declared `tim:` column in the action's `columns:` sets up any of TIM's four columns, including whether it starts hidden ([Actions](actions.md#columns)).
   - **Tags** (`tim:tags`) holds the row's tags. Its set filter lists each tag once, plus "(no tags)", and it can be grouped.
   - **Comment text** (`tim:commentText`) holds the text of the row's current comments, and has a text filter.
@@ -536,7 +538,10 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - **Annotate… and Comment….** The menu has both after **Label ▸**, for the same target rows.
   - **Annotate…** (T) opens the Annotate dialog. It saves the label, the tags and the analyst's comment as one change.
   - **Comment…** (C) opens the same dialog with the comment only.
-  - On one row, the comment box starts with the analyst's comment, and emptying it clears the comment. On several rows it starts empty and, when the analyst has a comment on some of those ids, says "Replaces your comment on N of these ids". An empty box leaves comments alone.
+  - On one row, the comment box starts with the analyst's comment. Emptying it clears the comment.
+  - On several rows the box starts empty.
+  - When the analyst has a comment on some of those ids, the dialog says "Replaces your comment on N of these ids".
+  - An empty box leaves comments alone.
   - They are disabled, with the reason as a tooltip, in the same cases as **Label ▸** (see Targets).
 - **Row detail.** The menu has **Row detail** (D) after **Annotate…** and **Comment…**, in the same group. It acts on the clicked or focused row only.
   - It is never disabled, also on a row without an `id`.

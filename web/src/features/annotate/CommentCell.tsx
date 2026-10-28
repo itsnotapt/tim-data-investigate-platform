@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import type { CustomCellEditorProps } from 'ag-grid-react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { commentsOf, idOf, shortName, shownComment } from './comments';
+import { commentsOf, idOf, shortName, shownComment, type EditedComment } from './comments';
 
 const ellipsis = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
 
@@ -79,7 +79,7 @@ export function CommentEditor({ data, onValueChange, stopEditing, analyst }: Com
     });
     return () => clearTimeout(timer);
   }, []);
-  useEffect(() => onValueChange(text), [text, onValueChange]);
+  useEffect(() => onValueChange({ edited: text } satisfies EditedComment), [text, onValueChange]);
   return (
     <Box
       sx={{

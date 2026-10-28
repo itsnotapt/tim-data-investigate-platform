@@ -588,6 +588,8 @@ describe('ActionResultsGrid Comment cell', () => {
   });
 
   /** The grid with two rows of `id` and one of another, once the store has the annotations. */
+  let gridApi: GridApi | undefined;
+
   async function commentGrid(id: string) {
     await getAnnotationStore().apply([commentedBy(id, 1, [BOB, 'beacons'])], 'feed');
     const shown = [
@@ -605,6 +607,7 @@ describe('ActionResultsGrid Comment cell', () => {
             declaredColumns={[]}
             runColumns={columns}
             height={400}
+            onGridReady={(e) => (gridApi = e.api)}
           />
         </SnackbarHost>
       </AuthProvider>,
@@ -641,6 +644,29 @@ describe('ActionResultsGrid Comment cell', () => {
     const shown = 'same tdC2 ⏎ every 60s+1';
     await waitFor(() => expect(cellsOf()).toEqual([shown, shown]));
     expect(cell(2).textContent).toBe('');
+  });
+
+  it('leaves the comments alone on Delete or paste over a range of Comment cells', async () => {
+    server.use(
+      http.patch(apiUrl('/api/annotations'), async ({ request }) => {
+        patches.push(await request.json());
+        return HttpResponse.json({ changes: [], version: 1 });
+      }),
+    );
+    await commentGrid('e-4');
+    act(() => {
+      gridApi!.addCellRange({ rowStartIndex: 0, rowEndIndex: 2, columns: ['tim:comments'] });
+      cell(0).focus();
+    });
+    await userEvent.keyboard('{Delete}');
+    act(() => {
+      for (const row of [0, 1, 2]) {
+        gridApi!.getDisplayedRowAtIndex(row)!.setDataValue('tim:comments', 'pasted', 'paste');
+      }
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(patches).toEqual([]);
+    expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']);
   });
 
   it("counts a teammate's comment from the feed, under your own", async () => {

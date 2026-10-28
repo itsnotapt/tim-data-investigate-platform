@@ -24,8 +24,8 @@ export {
 export type { CommentsColumnOptions } from './annotationColumns';
 
 /** The annotation columns of an action grid: Comment (shown), Tags and Comment text (hidden). */
-export const annotationColumnDefs = (comments: CommentsColumnOptions): ColDef[] => [
-  commentsColumnDef(comments),
+export const annotationColumnDefs = (commentOptions: CommentsColumnOptions): ColDef[] => [
+  commentsColumnDef(commentOptions),
   tagsColumnDef(),
   commentTextColumnDef(),
 ];

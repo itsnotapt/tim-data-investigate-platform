@@ -1,6 +1,6 @@
 import type { Annotations, Comment } from '../../lib/api';
 
-const annotationsOf = (data: unknown): Annotations | undefined =>
+export const annotationsOf = (data: unknown): Annotations | undefined =>
   (data as { annotations?: Annotations } | null | undefined)?.annotations;
 
 /** The row's `id`, or `null` when it has none. */
@@ -31,3 +31,11 @@ export function shownComment(data: unknown, analyst: string | null): string | nu
   if (mine) return mine.text;
   return latest ? `${shortName(latest.author)}: ${latest.text}` : null;
 }
+
+/** The Comment editor's value: only an edit in the editor saves a comment, never a paste or Delete. */
+export interface EditedComment {
+  readonly edited: string;
+}
+
+export const isEditedComment = (value: unknown): value is EditedComment =>
+  typeof (value as Partial<EditedComment> | null | undefined)?.edited === 'string';

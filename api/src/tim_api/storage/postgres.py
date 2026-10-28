@@ -668,6 +668,16 @@ def _ids_param(ids: Collection[str]) -> Any:
     return bindparam("ids", list(ids), type_=ARRAY(Text))
 
 
+def _newest_comments(ids: Collection[str]) -> Any:
+    """The newest ``comments`` row of each author for each of ``ids``."""
+    return (
+        select(comments)
+        .where(comments.c.id == any_(_ids_param(ids)))
+        .ext(distinct_on(comments.c.id, comments.c.author))
+        .order_by(comments.c.id, comments.c.author, comments.c.version.desc())
+    )
+
+
 async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Annotations]:
     """The annotations of the ``id_state`` rows ``states``, in their order."""
     ids = _ids_param([state.id for state in states])
@@ -679,13 +689,7 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
     ):
         found_tags.setdefault(row.id, []).append(row.tag)
     found_comments: dict[str, list[Comment]] = {}
-    newest = (
-        select(comments)
-        .where(comments.c.id == any_(ids))
-        .ext(distinct_on(comments.c.id, comments.c.author))
-        .order_by(comments.c.id, comments.c.author, comments.c.version.desc())
-        .subquery()
-    )
+    newest = _newest_comments([state.id for state in states]).subquery()
     for row in await conn.execute(
         select(newest).where(newest.c.text != "").order_by(newest.c.version)
     ):
@@ -715,12 +719,7 @@ async def _commented(
         return []
     own = {
         row.id: row.text or None
-        for row in await conn.execute(
-            select(comments.c.id, comments.c.text)
-            .where(comments.c.id == any_(_ids_param(ids)), comments.c.author == by)
-            .ext(distinct_on(comments.c.id))
-            .order_by(comments.c.id, comments.c.version.desc())
-        )
+        for row in await conn.execute(_newest_comments(ids).where(comments.c.author == by))
     }
     return [id for id in ids if own.get(id) != edit.comment]
 
