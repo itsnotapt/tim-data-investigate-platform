@@ -3,14 +3,21 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
 import { load } from 'js-yaml';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
+import { HttpResponse, http } from 'msw';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Annotations, CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
+import { AuthProvider, createAuthClient, DEV_ACCOUNT } from '../../lib/auth';
+import { apiUrl, problemResponse } from '../../test/msw/handlers';
+import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import { getAnnotationStore } from '../../lib/annotations';
 import { annotated } from '../../test/annotationFakes';
 import type { LabelledRow } from '../labels';
 import { useTabsStore } from '../tabs';
 import { ActionResultsGrid } from './ActionResultsGrid';
+
+const server = setupMswServer();
 
 const declared: CatalogueColumn[] = [
   {
@@ -210,6 +217,8 @@ describe('ActionResultsGrid', () => {
     expect(stateOf(api, 'tim:label')).toMatchObject({ hide: false, width: 120, pinned: 'left' });
     expect(api.getColumn('tim:label')?.getColDef().headerName).toBe('Verdict');
     expect(stateOf(api, 'tim:comments')).toMatchObject({ hide: true, width: 140 });
+    // A declared type doesn't change one of TIM's own columns.
+    expect(api.getColumn('tim:comments')?.getColDef().filter).toBe('agTextColumnFilter');
     const order = api
       .getColumnState()
       .map((c) => c.colId)
@@ -553,5 +562,123 @@ describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
 
     const warnings = await screen.findAllByLabelText(/Declare the column as bigint/);
     expect(warnings.map((w) => w.closest('[col-id]')?.getAttribute('col-id'))).toEqual(['Hash']);
+  });
+});
+
+describe('ActionResultsGrid Comment cell', () => {
+  const BOB = 'bob@example.com';
+  const ME = DEV_ACCOUNT.name;
+  let patches: unknown[] = [];
+
+  const commentedBy = (id: string, version: number, ...by: [string, string][]): Annotations => ({
+    ...annotated(id, version, null),
+    comments: by.map(([author, text]) => ({ author, at: '2026-10-21T10:00:00Z', text })),
+  });
+
+  beforeEach(() => {
+    configureTestApp();
+    patches = [];
+    server.use(http.get(apiUrl('/api/columnViews'), () => HttpResponse.json([])));
+    // jsdom lays nothing out: the grid places the editor's popup from the grid's offset parent.
+    vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(() => document.body);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetTestApp();
+  });
+
+  /** The grid with two rows of `id` and one of another, once the store has the annotations. */
+  async function commentGrid(id: string) {
+    await getAnnotationStore().apply([commentedBy(id, 1, [BOB, 'beacons'])], 'feed');
+    const shown = [
+      { ...rows[0]!, id },
+      { ...rows[1]!, id },
+      { ...rows[0]!, row: 2, id: `${id}-other` },
+    ];
+    render(
+      <AuthProvider client={createAuthClient({ VITE_AUTH_STUB: 'true' })}>
+        <SnackbarHost>
+          <ActionResultsGrid
+            uuid={`comment-${id}`}
+            action="dev.sign_ins"
+            rows={shown}
+            declaredColumns={[]}
+            runColumns={columns}
+            height={400}
+          />
+        </SnackbarHost>
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']));
+    return userEvent.setup();
+  }
+
+  const cell = (row: number) =>
+    document.querySelector<HTMLElement>(`[row-index="${row}"] [col-id="tim:comments"]`)!;
+  /** The Comment cells of the two rows with the same id. */
+  const cellsOf = () => [0, 1].map((row) => cell(row)?.textContent ?? '');
+  const editor = (id: string) => screen.findByRole('textbox', { name: `Your comment on ${id}` });
+
+  it("saves the comment with Enter, for that row's id only, and every row of it shows it", async () => {
+    server.use(
+      http.patch(apiUrl('/api/annotations'), async ({ request }) => {
+        patches.push(await request.json());
+        return HttpResponse.json({
+          changes: [commentedBy('e-1', 2, [BOB, 'beacons'], [ME, 'same tdC2\nevery 60s'])],
+          version: 2,
+        });
+      }),
+    );
+    const user = await commentGrid('e-1');
+    await user.dblClick(cell(0));
+    await user.type(await editor('e-1'), 'same tdC2{Shift>}{Enter}{/Shift}every 60s');
+    expect(screen.queryByRole('dialog', { name: /Annotate|Comment/ })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Row detail' })).toBeNull();
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(patches).toEqual([{ ids: ['e-1'], comment: 'same tdC2\nevery 60s' }]),
+    );
+    const shown = 'same tdC2 ⏎ every 60s+1';
+    await waitFor(() => expect(cellsOf()).toEqual([shown, shown]));
+    expect(cell(2).textContent).toBe('');
+  });
+
+  it("counts a teammate's comment from the feed, under your own", async () => {
+    await commentGrid('e-3');
+    await act(() =>
+      getAnnotationStore().apply([commentedBy('e-3', 2, [BOB, 'beacons'], [ME, 'mine'])], 'own'),
+    );
+    await waitFor(() => expect(cellsOf()).toEqual(['mine+1', 'mine+1']));
+    const alice = 'alice@example.com';
+    await act(() =>
+      getAnnotationStore().apply(
+        [commentedBy('e-3', 3, [BOB, 'beacons'], [ME, 'mine'], [alice, 'seen it'])],
+        'feed',
+      ),
+    );
+    await waitFor(() => expect(cellsOf()).toEqual(['mine+2', 'mine+2']));
+  });
+
+  it('cancels with Esc, and keeps the old value with the reason when the save fails', async () => {
+    server.use(
+      http.patch(apiUrl('/api/annotations'), () =>
+        problemResponse(503, { title: 'Unavailable', detail: 'Try again shortly' }),
+      ),
+    );
+    const user = await commentGrid('e-2');
+    await user.dblClick(cell(0));
+    await user.type(await editor('e-2'), 'never sent');
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Your comment on e-2' })).toBeNull(),
+    );
+    act(() => cell(1).focus());
+    await user.keyboard('{Enter}');
+    await user.type(await editor('e-2'), 'refused');
+    await user.keyboard('{Enter}');
+    expect(
+      await screen.findByText("Couldn't save the comment: Try again shortly"),
+    ).toBeInTheDocument();
+    expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']);
   });
 });

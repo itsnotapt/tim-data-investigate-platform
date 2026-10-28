@@ -3,6 +3,7 @@ import { useCallback, useContext, useMemo, useState, type ReactNode } from 'reac
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
+import { useAnalyst } from '../../lib/auth';
 import type { GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import { targetIds, type LabelledRow, type RowsById } from '../labels';
 import { whyNoSink, type Sinks } from '../sinks';
@@ -54,6 +55,7 @@ export function useAnnotating({
   sinks,
 }: AnnotatingOptions): Annotating {
   const notify = useContext(NotifyContext);
+  const analyst = useAnalyst();
   const [open, setOpen] = useState<OpenDialog | null>(null);
   const options = useMemo(
     () => ({
@@ -94,6 +96,7 @@ export function useAnnotating({
       reach={open.reach}
       current={open.current}
       labels={labels}
+      analyst={analyst}
       afterTagging={
         sinks && {
           sinks: sinks.sinks,

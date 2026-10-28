@@ -133,7 +133,7 @@ An entry can name one of TIM's own grid columns to set it up: `tim:label`, `tim:
 
 - It gives that column's `title`, `hidden`, `width`, `pinned`, `sort` and `group`.
 - It is shown unless it says `hidden: true`, like any declared column, so declaring `tim:tags` or `tim:commentText` without `hidden: true` shows a column TIM otherwise hides.
-- Any other `tim:` name is an error, and so is `calculated` on a `tim:` column.
+- Any other `tim:` name is an error, and so is `calculated` on a `tim:` column. A `type` on a `tim:` column is ignored.
 - The grid places it after the declared column before it, like a calculated column.
 - It holds no data and isn't one of the run's columns. `dev_rows` makes no value for it.
 

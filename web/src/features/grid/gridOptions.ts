@@ -136,5 +136,7 @@ export const staticGridOptions: GridOptions<GridRowWithId> = {
   sideBar: SIDE_BAR,
   statusBar: { statusPanels: STATUS_PANELS },
   skipHeaderOnAutoSize: true,
+  // A cell being edited saves when the focus leaves it, as when clicking away.
+  stopEditingWhenCellsLoseFocus: true,
   suppressColumnMoveAnimation: false,
 };

@@ -160,9 +160,30 @@ The change feed carries annotations ([architecture.md](architecture.md#annotatio
   - Many tabs of one browser cost one poller: the tab holding a Web Lock reads, and tells the others.
   - So the load is one request per open browser per interval. Raise the interval to lower it. Labels then reach other analysts later.
 - **Tombstones.** An `id` whose annotations are all removed keeps its row in `id_state`, with no label, so the removal reaches other browsers. Rows are never deleted, and nothing needs cleaning up.
-- **History.** `label_changes` keeps every label change with who made it and when. Comments are kept with their author and time; removed tags are deleted.
+- **History.** `label_changes` keeps every label change with who made it and when. `comments` keeps every version of every comment with its author and time ([Remove a comment's text](#remove-a-comments-text)); removed tags are deleted.
 - **Cursors.** A browser keeps its place in its own IndexedDB. A new browser, or one with its site data cleared, reads the whole feed once.
 - **The labels file.** Check a file with `tim-api check --labels <file>`, and print its JSON Schema with `tim-api schema labels` ([`tim-api check`](#tim-api-check)). Stored labels keep the `key` they were set with. A key that is later taken out of the file shows grey in the grid, and can still be cleared or replaced.
+
+### Remove a comment's text
+
+Every version of a comment stays in the `comments` table, so clearing a comment in the UI doesn't erase its old text from the database or from an `id`'s History. To remove text for good, blank it in the versions that hold it.
+
+- Find the versions:
+
+  ```sql
+  SELECT id, author, version, created_at, text FROM comments WHERE id = '<id>' ORDER BY version;
+  ```
+
+- Blank the text of the versions to remove:
+
+  ```sql
+  UPDATE comments SET text = '' WHERE id = '<id>' AND author = '<author>' AND version IN (<versions>);
+  ```
+
+- An empty text reads as a cleared comment, so History shows "· cleared their comment" for those versions.
+- Blank every version of the author's comments on the `id` to remove the whole thread. If the newest version keeps its text, that text stays the current comment.
+- Don't `DELETE` the newest version of an author's comment: the version before it becomes the current comment again.
+- The change takes no version, so it isn't on the change feed. A browser that already holds the `id`'s annotations, which it keeps in IndexedDB, shows the old text until the `id` next changes.
 
 ### Run retention and cleanup
 

@@ -145,10 +145,23 @@ describe('labelNow', () => {
 });
 
 describe('changeBody', () => {
-  const nothing = { label: undefined, edits: NO_TAG_EDITS, comment: '' };
+  const nothing = { label: undefined, edits: NO_TAG_EDITS, comment: '', commentBefore: '' };
 
   it('is null when the dialog changes nothing', () => {
     expect(changeBody(['a'], { ...nothing, comment: '  ' })).toBeNull();
+    expect(
+      changeBody(['a'], { ...nothing, comment: ' first look\n', commentBefore: 'first look' }),
+    ).toBeNull();
+  });
+
+  it('sends your edited comment, and null when you empty it', () => {
+    expect(
+      changeBody(['a'], { ...nothing, comment: 'same C2 ', commentBefore: 'first look' }),
+    ).toEqual({ ids: ['a'], comment: 'same C2' });
+    expect(changeBody(['a'], { ...nothing, comment: ' \n', commentBefore: 'first look' })).toEqual({
+      ids: ['a'],
+      comment: null,
+    });
   });
 
   it('keeps the label by leaving it out, and sends only the parts that change', () => {
@@ -157,6 +170,7 @@ describe('changeBody', () => {
         label: undefined,
         edits: { add: ['c2'], remove: ['tor'] },
         comment: ' beacons \n',
+        commentBefore: '',
       }),
     ).toEqual({ ids: ['a', 'b'], addTags: ['c2'], removeTags: ['tor'], comment: 'beacons' });
   });

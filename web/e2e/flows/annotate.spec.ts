@@ -5,6 +5,10 @@ const grid = (page: Page) => page.getByTestId('results-grid');
 const dialog = (page: Page, name: 'Annotate' | 'Comment' = 'Annotate') =>
   page.getByRole('dialog', { name });
 
+/** The Comment cell of the rows of `host`. */
+const commentOf = (page: Page, host: string) =>
+  rowsWith(page, host).locator('.ag-cell[col-id="tim:comments"]');
+
 /** The grid rows whose Host is `host` (the part of each row beside the pinned selection column). */
 const rowsWith = (page: Page, host: string) =>
   grid(page)
@@ -74,12 +78,12 @@ test('a label, two tags and a comment saved at once reach every row with that id
 
   for (const row of await rowsWith(page, a).all()) {
     await expect(row).toHaveClass(/tim-label-red/);
-    await expect(row.getByLabel('1 comment')).toBeVisible();
   }
-  await expect(rowsWith(page, b).getByLabel(/comment/)).toHaveCount(0);
+  await expect(commentOf(page, a)).toHaveText(['beacons every 60s', 'beacons every 60s']);
+  await expect(commentOf(page, b)).toHaveText('');
 
   await expect(rowsWith(teammate.page, a)).toHaveClass(/tim-label-red/);
-  await expect(rowsWith(teammate.page, a).getByLabel('1 comment')).toBeVisible();
+  await expect(commentOf(teammate.page, a)).toHaveText(`${idPrefix}.analyst: beacons every 60s`);
   await grid(teammate.page).getByText(a).click();
   await teammate.page.keyboard.press('t');
   await expect(dialog(teammate.page).getByText('Now: Malicious')).toBeVisible();
@@ -95,9 +99,9 @@ test('a label, two tags and a comment saved at once reach every row with that id
   await dialog(teammate.page, 'Comment')
     .getByRole('textbox', { name: 'Comment' })
     .fill('owner confirmed');
-  await teammate.page.keyboard.press('Control+Enter');
+  await dialog(teammate.page, 'Comment').getByRole('button', { name: 'Save' }).click();
   await expect(teammate.page.getByText('Commented on 1 id')).toBeVisible();
-  await expect(rowsWith(page, a).first().getByLabel('2 comments')).toBeVisible();
+  await expect(commentOf(page, a).first()).toHaveText('beacons every 60s+1');
 });
 
 test('the Tags filter lists each tag once; a partial tag is removed from all, after an undo', async ({

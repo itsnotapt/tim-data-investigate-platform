@@ -72,7 +72,18 @@ beforeEach(() => {
   );
 });
 
-const fixed = { labels, columns: [], idParam: true, call };
+const ALICE = 'alice@example.com';
+const BOB = 'bob@example.com';
+
+const commented: Annotations = {
+  ...annotations,
+  comments: [
+    { author: BOB, at: '2026-10-21T10:04:00Z', text: 'beacons every 60s' },
+    { author: ALICE, at: '2026-10-21T10:06:00Z', text: 'first look' },
+  ],
+};
+
+const fixed = { labels, columns: [], idParam: true, analyst: ALICE, call };
 
 function renderPanel(props: Partial<RowDetailProps> = {}) {
   const onCommented = vi.fn();
@@ -140,19 +151,64 @@ describe('RowDetail', () => {
     expect(asked).toEqual(['h1']);
   });
 
-  it('adds a comment to the id with Ctrl+Enter, then reads the history again', async () => {
-    const { onCommented, user } = renderPanel();
+  it("starts with your comment, and lists the others' comments below it", async () => {
+    renderPanel({ annotations: commented });
+    await screen.findByRole('list', { name: 'History' });
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveValue('first look');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(
+      within(screen.getByRole('list', { name: 'Other comments' }))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([`${BOB} · 2026-10-21 10:04 UTCbeacons every 60s`]);
+  });
+
+  it('replaces your comment with Save, then reads the history again', async () => {
+    const { onCommented, user } = renderPanel({ annotations: commented });
     await screen.findByRole('list', { name: 'History' });
     const box = screen.getByRole('textbox', { name: 'Comment' });
-    await user.type(box, '  same C2 as h2 ');
+    await user.clear(box);
+    await user.type(box, '  same C2{Enter}as h2 ');
     await user.keyboard('{Control>}{Enter}{/Control}');
+    expect(patches).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onCommented).toHaveBeenCalledWith([{ ...annotations, version: 5 }]));
-    expect(patches).toEqual([{ ids: ['h1'], comment: 'same C2 as h2' }]);
-    await waitFor(() => expect(box).toHaveValue(''));
+    expect(patches).toEqual([{ ids: ['h1'], comment: 'same C2\nas h2' }]);
     await waitFor(() => expect(asked).toEqual(['h1', 'h1']));
   });
 
-  it('keeps the comment and shows why when adding it fails', async () => {
+  it('clears your comment when saved empty', async () => {
+    const { onCommented, user } = renderPanel({ annotations: commented });
+    await user.clear(screen.getByRole('textbox', { name: 'Comment' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onCommented).toHaveBeenCalled());
+    expect(patches).toEqual([{ ids: ['h1'], comment: null }]);
+  });
+
+  it('shows an earlier version of a comment as edited, and an empty one as cleared', async () => {
+    server.use(
+      http.get(apiUrl('/api/annotations/history'), () =>
+        HttpResponse.json({
+          entries: [
+            { kind: 'comment', author: BOB, at: '2026-10-21T10:09:00Z', text: '' },
+            { kind: 'comment', author: ALICE, at: '2026-10-21T10:08:00Z', text: 'same C2' },
+            { kind: 'comment', author: BOB, at: '2026-10-21T10:07:00Z', text: 'beacons' },
+            { kind: 'comment', author: ALICE, at: '2026-10-21T10:06:00Z', text: 'first look' },
+          ],
+        }),
+      ),
+    );
+    renderPanel();
+    await screen.findByRole('list', { name: 'History' });
+    expect(historyItems()).toEqual([
+      `${BOB} · 2026-10-21 10:09 UTC · cleared their comment`,
+      `${ALICE} · 2026-10-21 10:08 UTCsame C2`,
+      `${BOB} · 2026-10-21 10:07 UTC · editedbeacons`,
+      `${ALICE} · 2026-10-21 10:06 UTC · editedfirst look`,
+    ]);
+  });
+
+  it('keeps the comment and shows why when saving it fails', async () => {
     server.use(
       http.patch(apiUrl('/api/annotations'), () =>
         problemResponse(422, { errors: { comment: ["A comment can't be blank"] } }),
@@ -160,8 +216,8 @@ describe('RowDetail', () => {
     );
     const { onCommented, user } = renderPanel();
     await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'x');
-    await user.click(screen.getByRole('button', { name: 'Add comment' }));
-    expect(await screen.findByText(/Couldn't add the comment/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText(/Couldn't save the comment/)).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveValue('x');
     expect(onCommented).not.toHaveBeenCalled();
   });
@@ -245,7 +301,7 @@ describe('RowDetail', () => {
   });
 
   it('folds Comments and history, and keeps it folded on the next row and the next opening', async () => {
-    const { rerender, unmount, user } = renderPanel();
+    const { rerender, unmount, user } = renderPanel({ annotations: commented });
     const heading = await screen.findByRole('button', {
       name: /^Comments and history\s*2 comments · 4 entries$/,
     });

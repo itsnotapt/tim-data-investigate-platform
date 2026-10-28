@@ -57,18 +57,22 @@ test('D opens Row detail on the focused row, which follows focus and a teammateâ
   await expect(panel(page).getByRole('region', { name: 'Fields' })).toContainText('2048');
 
   const comment = panel(page).getByRole('textbox', { name: 'Comment' });
+  const save = panel(page).getByRole('button', { name: 'Save' });
   await comment.fill('first look');
-  await comment.press('Control+Enter');
-  await expect(comment).toHaveValue('');
+  await save.click();
+  await expect(entries(page).first()).toHaveText(/first look$/);
+  await expect(comment).toHaveValue('first look');
   await comment.fill('beacons every 60s');
-  await comment.press('Control+Enter');
+  await save.click();
   await expect(entries(page)).toHaveText([
     /beacons every 60s$/,
     /first look$/,
     /^Malicious â†’ Benign/,
     /^No label â†’ Malicious/,
   ]);
-  await expect(rowsWith(page, a).getByLabel('2 comments')).toBeVisible();
+  await expect(rowsWith(page, a).locator('.ag-cell[col-id="tim:comments"]')).toHaveText(
+    'beacons every 60s',
+  );
 
   const teammate = await signIn(`${idPrefix}.teammate@example.com`);
   await runJson(teammate.page, [{ Host: a }]);
@@ -78,7 +82,10 @@ test('D opens Row detail on the focused row, which follows focus and a teammateâ
     .getByRole('dialog', { name: 'Comment' })
     .getByRole('textbox', { name: 'Comment' })
     .fill('owner confirmed');
-  await teammate.page.keyboard.press('Control+Enter');
+  await teammate.page
+    .getByRole('dialog', { name: 'Comment' })
+    .getByRole('button', { name: 'Save' })
+    .click();
   await expect(teammate.page.getByText('Commented on 1 id')).toBeVisible();
 
   await page.bringToFront();

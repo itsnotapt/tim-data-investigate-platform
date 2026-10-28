@@ -11,6 +11,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
+import { useAnalyst } from '../../lib/auth';
 import {
   ACTION_SIDE_BAR,
   ACTION_STATUS_PANELS,
@@ -18,7 +19,7 @@ import {
   copyColumnSettingsItem,
   useActionColumnView,
 } from '../action-column-views';
-import { annotationColumnDefs, useAnnotating, useRowDetail } from '../annotate';
+import { annotationColumnDefs, saveComment, useAnnotating, useRowDetail } from '../annotate';
 import type { GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
@@ -117,7 +118,22 @@ export function ActionResultsGrid({
       false,
   );
   const notifyContext = useContext(NotifyContext);
-  const own = useMemo(() => [...annotationColumnDefs(), labelColumnDef(labels)], [labels]);
+  const analyst = useAnalyst();
+  const own = useMemo(
+    () => [
+      ...annotationColumnDefs({
+        analyst,
+        saveComment: (id, text) =>
+          void saveComment(id, text, {
+            store: getAnnotationStore(),
+            notify: (options) => notifyContext?.(options),
+            pollSoon: pollAnnotationsSoon,
+          }),
+      }),
+      labelColumnDef(labels),
+    ],
+    [labels, analyst, notifyContext],
+  );
   const columnDefs = useMemo(
     () => buildActionColumnDefs(declaredColumns, runColumns, own),
     [declaredColumns, runColumns, own],

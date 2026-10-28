@@ -34,6 +34,14 @@ const annotations = (id: string, tags: string[], key: string | null = null): Ann
   version: 1,
 });
 
+const ALICE = 'alice@example.com';
+const BOB = 'bob@example.com';
+
+const withComments = (a: Annotations, ...comments: [string, string][]): Annotations => ({
+  ...a,
+  comments: comments.map(([author, text]) => ({ author, at: '2026-10-21T10:00:00Z', text })),
+});
+
 let patches: unknown[] = [];
 let prefixes: string[] = [];
 
@@ -62,6 +70,7 @@ function renderDialog(props: Partial<AnnotateDialogProps> = {}) {
       reach={{ rows: 4, ids: 3, otherRows: 2, withoutId: 1 }}
       current={[annotations('h1', ['c2', 'beacon'], 'malicious'), annotations('h2', ['c2'])]}
       labels={labels}
+      analyst={ALICE}
       onSaved={onSaved}
       onClose={onClose}
       call={call}
@@ -158,15 +167,53 @@ describe('AnnotateDialog', () => {
     expect(screen.getByRole('button', { name: 'botnet' })).toBeInTheDocument();
   });
 
-  it('saves with Ctrl+Enter, including a tag still being typed', async () => {
+  it('saves a tag still being typed', async () => {
     const { user, onClose } = renderDialog();
-    await user.type(screen.getByRole('textbox', { name: 'Comment' }), 'seen before');
     await user.type(screen.getByRole('combobox', { name: 'Add tag' }), 'tor');
-    await user.keyboard('{Control>}{Enter}{/Control}');
+    await user.click(save());
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(patches).toEqual([
-      { ids: ['h1', 'h2', 'h3'], addTags: ['tor'], comment: 'seen before' },
-    ]);
+    expect(patches).toEqual([{ ids: ['h1', 'h2', 'h3'], addTags: ['tor'] }]);
+  });
+
+  it('takes Enter and Ctrl+Enter in the comment as new lines, not a save', async () => {
+    const { user, onClose } = renderDialog({ mode: 'comment' });
+    const box = screen.getByRole('textbox', { name: 'Comment' });
+    await user.type(box, 'seen{Enter}before');
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    expect(box).toHaveValue('seen\nbefore');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(patches).toEqual([]);
+  });
+
+  it('on one id, starts with your comment, and emptying it clears it', async () => {
+    const { user, onClose } = renderDialog({
+      mode: 'comment',
+      targets: ['h1'],
+      current: [withComments(annotations('h1', []), [BOB, 'beacons'], [ALICE, 'first look'])],
+    });
+    const box = screen.getByRole('textbox', { name: 'Comment' });
+    expect(box).toHaveValue('first look');
+    expect(save()).toBeDisabled();
+    await user.clear(box);
+    await user.click(save());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(patches).toEqual([{ ids: ['h1'], comment: null }]);
+  });
+
+  it('on several ids, starts empty and says how many of your comments it replaces', async () => {
+    const { user, onClose } = renderDialog({
+      current: [
+        withComments(annotations('h1', []), [ALICE, 'first look']),
+        withComments(annotations('h2', []), [BOB, 'beacons']),
+      ],
+    });
+    const box = screen.getByRole('textbox', { name: 'Comment' });
+    expect(box).toHaveValue('');
+    expect(screen.getByText('Replaces your comment on 1 of these ids')).toBeInTheDocument();
+    await user.type(box, 'same C2');
+    await user.click(save());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(patches).toEqual([{ ids: ['h1', 'h2', 'h3'], comment: 'same C2' }]);
   });
 
   it('stays open with the error when the change fails', async () => {

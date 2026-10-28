@@ -124,6 +124,24 @@ describe('fitColumnView', () => {
     });
   });
 
+  it('drops a number filter on the Comment column, which shows text, and keeps a text one', () => {
+    const base = { columnOrder: { orderedColIds: ['User', 'tim:comments'] } };
+    const filtered = (filter: object) => ({
+      partialColumnState: true,
+      filter: {
+        filterModel: { User: { filterType: 'text' }, 'tim:comments': filter },
+        columnFilterState: { User: { a: 1 }, 'tim:comments': { b: 2 } },
+      },
+    });
+    const number = { filterType: 'number', type: 'greaterThan', filter: 0 };
+    expect(fitColumnView(filtered(number), base).filter).toEqual({
+      filterModel: { User: { filterType: 'text' } },
+      columnFilterState: { User: { a: 1 } },
+    });
+    const text = { filterType: 'text', type: 'contains', filter: 'beacon' };
+    expect(fitColumnView(filtered(text), base).filter).toEqual(filtered(text).filter);
+  });
+
   it('appends the columns the view does not know, with their action default', () => {
     // Saved on a result with only User and Host.
     const view = {

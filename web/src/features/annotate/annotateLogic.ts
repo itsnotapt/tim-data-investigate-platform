@@ -157,21 +157,64 @@ export function labelNow(
   return `Now: ${parts.join(' · ')}`;
 }
 
-/** What the analyst chose in the dialog. `label`: a key sets it, `null` clears it, `undefined` keeps it. */
+/** `analyst`'s current comment in `annotations`, or `''` when they have none. */
+export function ownComment(annotations: Annotations | undefined, analyst: string | null): string {
+  return annotations?.comments?.find((c) => c.author === analyst)?.text ?? '';
+}
+
+/**
+ * What the comment box starts with: on one target, `analyst`'s comment on it; on several, nothing.
+ */
+export function commentStart(
+  current: readonly Annotations[],
+  targets: readonly string[],
+  analyst: string | null,
+): string {
+  const [only] = targets;
+  if (targets.length !== 1) return '';
+  return ownComment(
+    current.find((a) => a.id === only),
+    analyst,
+  );
+}
+
+/**
+ * "Replaces your comment on N of these ids", when the box starts empty on several targets and
+ * `analyst` has a comment on some of them.
+ */
+export function replacesLine(
+  current: readonly Annotations[],
+  targets: readonly string[],
+  analyst: string | null,
+): string | null {
+  if (targets.length < 2) return null;
+  const mine = current.filter((a) => ownComment(a, analyst) !== '').length;
+  return mine > 0 ? `Replaces your comment on ${count(mine)} of these ids` : null;
+}
+
+/**
+ * What the analyst chose in the dialog. `label`: a key sets it, `null` clears it, `undefined` keeps
+ * it. `comment`: the comment box, which started as `commentBefore`.
+ */
 export interface DialogChoice {
   label: string | null | undefined;
   edits: TagEdits;
   comment: string;
+  commentBefore: string;
 }
 
-/** The `PATCH /api/annotations` body for `choice` on `ids`, or `null` when it changes nothing. */
+/**
+ * The `PATCH /api/annotations` body for `choice` on `ids`, or `null` when it changes nothing. The
+ * comment is sent when it differs from what the box started with; emptied, it is `null`, which
+ * clears your comment.
+ */
 export function changeBody(ids: readonly string[], choice: DialogChoice): AnnotationsChange | null {
   const comment = choice.comment.trim();
   const body: AnnotationsChange = { ids: [...ids] };
   if (choice.label !== undefined) body.label = choice.label;
   if (choice.edits.add.length > 0) body.addTags = [...choice.edits.add];
   if (choice.edits.remove.length > 0) body.removeTags = [...choice.edits.remove];
-  if (comment !== '') body.comment = comment;
+  if (comment !== choice.commentBefore.trim()) body.comment = comment === '' ? null : comment;
   return Object.keys(body).length === 1 ? null : body;
 }
 

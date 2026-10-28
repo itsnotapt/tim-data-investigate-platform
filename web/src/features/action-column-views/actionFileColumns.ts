@@ -11,7 +11,7 @@ const TIM_COLUMN_TYPES: Record<string, ActionFileColumn['type']> = {
   'tim:label': 'string',
   'tim:tags': 'json',
   'tim:commentText': 'string',
-  'tim:comments': 'number',
+  'tim:comments': 'string',
 };
 
 /** An action file column type for each type of AG Grid's calculated column dialog. */
