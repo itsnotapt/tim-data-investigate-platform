@@ -579,8 +579,14 @@ describe('ActionResultsGrid Comment cell', () => {
     configureTestApp();
     patches = [];
     server.use(http.get(apiUrl('/api/columnViews'), () => HttpResponse.json([])));
-    // jsdom lays nothing out: the grid places the editor's popup from the grid's offset parent.
+    // jsdom lays nothing out: the grid places the editor's popup from the grid's offset parent,
+    // and every 200 ms closes it when its cell has no size, as a cell scrolled away has.
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(() => document.body);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('ag-cell') ? new DOMRect(0, 0, 280, 30) : new DOMRect();
+    });
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -612,7 +618,10 @@ describe('ActionResultsGrid Comment cell', () => {
         </SnackbarHost>
       </AuthProvider>,
     );
-    await waitFor(() => expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']));
+    // The grid can take over a second to start on a busy machine.
+    await waitFor(() => expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']), {
+      timeout: 5000,
+    });
     return userEvent.setup();
   }
 
@@ -644,6 +653,28 @@ describe('ActionResultsGrid Comment cell', () => {
     const shown = 'same tdC2 ⏎ every 60s+1';
     await waitFor(() => expect(cellsOf()).toEqual([shown, shown]));
     expect(cell(2).textContent).toBe('');
+  });
+
+  it("keeps editing when a teammate's comment on the id comes in from the feed", async () => {
+    server.use(
+      http.patch(apiUrl('/api/annotations'), async ({ request }) => {
+        patches.push(await request.json());
+        return HttpResponse.json({ changes: [], version: 3 });
+      }),
+    );
+    const user = await commentGrid('e-5');
+    await user.dblClick(cell(0));
+    await user.type(await editor('e-5'), 'same');
+    await act(() =>
+      getAnnotationStore().apply(
+        [commentedBy('e-5', 2, [BOB, 'beacons'], ['alice@example.com', 'seen it'])],
+        'feed',
+      ),
+    );
+    // Longer than the grid's 200 ms check on the popup.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await user.keyboard(' C2{Enter}');
+    await waitFor(() => expect(patches).toEqual([{ ids: ['e-5'], comment: 'same C2' }]));
   });
 
   it('leaves the comments alone on Delete or paste over a range of Comment cells', async () => {
