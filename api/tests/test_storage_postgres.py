@@ -81,80 +81,37 @@ ALL_TABLES = {
 
 
 def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
-    assert _tables(scratch_dsn) == set()
-    migrate(scratch_dsn)
-    assert _tables(scratch_dsn) == ALL_TABLES
-
     def indexes(conn: Connection) -> set[str]:
         insp = inspect(conn)
         return {str(i["name"]) for t in insp.get_table_names() for i in insp.get_indexes(t)}
 
-    found = asyncio.run(_with_conn(scratch_dsn, indexes))
-    assert {
+    assert _tables(scratch_dsn) == set()
+    migrate(scratch_dsn)
+    assert _tables(scratch_dsn) == ALL_TABLES
+    assert "heartbeat_at" in _run_columns(scratch_dsn)
+    assert asyncio.run(_with_conn(scratch_dsn, indexes)) == {
         "ix_runs_expires_at",
         "ix_runs_running_started",
         "ix_presets_created_id",
         "ix_column_views_created_id",
         "ix_id_state_version",
-    } <= found
+    }
 
     migrate(scratch_dsn)  # idempotent
-    assert "heartbeat_at" in _run_columns(scratch_dsn)
-    migrate(scratch_dsn, "0008", down=True)
-    assert "heartbeat_at" not in _run_columns(scratch_dsn)
-    migrate(scratch_dsn, "0007", down=True)
     assert _tables(scratch_dsn) == ALL_TABLES
-    migrate(scratch_dsn, "0006", down=True)
-    assert _tables(scratch_dsn) == ALL_TABLES | {"query_runs"}
-
-    found = asyncio.run(_with_conn(scratch_dsn, indexes))
-    assert {
+    migrate(scratch_dsn, "0001", down=True)
+    assert _tables(scratch_dsn) == {"query_templates", "query_runs"}
+    assert asyncio.run(_with_conn(scratch_dsn, indexes)) == {
+        "ix_query_templates_updated_uuid",
         "ix_query_runs_requested_by",
         "ix_query_runs_expires_at",
         "ix_query_runs_created_executed",
-    } <= found
+    }
 
-    migrate(scratch_dsn, "0005", down=True)
-    assert _tables(scratch_dsn) == ALL_TABLES | {"query_runs", "query_templates"}
-    migrate(scratch_dsn, "0002", down=True)
-    assert _tables(scratch_dsn) == {"query_templates", "query_runs", "runs", "run_rows"}
-    migrate(scratch_dsn, "0001", down=True)
-    assert _tables(scratch_dsn) == {"query_templates", "query_runs"}
     migrate(scratch_dsn, "base", down=True)
     assert _tables(scratch_dsn) == set()
     migrate(scratch_dsn)  # and repeatable
     assert _tables(scratch_dsn) == ALL_TABLES
-
-
-def test_stored_rows_survive_the_change_of_run_rows_to_json(scratch_dsn: str) -> None:
-    migrate(scratch_dsn, "0007")
-
-    def store(conn: Connection) -> None:
-        run_id = uuid.uuid4()
-        conn.execute(
-            text(
-                "INSERT INTO runs (run_id, owner, status, action, params, details, started_at, "
-                "expires_at) VALUES (:run_id, 'alice', 'running', '{}', '{}', '{}', now(), now())"
-            ),
-            {"run_id": run_id},
-        )
-        conn.execute(
-            text(
-                "INSERT INTO run_rows (run_id, ordinal, id, data) VALUES (:run_id, 0, 'e', :data)"
-            ),
-            {"run_id": run_id, "data": '{"b": 1, "a": {"y": 2}}'},
-        )
-        conn.commit()
-
-    def stored(conn: Connection) -> tuple[str, str]:
-        found = conn.execute(text("SELECT pg_typeof(data)::text, data::text FROM run_rows")).one()
-        return str(found[0]), str(found[1])
-
-    asyncio.run(_with_conn(scratch_dsn, store))
-    migrate(scratch_dsn)
-    assert asyncio.run(_with_conn(scratch_dsn, stored)) == ("json", '{"a": {"y": 2}, "b": 1}')
-    migrate(scratch_dsn, "0007", down=True)
-    assert asyncio.run(_with_conn(scratch_dsn, stored)) == ("jsonb", '{"a": {"y": 2}, "b": 1}')
 
 
 def test_run_rows_are_unlogged_and_runs_are_logged(scratch_dsn: str) -> None:

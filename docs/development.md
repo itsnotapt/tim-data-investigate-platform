@@ -293,6 +293,11 @@ To add a revision:
 
 Every alembic command needs `TIM_DATABASE_URL` exported, with a `postgresql+asyncpg://` URL.
 
+A local database whose `alembic_version` names a revision that no longer exists fails with "Can't locate revision". Reset it:
+
+1. Drop the database. For the compose Postgres, run `docker compose down -v` from the repo root. It deletes the `postgres-data` volume. Then run `docker compose up -d postgres`, also from the repo root.
+2. Run `uv run alembic upgrade head` in `api/` again.
+
 The api image ships the migrations, so deployments run them with the same image ([operations.md](operations.md#run-database-migrations)).
 
 ## CI and releases
