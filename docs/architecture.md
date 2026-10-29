@@ -50,7 +50,7 @@ Related docs:
 
 Key points:
 
-- Investigation state (tabs, cached result rows, the column views applied per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
+- Investigation state (tabs, cached result rows, the default views per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
 - Actions run on the API. It exchanges the caller's token for each connection's token (OBO), runs the action's hook and stores the result as a run. The SPA polls the run and loads its rows.
 - Labels, tags and comments are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
 
@@ -121,7 +121,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - On load, a stored tab of an unknown kind is dropped, with its rows.
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
-- **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `instanceStore`.
+- **`defaultViewsStore`** holds the analyst's default views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `instanceStore`.
 - **`analystStore`** (`web/src/features/analyst/`) holds the name the API knows the signed-in analyst by, from `GET /api/me`. It is `null` until loaded.
   - Bootstrap loads it first.
   - `useAnalyst()` returns it. It is the `author` of the analyst's own comments, so the grid compares it with `Comment.author`.
@@ -146,7 +146,7 @@ Besides the common fields, an action tab's state holds:
 | `resultColumns` | That run's columns |
 | `resultsStartedAt` | When that run started |
 | `gridState` | The column and filter sections of the tab's grid, as the analyst last left them |
-| `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the action default), and the grid state just after it was put on |
+| `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the built-in view), and the grid state just after it was put on |
 
 ### Data flow: run, poll, pivot
 
@@ -201,7 +201,7 @@ Database `tim` (version 5):
 |---|---|---|
 | `display_components` | `componentUuid` | Tab: name (`ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
 | `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
-| `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the column view an analyst applied. `scope` is `preset:<presetId>` or `action:<key>` |
+| `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the default view an analyst chose. `scope` is `preset:<presetId>` or `action:<key>` |
 | `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
 
@@ -247,7 +247,7 @@ A From row query parameter is left unset too. A From row input that is still uns
 
 The action tab has a header, a pills bar and inner tabs.
 
-**Header:** the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [applied column view](#column-views), not the original's columns.
+**Header:** the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
 
 **Pills bar:** one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
@@ -409,54 +409,65 @@ A preset is an action with some params fixed and the rest filled in by the analy
 A column view is a named, saved set of the results grid's columns and filters ([GLOSSARY.md](../GLOSSARY.md)). Action tabs use it. Its stored shape is in [api.md](api.md#columnview); the decision is [ADR-0022](adr/0022-column-views-store-grid-state.md).
 
 - It is private to its owner, or shared with everyone.
-- Others read a shared column view but do not change it. They apply it, hide it for themselves, or save their own copy.
+- Others read a shared column view but do not change it. They switch to it, hide it for themselves, or save their own copy.
 - Names are not unique. Last write wins.
 
 **What's stored.** `state` is a partial AG Grid `GridState` (`features/action-column-views/columnViewState.ts`).
 
 - It holds the sections `columnOrder`, `columnSizing`, `columnVisibility`, `columnPinning`, `columnHeaderName` (without AG Grid's own `ag-Grid-*` columns), `userColumns`, `sort`, `rowGroup`, `aggregation`, `pivot` and `filter`, with `partialColumnState: true`.
-- Every section is filled, and empty when the grid has nothing set. So applying a column view clears what it doesn't have.
+- Every section is filled, and empty when the grid has nothing set. So putting a column view on the grid clears what it doesn't have.
 - `state.version` is what AG Grid reported when it was saved. Nothing rewrites a stored column view.
 - The server checks only that `state` is a JSON object. The browser decides its keys.
 - `savedFrom` is the action, and the preset when there is one, of the tab it was saved from. It is fixed at creation.
 
-**Fitting.** A column view is fitted to the result's columns before it is applied (`fitColumnView`).
+**Fitting.** A column view is fitted to the result's columns before it goes on the grid (`fitColumnView`).
 
 - Column ids the result doesn't have are dropped from every section.
-- Columns the column view doesn't know are appended to the order, with the result's action default hidden, pinned and width.
+- Columns the column view doesn't know are appended to the order, with the result's built-in view hidden, pinned and width.
 - The column view's calculated columns are kept. The tab's own are not.
 
 **Three layers.** A tab's grid is built from these, each over the one before:
 
-1. **Action default.** The action's declared `columns:` as AG Grid `initial*` settings, or the columns inferred from the rows.
-2. **The applied column view,** or the tab's own state when it has one.
+1. **Built-in view.** The action's declared `columns:` as AG Grid `initial*` settings, or the columns inferred from the rows.
+2. **The default view,** or the tab's own state when it has one.
 3. **The tab's own changes.** The tab keeps the grid's column and filter sections in its `gridState`, in IndexedDB, as they change.
 
-When the grid is ready, it resets to the action default (`resetColumnState()`). It then applies the first of these that exists: the tab's `gridState`, the column view applied for the tab's preset or action, or the action default. The state goes on with `setState()`, leaving alone the sections the column view doesn't have.
+When the grid is ready, it resets to the built-in view (`resetColumnState()`). It then puts on the first of these that exists: the tab's `gridState`, the default view of the tab's preset or action, or the built-in view. The state goes on with `setState()`, leaving alone the sections the column view doesn't have.
 
 **Views panel.** The grid's side bar of an action tab has a Views panel beside Columns and Filters (and the [Action file panel](#action-file-panel)).
 
-- **Header:** "name (applied) • modified". "Modified" shows when the tab's grid differs from the baseline it started with.
-- **Save…** opens the Save column view dialog: Name and **Share with everyone**. When you own the tab's column view, it offers **Update "name"** or **Save as new**; otherwise **Save**.
-- **Apply** makes the tab's column view the applied one. It is disabled while the tab is modified, when it is already applied, or when the column view is gone. For the action default, it clears the applied column view.
-- **Revert** puts the tab's column view back as it was picked.
-- **New tabs start with "name"** shows the applied column view, with × to go back to the action default.
-- **Hidden** switch: includes the column views the analyst hid.
-- **List:** Action default; the column views saved from this preset (on a tab without a preset, from this action); then **Other views**, ranked "N of M columns match" and left out when none match. TIM's `tim:` columns and AG Grid's own don't count.
-- **⋯** per column view: Hide or Unhide, and for the owner Delete….
-- Picking a column view puts it on the tab, and replaces the tab's filters.
+- **Width:** 320px, 280px at least.
+- **List:** a radio list, in this order.
+  - **Built-in** comes first ("The action's own columns", grey italic).
+  - Next come the column views saved from this preset (on a tab without a preset, from this action), after a divider.
+  - Last is a **Saved elsewhere** group, whose rows read "From <preset or action name> · N of M columns".
+  - Ranking leaves out column views that match none.
+  - TIM's `tim:` columns and AG Grid's own don't count in the ranking.
+- **Switching:** clicking a row puts that column view on the tab and replaces the tab's filters. When the tab is edited, a dialog asks first: Cancel, **Discard and switch** or **Save first…**.
+- **Edited tab:** a bar `Your changes to "name" aren't saved` with **Save…** and **Discard** (puts the tab's column view back as it was picked). The selected row shows **Edited**. Otherwise a **Save as new view…** button shows.
+- **Default chip:** exactly one row has it, Built-in when no default view is set.
+- **⋯** per row:
+  - **Make default** shows on any row that is not the default, Built-in included.
+  - **Stop using as default** shows on a saved column view that is the default.
+  - **Rename…** and **Delete…** show for the owner.
+  - **Hide from this list** or **Show in this list** shows on every saved column view.
+  - Built-in has no ⋯ while it is the default.
+  - A snackbar `"name" now opens with "other".` follows each change.
+- **Save dialog:** one button, and the name decides. It reads **Update "name"** while the name of your own shown column view is unchanged, else **Save new view**. **Share with everyone** sets the sharing, and **Make it the default for "scope"** sets the default view.
+- **Rename dialog:** changes only the name and sharing. It sends the stored state back through `PUT /api/columnViews/{viewId}`.
+- **Hidden:** hidden column views are left out until **Show N hidden views** is followed. While they are shown, the button reads **Don't show hidden views** and hides them again. One the tab shows, or that is the default view, stays listed.
 - The column views are refetched each time the panel opens.
 
-The status bar has a panel "View: name (applied) • modified".
+The status bar has a panel "View: name • Edited". "Edited" shows when the tab's grid differs from the baseline it started with.
 
-**Applied column views.** An analyst applies a column view for a preset or an action, and new tabs opened from it start with it.
+**Default views.** An analyst chooses a column view as the default view for a preset or an action, and new tabs opened from it start with it.
 
-- It is kept per analyst and per browser, in IndexedDB `applied_views`. It does not follow the analyst to another browser.
+- It is kept per analyst and per browser, in IndexedDB `applied_views`, keyed by analyst and preset or action. It does not follow the analyst to another browser.
 - Open tabs don't change.
-- A preset never falls back to its action's applied column view.
-- A tab with no `gridState` of its own, such as a clone, starts with the applied column view.
-- When the applied column view is gone, the tab starts with the action default and warns: "Column view "name" is gone, so the tab starts with the action default." The entry is then removed.
-- Bootstrap loads the applied column views for the signed-in analyst, and drops the entries of presets that are gone.
+- A preset never falls back to its action's default view.
+- A tab with no `gridState` of its own, such as a clone, starts with the default view.
+- When the default view is gone, the tab starts with the built-in view and warns: `Default view "name" is gone, so the tab opens with "Built-in".` The entry is then removed.
+- Bootstrap loads the default views for the signed-in analyst, and drops the entries of presets that are gone.
 
 **Storage.** The API stores column views in `column_views`, and each analyst's hidden marks in `column_view_hidden` ([Persistence](#persistence)). The rules mirror presets.
 
@@ -466,7 +477,7 @@ The status bar has a panel "View: name (applied) • modified".
 
 ### Action file panel
 
-The Action file panel exports an action tab's column layout as the `columns:` block of an action file ([actions.md](actions.md#columns)), so a layout the analyst built can become the action default.
+The Action file panel exports an action tab's column layout as the `columns:` block of an action file ([actions.md](actions.md#columns)), so a layout the analyst built can become the action's built-in view.
 
 - **Where.** The Action file panel is in the action tab's side bar, beside Columns, Filters and Views. It shows the live `columns:` block, kept up to date as the columns change, with **Copy**.
 - **Copy column settings (action file).** The same block is in the right-click menu, in its own group after the sinks and above Copy link, and in the column menu after AG Grid's items.

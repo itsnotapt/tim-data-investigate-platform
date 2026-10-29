@@ -8,7 +8,7 @@ import {
   columnViewStateOf,
 } from './columnViewState';
 
-/** What the grid reports for a result's action default, after `resetColumnState()`. */
+/** What the grid reports for a result's Built-in view, after `resetColumnState()`. */
 const base: GridState = {
   version: '36.2.0',
   columnOrder: {
@@ -142,7 +142,7 @@ describe('fitColumnView', () => {
     expect(fitColumnView(filtered(text), base).filter).toEqual(filtered(text).filter);
   });
 
-  it('appends the columns the view does not know, with their action default', () => {
+  it('appends the columns the view does not know, with their Built-in view', () => {
     // Saved on a result with only User and Host.
     const view = {
       partialColumnState: true,

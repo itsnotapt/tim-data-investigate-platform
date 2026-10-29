@@ -1,5 +1,5 @@
-export { loadAppliedViews } from './loadAppliedViews';
-export { scopeKey, useAppliedViewsStore } from './appliedViewsStore';
+export { loadDefaultViews } from './loadDefaultViews';
+export { scopeKey, useDefaultViewsStore } from './defaultViewsStore';
 export { createSavedColumnViewsStore, useSavedColumnViewsStore } from './savedColumnViewsStore';
 export type {
   SavedColumnViewsApi,

@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { openDB } from 'idb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  appliedViewsDao,
+  defaultViewsDao,
   displayComponentsDao,
   openTimDb,
   resetTimDb,
@@ -212,8 +212,8 @@ describe('rowResultsDao', () => {
   });
 });
 
-describe('appliedViewsDao', () => {
-  const applied = (analyst: string, scope: string, name = 'Triage') => ({
+describe('defaultViewsDao', () => {
+  const entry = (analyst: string, scope: string, name = 'Triage') => ({
     analyst,
     scope,
     viewId: `${analyst}-${scope}`,
@@ -221,19 +221,19 @@ describe('appliedViewsDao', () => {
   });
 
   it("lists one analyst's entries, replaces by scope and deletes", async () => {
-    await appliedViewsDao.put(applied('alice', 'action:sign-ins'));
-    await appliedViewsDao.put(applied('alice', 'preset:p1'));
-    await appliedViewsDao.put(applied('bob', 'action:sign-ins'));
-    await appliedViewsDao.put(applied('alice', 'action:sign-ins', 'Renamed'));
+    await defaultViewsDao.put(entry('alice', 'action:sign-ins'));
+    await defaultViewsDao.put(entry('alice', 'preset:p1'));
+    await defaultViewsDao.put(entry('bob', 'action:sign-ins'));
+    await defaultViewsDao.put(entry('alice', 'action:sign-ins', 'Renamed'));
 
-    const alices = await appliedViewsDao.list('alice');
+    const alices = await defaultViewsDao.list('alice');
     expect(alices.map((a) => [a.scope, a.name]).sort()).toEqual([
       ['action:sign-ins', 'Renamed'],
       ['preset:p1', 'Triage'],
     ]);
 
-    await appliedViewsDao.delete('alice', 'preset:p1');
-    expect((await appliedViewsDao.list('alice')).map((a) => a.scope)).toEqual(['action:sign-ins']);
-    expect(await appliedViewsDao.list('bob')).toEqual([applied('bob', 'action:sign-ins')]);
+    await defaultViewsDao.delete('alice', 'preset:p1');
+    expect((await defaultViewsDao.list('alice')).map((a) => a.scope)).toEqual(['action:sign-ins']);
+    expect(await defaultViewsDao.list('bob')).toEqual([entry('bob', 'action:sign-ins')]);
   });
 });

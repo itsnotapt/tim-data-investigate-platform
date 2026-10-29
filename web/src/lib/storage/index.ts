@@ -2,7 +2,7 @@ export { openTimDb, resetTimDb } from './db';
 export {
   annotationSyncDao,
   annotationsDao,
-  appliedViewsDao,
+  defaultViewsDao,
   displayComponentsDao,
   rowResultsDao,
 } from './daos';

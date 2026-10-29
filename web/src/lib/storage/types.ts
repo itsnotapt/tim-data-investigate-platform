@@ -57,7 +57,7 @@ export interface DisplayComponentState {
 
 /** The column view an action tab started from or last picked, and its state at that point. */
 export interface TabColumnView {
-  /** `null` for the action default. */
+  /** `null` for the Built-in view. */
   viewId: string | null;
   name: string;
   /** The tab's grid state just after the view was put on it, to tell whether it's modified. */
@@ -96,15 +96,15 @@ export type DisplayComponent = ActionDisplayComponent;
 export type RowResult = Record<string, unknown>;
 
 /**
- * The column view an analyst applied for new tabs from a preset or action, in this browser. Key
+ * The default view an analyst chose for new tabs from a preset or action, in this browser. Key
  * (store `applied_views`) = `[analyst, scope]`.
  */
-export interface AppliedView {
+export interface DefaultView {
   /** The analyst's user principal name. */
   analyst: string;
   /** `preset:<presetId>` or `action:<key>`. */
   scope: string;
   viewId: string;
-  /** The view's name when it was applied, for the warning if it's gone. */
+  /** The view's name when it was made the default, for the warning if it's gone. */
   name: string;
 }

@@ -170,7 +170,7 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `appliedViewsDao`, `annotationsDao` and `annotationSyncDao`.
+- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `defaultViewsDao`, `annotationsDao` and `annotationSyncDao`.
 - Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
@@ -241,7 +241,7 @@ Choosing the scheme:
 `useBootstrap(steps?)` in `src/app/useBootstrap.ts` is used by `AuthGate`. It signs in, then runs these steps in order:
 
 1. The instance: `useInstanceStore.load`.
-2. The analyst's applied column views (`loadAppliedViews`).
+2. The analyst's default views (`loadDefaultViews`).
 3. The tabs: `useTabsStore.load`.
 4. `resumeActionRuns`, which picks up the runs the tabs were following.
 
@@ -344,11 +344,11 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 [architecture.md](../docs/architecture.md#column-views) describes the behaviour.
 
 - `columnViewState.ts`: `columnViewStateOf` takes the column and filter sections of a `GridState`. `fitColumnView` fits a column view to a result. `isModified` and `sameColumnView` compare states.
-- `useActionColumnView(uuid)`: `ActionResultsGrid` calls it. `start` puts the tab's state, the applied column view or the action default on the grid when it is ready. `keep` stores the grid's state in the tab's `gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
-- `ColumnViewsToolPanel` is the Views panel, with `SaveColumnViewDialog` and `ColumnViewMoreMenu`. `ColumnViewStatusPanel` is the status bar panel. `gridParts.ts` has the side bar and status panel definitions.
+- `useActionColumnView(uuid)`: `ActionResultsGrid` calls it. `start` puts the tab's state, the default view or the built-in view on the grid when it is ready. `keep` stores the grid's state in the tab's `gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
+- `ColumnViewsToolPanel` is the Views panel, with `SaveColumnViewDialog`, `RenameColumnViewDialog` and `ColumnViewMoreMenu`. `ColumnViewStatusPanel` is the status bar panel. `gridParts.ts` has the side bar and status panel definitions.
 - `ranking.ts`: `rankColumnViews` orders the list by how many of the tab's columns a column view matches.
-- `savedColumnViewsStore.ts`: the column views from `GET /api/columnViews` (client: `src/lib/api/columnViews.ts`). `appliedViewsStore.ts`: the applied column views, through `appliedViewsDao`.
-- `loadAppliedViews(analyst)`: bootstrap's loader. It drops the applied column views of presets that are gone.
+- `savedColumnViewsStore.ts`: the column views from `GET /api/columnViews` (client: `src/lib/api/columnViews.ts`). `defaultViewsStore.ts`: the default views, through `defaultViewsDao`.
+- `loadDefaultViews(analyst)`: bootstrap's loader. It drops the default views of presets that are gone.
 
 ### Row detail (`src/features/annotate`, `src/features/grid/detailText.ts`)
 
