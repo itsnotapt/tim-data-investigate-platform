@@ -12,7 +12,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 |---|---|
 | Base path | All routes start with `/api`. nginx forwards `/api/` unchanged. |
 | Authentication | `Authorization: Bearer <Entra access token>` for the audience `api://<clientId>` on every route except the health checks. A missing or invalid token gives `401` with `WWW-Authenticate: Bearer`. |
-| Identity | The caller's name comes from the token. Identity fields in request bodies (`requestedBy`, `createdBy`, `updatedBy`, `updated`, `dateTimeUtc`) are ignored. |
+| Identity | The caller's name comes from the token; [`GET /api/me`](#get-apime) returns it. Identity fields in request bodies (`requestedBy`, `createdBy`, `updatedBy`, `updated`, `dateTimeUtc`) are ignored. |
 | JSON | UTF-8. TIM's own property names are camelCase; unknown request properties are ignored. Names an action defines, such as its param names and their values, pass through verbatim, and in OpenAPI that content is an open JSON value. |
 | Timestamps | ISO 8601 UTC with `Z`, with milliseconds only when non-zero. Input with an offset is converted to UTC; input without an offset is read as UTC. |
 | Status codes | `200`/`201` with a body, `202` while a newly started run is pending, `204` without a body. |
@@ -28,6 +28,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 |---|---|---|---|---|
 | GET | `/api/healthChecks/liveness` | 204 | none | Process is up. No checks; no auth. |
 | GET | `/api/healthChecks/readiness` | 204 | 503 | Storage is reachable. Kusto is not checked; no auth. |
+| GET | `/api/me` | 200 | 401 | The caller's name, as the API knows them. |
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
 | POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
@@ -87,6 +88,19 @@ Every non-2xx response has this body:
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, or editor schema failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
+
+## Me
+
+### GET /api/me
+
+The caller as the API knows them, from the access token ([architecture.md](architecture.md#authentication-and-obo)):
+
+```
+{name}
+```
+
+- `name` is what the caller's comments, presets and runs carry as their author, owner or `requestedBy`.
+- The browser loads it at startup and compares it with a comment's `author` to find the analyst's own comment.
 
 ## Instance
 

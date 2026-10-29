@@ -34,6 +34,7 @@ function makeSteps(calls: string[] = []) {
   return {
     calls,
     steps: {
+      loadAnalyst: step('analyst'),
       loadInstance: step('instance'),
       loadAppliedViews: step('appliedViews'),
       loadTabs: step('tabs'),
@@ -52,7 +53,7 @@ function makeSteps(calls: string[] = []) {
 }
 
 describe('useBootstrap', () => {
-  it('runs instance, applied views, tabs in order, then loaded', async () => {
+  it('runs analyst, instance, applied views, tabs in order, then loaded', async () => {
     const { steps, calls } = makeSteps();
     setup(client(), steps);
     expect(screen.getByText('Authenticating and loading...')).toBeInTheDocument();
@@ -60,6 +61,7 @@ describe('useBootstrap', () => {
     // The instance is watched from an effect once loaded, which can run after the loaded render.
     await waitFor(() =>
       expect(calls).toEqual([
+        'analyst',
         'instance',
         'appliedViews',
         'tabs',
@@ -117,5 +119,17 @@ describe('useBootstrap', () => {
     expect(await screen.findByText('app ready')).toBeInTheDocument();
     expect(steps.loadInstance).toHaveBeenCalledTimes(2);
     expect(steps.loadTabs).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failing analyst load shows the error, and Retry loads the analyst again', async () => {
+    const { steps } = makeSteps();
+    steps.loadAnalyst.mockRejectedValueOnce(new Error('api unreachable'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    setup(client(), steps);
+    expect(await screen.findByText('api unreachable')).toBeInTheDocument();
+    expect(steps.loadInstance).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('app ready')).toBeInTheDocument();
+    expect(steps.loadAnalyst).toHaveBeenCalledTimes(2);
   });
 });

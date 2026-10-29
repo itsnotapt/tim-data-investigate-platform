@@ -68,7 +68,10 @@ class AuthKit:
         validator = TokenValidator(get_settings(), self._fetch_jwks)
         app.dependency_overrides[get_token_validator] = lambda: validator
 
-    def headers(self, name: str = "alice@example.com", oid: str = "oid-1") -> dict[str, str]:
+    def headers(
+        self, name: str = "alice@example.com", oid: str = "oid-1", **extra: str
+    ) -> dict[str, str]:
+        """A bearer header for ``name`` as ``unique_name``, with any ``extra`` claims."""
         now = int(time.time())
         claims = {
             "aud": f"api://{CLIENT_ID}",
@@ -79,6 +82,7 @@ class AuthKit:
             "oid": oid,
             "tid": TENANT_ID,
             "unique_name": name,
+            **extra,
         }
         token = jwt.encode(claims, self._key, algorithm="RS256", headers={"kid": AUTH_KID})
         return {"Authorization": f"Bearer {token}"}

@@ -13,6 +13,7 @@ import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import { getAnnotationStore } from '../../lib/annotations';
 import { annotated } from '../../test/annotationFakes';
+import { useAnalystStore } from '../analyst';
 import type { LabelledRow } from '../labels';
 import { useTabsStore } from '../tabs';
 import { ActionResultsGrid } from './ActionResultsGrid';
@@ -575,10 +576,17 @@ describe('ActionResultsGrid Comment cell', () => {
     comments: by.map(([author, text]) => ({ author, at: '2026-10-21T10:00:00Z', text })),
   });
 
-  beforeEach(() => {
+  /** Signs in as the analyst the API knows by `name`. */
+  async function knownAs(name: string) {
+    server.use(http.get(apiUrl('/api/me'), () => HttpResponse.json({ name })));
+    await useAnalystStore.getState().load();
+  }
+
+  beforeEach(async () => {
     configureTestApp();
     patches = [];
     server.use(http.get(apiUrl('/api/columnViews'), () => HttpResponse.json([])));
+    await knownAs(ME);
     // jsdom lays nothing out: the grid places the editor's popup from the grid's offset parent,
     // and every 200 ms closes it when its cell has no size, as a cell scrolled away has.
     vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(() => document.body);
@@ -590,6 +598,7 @@ describe('ActionResultsGrid Comment cell', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    useAnalystStore.reset();
     resetTestApp();
   });
 
@@ -714,6 +723,57 @@ describe('ActionResultsGrid Comment cell', () => {
       ),
     );
     await waitFor(() => expect(cellsOf()).toEqual(['mine+2', 'mine+2']));
+  });
+
+  describe('for an analyst the API knows by another name than their sign-in', () => {
+    const KNOWN = `live.com#${ME}`;
+
+    beforeEach(() => knownAs(KNOWN));
+
+    it('shows their comment as theirs', async () => {
+      await commentGrid('e-6');
+      await act(() =>
+        getAnnotationStore().apply(
+          [commentedBy('e-6', 2, [BOB, 'beacons'], [KNOWN, 'mine'])],
+          'feed',
+        ),
+      );
+      await waitFor(() => expect(cellsOf()).toEqual(['mine+1', 'mine+1']));
+    });
+
+    it('keeps their saved comment in the Row detail box, apart from the other comments', async () => {
+      server.use(
+        http.get(apiUrl('/api/annotations/history'), () =>
+          HttpResponse.json({ id: 'e-7', entries: [] }),
+        ),
+        http.patch(apiUrl('/api/annotations'), () =>
+          HttpResponse.json({
+            changes: [commentedBy('e-7', 2, [BOB, 'beacons'], [KNOWN, 'mine'])],
+            version: 2,
+          }),
+        ),
+      );
+      const user = await commentGrid('e-7');
+      const items = (gridApi!.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+        api: gridApi,
+        node: gridApi!.getRowNode('0'),
+        column: gridApi!.getColumn('User'),
+      });
+      act(() => find(items, 'Row detail')!.action!({} as never));
+      const detail = await screen.findByRole('complementary', { name: 'Row detail' });
+
+      await user.type(within(detail).getByLabelText('Comment'), 'mine');
+      await user.click(within(detail).getByRole('button', { name: 'Save' }));
+
+      await within(detail).findByRole('button', { name: 'Delete comment' });
+      expect(within(detail).getByLabelText('Comment')).toHaveValue('mine');
+      const others = within(detail).getByRole('list', { name: 'Other comments' });
+      expect(
+        within(others)
+          .getAllByRole('listitem')
+          .map((li) => li.textContent),
+      ).toEqual([expect.stringContaining('beacons')]);
+    });
   });
 
   it('cancels with Esc, and keeps the old value with the reason when the save fails', async () => {

@@ -26,7 +26,7 @@ export interface CommentsAndHistoryProps {
   labels: readonly InstanceLabel[];
   /** The `id`'s current comments, one per author. */
   comments: readonly Comment[];
-  /** The signed-in analyst's UPN: whose comment the box edits. */
+  /** The name the API knows the signed-in analyst by: whose comment the box edits. */
   analyst: string | null;
   /** The comment typed so far; `undefined` until the box is edited, when it shows yours. */
   comment: string | undefined;

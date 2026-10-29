@@ -7,7 +7,7 @@ const ellipsis = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'no
 
 export interface CommentCellProps {
   data?: unknown;
-  /** The signed-in analyst's UPN. */
+  /** The name the API knows the signed-in analyst by. */
   analyst: string | null;
 }
 
@@ -56,7 +56,7 @@ export type CommentEditorProps = Pick<
   CustomCellEditorProps,
   'data' | 'onValueChange' | 'stopEditing'
 > & {
-  /** The signed-in analyst's UPN: whose comment the editor edits. */
+  /** The name the API knows the signed-in analyst by: whose comment the editor edits. */
   analyst: string | null;
 };
 

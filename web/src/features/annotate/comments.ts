@@ -9,8 +9,8 @@ export const idOf = (data: unknown): string | null => {
   return typeof id === 'string' && id !== '' ? id : null;
 };
 
-/** A UPN's part before the `@`. */
-export const shortName = (upn: string): string => upn.split('@')[0] ?? upn;
+/** A name's part before the `@`. */
+export const shortName = (name: string): string => name.split('@')[0] ?? name;
 
 /** The row's current comments: `analyst`'s, if any, and the others', newest first. */
 export function commentsOf(
