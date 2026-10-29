@@ -347,6 +347,34 @@ def test_without_the_flag_there_is_no_dev_kql_connection_type(
         catalogue(auth)
 
 
+def test_a_dev_kql_connection_suggests_its_databases(
+    auth: AuthKit,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+    dev_env: Path,
+) -> None:
+    connections = tmp_path_factory.mktemp("connections") / "connections.yaml"
+    connections.write_text(
+        "- {name: dev, title: Development, type: dev_kql, auth: workload_identity,"
+        " databases: [Logs, Research]}\n"
+        "- {name: bare, title: Bare, type: dev_kql, auth: workload_identity}\n"
+    )
+    monkeypatch.setenv("TIM_CONNECTIONS_FILE", str(connections))
+    with started(auth) as client:
+        response = client.get("/api/instance")
+    assert response.status_code == 200
+    assert response.json()["connections"] == [
+        {
+            "name": "dev",
+            "type": "dev_kql",
+            "title": "Development",
+            "editor": "kql",
+            "databases": ["Logs", "Research"],
+        },
+        {"name": "bare", "type": "dev_kql", "title": "Bare", "editor": "kql"},
+    ]
+
+
 @pytest.mark.usefixtures("dev_kql_connection")
 def test_dev_kql_connections_answer_a_fixed_schema_for_any_database(
     auth: AuthKit, dev_env: Path

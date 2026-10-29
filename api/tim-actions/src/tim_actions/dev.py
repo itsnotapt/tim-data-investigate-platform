@@ -196,10 +196,15 @@ class DevSink(Sink):
 
 
 class DevKqlConnection(Connection):
-    """A ``dev_kql`` connection: nothing behind it, so nothing to sign in to."""
+    """A ``dev_kql`` connection: nothing behind it, so nothing to sign in to. ``databases`` are
+    suggestions for the analyst, as on a Kusto connection."""
 
     type: Literal["dev_kql"]
     auth: Literal["workload_identity"]
+    databases: tuple[NonBlankStr, ...] | None = None
+
+    def database_suggestions(self) -> tuple[str, ...] | None:
+        return self.databases
 
 
 _DEV_KQL_TABLES = {

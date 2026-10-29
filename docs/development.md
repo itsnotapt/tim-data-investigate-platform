@@ -217,7 +217,8 @@ There are two actions and two action file types:
 - **`dev_kql`**. It runs no queries, and its `auth` is `workload_identity` only.
   - Its `kql` editor schema has one table, `SignIns` (`TimeGenerated`, `UserPrincipalName`, `ResultType`), for any non-empty `database`.
   - Without a `database`, it gives no schema.
-  - `web/e2e/connections.yaml` has two `dev_kql` connections. The action `dev-kql-editor` in `web/e2e/actions/editor-schema.yaml` uses them.
+  - It takes an optional `databases` list of suggestions, as a Kusto connection does.
+  - `web/e2e/connections.yaml` has two `dev_kql` connections. Only `dev-logs` has `databases` (`Logs`, `Research`). The action `dev-kql-editor` in `web/e2e/actions/editor-schema.yaml` uses them.
 
 To use them with the main loop, uncomment `TIM_DEV_ACTIONS` and `TIM_ACTIONS_DIR` in `api/.env`.
 

@@ -1,9 +1,10 @@
 # The e2e api's connections file (TIM_CONNECTIONS_FILE). dev_kql connections, which come with
-# TIM_DEV_ACTIONS.
+# TIM_DEV_ACTIONS. Only dev-logs suggests databases, so dev-audit's Database is free text.
 - name: dev-logs
   title: Development logs
   type: dev_kql
   auth: workload_identity
+  databases: [Logs, Research]
 - name: dev-audit
   title: Development audit
   type: dev_kql

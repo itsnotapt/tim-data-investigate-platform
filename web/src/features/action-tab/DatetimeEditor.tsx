@@ -5,10 +5,12 @@ import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import { DateTimeField } from '@mui/x-date-pickers/DateTimeField';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { MultiSectionDigitalClock } from '@mui/x-date-pickers/MultiSectionDigitalClock';
+import type { FieldRef } from '@mui/x-date-pickers/models';
 import dayjs, { type Dayjs } from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { useImperativeHandle, useRef } from 'react';
 import type { CatalogueParam } from '../../lib/api';
-import { parseParamText } from './paramValues';
+import { parseParamText, type Focusable } from './paramValues';
 
 dayjs.extend(utc);
 
@@ -21,6 +23,8 @@ export interface DatetimeEditorProps {
   /** `undefined` unsets the param. */
   onChange: (value: unknown) => void;
   onDone: () => void;
+  /** Takes the editor's field. */
+  focusRef: (field: Focusable | null) => void;
 }
 
 /** The ISO 8601 value the param holds, in UTC with `Z`, milliseconds only when there are some. */
@@ -40,8 +44,10 @@ function current(value: unknown): Dayjs | null {
  * A datetime in UTC: a field to type in (or paste an ISO datetime into, such as one copied from a
  * result row), a calendar and a clock.
  */
-export function DatetimeEditor({ param, value, onChange, onDone }: DatetimeEditorProps) {
+export function DatetimeEditor({ param, value, onChange, onDone, focusRef }: DatetimeEditorProps) {
   const date = current(value);
+  const field = useRef<FieldRef<Dayjs | null>>(null);
+  useImperativeHandle(focusRef, () => ({ focus: () => field.current?.focusField(0) }), []);
   const set = (d: Dayjs | null) => {
     if (d === null) onChange(undefined);
     else if (d.isValid()) onChange(datetimeValue(d));
@@ -58,7 +64,7 @@ export function DatetimeEditor({ param, value, onChange, onDone }: DatetimeEdito
         }}
       >
         <DateTimeField
-          autoFocus
+          fieldRef={field}
           fullWidth
           size="small"
           label={`${param.title} (UTC)`}

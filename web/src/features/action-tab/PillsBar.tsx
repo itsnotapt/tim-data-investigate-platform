@@ -11,13 +11,14 @@ import Popover from '@mui/material/Popover';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import type { ParamErrors } from '../tabs/types';
 import { DatetimeEditor } from './DatetimeEditor';
 import {
   connectionChoices,
   databaseSuggestions,
+  type Focusable,
   hasPill,
   isUnset,
   onlyConnection,
@@ -58,6 +59,8 @@ interface EditorProps {
   onChange: (value: unknown) => void;
   /** Closes the popover. */
   onDone: () => void;
+  /** Takes the editor's field. */
+  focusRef: (field: Focusable | null) => void;
 }
 
 interface Choice {
@@ -131,7 +134,7 @@ function PickList({
 }
 
 /** Chips for a many-valued param: Enter adds the typed value, pasted text is split into values. */
-function ChipsEditor({ param, value, onChange }: EditorProps) {
+function ChipsEditor({ param, value, onChange, focusRef }: EditorProps) {
   const values: unknown[] = Array.isArray(value) ? value : [];
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +168,7 @@ function ChipsEditor({ param, value, onChange }: EditorProps) {
       <TextField
         size="small"
         fullWidth
-        autoFocus
+        inputRef={focusRef}
         placeholder="Type a value and press Enter, or paste several"
         value={input}
         error={error !== null}
@@ -195,14 +198,14 @@ function ChipsEditor({ param, value, onChange }: EditorProps) {
 }
 
 /** One value typed as text; it is committed while valid, and empty text unsets it. */
-function TextEditor({ param, value, onChange }: EditorProps) {
+function TextEditor({ param, value, onChange, focusRef }: EditorProps) {
   const [draft, setDraft] = useState(() => valueText(value));
   const parsed = parseParamText(param.kind, draft);
   const json = param.kind === 'json';
   return (
     <TextField
       size="small"
-      autoFocus
+      inputRef={focusRef}
       label={param.title}
       value={draft}
       multiline={json}
@@ -227,6 +230,7 @@ function SuggestEditor({
   suggestions,
   onChange,
   onDone,
+  focusRef,
 }: EditorProps & { suggestions: readonly string[] }) {
   return (
     <Autocomplete
@@ -243,14 +247,20 @@ function SuggestEditor({
       }}
       sx={{ width: 320, mt: 1 }}
       renderInput={(input) => (
-        <TextField {...input} autoFocus size="small" label={param.title} helperText={param.help} />
+        <TextField
+          {...input}
+          inputRef={focusRef}
+          size="small"
+          label={param.title}
+          helperText={param.help}
+        />
       )}
     />
   );
 }
 
 function Editor(props: EditorProps) {
-  const { param, value, connections, suggestions, onChange } = props;
+  const { param, value, connections, suggestions, onChange, focusRef } = props;
   const choices = choicesOf(param, connections);
   if (choices) return <PickList {...props} choices={choices} />;
   if (suggestions && param.kind === 'string' && !param.many) {
@@ -262,10 +272,9 @@ function Editor(props: EditorProps) {
         label={param.title}
         control={
           <Switch
-            autoFocus
             checked={value === true}
             onChange={(e) => onChange(e.target.checked)}
-            slotProps={{ input: { role: 'switch' } }}
+            slotProps={{ input: { role: 'switch', ref: focusRef } }}
           />
         }
       />
@@ -295,6 +304,11 @@ export function PillsBar({
   const pills = params.filter(hasPill);
   const editing = pills.find((p) => p.name === open?.name);
   const chips = useRef(new Map<string, HTMLElement>());
+  // The editor's field, focused once the popover has opened.
+  const field = useRef<Focusable | null>(null);
+  const takeField = useCallback((f: Focusable | null) => {
+    field.current = f;
+  }, []);
   // The first needed pill's popover opens once, when the pill is first shown.
   const firstNeeded = pills.find((p) => needed.includes(p.name) && isUnset(values[p.name]))?.name;
   const openedNeeded = useRef(false);
@@ -358,6 +372,7 @@ export function PillsBar({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         slotProps={{
           paper: { role: 'dialog', 'aria-label': editing?.title, sx: { p: 1.5 } },
+          transition: { onEntered: () => field.current?.focus() },
         }}
       >
         {editing && (
@@ -369,6 +384,7 @@ export function PillsBar({
             suggestions={databaseSuggestions(editing, params, values, connections)}
             onChange={(value) => onChange(editing.name, value)}
             onDone={() => setOpen(null)}
+            focusRef={takeField}
           />
         )}
       </Popover>
