@@ -212,15 +212,19 @@ function SaveDialog({
   after,
   onClose,
   terms = TERMS_A,
+  fresh,
 }: {
   m: Model;
   after?: () => void;
   onClose: () => void;
   terms?: Terms;
+  /** Always a new view, starting from a blank name. */
+  fresh?: boolean;
 }) {
   return (
     <SaveColumnViewDialog
-      source={m.source}
+      source={fresh ? undefined : m.source}
+      nameDecides={terms.inlineCurrent}
       startLabel={terms.saveStart(m.scopeName)}
       onSave={async (fields, over, start) => {
         await m.save(fields, over, start, (name) => terms.startNotice(name, m.scopeName));
@@ -351,6 +355,10 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 interface Terms {
   /** No "This tab" header: the selected row says Edited, and Save/Discard show only then. */
   inlineCurrent?: boolean;
+  /** Built-in in grey italics, with a line saying where it comes from and a divider after it. */
+  builtInNote?: string;
+  /** No disabled "Default" item: the default view offers this instead, Built-in nothing. */
+  stopDefault?: string;
   builtIn: string;
   startChip: string;
   startMenu: (on: boolean) => string;
@@ -376,6 +384,8 @@ const TERMS_A: Terms = {
 
 const TERMS_A2: Terms = {
   inlineCurrent: true,
+  builtInNote: "The action's own columns",
+  stopDefault: 'Stop using as default',
   builtIn: 'Built-in',
   startChip: 'Default',
   startMenu: (on) => (on ? 'Default' : 'Make default'),
@@ -391,7 +401,7 @@ function VariantA({ terms, ...props }: CustomToolPanelProps & { terms: Terms }) 
   const [showHidden, setShowHidden] = useState(false);
   const m = useViewsModel(props, showHidden);
   const [pending, setPending] = useState<{ view: ColumnView | null } | null>(null);
-  const [saving, setSaving] = useState<{ after?: () => void } | null>(null);
+  const [saving, setSaving] = useState<{ after?: () => void; fresh?: boolean } | null>(null);
   const currentName = m.columnView?.viewId ? m.currentName : terms.builtIn;
 
   const choose = (view: ColumnView | null) => {
@@ -400,32 +410,50 @@ function VariantA({ terms, ...props }: CustomToolPanelProps & { terms: Terms }) 
     else m.controller.pick(view);
   };
 
+  const defaultItems = (view: ColumnView | null): MenuEntry[] => {
+    const on = m.isStart(view);
+    const make = {
+      label: terms.startMenu(on),
+      disabled: on,
+      onClick: () => m.setStart(view, terms.startNotice(view?.name ?? terms.builtIn, m.scopeName)),
+    };
+    if (!terms.stopDefault || !on) return [make];
+    const stop = terms.stopDefault;
+    return view
+      ? [
+          {
+            label: stop,
+            onClick: () => m.setStart(null, terms.startNotice(terms.builtIn, m.scopeName)),
+          },
+        ]
+      : [];
+  };
+
   const row = (view: ColumnView | null, name: string, secondary?: ReactNode) => (
     <ListItem
       key={keyOf(view)}
       disablePadding
       secondaryAction={
-        <RowMenu
-          name={name}
-          deleting={view ?? undefined}
-          items={[
-            {
-              label: terms.startMenu(m.isStart(view)),
-              disabled: m.isStart(view),
-              onClick: () =>
-                m.setStart(view, terms.startNotice(view?.name ?? terms.builtIn, m.scopeName)),
-            },
-            ...(view
-              ? [
-                  {
-                    label: view.hidden ? 'Show in this list' : 'Hide from this list',
-                    onClick: () =>
-                      m.change('change it', (s) => s.setHidden(view.viewId, !view.hidden)),
-                  },
-                ]
-              : []),
-          ]}
-        />
+        !view && defaultItems(view).length === 0 ? (
+          <Box sx={{ width: 30 }} />
+        ) : (
+          <RowMenu
+            name={name}
+            deleting={view ?? undefined}
+            items={[
+              ...defaultItems(view),
+              ...(view
+                ? [
+                    {
+                      label: view.hidden ? 'Show in this list' : 'Hide from this list',
+                      onClick: () =>
+                        m.change('change it', (s) => s.setHidden(view.viewId, !view.hidden)),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        )
       }
     >
       <ListItemButton dense onClick={() => choose(view)} selected={m.isCurrent(view)}>
@@ -453,7 +481,11 @@ function VariantA({ terms, ...props }: CustomToolPanelProps & { terms: Terms }) 
             )
           }
           slotProps={{
-            primary: { noWrap: true, color: view?.hidden ? 'text.secondary' : undefined },
+            primary: {
+              noWrap: true,
+              color: view?.hidden || (!view && terms.builtInNote) ? 'text.secondary' : undefined,
+              sx: !view && terms.builtInNote ? { fontStyle: 'italic' } : undefined,
+            },
           }}
         />
         {m.isStart(view) && (
@@ -487,7 +519,7 @@ function VariantA({ terms, ...props }: CustomToolPanelProps & { terms: Terms }) 
             </Stack>
           </Alert>
         ) : (
-          <Button size="small" sx={{ mb: 1 }} onClick={() => setSaving({})}>
+          <Button size="small" sx={{ mb: 1 }} onClick={() => setSaving({ fresh: true })}>
             Save as new view…
           </Button>
         )
@@ -526,7 +558,10 @@ function VariantA({ terms, ...props }: CustomToolPanelProps & { terms: Terms }) 
               {terms.ownHeading(m.scopeName)}
             </ListSubheader>
           )}
-          {row(null, terms.builtIn)}
+          {row(null, terms.builtIn, terms.builtInNote)}
+          {terms.builtInNote && m.ranked.own.length > 0 && (
+            <Divider component="li" sx={{ my: 0.5 }} />
+          )}
           {m.ranked.own.map((v) => row(v, v.name))}
           {m.ranked.others.length > 0 && (
             <ListSubheader disableSticky sx={{ lineHeight: 2 }}>
@@ -577,7 +612,13 @@ function VariantA({ terms, ...props }: CustomToolPanelProps & { terms: Terms }) 
         </DialogActions>
       </Dialog>
       {saving && (
-        <SaveDialog m={m} terms={terms} after={saving.after} onClose={() => setSaving(null)} />
+        <SaveDialog
+          m={m}
+          terms={terms}
+          after={saving.after}
+          fresh={saving.fresh}
+          onClose={() => setSaving(null)}
+        />
       )}
     </Box>
   );

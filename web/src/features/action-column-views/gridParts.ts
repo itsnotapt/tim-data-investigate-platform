@@ -13,6 +13,9 @@ export const ACTION_SIDE_BAR: SideBarDef = {
       labelKey: 'views',
       labelDefault: 'Views',
       iconKey: 'eye',
+      // PROTOTYPE: room for the name, the Default chip and "From … · N of M columns".
+      width: 320,
+      minWidth: 280,
       toolPanel: ViewsPanelPrototype, // PROTOTYPE: ColumnViewsToolPanel is variant `current`
     },
     {

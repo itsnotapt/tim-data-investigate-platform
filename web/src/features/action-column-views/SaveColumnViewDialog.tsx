@@ -23,6 +23,8 @@ export interface SaveViewDialogProps {
   ) => Promise<void>;
   /** PROTOTYPE: when set, a checkbox with this label makes the saved view the start view. */
   startLabel?: string;
+  /** PROTOTYPE: one button, and the name decides: unchanged updates your own view, changed saves new. */
+  nameDecides?: boolean;
   onClose: () => void;
 }
 
@@ -30,7 +32,13 @@ export interface SaveViewDialogProps {
  * Saves the tab's columns and filters as a column view: its name and who sees it. Your own column view is
  * updated or saved as new; anyone else's is saved as your own. Mount it to open it.
  */
-export function SaveColumnViewDialog({ source, onSave, onClose, startLabel }: SaveViewDialogProps) {
+export function SaveColumnViewDialog({
+  source,
+  onSave,
+  onClose,
+  startLabel,
+  nameDecides,
+}: SaveViewDialogProps) {
   const [name, setName] = useState(source?.name ?? '');
   const [visibility, setVisibility] = useState<ColumnView['visibility']>(
     source?.owned ? source.visibility : 'private',
@@ -39,6 +47,8 @@ export function SaveColumnViewDialog({ source, onSave, onClose, startLabel }: Sa
   const [start, setStart] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const blank = name.trim() === '';
+  /** With `nameDecides`: whether saving updates `source` (your own, name unchanged). */
+  const updating = !!source?.owned && name.trim() === source.name;
 
   const save = async (over: ColumnView | null) => {
     setSaving(true);
@@ -57,7 +67,18 @@ export function SaveColumnViewDialog({ source, onSave, onClose, startLabel }: Sa
       <DialogTitle id="save-view-title">Save column view</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <TextField
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            helperText={
+              nameDecides && source?.owned
+                ? updating
+                  ? 'Change the name to save a new view instead.'
+                  : `Saves a new view. "${source.name}" stays as it is.`
+                : undefined
+            }
+          />
           <FormControlLabel
             label="Share with everyone"
             control={
@@ -82,7 +103,15 @@ export function SaveColumnViewDialog({ source, onSave, onClose, startLabel }: Sa
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        {source?.owned ? (
+        {nameDecides ? (
+          <Button
+            variant="contained"
+            disabled={saving || blank}
+            onClick={() => void save(updating ? source : null)}
+          >
+            {updating ? `Update "${source.name}"` : 'Save new view'}
+          </Button>
+        ) : source?.owned ? (
           <>
             <Button disabled={saving || blank} onClick={() => void save(null)}>
               Save as new
