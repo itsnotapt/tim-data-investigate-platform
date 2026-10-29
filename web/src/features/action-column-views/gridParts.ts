@@ -1,7 +1,7 @@
 import type { SideBarDef, StatusPanelDef } from 'ag-grid-community';
 import { SIDE_BAR } from '../grid';
 import { ActionFileToolPanel } from './ActionFileToolPanel';
-import { ColumnViewsToolPanel } from './ColumnViewsToolPanel';
+import { ViewsPanelPrototype } from './ViewsPanel.prototype';
 import { ColumnViewStatusPanel } from './ColumnViewStatusPanel';
 
 /** An action tab's side bar: Columns, Filters, Views and Action file. */
@@ -13,7 +13,7 @@ export const ACTION_SIDE_BAR: SideBarDef = {
       labelKey: 'views',
       labelDefault: 'Views',
       iconKey: 'eye',
-      toolPanel: ColumnViewsToolPanel,
+      toolPanel: ViewsPanelPrototype, // PROTOTYPE: ColumnViewsToolPanel is variant `current`
     },
     {
       id: 'actionFile',

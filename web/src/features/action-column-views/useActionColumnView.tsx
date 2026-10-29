@@ -28,6 +28,8 @@ export interface ColumnViewController {
   pick(view: ColumnView | null): void;
   /** Puts the tab's column view back as it was picked. */
   revert(): void;
+  /** PROTOTYPE: puts a grid state and the column view it came from back, for Undo. */
+  restore(state: ColumnViewState, columnView: TabColumnView | null): void;
   /** The tab's grid state now. */
   current(): ColumnViewState | null;
 }
@@ -153,6 +155,12 @@ export function useActionColumnView(uuid: string) {
         const picked = tabState(uuid)?.columnView;
         if (!api || api.isDestroyed() || !picked) return;
         putOn(api, picked.baseline, null);
+      },
+      restore(state, columnView) {
+        const api = apiRef.current;
+        if (!api || api.isDestroyed()) return;
+        update({ columnView });
+        putOn(api, state, null);
       },
       current() {
         const api = apiRef.current;

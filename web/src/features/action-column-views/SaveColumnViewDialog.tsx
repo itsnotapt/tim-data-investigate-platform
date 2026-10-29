@@ -1,4 +1,5 @@
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -15,7 +16,13 @@ export interface SaveViewDialogProps {
   /** The column view the tab started from or last picked, when it's a saved one. */
   source?: ColumnView;
   /** Writes the name and sharing, as a new column view or over `source`. */
-  onSave: (fields: Omit<ColumnViewFields, 'state'>, over: ColumnView | null) => Promise<void>;
+  onSave: (
+    fields: Omit<ColumnViewFields, 'state'>,
+    over: ColumnView | null,
+    start?: boolean,
+  ) => Promise<void>;
+  /** PROTOTYPE: when set, a checkbox with this label makes the saved view the start view. */
+  startLabel?: string;
   onClose: () => void;
 }
 
@@ -23,12 +30,13 @@ export interface SaveViewDialogProps {
  * Saves the tab's columns and filters as a column view: its name and who sees it. Your own column view is
  * updated or saved as new; anyone else's is saved as your own. Mount it to open it.
  */
-export function SaveColumnViewDialog({ source, onSave, onClose }: SaveViewDialogProps) {
+export function SaveColumnViewDialog({ source, onSave, onClose, startLabel }: SaveViewDialogProps) {
   const [name, setName] = useState(source?.name ?? '');
   const [visibility, setVisibility] = useState<ColumnView['visibility']>(
     source?.owned ? source.visibility : 'private',
   );
   const [saving, setSaving] = useState(false);
+  const [start, setStart] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const blank = name.trim() === '';
 
@@ -36,7 +44,7 @@ export function SaveColumnViewDialog({ source, onSave, onClose }: SaveViewDialog
     setSaving(true);
     setError(null);
     try {
-      await onSave({ name: name.trim(), visibility }, over);
+      await onSave({ name: name.trim(), visibility }, over, start);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -59,6 +67,12 @@ export function SaveColumnViewDialog({ source, onSave, onClose }: SaveViewDialog
               />
             }
           />
+          {startLabel && (
+            <FormControlLabel
+              label={startLabel}
+              control={<Checkbox checked={start} onChange={(e) => setStart(e.target.checked)} />}
+            />
+          )}
           {error && (
             <Typography color="error" role="alert">
               Couldn't save: {error}

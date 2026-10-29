@@ -28,6 +28,8 @@ import {
   type ReactNode,
 } from 'react';
 import { Link as RouterLink, Outlet } from 'react-router';
+import { PrototypeSwitcher } from '../components/PrototypeSwitcher';
+import { VIEWS_PANEL_VARIANTS } from '../features/action-column-views/ViewsPanel.prototype';
 import { useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
@@ -255,6 +257,10 @@ export function AppShell() {
           <ShellContent />
         </AuthGate>
       </Box>
+      {/* PROTOTYPE */}
+      {import.meta.env.DEV && (
+        <PrototypeSwitcher title="Views panel" variants={VIEWS_PANEL_VARIANTS} />
+      )}
     </Box>
   );
 }
