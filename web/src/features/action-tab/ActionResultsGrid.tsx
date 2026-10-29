@@ -11,7 +11,6 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { CatalogueColumn, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
-import { useAnalyst } from '../../lib/auth';
 import {
   ACTION_SIDE_BAR,
   ACTION_STATUS_PANELS,
@@ -19,6 +18,7 @@ import {
   copyColumnSettingsItem,
   useActionColumnView,
 } from '../action-column-views';
+import { useAnalyst } from '../analyst';
 import { annotationColumnDefs, saveComment, useAnnotating, useRowDetail } from '../annotate';
 import type { GridRowWithId } from '../grid/columns';
 import type { GetExtraContextMenuItems } from '../grid/gridOptions';

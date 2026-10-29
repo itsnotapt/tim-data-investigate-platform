@@ -2,7 +2,7 @@ import type { CellFocusedEvent, CellKeyDownEvent } from 'ag-grid-community';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
-import { useAnalyst } from '../../lib/auth';
+import { useAnalyst } from '../analyst';
 import type { DetailColumns, GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import type { LabelledRow } from '../labels';
 import { buildRowDetailMenu, makeRowDetailKeys } from './annotateMenu';

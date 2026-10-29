@@ -21,6 +21,7 @@ REGEN = "uv run python -m tim_api.openapi_export"
 # (method, path, operationId, success statuses, documented error statuses).
 CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
     ("get", "/api/instance", "getInstance", {"200"}, {"401", "500"}),
+    ("get", "/api/me", "getMe", {"200"}, {"401", "500"}),
     (
         "post",
         "/api/actions/{key}/resolve",

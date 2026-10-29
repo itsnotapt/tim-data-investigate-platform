@@ -48,7 +48,7 @@ export function commentTextColumnDef(): ColDef {
 }
 
 export interface CommentsColumnOptions {
-  /** The signed-in analyst's UPN: whose comment the cell edits. */
+  /** The name the API knows the signed-in analyst by: whose comment the cell edits. */
   analyst: string | null;
   /** Saves `text` as the analyst's comment on `id`; an empty text clears it. */
   saveComment: (id: string, text: string) => void;

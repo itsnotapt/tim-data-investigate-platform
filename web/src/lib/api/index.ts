@@ -1,6 +1,7 @@
 export * from './client';
 export * from './errors';
 export * from './instance';
+export * from './me';
 export * from './runs';
 export * from './connections';
 export * from './presets';

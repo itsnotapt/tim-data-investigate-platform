@@ -3,7 +3,7 @@ import { useCallback, useContext, useMemo, useState, type ReactNode } from 'reac
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
-import { useAnalyst } from '../../lib/auth';
+import { useAnalyst } from '../analyst';
 import type { GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import { targetIds, type LabelledRow, type RowsById } from '../labels';
 import { whyNoSink, type Sinks } from '../sinks';

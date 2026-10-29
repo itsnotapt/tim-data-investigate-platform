@@ -1,4 +1,5 @@
 import { useAppliedViewsStore } from '../features/action-column-views';
+import { useAnalystStore } from '../features/analyst';
 import { useInstanceStore } from '../features/instance';
 import { usePresetsStore } from '../features/presets';
 import { useTabsStore } from '../features/tabs';
@@ -22,6 +23,7 @@ export function stubBootstrap(): void {
       },
     },
   });
+  useAnalystStore.setState({ load: () => Promise.resolve() });
   useAppliedViewsStore.setState({ load: () => Promise.resolve() });
   usePresetsStore.setState({ refresh: () => Promise.resolve() });
   useTabsStore.setState({ load: () => Promise.resolve(useTabsStore.setState({ loaded: true })) });

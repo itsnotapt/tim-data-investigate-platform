@@ -60,7 +60,7 @@ export interface AnnotateDialogProps {
   /** The stored annotations of those of `targets` that have any. */
   current: readonly Annotations[];
   labels: readonly InstanceLabel[];
-  /** The signed-in analyst's UPN: whose comment the box edits. */
+  /** The name the API knows the signed-in analyst by: whose comment the box edits. */
   analyst: string | null;
   /** Called with what the change changed, before the dialog closes. */
   onSaved: (changes: Annotations[]) => void | Promise<void>;

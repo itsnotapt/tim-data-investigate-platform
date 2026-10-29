@@ -71,8 +71,8 @@ Key points:
 |---|---|
 | `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
 | `web/src/components/` | Shared UI: code editor, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `action-tab`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `action-column-views`, `share-links` |
-| `web/src/lib/api/` | Typed API client, problem handling, run polling, `GET /api/instance` and runs; `schema.d.ts` is generated |
+| `web/src/features/` | One folder per feature: `tabs`, `tree`, `action-tab`, `analyst`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `action-column-views`, `share-links` |
+| `web/src/lib/api/` | Typed API client, problem handling, run polling, `GET /api/me`, `GET /api/instance` and runs; `schema.d.ts` is generated |
 | `web/src/lib/annotations/` | The annotation store and the change-feed poller |
 | `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
 | `web/src/lib/config/` | Runtime config loader |
@@ -122,8 +122,11 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
 - **`appliedViewsStore`** holds the analyst's applied column views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `instanceStore`.
-- **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
+- **`analystStore`** (`web/src/features/analyst/`) holds the name the API knows the signed-in analyst by, from `GET /api/me`. It is `null` until loaded.
   - Bootstrap loads it first.
+  - `useAnalyst()` returns it. It is the `author` of the analyst's own comments, so the grid compares it with `Comment.author`.
+- **`instanceStore`** holds the instance from `GET /api/instance`: actions, connections, labels and limits.
+  - Bootstrap loads it right after `analystStore`.
   - A refetch on every window focus replaces it only when its `version` differs. So a rolling update shows up without a reload.
   - A failed refetch keeps the instance already loaded.
 
@@ -520,7 +523,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - Every row with the same `id` shows it, in any tab.
 - **The Label column.** Column `tim:label` holds the label's name. It is hidden until the analyst shows it, and it has a set filter and can be grouped.
 - **Comment column.** Column `tim:comments` has the header **Comment**. It is shown and about 280px wide. It has a text filter on the shown text.
-  - **Cell.** It shows the analyst's own comment. Without one it shows the latest other comment, dimmed and italic, as "author: text". The author is the UPN's part before the `@`. A line break shows as ⏎.
+  - **Cell.** It shows the analyst's own comment. Without one it shows the latest other comment, dimmed and italic, as "author: text". The author is the name's part before the `@`. A line break shows as ⏎.
   - **+N.** A chip counts the other current comments the cell doesn't show.
   - **Tooltip.** It lists every current comment, the analyst's first, with author and time. A row without an `id` says it can't have comments.
   - **Editor.** Double-click, Enter or F2 opens a popup editor under the cell. It holds the analyst's comment. The others' comments are read-only. Enter saves. Clicking away saves. Shift+Enter is a new line. Esc cancels. A blank text clears the comment. Typing a letter doesn't start an edit, so T, C, D and the label digits keep working.
@@ -644,7 +647,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check` |
 | `annotations/` | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models |
-| `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`) |
+| `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`), and the endpoint `GET /api/me` (`router.py`) |
 | `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `presets/` | `/api/presets` routes (`router.py`) and models |
@@ -805,6 +808,7 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
   - `tid`;
   - required `exp`, `nbf` and `iat`, with 60 s leeway.
 - **The caller** is a `Principal`: `oid`, `tid`, and a name taken from `unique_name`, then `upn`, then `preferred_username`. The name is the owner and audit identity (`requestedBy`, `createdBy`, `updatedBy`).
+  - `GET /api/me` returns it. The web app uses that name, not the account name MSAL holds, as the analyst's `author`.
 - **OBO exchange.** Runs exchange the caller's token for each `obo` connection's scope with `msal.ConfidentialClientApplication.acquire_token_on_behalf_of`.
   - Runs call it through `OboTokenProvider.token_for(principal, scope)`. It blocks, so callers use a worker thread.
   - There is one MSAL app, and one token cache, per process.
