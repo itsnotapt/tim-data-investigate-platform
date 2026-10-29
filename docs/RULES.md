@@ -36,7 +36,8 @@ Process rules for everyone working on TIM, human or agent.
 - **`tim-actions`** has its own version, tagged `tim-actions-vX.Y.Z`.
 - A commit's type counts toward TIM's next version unless all its files are under `.claude`, `.github`, `docs`, `examples`, `api/tests`, `api/tim-actions/tests`, `web/e2e` or `deploy/helm/tim/ci`.
 - A breaking title (`!`) always makes TIM a major release.
-- A breaking title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) majors `tim-actions` too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
+- A breaking title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) is a breaking `tim-actions` release too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
+- While `tim-actions` is 0.x, its breaking release bumps the minor (0.1 → 0.2), and `feat` or `fix` the patch.
 - Other scopes are optional and free-form. By convention they name `web`, `api`, `chart` or `tim-actions`.
 - Versions come from the commit types. Never edit versions by hand; release-please owns them.
 - Releasing is merging the release PR. It publishes both images and the chart.

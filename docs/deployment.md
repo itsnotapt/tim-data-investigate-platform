@@ -192,7 +192,7 @@ RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/a
 
 - **Packages.** `uv pip install` takes anything it can resolve: a local directory as above, a wheel, a git URL or an index name.
 - **User.** The image runs as `tim`, which owns `/app/.venv`. No `USER` switch is needed.
-- **Constraints.** A provider can't move TIM's pins. A provider that needs another `tim-actions` major fails the build with `No solution found`.
+- **Constraints.** A provider can't move TIM's pins. A provider that needs another breaking `tim-actions` version fails the build with `No solution found`.
 - **No runtime installs.** Nothing installs when the container starts. Every replica runs the same packages.
 - **Tags.** Name a derived image `<tim version>-<revision>`, for example `2.0.0-acme.3`. The revision counts your own changes on that TIM version.
 - **Checks.** `tim-api schema` and `tim-api check` run in the derived image and include the providers' types ([actions.md](actions.md#checking-files)).
@@ -431,7 +431,7 @@ Ingress controllers have their own body-size and timeout defaults: ingress-nginx
   3. `migrate` re-runs. It is a no-op when the schema is current. Then api and web are recreated.
 - **Derived images:** rebuild each one `FROM` the new api tag on every TIM release, and retag it `<tim version>-<revision>`.
   - Then point the stack at the new tag: `TIM_API_IMAGE_TAG` in Compose, `api.image.tag` in Helm.
-  - A provider that needs another `tim-actions` major fails the rebuild. Update the provider first.
+  - A provider that needs another breaking `tim-actions` version fails the rebuild. Update the provider first.
   - In Helm, a derived image's `api.image.tag` (or `digest`) is always set. The chart defaults tags only for TIM's own images, so it can't default it.
 - **Helm:** run `helm upgrade` with the new chart `--version`.
   - The images follow the pair that chart version pins. Set `api.image.tag` or `web.image.tag` only to override.

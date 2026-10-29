@@ -5,9 +5,10 @@ date: 2026-10-29
 
 # One release version for TIM, its own for `tim-actions`
 
-Almost every PR changes the frontend and the backend together, yet they, and the Helm chart that pins them, released on three version lines: a component release took a second release PR for the chart, and an operator read three numbers. TIM now releases both images and the chart as one release-please package with one version, and every release rolls both Deployments. `tim-actions` keeps its own version, because providers depend on its major.
+Almost every PR changes the frontend and the backend together, yet they, and the Helm chart that pins them, released on three version lines: a component release took a second release PR for the chart, and an operator read three numbers. TIM now releases both images and the chart as one release-please package with one version, and every release rolls both Deployments. `tim-actions` keeps its own version, because providers pin the versions its interface breaks at.
 
 - **Packages.** The root package (`.`) is `tim`, tagged `vX.Y.Z`, with one `CHANGELOG.md` at the repo root. Its version is in `web/package.json`, `api/pyproject.toml`, `api/uv.lock`, and the chart's `version` and `appVersion`. `api/tim-actions` stays the `tim-actions` package (`tim-actions-vX.Y.Z`), installed from its git tag ([0021](0021-tim-actions-and-derived-images.md)).
+- **`tim-actions` starts at 0.1.0.** Its interface is new and barely used by providers, so it stays 0.x until it settles. While it's 0.x, a breaking change bumps the minor and anything else the patch, so providers pin `>=0.1,<0.2`. 1.0.0 is a deliberate release, made with `release-as`.
 - **The images are `api` and `web`.** They are `ghcr.io/itsnotapt/tim-data-investigate-platform/api` and `…/web`, named like their directories, the chart's `api` and `web` values and the Compose variables `TIM_API_IMAGE` and `TIM_WEB_IMAGE`. The `backend` and `frontend` images end at 4.0.0 and 1.7.0 and stay in the registry.
 - **Scopes name parts of TIM.** A title's scope is optional. When given, it names what the PR changes: `web`, `api`, `chart` or `tim-actions`.
 - **Which commits release TIM.** release-please gives a root package every commit, including those under `api/tim-actions`. A commit releases nothing when all its files are under the root package's `exclude-paths`: files that ship in neither image nor the chart, such as tests and CI. `fix` is a patch, `feat` a minor, `!` a major. A `tim-actions` change releases TIM too, because the api image ships `tim-actions`.
@@ -16,7 +17,7 @@ Almost every PR changes the frontend and the backend together, yet they, and the
 - **The line starts at 2.0.0.** The first release carries the breaking changes made since frontend 1.7.0, backend 4.0.0 and chart 1.0.1.
 - **One branch, squash merges.** `main` is the only long-lived branch and every PR is squash-merged into it, so the PR title is the release commit. A merge commit would let release-please read every commit of the branch, and a single `!` would major the release. Release PRs are opened against `main`, and merging one releases.
 - **The squash body adds changelog entries.** release-please reads each Conventional Commit line in a squash body as a commit of its own with the PR's changed files, so each line is an entry in TIM's changelog, and in `tim-actions`' when the PR changes it. Body lines are `feat`, `fix` or `perf` with no scope and no `!`, so a breaking change is always in a title the check sees.
-- **A break of `tim-actions` names it.** A `!` title majors TIM, and `tim-actions` too when the PR changes its files. So a breaking PR that changes `api/tim-actions` names `tim-actions` in its scope, and a breaking TIM change keeps `tim-actions` out of the PR when its interface doesn't break. `pr-conventions` checks this and that the title is a Conventional Commit.
+- **A break of `tim-actions` names it.** A `!` title majors TIM, and makes a breaking `tim-actions` release too when the PR changes its files. So a breaking PR that changes `api/tim-actions` names `tim-actions` in its scope, and a breaking TIM change keeps `tim-actions` out of the PR when its interface doesn't break. `pr-conventions` checks this and that the title is a Conventional Commit.
 
 Decided by the user. Replaces ADR-0016. Contributors follow [RULES.md §6–7](../RULES.md#6-git). Related: [0008](0008-helm-chart.md), [0021](0021-tim-actions-and-derived-images.md).
 
@@ -28,6 +29,7 @@ Decided by the user. Replaces ADR-0016. Contributors follow [RULES.md §6–7](.
 | One version, building and pinning only the components that changed | A frontend-only release doesn't restart the api | release-please can't choose per-component pins, so a workflow script must; restarts still happen for config changes, drains and scale-downs |
 | Keep the `backend` and `frontend` image names, starting at 5.0.0 | Existing image references keep working | Names nothing else in TIM uses; a start below 5.0.0 would sort under the existing backend 4.0.0 |
 | `tim-actions` on TIM's version | One number everywhere | Provider authors would see a major for every breaking TIM change, whatever happened to the interface |
+| `tim-actions` starts at 1.0.0 | Providers pin a familiar `>=1,<2` | Promises a stable interface that no provider has tested yet |
 
 ## Consequences
 

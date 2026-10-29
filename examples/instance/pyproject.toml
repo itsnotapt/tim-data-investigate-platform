@@ -3,7 +3,7 @@ name = "example-provider"
 version = "0.1.0"
 description = "The example instance's provider: an action type, Python actions and a connection type"
 requires-python = ">=3.12,<3.13"
-dependencies = ["tim-actions[kusto]>=1,<2"]
+dependencies = ["tim-actions[kusto]>=0.1,<0.2"]
 
 # TIM finds the provider through this entry point.
 [project.entry-points."tim.actions"]

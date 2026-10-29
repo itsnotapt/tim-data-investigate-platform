@@ -51,7 +51,9 @@
         "api/tim-actions": {
             "release-type": "simple",
             "package-name": "tim-actions",
-            "initial-version": "1.0.0",
+            "initial-version": "0.1.0",
+            "bump-minor-pre-major": true,
+            "bump-patch-for-minor-pre-major": true,
             "exclude-paths": [
                 "api/tim-actions/tests"
             ],

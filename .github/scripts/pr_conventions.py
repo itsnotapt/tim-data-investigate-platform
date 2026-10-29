@@ -93,7 +93,7 @@ def check_title(title: str) -> list[str]:
 
 
 def check_breaking_scope(title: str, base: str, head: str, packages: Packages) -> list[str]:
-    """The PR as its squash commit: a breaking title majors every package the PR changes, so
+    """The PR as its squash commit: a breaking title makes a breaking release of every package the PR changes, so
     its scope must name each one below the root. Other scope entries are allowed."""
     if not is_breaking(title):
         return []
@@ -104,9 +104,9 @@ def check_breaking_scope(title: str, base: str, head: str, packages: Packages) -
     return [
         f"PR title '{title}' is breaking and the PR changes files of "
         f"{', '.join(missing)}, which its scope does not name.\n"
-        "    A breaking title majors every package whose files the PR changes.\n"
+        "    A breaking title makes a breaking release of every package whose files the PR changes.\n"
         "    Fix: name each package in the scope, e.g. 'feat(api,tim-actions)!: ...', or move "
-        "the changes to packages that should not go major into another PR."
+        "the changes to packages that should not break into another PR."
     ]
 
 

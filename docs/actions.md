@@ -635,7 +635,7 @@ TIM finds the provider through the `tim.actions` entry-point group. The callable
 
 ```toml
 [project]
-dependencies = ["tim-actions[kusto]>=1,<2"]
+dependencies = ["tim-actions[kusto]>=0.1,<0.2"]
 
 [project.entry-points."tim.actions"]
 example = "example_provider:provider"
@@ -645,7 +645,7 @@ packages = ["src/example_provider"]
 ```
 
 - The action files must be in the package's wheel, here as `example_provider/actions/*.yaml`.
-- Depend on `tim-actions` as `>=1,<2`, with the `kusto` extra when the package uses Kusto.
+- Depend on `tim-actions` as `>=0.1,<0.2`, with the `kusto` extra when the package uses Kusto.
 - TIM's built-in provider registers the same way (`tim_actions.builtin:provider`).
 
 ## Testing
