@@ -4,12 +4,12 @@
 #     --version X.Y.Z -n tim -f <your values> -f values.yaml
 # The files are config/'s, inline. TIM's CI checks they match.
 
-# The derived image: TIM's backend image with the provider installed. Name its tag
+# The derived image: TIM's api image with the provider installed. Name its tag
 # <tim version>-<revision>.
 api:
   image:
     repository: registry.example.com/tim-instance
-    tag: 5.0.0-example.1
+    tag: 2.0.0-example.1
 
 # The action files, by file name, sidecars included: mounted at /etc/tim/actions.
 actions:

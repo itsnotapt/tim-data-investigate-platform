@@ -54,18 +54,15 @@ app.kubernetes.io/component: {{ index . 1 }}
 {{- end }}
 {{- end }}
 
-{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image "backend")
-The digest wins over the tag; an empty tag uses the version pinned for the component
-("frontend" or "backend") in image-tags.yaml, which release-please updates. */}}
+{{/* Image reference. Usage: include "tim.image" (list . .Values.api.image)
+The digest wins over the tag; an empty tag uses the chart's appVersion, TIM's version. */}}
 {{- define "tim.image" -}}
 {{- $ := index . 0 -}}
 {{- $img := index . 1 -}}
-{{- $component := index . 2 -}}
 {{- if $img.digest -}}
 {{- printf "%s@%s" $img.repository $img.digest -}}
 {{- else -}}
-{{- $pinned := index ($.Files.Get "image-tags.yaml" | fromYaml) $component | toString -}}
-{{- printf "%s:%s" $img.repository (default $pinned ($img.tag | toString)) -}}
+{{- printf "%s:%s" $img.repository (default $.Chart.AppVersion ($img.tag | toString)) -}}
 {{- end -}}
 {{- end }}
 
@@ -120,8 +117,8 @@ values are empty. */}}
 {{- $_ := required "config.auth.clientId is required" .Values.config.auth.clientId }}
 {{- /* An api.image.repository other than TIM's (a derived image) needs a tag or digest (ADR-0008). */}}
 {{- $api := .Values.api.image }}
-{{- if and (ne $api.repository "ghcr.io/itsnotapt/tim-data-investigate-platform/backend") (not $api.tag) (not $api.digest) }}
-{{- fail "api.image.repository is not TIM's image: set api.image.tag (a derived image's is <tim version>-<revision>, e.g. 4.0.0-acme.3) or api.image.digest" }}
+{{- if and (ne $api.repository "ghcr.io/itsnotapt/tim-data-investigate-platform/api") (not $api.tag) (not $api.digest) }}
+{{- fail "api.image.repository is not TIM's image: set api.image.tag (a derived image's is <tim version>-<revision>, e.g. 2.0.0-acme.3) or api.image.digest" }}
 {{- end }}
 {{- if and .Values.actions.files .Values.actions.existingConfigMap }}
 {{- fail "set actions.files or actions.existingConfigMap, not both" }}

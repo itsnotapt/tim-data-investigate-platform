@@ -7,13 +7,14 @@ TIM ships as two container images. It runs on Docker Compose or Kubernetes (Helm
 
 | Local build name | Source                         | Base image | Published as                                                      |
 | ---------------- | ------------------------------ | ---------- | ----------------------------------------------------------------- |
-| `tim-api`        | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`) | `ghcr.io/<owner>/<repo>/backend:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
-| `tim-web`        | `web/Dockerfile` (context `web/`) | `ghcr.io/nginx/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` (from `mirror.gcr.io`) | `ghcr.io/<owner>/<repo>/frontend:<version>` (same tag set) |
+| `tim-api`        | `api/Dockerfile` (context `api/`) | `python:3.12-slim-trixie` (Debian 13, from `mirror.gcr.io`) | `ghcr.io/<owner>/<repo>/api:<version>` (also `<major>.<minor>`, `<major>`, `sha-<sha>`) |
+| `tim-web`        | `web/Dockerfile` (context `web/`) | `ghcr.io/nginx/nginx-unprivileged:1.30-alpine`, built on `node:24-alpine3.24` (from `mirror.gcr.io`) | `ghcr.io/<owner>/<repo>/web:<version>` (same tag set) |
 
 Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a release.
 
-- The frontend (`web/`), the backend (`api/`) and the Helm chart are versioned independently.
-- The chart pins one frontend and one backend version ([ADR-0016](adr/0016-release-versions.md)).
+- The api image, the web image and the Helm chart share one TIM version ([ADR-0024](adr/0024-one-release-version.md)).
+- One release publishes both images and the chart.
+- Every release restarts both Deployments. An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 
 ## Topology
 
@@ -125,13 +126,13 @@ curl -s http://localhost:8080/config.js                        # contains agGrid
 To run published images instead of building, set in `deploy/.env`:
 
 ```bash
-TIM_API_IMAGE=ghcr.io/<owner>/<repo>/backend
-TIM_API_IMAGE_TAG=4.0.0
-TIM_WEB_IMAGE=ghcr.io/<owner>/<repo>/frontend
-TIM_WEB_IMAGE_TAG=1.6.0
+TIM_API_IMAGE=ghcr.io/<owner>/<repo>/api
+TIM_API_IMAGE_TAG=2.0.0
+TIM_WEB_IMAGE=ghcr.io/<owner>/<repo>/web
+TIM_WEB_IMAGE_TAG=2.0.0
 ```
 
-Use a matching pair, for example the versions a chart release pins in `deploy/helm/tim/image-tags.yaml`. Then run `docker compose ... pull`, followed by `docker compose ... up -d --no-build`.
+Set both tags to the same TIM version. Then run `docker compose ... pull`, followed by `docker compose ... up -d --no-build`.
 
 To run providers, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` to a [derived image](#derived-images).
 
@@ -179,12 +180,12 @@ Under Helm, the chart mounts the same paths from ConfigMaps and sets the variabl
 
 ## Derived images
 
-An instance that uses providers runs a derived image: TIM's backend image with the providers installed. Both Compose and Helm use it.
+An instance that uses providers runs a derived image: TIM's api image with the providers installed. Both Compose and Helm use it.
 
-The backend image ships `uv` and `/app/constraints.txt`. The constraints pin every dependency from TIM's `uv.lock`, and pin `tim-api` and `tim-actions` to the versions in the image.
+The api image ships `uv` and `/app/constraints.txt`. The constraints pin every dependency from TIM's `uv.lock`, and pin `tim-api` and `tim-actions` to the versions in the image.
 
 ```dockerfile
-FROM ghcr.io/itsnotapt/tim-data-investigate-platform/backend:4.0.0
+FROM ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.0.0
 COPY --chown=tim:tim acme-provider /tmp/acme-provider
 RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/acme-provider
 ```
@@ -193,7 +194,7 @@ RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/a
 - **User.** The image runs as `tim`, which owns `/app/.venv`. No `USER` switch is needed.
 - **Constraints.** A provider can't move TIM's pins. A provider that needs another `tim-actions` major fails the build with `No solution found`.
 - **No runtime installs.** Nothing installs when the container starts. Every replica runs the same packages.
-- **Tags.** Name a derived image `<tim version>-<revision>`, for example `4.0.0-acme.3`. The revision counts your own changes on that TIM version.
+- **Tags.** Name a derived image `<tim version>-<revision>`, for example `2.0.0-acme.3`. The revision counts your own changes on that TIM version.
 - **Checks.** `tim-api schema` and `tim-api check` run in the derived image and include the providers' types ([actions.md](actions.md#checking-files)).
 - **Use it.** In Compose, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG`. In Helm, set `api.image.repository`, and always set `api.image.tag` or `api.image.digest`.
 - **Helm image.** The migrations Job uses the same image as the api. The chart does not check the tag's format.
@@ -230,9 +231,9 @@ The api and web pods restart automatically when their own ConfigMap or the Secre
 
 The chart is published as an OCI artifact to GitHub Container Registry, at `oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim`.
 
-- Chart releases are tagged `chart-vX.Y.Z`.
-- `deploy/helm/tim/image-tags.yaml` pins the frontend and backend image versions. So `--version X.Y.Z` selects a chart version, and with it the image pair, without any tag settings.
-- `Chart.yaml` `version` and `appVersion` are equal: the chart version.
+- A release pushes the chart as `X.Y.Z`, TIM's version.
+- `api.image.tag` and `web.image.tag` default to the chart's `appVersion`, which is TIM's version. So `--version X.Y.Z` deploys the api and web images `X.Y.Z`, without any tag settings.
+- `Chart.yaml` `version` and `appVersion` are equal: TIM's version.
 - `api.image.tag`, `web.image.tag` and `digest` are optional overrides.
 
 ```bash
@@ -280,7 +281,7 @@ helm test tim -n tim --logs
 `deploy/helm/tim/ci/*.yaml` are further examples: minimal, all features, and existing Secret.
 
 - Rendering fails with a message when a required value is missing.
-- Image tags default to the versions pinned in `image-tags.yaml`.
+- Image tags default to the chart's `appVersion`.
 - `values.schema.json` rejects unknown keys and malformed values.
 
 ### Secrets
@@ -393,8 +394,8 @@ helm uninstall tim -n tim
 | `config.auth.tenantId` / `clientId` | required | `TIM_AUTH_TENANT_ID` / `TIM_AUTH_CLIENT_ID`, `AUTH_TENANT_ID` / `AUTH_CLIENT_ID` |
 | `secrets.existingSecret` | empty | Use this Secret instead of creating one |
 | `secrets.databaseUrl` / `authClientSecret` / `agGridLicense` | empty | `TIM_DATABASE_URL` / `TIM_AUTH_CLIENT_SECRET` / `AGGRID_LICENSE` |
-| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/backend` / empty / empty | Empty `tag` uses the backend version pinned in `image-tags.yaml`; `digest` wins over `tag`. Another `repository` needs `tag` or `digest` ([Derived images](#derived-images)) |
-| `web.image.*` | same, `ghcr.io/itsnotapt/tim-data-investigate-platform/frontend`; empty `tag` uses the frontend version pinned in `image-tags.yaml` | |
+| `api.image.repository` / `tag` / `digest` | `ghcr.io/itsnotapt/tim-data-investigate-platform/api` / empty / empty | Empty `tag` uses the chart's `appVersion`; `digest` wins over `tag`. Another `repository` needs `tag` or `digest` ([Derived images](#derived-images)) |
+| `web.image.*` | same, `ghcr.io/itsnotapt/tim-data-investigate-platform/web`; empty `tag` uses the chart's `appVersion` | |
 | `actions.files` | empty | Action files and their sidecars by file name to content, in ConfigMap `<release>-tim-actions`; sets `TIM_ACTIONS_DIR`. See [Instance files under Helm](#instance-files-under-helm) |
 | `actions.existingConfigMap` | empty | A ConfigMap of action files you manage, mounted the same way. Not with `actions.files` |
 | `connections` | empty | The connections file as a list, in `<release>-tim-api-files`; sets `TIM_CONNECTIONS_FILE`. An entry with `auth: obo` makes the production OBO credential check apply |
@@ -428,10 +429,10 @@ Ingress controllers have their own body-size and timeout defaults: ingress-nginx
   1. Update the checkout, or `TIM_API_IMAGE_TAG` and `TIM_WEB_IMAGE_TAG`.
   2. Run `docker compose -f deploy/compose.prod.yaml --env-file deploy/.env up -d --build`, or `pull` then `up -d --no-build`.
   3. `migrate` re-runs. It is a no-op when the schema is current. Then api and web are recreated.
-- **Derived images:** rebuild each one `FROM` the new backend tag on every TIM release, and retag it `<tim version>-<revision>`.
+- **Derived images:** rebuild each one `FROM` the new api tag on every TIM release, and retag it `<tim version>-<revision>`.
   - Then point the stack at the new tag: `TIM_API_IMAGE_TAG` in Compose, `api.image.tag` in Helm.
   - A provider that needs another `tim-actions` major fails the rebuild. Update the provider first.
-  - In Helm, a derived image's `api.image.tag` (or `digest`) is always set. The chart pins only TIM's own image, so it can't default it.
+  - In Helm, a derived image's `api.image.tag` (or `digest`) is always set. The chart defaults tags only for TIM's own images, so it can't default it.
 - **Helm:** run `helm upgrade` with the new chart `--version`.
   - The images follow the pair that chart version pins. Set `api.image.tag` or `web.image.tag` only to override.
   - A change to an `actions.existingConfigMap` is not rolled out by `helm upgrade`: run `kubectl rollout restart deployment/<release>-tim-api`. Changes to `actions.files`, `connections` and `labels` restart the api by themselves.

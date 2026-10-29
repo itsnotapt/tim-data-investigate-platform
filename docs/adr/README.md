@@ -68,7 +68,6 @@ Numbers are never reused, so the sequence has gaps.
 | [0011](0011-development-only-modes.md) | Development-only modes refuse to run in production | accepted | 2026-10-06 |
 | [0012](0012-query-run-limits-and-lifecycle.md) | Run limits and lifecycle | accepted | 2026-10-06 |
 | [0014](0014-web-auth-token-cache.md) | Web sign-in: token cache in localStorage | accepted | 2026-10-06 |
-| [0016](0016-release-versions.md) | Release versions for frontend, backend, the Helm chart and tim-actions | deprecated | 2026-10-07 |
 | [0017](0017-actions-from-providers.md) | Actions are Python classes from installed providers, configured by YAML files | accepted | 2026-10-20 |
 | [0018](0018-fixed-connections.md) | Fixed connections | accepted | 2026-10-20 |
 | [0019](0019-params-are-bound.md) | Params are bound, never templated | accepted | 2026-10-20 |

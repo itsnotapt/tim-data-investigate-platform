@@ -11,6 +11,7 @@ on:
       - compose.yaml
       - .env.example
       - web/package.json
+      - web/package-lock.json
       - api/pyproject.toml
       - api/uv.lock
       - .github/workflows/deploy-check.yml
@@ -26,6 +27,7 @@ on:
       - compose.yaml
       - .env.example
       - web/package.json
+      - web/package-lock.json
       - api/pyproject.toml
       - api/uv.lock
       - .github/workflows/deploy-check.yml
@@ -91,38 +93,31 @@ jobs:
         run: |
           import json, re, sys, tomllib
           chart = open("deploy/helm/tim/Chart.yaml").read()
-          tags = dict(re.findall(r"^(frontend|backend): *['\"]?([^'\"\s]+)", open("deploy/helm/tim/image-tags.yaml").read(), re.M))
-          manifest = json.load(open(".release-please-manifest.json"))
           lock = tomllib.load(open("api/uv.lock", "rb"))
-          groups = {
-              "chart": {
-                  "manifest deploy/helm/tim": manifest["deploy/helm/tim"],
-                  "Chart.yaml version": re.search(r"^version: *(\S+)", chart, re.M).group(1),
-                  "Chart.yaml appVersion": re.search(r'^appVersion: *"([^"]+)"', chart, re.M).group(1),
-              },
-              "frontend": {
-                  "manifest web": manifest["web"],
-                  "web/package.json": json.load(open("web/package.json"))["version"],
-                  "image-tags.yaml frontend": tags.get("frontend"),
-              },
-              "backend": {
-                  "manifest api": manifest["api"],
-                  "api/pyproject.toml": tomllib.load(open("api/pyproject.toml", "rb"))["project"]["version"],
-                  "api/uv.lock tim-api": next(p["version"] for p in lock["package"] if p["name"] == "tim-api"),
-                  "image-tags.yaml backend": tags.get("backend"),
-              },
+          package_lock = json.load(open("web/package-lock.json"))
+          versions = {
+              "web/package.json": json.load(open("web/package.json"))["version"],
+              "web/package-lock.json": package_lock["version"],
+              "web/package-lock.json packages['']": package_lock["packages"][""]["version"],
+              "api/pyproject.toml": tomllib.load(open("api/pyproject.toml", "rb"))["project"]["version"],
+              "api/uv.lock tim-api": next(p["version"] for p in lock["package"] if p["name"] == "tim-api"),
+              "Chart.yaml version": re.search(r"^version: *(\S+)", chart, re.M).group(1),
+              "Chart.yaml appVersion": re.search(r'^appVersion: *"([^"]+)"', chart, re.M).group(1),
           }
-          errors = [f"{name} versions differ: {versions}" for name, versions in groups.items() if len(set(versions.values())) != 1]
-          if errors:
-              sys.exit("\n".join(errors))
+          # The manifest has TIM's version from its first release on.
+          manifest = json.load(open(".release-please-manifest.json"))
+          if "." in manifest:
+              versions["manifest ."] = manifest["."]
+          if len(set(versions.values())) != 1:
+              sys.exit(f"TIM's versions differ: {versions}")
 
-      - name: Image tags default to the pinned versions
+      - name: Image tags default to the appVersion
         run: |
           rendered="$(helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml")"
-          for component in frontend backend; do
-            tag="$(yq ".${component}" "$CHART/image-tags.yaml")"
-            if ! grep -q "image: \"ghcr.io/itsnotapt/tim-data-investigate-platform/${component}:${tag}\"" <<<"$rendered"; then
-              echo "the $component image must default to ghcr.io/itsnotapt/tim-data-investigate-platform/${component}:${tag} (image-tags.yaml)" >&2
+          version="$(yq '.appVersion' "$CHART/Chart.yaml")"
+          for image in api web; do
+            if ! grep -q "image: \"ghcr.io/itsnotapt/tim-data-investigate-platform/${image}:${version}\"" <<<"$rendered"; then
+              echo "the $image image must default to ghcr.io/itsnotapt/tim-data-investigate-platform/${image}:${version} (the appVersion)" >&2
               exit 1
             fi
           done
@@ -260,15 +255,15 @@ jobs:
 
       - name: Derived images need a tag or digest
         run: |
-          derived=(--set api.image.repository=registry.example.com/acme/tim-backend)
+          derived=(--set api.image.repository=registry.example.com/acme/tim-api)
           if helm template tim "$CHART" -f "$CHART/ci/minimal-values.yaml" "${derived[@]}" > /dev/null 2>&1; then
             echo "an api.image.repository other than the default without api.image.tag or digest must fail" >&2
             exit 1
           fi
-          images="$(helm template tim "$CHART" -f "$CHART/ci/full-values.yaml" "${derived[@]}" --set api.image.tag=4.0.0-acme.3 \
+          images="$(helm template tim "$CHART" -f "$CHART/ci/full-values.yaml" "${derived[@]}" --set api.image.tag=2.0.0-acme.3 \
             | yq -N 'select(.kind == "Deployment" or .kind == "Job") | .spec.template.spec.containers[] | select(.name == "api" or .name == "migrate") | .image' \
             | sort | tr '\n' ' ')"
-          if [ "$images" != "registry.example.com/acme/tim-backend:4.0.0-acme.3 registry.example.com/acme/tim-backend:4.0.0-acme.3 " ]; then
+          if [ "$images" != "registry.example.com/acme/tim-api:2.0.0-acme.3 registry.example.com/acme/tim-api:2.0.0-acme.3 " ]; then
             echo "the api Deployment and the migrations Job must both run the derived image, got: $images" >&2
             exit 1
           fi
@@ -370,7 +365,7 @@ jobs:
           assert_api_mount -f deploy/compose.prod.yaml "${example[@]}" -- /srv/tim-instance/config \
             /etc/tim/actions /etc/tim/connections.yaml /etc/tim/labels.yaml
           image="$(docker compose -f deploy/compose.prod.yaml "${example[@]}" config --format json | jq -r .services.api.image)"
-          if [ "$image" != registry.example.com/tim-instance:5.0.0-example.1 ]; then
+          if [ "$image" != registry.example.com/tim-instance:2.0.0-example.1 ]; then
             echo "the example instance must run its derived image, got $image" >&2
             exit 1
           fi

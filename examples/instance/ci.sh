@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # The instance's checks, which .github/workflows/ci.yaml runs: the tests in the image, the image
 # build, `tim-api check` on config/, and the committed schema against the image's.
-#   ./ci.sh <backend image> [instance image tag]
+#   ./ci.sh <api image> [instance image tag]
 # Needs Docker and uv.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-base=${1:?give the backend image, such as ghcr.io/itsnotapt/tim-data-investigate-platform/backend:5.0.0}
+base=${1:?give the api image, such as ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.0.0}
 image=${2:-tim-instance:ci}
-# The default builder sees images loaded into the local Docker, such as a backend image built
+# The default builder sees images loaded into the local Docker, such as a api image built
 # just before.
 build=(docker buildx build --builder default --build-arg "BASE=$base")
 

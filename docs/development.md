@@ -227,7 +227,7 @@ To use them with the main loop, uncomment `TIM_DEV_ACTIONS` and `TIM_ACTIONS_DIR
 
 ## The uv workspace
 
-`api/` is a uv workspace with two members. Each is its own distribution, with its own version and release ([ADR-0021](adr/0021-tim-actions-and-derived-images.md)):
+`api/` is a uv workspace with two members. Each is its own distribution ([ADR-0021](adr/0021-tim-actions-and-derived-images.md)). `tim-api` is released as TIM's version, `tim-actions` on its own ([ADR-0024](adr/0024-one-release-version.md)):
 
 | Member | Directory | What it is |
 |---|---|---|
@@ -306,13 +306,13 @@ The api image ships the migrations, so deployments run them with the same image 
 The rules live elsewhere:
 
 - Branches, titles, the merge method and how titles decide releases: [RULES.md §6–7](RULES.md#6-git).
-- Which commits release each package: [ADR-0016](adr/0016-release-versions.md).
+- Which commits release TIM and `tim-actions`: [ADR-0024](adr/0024-one-release-version.md).
 
 The required checks are:
 
 - **`pr-conventions`** (`pr-conventions.yml`), run by `.github/scripts/pr_conventions.py`. It checks:
   - that the PR title is a Conventional Commit;
-  - that a breaking title's scope names every package the PR changes.
+  - that a breaking title on a PR that changes `api/tim-actions` names `tim-actions` in its scope.
 
   It is skipped for `release-please--*` branches.
 - **`build-web-gate`** (`build-web.yml`) and **`build-api-gate`** (`build-api.yml`), the build checks.
@@ -331,7 +331,10 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
 
 Things the workflows don't tell you:
 
-- **Renaming a package means updating its jsonpath.** An api release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath in `release-please-config.json`. A `tim-actions` release bumps the `tim-actions` entry the same way. If you rename either package in its `pyproject.toml`, update its jsonpath too. Otherwise `uv sync --locked` fails on the release PR.
+- **Renaming a package means updating its jsonpath.** A TIM release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath on the root package in `release-please-config.json`. A `tim-actions` release bumps the `tim-actions` entry through a jsonpath on its own package. If you rename either package in its `pyproject.toml`, update its jsonpath too. Otherwise `uv sync --locked` fails on the release PR.
+- **Release versions must agree.** TIM's version sits in `web/package.json`, `web/package-lock.json` (two places), `api/pyproject.toml`, the `tim-api` entry of `api/uv.lock`, and `Chart.yaml` `version` and `appVersion`. The `deploy-check.yml` step "Release versions are consistent" compares them, and the manifest's `.` once it exists. The step "Image tags default to the appVersion" renders the chart and checks that both images default to `.../api:<appVersion>` and `.../web:<appVersion>`.
+- **A release publishes everything.** `release-please.yml` builds and pushes the api and web images tagged `X.Y.Z`, `X.Y`, `X` and the sha. Then it packages and pushes the chart `X.Y.Z`, after checking that `Chart.yaml` and both images match the release.
+- **Every release restarts both Deployments.** An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 - **Images come from mirrors, not Docker Hub.** Docker Hub's anonymous pull limit stalls CI.
   - Docker Hub images are pulled through `mirror.gcr.io`: the Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action` and the `postgres` service.
   - `nginx-unprivileged` comes from its publisher's `ghcr.io/nginx`.

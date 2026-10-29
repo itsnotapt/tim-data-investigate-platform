@@ -19,10 +19,10 @@ The images are `tim-web` and `tim-api`, and PostgreSQL is the datastore ([0004](
   - `actions.files` (file name to content) renders ConfigMap `<release>-tim-actions`; `actions.existingConfigMap` names one the operator manages. The two are mutually exclusive. Either is mounted at `/etc/tim/actions` and sets `TIM_ACTIONS_DIR`.
   - Structured `connections` and `labels` values render into `<release>-tim-api-files`, kept apart from the `envFrom` ConfigMap. Each is mounted with `subPath`, and its variable is set only when the value is non-empty. `values.schema.json` leaves their contents open, because the api validates them at startup.
   - The api pod carries `checksum/actions` and `checksum/api-files` annotations, so it restarts when those change. An existing ConfigMap has no checksum, so the operator restarts the pods.
-- **Derived images.** `api.image.repository` may name a derived image or a mirror, and the migrations Job uses the same image. `image-tags.yaml` pins only TIM's own image, so another repository must set `api.image.tag` (`<tim version>-<revision>`) or `api.image.digest`. The chart checks that one is set, not the tag's format.
+- **Derived images.** `api.image.repository` may name a derived image or a mirror, and the migrations Job uses the same image. An empty tag defaults to the chart's `appVersion`, which names only TIM's own images, so another repository must set `api.image.tag` (`<tim version>-<revision>`) or `api.image.digest`. The chart checks that one is set, not the tag's format.
 - **Validation.** Templates call `required`/`fail` (`tim.validate` in `_helpers.tpl`) for the tenant and client ids, `ingress.host`, a public URL, the database URL (or `postgresql.auth.password`), a tag or digest for an `api.image.repository` other than TIM's, setting both `actions.files` and `actions.existingConfigMap`, and, in production when a connection uses `obo`, an OBO credential (client secret, `secrets.existingSecret` or workload identity). `values.schema.json` sets `additionalProperties: false` on the root and the nested objects, so unknown keys are rejected.
 
-Decided by the user. Related: [deployment.md](../deployment.md), [0004](0004-postgresql-persistence.md), [0006](0006-ag-grid-enterprise.md), [0016](0016-release-versions.md).
+Decided by the user. Related: [deployment.md](../deployment.md), [0004](0004-postgresql-persistence.md), [0006](0006-ag-grid-enterprise.md), [0024](0024-one-release-version.md).
 
 ## Considered Options
 
@@ -39,7 +39,7 @@ Decided by the user. Related: [deployment.md](../deployment.md), [0004](0004-pos
 - The chart-created Secret is a `pre-install,pre-upgrade` hook (weight -10) so it exists before the migrations Job. Helm does not delete hook resources on uninstall, so `helm uninstall` leaves it; remove it with `kubectl delete secret <release>-tim`. A Secret passed with `secrets.existingSecret` is never managed by the chart.
 - The in-cluster database's PVC comes from the StatefulSet `volumeClaimTemplates`, which Kubernetes does not delete with the StatefulSet. It survives `helm uninstall`, and an existing data directory keeps its original password, so delete the PVC before reinstalling with a different one.
 - Web runs with a read-only root filesystem: its entrypoint writes `config.js` and the nginx conf to `/tmp/tim`, on the `emptyDir` the chart mounts at `/tmp`.
-- Image tags and chart versions follow [0016](0016-release-versions.md).
+- Image tags and chart versions follow [0024](0024-one-release-version.md).
 - Migrations are forward-only: `helm rollback` restores images, not the schema. Back up the database before upgrading.
 - Pods restart when the chart's ConfigMaps or Secret change (checksum annotations). The api does not restart when an `actions.existingConfigMap` changes; the operator runs `kubectl rollout restart deployment/<release>-tim-api`.
 - A derived image's tag is the operator's to set on every upgrade; the chart has no default for it.

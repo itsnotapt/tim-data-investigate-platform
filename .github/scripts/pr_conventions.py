@@ -3,9 +3,9 @@
 
 `pr BASE HEAD --title TITLE` checks a squash-merged PR into main:
 - the title is a Conventional Commit, because it becomes the release commit;
-- a breaking title's scope names every package whose files the PR changes.
+- a breaking title's scope names `tim-actions` when the PR changes its files.
 
-See docs/RULES.md and docs/adr/0016-release-versions.md.
+See docs/RULES.md and docs/adr/0024-one-release-version.md.
 """
 
 from __future__ import annotations
@@ -45,6 +45,8 @@ def scopes_of(subject: str) -> set[str]:
 
 
 def packages_from_config(path: str | Path) -> Packages:
+    """The packages below the root. A breaking title always majors the root package, TIM, so
+    only these need naming."""
     config = json.loads(Path(path).read_text())
     return {
         pkg_path.strip("/"): (
@@ -52,6 +54,7 @@ def packages_from_config(path: str | Path) -> Packages:
             [e.strip("/") for e in settings.get("exclude-paths", [])],
         )
         for pkg_path, settings in config["packages"].items()
+        if pkg_path != "."
     }
 
 
@@ -91,7 +94,7 @@ def check_title(title: str) -> list[str]:
 
 def check_breaking_scope(title: str, base: str, head: str, packages: Packages) -> list[str]:
     """The PR as its squash commit: a breaking title majors every package the PR changes, so
-    its scope must name each of them. Other scope entries are allowed."""
+    its scope must name each one below the root. Other scope entries are allowed."""
     if not is_breaking(title):
         return []
     files = git("diff", "--name-only", f"{base}...{head}").splitlines()
@@ -102,7 +105,7 @@ def check_breaking_scope(title: str, base: str, head: str, packages: Packages) -
         f"PR title '{title}' is breaking and the PR changes files of "
         f"{', '.join(missing)}, which its scope does not name.\n"
         "    A breaking title majors every package whose files the PR changes.\n"
-        "    Fix: name each package in the scope, e.g. 'feat(backend,chart)!: ...', or move "
+        "    Fix: name each package in the scope, e.g. 'feat(api,tim-actions)!: ...', or move "
         "the changes to packages that should not go major into another PR."
     ]
 

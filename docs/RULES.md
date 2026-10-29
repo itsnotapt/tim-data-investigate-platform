@@ -19,7 +19,7 @@ Process rules for everyone working on TIM, human or agent.
 - Do not merge with failing or skipped tests unless the user agrees.
 - PRs into `main` are squash-merged: the PR title is the release commit and its first changelog entry. Mark a breaking change with `!` in the title, not with a footer.
 - **Squash body:** for each further user-visible change, add one Conventional Commit line to the squash body.
-  - release-please makes each line a changelog entry in every package whose files the PR changes.
+  - release-please makes each line a changelog entry in TIM's changelog, and in `tim-actions`' when the PR changes `api/tim-actions`.
   - It counts the line's type toward the version like the title's. A `feat` line under a `fix` title makes a minor release.
   - Write each line for the changelog reader, with the UI's own labels, e.g. `fix: colour contrast of the snackbar Dismiss button`.
   - Use `feat`, `fix` or `perf`, with no scope and no `!`. A breaking change goes in the title.
@@ -28,11 +28,17 @@ Process rules for everyone working on TIM, human or agent.
   - When a PR has such lines, list them under **Changelog entries** in the PR description. Otherwise the title alone is the entry.
 - **Releasing:** merge the release PRs release-please opens against `main`.
 
-[ADR-0016](adr/0016-release-versions.md) records the branch flow and why; [development.md](development.md#ci-and-releases) describes the checks and repository settings.
+[ADR-0024](adr/0024-one-release-version.md) records the branch flow and why; [development.md](development.md#ci-and-releases) describes the checks and repository settings.
 
 ## 7. Releases
 
-- Keep a breaking change in its own PR, out of any package that should not go major. Its title's scope names every package whose files the PR changes: `frontend` (`web/`), `backend` (`api/`), `tim-actions` (`api/tim-actions`), `chart` (`deploy/helm/tim`), e.g. `feat(backend,chart)!: …`.
+- **TIM** has one version for the api image, the web image and the Helm chart. It is tagged `vX.Y.Z`.
+- **`tim-actions`** has its own version, tagged `tim-actions-vX.Y.Z`.
+- A commit's type counts toward TIM's next version unless all its files are under `.claude`, `.github`, `docs`, `examples`, `api/tests`, `api/tim-actions/tests`, `web/e2e` or `deploy/helm/tim/ci`.
+- A breaking title (`!`) always makes TIM a major release.
+- A breaking title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) majors `tim-actions` too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
+- Other scopes are optional and free-form. By convention they name `web`, `api`, `chart` or `tim-actions`.
 - Versions come from the commit types. Never edit versions by hand; release-please owns them.
+- Releasing is merging the release PR. It publishes both images and the chart.
 
-[ADR-0016](adr/0016-release-versions.md) describes the packages and which commits bump them.
+[ADR-0024](adr/0024-one-release-version.md) describes the packages and which commits bump them.

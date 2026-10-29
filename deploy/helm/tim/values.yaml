@@ -52,8 +52,8 @@ serviceAccount:
 # --- api ---------------------------------------------------------------------------------------
 api:
   image:
-    repository: ghcr.io/itsnotapt/tim-data-investigate-platform/backend
-    # Empty = the version this chart release pins in image-tags.yaml.
+    repository: ghcr.io/itsnotapt/tim-data-investigate-platform/api
+    # Empty = the chart's appVersion, TIM's version.
     tag: ""
     # Immutable reference; takes precedence over tag when set (sha256:...).
     digest: ""
@@ -184,8 +184,8 @@ migrations:
 # --- web ---------------------------------------------------------------------------------------
 web:
   image:
-    repository: ghcr.io/itsnotapt/tim-data-investigate-platform/frontend
-    # Empty = the version this chart release pins in image-tags.yaml.
+    repository: ghcr.io/itsnotapt/tim-data-investigate-platform/web
+    # Empty = the chart's appVersion, TIM's version.
     tag: ""
     # Immutable reference; takes precedence over tag when set (sha256:...).
     digest: ""
