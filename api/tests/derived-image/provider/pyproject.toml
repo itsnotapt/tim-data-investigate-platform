@@ -3,7 +3,7 @@ name = "tim-ci-provider"
 version = "0.1.0"
 description = "A provider with one connection type, for the derived-image test"
 requires-python = ">=3.12"
-dependencies = ["tim-actions>=1,<2"]
+dependencies = ["tim-actions>=0.1,<0.2"]
 
 [project.entry-points."tim.actions"]
 ci = "tim_ci_provider:provider"

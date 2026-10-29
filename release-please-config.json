@@ -1,72 +1,72 @@
 {
-    "bootstrap-sha": "02ad822a14e1a6cd75b87065061302672da46004",
+    "last-release-sha": "45a6fe3059d0257428e0a1679794c785494128dd",
     "packages": {
-        "web": {
-            "release-type": "node",
-            "package-name": "frontend",
+        ".": {
+            "release-type": "simple",
+            "package-name": "tim",
+            "include-component-in-tag": false,
+            "initial-version": "2.0.0",
             "exclude-paths": [
-                "web/e2e"
+                ".claude",
+                ".github",
+                "docs",
+                "examples",
+                "api/tests",
+                "api/tim-actions/tests",
+                "web/e2e",
+                "deploy/helm/tim/ci"
             ],
             "extra-files": [
                 {
-                    "type": "yaml",
-                    "path": "/deploy/helm/tim/image-tags.yaml",
-                    "jsonpath": "$.frontend"
-                }
-            ]
-        },
-        "api": {
-            "release-type": "python",
-            "package-name": "backend",
-            "exclude-paths": [
-                "api/tests",
-                "api/tim-actions"
-            ],
-            "extra-files": [
+                    "type": "json",
+                    "path": "web/package.json",
+                    "jsonpath": "$.version"
+                },
+                {
+                    "type": "json",
+                    "path": "web/package-lock.json",
+                    "jsonpath": "$.version"
+                },
+                {
+                    "type": "json",
+                    "path": "web/package-lock.json",
+                    "jsonpath": "$.packages[''].version"
+                },
                 {
                     "type": "toml",
-                    "path": "uv.lock",
+                    "path": "api/pyproject.toml",
+                    "jsonpath": "$.project.version"
+                },
+                {
+                    "type": "toml",
+                    "path": "api/uv.lock",
                     "jsonpath": "$.package[?(@.name.value=='tim-api')].version"
                 },
                 {
-                    "type": "yaml",
-                    "path": "/deploy/helm/tim/image-tags.yaml",
-                    "jsonpath": "$.backend"
+                    "type": "generic",
+                    "path": "deploy/helm/tim/Chart.yaml"
                 }
             ]
         },
         "api/tim-actions": {
-            "release-type": "python",
+            "release-type": "simple",
             "package-name": "tim-actions",
-            "initial-version": "1.0.0",
+            "initial-version": "0.1.0",
+            "bump-minor-pre-major": true,
+            "bump-patch-for-minor-pre-major": true,
             "exclude-paths": [
                 "api/tim-actions/tests"
             ],
             "extra-files": [
                 {
                     "type": "toml",
+                    "path": "pyproject.toml",
+                    "jsonpath": "$.project.version"
+                },
+                {
+                    "type": "toml",
                     "path": "/api/uv.lock",
                     "jsonpath": "$.package[?(@.name.value=='tim-actions')].version"
-                }
-            ]
-        },
-        "deploy/helm/tim": {
-            "release-type": "helm",
-            "package-name": "chart",
-            "exclude-paths": [
-                "deploy/helm/tim/ci"
-            ],
-            "changelog-sections": [
-                { "type": "feat", "section": "Features" },
-                { "type": "fix", "section": "Bug Fixes" },
-                { "type": "perf", "section": "Performance Improvements" },
-                { "type": "revert", "section": "Reverts" },
-                { "type": "chore", "section": "Image updates and chores" }
-            ],
-            "extra-files": [
-                {
-                    "type": "generic",
-                    "path": "Chart.yaml"
                 }
             ]
         }

@@ -42,7 +42,7 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.api.terminationGracePeriodSeconds }}
       containers:
         - name: api
-          image: {{ include "tim.image" (list . .Values.api.image "backend") | quote }}
+          image: {{ include "tim.image" (list . .Values.api.image) | quote }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.api.securityContext | nindent 12 }}

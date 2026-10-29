@@ -1,5 +1,5 @@
 # The instance's CI: the tests in the image, the image build, `tim-api check` on config/ and the
-# committed schema (ci.sh). TIM's own CI runs ci.sh too, against each PR's backend image.
+# committed schema (ci.sh). TIM's own CI runs ci.sh too, against each PR's api image.
 name: CI
 
 on:
@@ -13,7 +13,7 @@ permissions:
 
 env:
   # The TIM version the instance runs on. Change it with the image tag in deploy/.
-  TIM_BACKEND_IMAGE: ghcr.io/itsnotapt/tim-data-investigate-platform/backend:5.0.0
+  TIM_API_IMAGE: ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.0.0
 
 jobs:
   check:
@@ -25,4 +25,4 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
 
       - name: Check the instance
-        run: ./ci.sh "$TIM_BACKEND_IMAGE"
+        run: ./ci.sh "$TIM_API_IMAGE"

@@ -1,7 +1,7 @@
-# The instance's image: TIM's backend image with this provider installed against its constraints
+# The instance's image: TIM's api image with this provider installed against its constraints
 # (docs/actions.md#building-and-deploying).
-#   docker build --build-arg BASE=<backend image> --tag <image> .
-#   docker build --build-arg BASE=<backend image> --target test .   # the tests, in the image
+#   docker build --build-arg BASE=<api image> --tag <image> .
+#   docker build --build-arg BASE=<api image> --target test .   # the tests, in the image
 ARG BASE
 FROM ${BASE} AS instance
 COPY --chown=tim:tim pyproject.toml /tmp/provider/

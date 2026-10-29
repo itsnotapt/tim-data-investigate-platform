@@ -1,10 +1,10 @@
-# Wants the next tim-actions major: installing it against the backend image's constraints fails.
+# Wants the next breaking tim-actions version: installing it against the api image's constraints fails.
 [project]
 name = "tim-ci-incompatible"
 version = "0.1.0"
-description = "A provider for a tim-actions major the backend image doesn't have"
+description = "A provider for a tim-actions version the api image doesn't have"
 requires-python = ">=3.12"
-dependencies = ["tim-actions>=2,<3"]
+dependencies = ["tim-actions>=0.2,<0.3"]
 
 [build-system]
 requires = ["hatchling"]

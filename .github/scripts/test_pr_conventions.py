@@ -19,7 +19,7 @@ class PureFunctions(unittest.TestCase):
             "feat: x",
             "fix(web): y",
             "feat(api)!: z",
-            "chore(main): release frontend 1.6.0",
+            "chore(main): release tim 2.0.0",
         ]:
             self.assertTrue(pc.is_conventional(ok), ok)
         for bad in [
@@ -41,40 +41,22 @@ class PureFunctions(unittest.TestCase):
         self.assertFalse(pc.is_breaking("feat: add! bang"))
 
     def test_scopes_of(self):
-        self.assertEqual(pc.scopes_of("feat(backend)!: x"), {"backend"})
-        self.assertEqual(pc.scopes_of("feat(backend,chart)!: x"), {"backend", "chart"})
+        self.assertEqual(pc.scopes_of("feat(api)!: x"), {"api"})
+        self.assertEqual(pc.scopes_of("feat(api,tim-actions)!: x"), {"api", "tim-actions"})
         self.assertEqual(pc.scopes_of("fix(web): x"), {"web"})
         self.assertEqual(pc.scopes_of("feat!: x"), set())
-        self.assertEqual(pc.scopes_of("feat: x (backend)"), set())
+        self.assertEqual(pc.scopes_of("feat: x (api)"), set())
 
-    def test_packages(self):
+    def test_packages_are_those_below_the_root(self):
         packages = pc.packages_from_config(CONFIG)
-        self.assertEqual(packages["web"], ("frontend", ["web/e2e"]))
-        self.assertEqual(packages["api"][0], "backend")
-        self.assertEqual(packages["deploy/helm/tim"][0], "chart")
-        self.assertEqual(packages["api/tim-actions"][0], "tim-actions")
+        self.assertEqual(packages, {"api/tim-actions": ("tim-actions", ["api/tim-actions/tests"])})
         self.assertEqual(
             pc.packages_for_files(["api/tim-actions/src/tim_actions/action.py"], packages),
             ["tim-actions"],
         )
         self.assertEqual(pc.packages_for_files(["api/tim-actions/tests/t.py"], packages), [])
-        self.assertEqual(pc.packages_for_files(["api/uv.lock"], packages), ["backend"])
-        files = [
-            "web/src/a.ts",
-            "web/e2e/t.ts",
-            "api/tests/t.py",
-            "deploy/helm/tim/ci/v.yaml",
-            "README.md",
-        ]
-        self.assertEqual(pc.packages_for_files(files, packages), ["frontend"])
-        self.assertEqual(pc.packages_for_files(files[1:], packages), [])
-        self.assertEqual(
-            pc.packages_for_files(
-                ["web/package.json", "deploy/helm/tim/image-tags.yaml"], packages
-            ),
-            ["frontend", "chart"],
-        )
-        self.assertEqual(pc.packages_for_files(["webx/a.ts"], packages), [])
+        files = ["api/uv.lock", "api/src/a.py", "web/src/a.ts", "deploy/helm/tim/values.yaml"]
+        self.assertEqual(pc.packages_for_files(files, packages), [])
 
 
 class Pr(unittest.TestCase):
@@ -130,36 +112,24 @@ class Pr(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("PR title", out)
 
-    def test_breaking_scope_must_name_every_package_the_pr_changes(self):
-        self.commit("feat: a", "api/src/a.py")
-        self.commit("docs: b", "deploy/helm/tim/values.yaml", "web/e2e/a.spec.ts")
-        code, out = self.pr("feat(api)!: drop y")
-        self.assertEqual(code, 1)
-        self.assertIn("backend, chart", out)
-        self.assertNotIn("frontend", out)
-        code, out = self.pr("feat(backend)!: drop y")
-        self.assertEqual(code, 1)
-        self.assertIn("files of chart,", out)
-        self.assertNotIn("files of backend", out)
-        code, out = self.pr("feat(backend,chart)!: drop y")
+    def test_breaking_scope_must_name_tim_actions_when_the_pr_changes_it(self):
+        self.commit("feat: a", "api/src/a.py", "api/tim-actions/src/tim_actions/a.py")
+        for title in ["feat(api)!: drop y", "feat!: drop y"]:
+            code, out = self.pr(title)
+            self.assertEqual(code, 1, title)
+            self.assertIn("files of tim-actions,", out)
+        code, out = self.pr("feat(api,tim-actions)!: drop y")
         self.assertEqual(code, 0, out)
 
-    def test_breaking_scope_may_name_more_than_the_pr_changes(self):
-        self.commit("feat: a", "api/src/a.py")
-        for title in ["feat(chart,backend)!: drop y", "feat(backend,frontend,docs)!: drop y"]:
+    def test_breaking_scope_is_free_form_without_tim_actions(self):
+        self.commit("feat: a", "web/src/a.ts", "api/src/a.py", "deploy/helm/tim/values.yaml")
+        for title in ["feat!: drop y", "feat(web)!: drop y", "feat(api,web,tim-actions)!: drop y"]:
             code, out = self.pr(title)
             self.assertEqual(code, 0, f"{title}: {out}")
 
-    def test_breaking_without_scope_fails_when_a_package_changes(self):
-        self.commit("feat: a", "web/src/a.ts", "docs/a.md")
-        code, out = self.pr("feat!: drop y")
-        self.assertEqual(code, 1)
-        self.assertIn("files of frontend,", out)
-        self.assertEqual(self.pr("feat(frontend)!: drop y")[0], 0)
-
-    def test_breaking_scope_uses_package_names_not_directories(self):
-        self.commit("feat: a", "web/src/a.ts")
-        self.assertEqual(self.pr("feat(web)!: drop y")[0], 1)
+    def test_tim_actions_tests_need_no_naming(self):
+        self.commit("test: a", "api/tim-actions/tests/test_a.py")
+        self.assertEqual(self.pr("feat(api)!: drop y")[0], 0)
 
     def test_non_breaking_scope_is_free_form(self):
         self.commit("feat: a", "web/src/a.ts", "api/src/a.py", "deploy/helm/tim/values.yaml")
@@ -174,7 +144,7 @@ class Pr(unittest.TestCase):
     def test_files_on_main_since_the_branch_point_are_not_the_prs(self):
         self.commit("fix: a", "docs/a.md")
         self.git("checkout", "-q", "main")
-        self.commit("feat: other", "web/src/other.ts")
+        self.commit("feat: other", "api/tim-actions/src/tim_actions/other.py")
         self.git("checkout", "-q", "feat/x")
         # The PR head is feat/x and its base is the new main tip.
         self.base = self.git("rev-parse", "main").strip()

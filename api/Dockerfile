@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # The constraints derived images install providers against (ADR-0021): every locked dependency,
 # plus tim-api and tim-actions pinned to their installed versions so a provider for another
-# tim-actions major fails to resolve.
+# breaking tim-actions version fails to resolve.
 RUN uv export --locked --no-dev --no-hashes --no-header --no-emit-workspace \
         --output-file constraints.txt \
  && /app/.venv/bin/python -c "from importlib.metadata import version; \

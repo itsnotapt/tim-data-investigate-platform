@@ -635,7 +635,7 @@ TIM finds the provider through the `tim.actions` entry-point group. The callable
 
 ```toml
 [project]
-dependencies = ["tim-actions[kusto]>=1,<2"]
+dependencies = ["tim-actions[kusto]>=0.1,<0.2"]
 
 [project.entry-points."tim.actions"]
 example = "example_provider:provider"
@@ -645,7 +645,7 @@ packages = ["src/example_provider"]
 ```
 
 - The action files must be in the package's wheel, here as `example_provider/actions/*.yaml`.
-- Depend on `tim-actions` as `>=1,<2`, with the `kusto` extra when the package uses Kusto.
+- Depend on `tim-actions` as `>=0.1,<0.2`, with the `kusto` extra when the package uses Kusto.
 - TIM's built-in provider registers the same way (`tim_actions.builtin:provider`).
 
 ## Testing
@@ -727,7 +727,7 @@ The tests also run inside the derived image ([Building and deploying](#building-
 
 An instance's providers reach it in a [derived image](deployment.md#derived-images), and its files are mounted under `/etc/tim`.
 
-The example's [`Dockerfile`](../examples/instance/Dockerfile) installs the provider into the backend image against its constraints, and has a `test` stage:
+The example's [`Dockerfile`](../examples/instance/Dockerfile) installs the provider into the api image against its constraints, and has a `test` stage:
 
 ```dockerfile
 ARG BASE
@@ -748,7 +748,7 @@ FROM instance
 ```
 
 - **Constraints.** A provider can't move TIM's pins.
-- **Tests in the image.** `docker build --build-arg BASE=<backend image> --target test .` runs the tests against the `tim-actions` the image ships. The last stage is the image.
+- **Tests in the image.** `docker build --build-arg BASE=<api image> --target test .` runs the tests against the `tim-actions` the image ships. The last stage is the image.
 - **Tags.** Name the image `<tim version>-<revision>`, such as `5.0.0-example.1`, and rebuild it on each TIM release.
 - **Before you deploy.** Run `tim-api check` in the image you deploy ([Checking files](#checking-files)).
 

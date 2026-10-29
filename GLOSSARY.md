@@ -77,7 +77,7 @@ An installable package that adds action types, actions and connection types to a
 _Avoid_: action package, plugin, extension
 
 **Derived image** (for operators):
-A container image built `FROM` TIM's backend image that installs providers into it. An instance that uses providers runs one.
+A container image built `FROM` TIM's api image that installs providers into it. An instance that uses providers runs one.
 
 ### Instance
 

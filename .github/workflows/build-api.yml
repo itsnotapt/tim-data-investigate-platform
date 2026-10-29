@@ -203,7 +203,7 @@ jobs:
             tim-api check --connections /etc/tim/connections.yaml
           docker run --rm tim-derived:ci tim-api schema connections | grep -q '"ci_static"'
 
-      - name: A provider for another tim-actions major fails the build
+      - name: A provider for another breaking tim-actions version fails the build
         run: |
           if docker buildx build --builder default --build-arg BASE=tim-api:ci \
               --build-arg PROVIDER=incompatible tests/derived-image > build.log 2>&1; then
@@ -211,8 +211,8 @@ jobs:
             exit 1
           fi
           # Only the constraints' tim-actions pin counts: without it the build fails too, because
-          # no tim-actions 2 is published.
-          grep -qE 'depends on tim-actions>=2,<3 and tim-actions==[0-9]' build.log \
+          # no tim-actions 0.2 is published.
+          grep -qE 'depends on tim-actions>=0\.2,<0\.3 and tim-actions==[0-9]' build.log \
             || { cat build.log; exit 1; }
 
       - uses: astral-sh/setup-uv@v10.2.0
