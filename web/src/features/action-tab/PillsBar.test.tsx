@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -370,4 +370,46 @@ describe('PillsBar', () => {
     expect(screen.getByRole('button', { name: 'At: needed' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Host: not set' })).toBeInTheDocument();
   });
+
+  it.each([
+    ['text', param({ name: 'user', kind: 'string', title: 'User' }), 'textbox', 'User'],
+    ['number', param({ name: 'limit', kind: 'number', title: 'Limit' }), 'textbox', 'Limit'],
+    [
+      'many-valued',
+      param({ name: 'users', kind: 'string', title: 'Users', many: true }),
+      'textbox',
+      'Add Users',
+    ],
+    [
+      'suggestions',
+      param({ name: 'database', kind: 'string', title: 'Database' }),
+      'combobox',
+      'Database',
+    ],
+    ['datetime', param({ name: 'since', kind: 'datetime', title: 'Since' }), 'spinbutton', 'Year'],
+    [
+      'timespan',
+      param({ name: 'window', kind: 'timespan', title: 'Window' }),
+      'spinbutton',
+      'Window',
+    ],
+    ['boolean', param({ name: 'blocked', kind: 'boolean', title: 'Blocked' }), 'switch', 'Blocked'],
+  ] as const)(
+    'focuses the %s editor’s field once its popover has opened',
+    async (_, p, role, name) => {
+      render(
+        <Harness
+          params={[
+            param({ name: 'connection', kind: 'connection', connectionType: 'kusto' }),
+            p,
+            param({ name: 'kql', kind: 'kql', schemaFrom: ['connection', 'database'] }),
+          ]}
+          initial={{ connection: 'prod' }}
+        />,
+      );
+      await openPill(new RegExp(`^${p.title}:`));
+      const field = within(popover()).getByRole(role, { name });
+      await waitFor(() => expect(field).toHaveFocus());
+    },
+  );
 });

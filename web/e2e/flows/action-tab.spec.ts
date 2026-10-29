@@ -193,3 +193,27 @@ test('Clone opens a copy of the tab with the same params', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Users: alice@example.com' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Results', exact: true })).toBeVisible();
 });
+
+test('the suggested databases open under the Database field, not over it', async ({ page }) => {
+  await openAction(page, ['Development', 'Editor', 'KQL editor']);
+  await page.getByRole('button', { name: 'Connection: not set' }).click();
+  await page.getByRole('option', { name: 'Development logs' }).click();
+  await page.getByRole('button', { name: 'Database: not set' }).click();
+
+  const field = page.getByRole('combobox', { name: 'Database' });
+  await expect(field).toBeFocused();
+  const suggestions = page.getByRole('listbox');
+  await expect(suggestions.getByRole('option', { name: 'Research' })).toBeVisible();
+  // The outlined box around the text, then the list: below it and lined up with its left edge.
+  const outline = (await field.locator('..').boundingBox())!;
+  const underField = async () => {
+    const list = (await suggestions.boundingBox())!;
+    expect(list.y).toBeGreaterThanOrEqual(outline.y + outline.height - 1);
+    expect(Math.abs(list.x - outline.x)).toBeLessThanOrEqual(4);
+  };
+  await underField();
+
+  await field.pressSequentially('R');
+  await expect(suggestions.getByRole('option')).toHaveText(['Research']);
+  await underField();
+});

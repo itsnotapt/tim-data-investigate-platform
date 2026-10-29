@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { CatalogueParam } from '../../lib/api';
 import {
   TIMESPAN_UNITS,
+  type Focusable,
   timespanParts,
   timespanSeconds,
   timespanValue,
@@ -27,10 +28,12 @@ export interface TimespanEditorProps {
   /** `undefined` unsets the param. */
   onChange: (value: unknown) => void;
   onDone: () => void;
+  /** Takes the editor's field. */
+  focusRef: (field: Focusable | null) => void;
 }
 
 /** A timespan as an amount of a unit, or one of the presets. Empty amount unsets it. */
-export function TimespanEditor({ param, value, onChange, onDone }: TimespanEditorProps) {
+export function TimespanEditor({ param, value, onChange, onDone, focusRef }: TimespanEditorProps) {
   const [draft, setDraft] = useState<{ amount: string; unit: TimespanUnit }>(() => {
     const seconds = typeof value === 'string' ? timespanSeconds(value) : null;
     if (seconds === null) return { amount: '', unit: 'minutes' };
@@ -63,7 +66,7 @@ export function TimespanEditor({ param, value, onChange, onDone }: TimespanEdito
         <TextField
           size="small"
           type="number"
-          autoFocus
+          inputRef={focusRef}
           label={param.title}
           value={draft.amount}
           helperText={param.help}

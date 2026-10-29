@@ -3,6 +3,9 @@ import { scalarText } from '../grid/columns';
 
 type Kind = CatalogueParam['kind'];
 
+/** A param editor's field, which the pill's popover focuses once it has opened. */
+export type Focusable = { focus(): void };
+
 /** A param's value parsed from text, or why it can't be. Empty text is `{value: undefined}`. */
 export type Parsed = { value: unknown; error?: undefined } | { value?: undefined; error: string };
 

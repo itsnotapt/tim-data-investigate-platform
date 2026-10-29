@@ -264,6 +264,8 @@ The action tab has a header, a pills bar and inner tabs.
 
   A many-valued `datetime` or `timespan` param uses chips like any other.
 
+  Once the popover has finished opening, it focuses the editor's field. So a suggestions list, such as the `database` param's, opens under its field.
+
 - **Run** sits at the right of the bar. While the run is going, it is replaced by a spinner with the elapsed time (from the run's `startedAt`) and **Cancel**.
   - Cancel is disabled until the run has an id.
   - The tab says "Cancelling…" until the run ends.
