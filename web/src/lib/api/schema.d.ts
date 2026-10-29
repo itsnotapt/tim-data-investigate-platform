@@ -41,7 +41,7 @@ export interface paths {
         /**
          * Change Annotations
          * @description Change every id's annotations in one transaction under one version: the label, the tags
-         *     (added and removed, or replaced with ``setTags``) and a comment appended to each.
+         *     (added and removed, or replaced with ``setTags``) and the caller's comment.
          */
         patch: operations["changeAnnotations"];
         trace?: never;
@@ -415,7 +415,8 @@ export interface components {
         };
         /**
          * AnnotationHistory
-         * @description ``GET /api/annotations/history``: an id's label changes and comments, newest first.
+         * @description ``GET /api/annotations/history``: an id's label changes and each author's comment,
+         *     newest first.
          */
         AnnotationHistory: {
             /** Entries */
@@ -424,6 +425,7 @@ export interface components {
         /**
          * Annotations
          * @description An id's annotations, as of ``version``: the version of the change that last touched it.
+         *     ``comments`` holds each author's current comment, oldest first.
          */
         Annotations: {
             /** Comments */
@@ -442,7 +444,8 @@ export interface components {
          *
          *     - Leaving ``label`` out keeps it; ``null`` clears it.
          *     - ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.
-         *     - ``comment`` is appended to each id's comments.
+         *     - ``comment`` sets the caller's comment on each id, replacing theirs; ``null`` clears it;
+         *       leaving it out keeps it (ADR-0023).
          */
         AnnotationsChange: {
             /** Addtags */
@@ -622,7 +625,10 @@ export interface components {
              */
             visibility: "private" | "shared";
         };
-        /** Comment */
+        /**
+         * Comment
+         * @description An author's current comment on an id.
+         */
         Comment: {
             /** At */
             at: string;
@@ -633,7 +639,7 @@ export interface components {
         };
         /**
          * CommentEntry
-         * @description A comment in an id's history.
+         * @description An author's comment in an id's history, as they last saved it.
          */
         CommentEntry: {
             /** At */

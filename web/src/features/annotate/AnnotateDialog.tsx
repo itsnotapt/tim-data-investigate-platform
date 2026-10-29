@@ -9,7 +9,7 @@ import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DraggableDialog } from '../../components/DraggableDialog';
 import {
   changeAnnotations,
@@ -24,10 +24,12 @@ import {
 import {
   addTag,
   changeBody,
+  commentStart,
   labelNow,
   NO_TAG_EDITS,
   reachLine,
   removeTag,
+  replacesLine,
   suggestionGroups,
   tagChips,
   undoRemoval,
@@ -58,6 +60,8 @@ export interface AnnotateDialogProps {
   /** The stored annotations of those of `targets` that have any. */
   current: readonly Annotations[];
   labels: readonly InstanceLabel[];
+  /** The signed-in analyst's UPN: whose comment the box edits. */
+  analyst: string | null;
   /** Called with what the change changed, before the dialog closes. */
   onSaved: (changes: Annotations[]) => void | Promise<void>;
   onClose: () => void;
@@ -139,9 +143,10 @@ interface Suggestion {
 
 /**
  * The Annotate dialog: the label (Keep, a label, Clear), the tag editor with partial tags and
- * suggestions, and a comment, saved as one change, then the sink picked in After tagging, run…,
- * if any. As Comment…, the comment only. Ctrl+Enter saves; a failed change keeps the dialog open
- * with the error, and runs no sink.
+ * suggestions, and your comment, saved as one change, then the sink picked in After tagging, run…,
+ * if any. As Comment…, the comment only. On one id the comment starts as yours; on several it
+ * starts empty. An empty box leaves comments alone. Only the button saves; a failed change keeps
+ * the dialog open with the error, and runs no sink.
  */
 export function AnnotateDialog({
   mode,
@@ -149,6 +154,7 @@ export function AnnotateDialog({
   reach,
   current,
   labels,
+  analyst,
   onSaved,
   onClose,
   afterTagging,
@@ -157,7 +163,8 @@ export function AnnotateDialog({
   const [label, setLabel] = useState<LabelChoice>(KEEP);
   const [edits, setEdits] = useState<TagEdits>(NO_TAG_EDITS);
   const [input, setInput] = useState('');
-  const [comment, setComment] = useState('');
+  const [commentBefore] = useState(() => commentStart(current, targets, analyst));
+  const [comment, setComment] = useState(commentBefore);
   const [suggested, setSuggested] = useState<TagSuggestions>(NO_SUGGESTIONS);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -200,6 +207,7 @@ export function AnnotateDialog({
     label: label.keep ? undefined : label.key,
     edits: pending,
     comment,
+    commentBefore,
   });
   // A tag still being typed is added when saving.
   const withTyped = () => (tagging ? addTag(edits, input) : edits);
@@ -221,13 +229,6 @@ export function AnnotateDialog({
     }
   };
 
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      void save();
-    }
-  };
-
   const labelValue = label.keep ? KEEP_VALUE : (label.key ?? CLEAR);
 
   return (
@@ -236,7 +237,6 @@ export function AnnotateDialog({
       title={tagging ? 'Annotate' : 'Comment'}
       maxWidth="sm"
       fullWidth
-      onKeyDown={onKeyDown}
       onClose={(_e, why) => {
         if (why !== 'backdropClick' && !saving) onClose();
       }}
@@ -328,7 +328,7 @@ export function AnnotateDialog({
         autoFocus={!tagging}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
-        helperText="Ctrl+Enter saves"
+        helperText={replacesLine(current, targets, analyst) ?? undefined}
       />
       {sinks.length > 0 && (
         <TextField

@@ -242,21 +242,72 @@ async def test_tag_changes_that_change_nothing_take_no_version(
     assert feed["changes"] == []
 
 
-async def test_a_comment_is_appended_to_every_id_by_the_caller(
+def comments_of(body: dict[str, Any]) -> dict[str, list[tuple[str, str]]]:
+    return {
+        change["id"]: [(c["author"], c["text"]) for c in change["comments"]]
+        for change in body["changes"]
+    }
+
+
+async def test_a_comment_sets_the_callers_comment_on_every_id(
     storage: Storage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "comment": "first look"})
         env.as_user(BOB, "oid-b")
         body = (await env.patch({"ids": ["c-1", "c-2"], "comment": " beacons every 60s \n"})).json()
-    assert [
-        [(c["author"], c["text"]) for c in change["comments"]] for change in body["changes"]
-    ] == [
-        [(ALICE, "first look"), (BOB, "beacons every 60s")],
-        [(BOB, "beacons every 60s")],
-    ]
+    assert comments_of(body) == {
+        "c-1": [(ALICE, "first look"), (BOB, "beacons every 60s")],
+        "c-2": [(BOB, "beacons every 60s")],
+    }
     assert body["version"] == 2
     datetime.fromisoformat(body["changes"][1]["comments"][0]["at"])
+
+
+async def test_a_comment_replaces_the_callers_own_and_leaves_the_others(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "comment": "first look"})
+        env.as_user(BOB, "oid-b")
+        await env.patch({"ids": ["c-1"], "comment": "beacons every 60s"})
+        env.as_user(ALICE, "oid-a")
+        body = (await env.patch({"ids": ["c-1"], "comment": "same C2 as c-2"})).json()
+    assert comments_of(body) == {
+        "c-1": [(BOB, "beacons every 60s"), (ALICE, "same C2 as c-2")],
+    }
+
+
+async def test_a_null_comment_clears_the_callers_own(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1", "c-2"], "comment": "first look"})
+        env.as_user(BOB, "oid-b")
+        await env.patch({"ids": ["c-1"], "comment": "beacons every 60s"})
+        env.as_user(ALICE, "oid-a")
+        body = (await env.patch({"ids": ["c-1", "c-2"], "comment": None})).json()
+    assert comments_of(body) == {"c-1": [(BOB, "beacons every 60s")], "c-2": []}
+    assert body["version"] == 3
+
+
+async def test_leaving_the_comment_out_keeps_it(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "comment": "first look"})
+        body = (await env.patch({"ids": ["c-1"], "label": "benign"})).json()
+    assert comments_of(body) == {"c-1": [(ALICE, "first look")]}
+
+
+async def test_setting_the_same_comment_or_clearing_none_changes_nothing(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth) as env:
+        await env.patch({"ids": ["c-1"], "comment": "first look"})
+        same = (await env.patch({"ids": ["c-1"], "comment": " first look "})).json()
+        env.as_user(BOB, "oid-b")
+        cleared = (await env.patch({"ids": ["c-1"], "comment": None})).json()
+        entries = await env.history("c-1")
+    assert (same["changes"], same["version"]) == ([], 1)
+    assert (cleared["changes"], cleared["version"]) == ([], 1)
+    assert [(e["author"], e["text"]) for e in entries] == [(ALICE, "first look")]
 
 
 async def test_the_labels_file_decides_the_keys(
@@ -383,7 +434,7 @@ async def test_the_history_gives_an_id_s_label_changes_newest_first(
     datetime.fromisoformat(entries[0]["at"])
 
 
-async def test_the_history_threads_comments_with_label_changes_newest_first(
+async def test_the_history_gives_each_author_s_comment_with_the_label_changes_newest_first(
     storage: Storage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
@@ -398,7 +449,6 @@ async def test_the_history_threads_comments_with_label_changes_newest_first(
     ] == [
         ("comment", BOB, "same C2 as c-2"),
         ("label", "malicious"),
-        ("comment", BOB, "beacons every 60s"),
         ("comment", ALICE, "first look"),
     ]
     assert set(entries[0]) == {"kind", "author", "at", "text"}

@@ -213,10 +213,10 @@ comments = Table(
     metadata,
     Column("id", Text, nullable=False),
     Column("author", Text, nullable=False),
-    Column("created_at", _TS, nullable=False),
+    Column("saved_at", _TS, nullable=False),
     Column("text", Text, nullable=False),
     Column("version", BigInteger, nullable=False),
-    Index("ix_comments_id", "id", "version"),
+    PrimaryKeyConstraint("id", "author"),
 )
 
 
@@ -683,7 +683,7 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
         select(comments).where(comments.c.id == any_(ids)).order_by(comments.c.version)
     ):
         found_comments.setdefault(row.id, []).append(
-            Comment(author=row.author, at=row.created_at, text=row.text)
+            Comment(author=row.author, at=row.saved_at, text=row.text)
         )
     return [
         Annotations(
@@ -697,6 +697,23 @@ async def _annotations(conn: AsyncConnection, states: Sequence[Any]) -> list[Ann
         )
         for state in states
     ]
+
+
+async def _commented(
+    conn: AsyncConnection, ids: Collection[str], edit: AnnotationEdit, *, by: str
+) -> list[str]:
+    """Those of ``ids`` whose comment by ``by`` the edit changes."""
+    if not edit.set_comment:
+        return []
+    own = {
+        row.id: row.text
+        for row in await conn.execute(
+            select(comments.c.id, comments.c.text).where(
+                comments.c.id == any_(_ids_param(ids)), comments.c.author == by
+            )
+        )
+    }
+    return [id for id in ids if own.get(id) != edit.comment]
 
 
 class PostgresAnnotationStore(AnnotationStore):
@@ -740,7 +757,7 @@ class PostgresAnnotationStore(AnnotationStore):
                     after = edit.tags_after(before)
                     added += [(id, tag) for tag in sorted(after - before)]
                     removed += [(id, tag) for tag in sorted(before - after)]
-                commented = wanted if edit.comment is not None else []
+                commented = await _commented(conn, wanted, edit, by=by)
                 changed = sorted(
                     {*relabelled, *commented, *(id for id, _ in added), *(id for id, _ in removed)}
                 )
@@ -788,14 +805,28 @@ class PostgresAnnotationStore(AnnotationStore):
                         ),
                         [{"tag_id": id, "tag_name": tag} for id, tag in removed],
                     )
-                if commented:
+                if commented and edit.comment is None:
                     await conn.execute(
-                        insert(comments),
+                        delete(comments).where(
+                            comments.c.id == any_(_ids_param(commented)), comments.c.author == by
+                        )
+                    )
+                elif commented:
+                    saved = pg_insert(comments)
+                    await conn.execute(
+                        saved.on_conflict_do_update(
+                            index_elements=[comments.c.id, comments.c.author],
+                            set_={
+                                "saved_at": saved.excluded.saved_at,
+                                "text": saved.excluded.text,
+                                "version": saved.excluded.version,
+                            },
+                        ),
                         [
                             {
                                 "id": id,
                                 "author": by,
-                                "created_at": at,
+                                "saved_at": at,
                                 "text": edit.comment,
                                 "version": version,
                             }
@@ -860,7 +891,7 @@ class PostgresAnnotationStore(AnnotationStore):
                 found.append(((-row.version, 0), entry))
             for row in commented:
                 entry = CommentEntry(
-                    kind="comment", author=row.author, at=row.created_at, text=row.text
+                    kind="comment", author=row.author, at=row.saved_at, text=row.text
                 )
                 found.append(((-row.version, 1), entry))
         return [entry for _, entry in sorted(found, key=lambda f: f[0])]

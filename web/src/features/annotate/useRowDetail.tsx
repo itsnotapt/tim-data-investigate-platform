@@ -2,6 +2,7 @@ import type { CellFocusedEvent, CellKeyDownEvent } from 'ag-grid-community';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
+import { useAnalyst } from '../../lib/auth';
 import type { DetailColumns, GetExtraContextMenuItems, GridRowWithId } from '../grid';
 import type { LabelledRow } from '../labels';
 import { buildRowDetailMenu, makeRowDetailKeys } from './annotateMenu';
@@ -33,10 +34,11 @@ export interface RowDetailState {
 /**
  * Row detail (D) on a grid's rows: the menu item, the key and the side panel. The panel follows the
  * focused row and takes the annotations of its `id` from the annotation store, so a change from
- * the feed updates it. A comment added from it goes into the store as the analyst's own.
+ * the feed updates it. A comment saved from it goes into the store as the analyst's own.
  */
 export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): RowDetailState {
   // The row the panel shows; null while it's closed.
+  const analyst = useAnalyst();
   const [row, setRow] = useState<LabelledRow | null>(null);
   // The annotations last read from the store; the shown row's only when the ids match. Until
   // the store answers for a new id, the row's own copy shows.
@@ -87,6 +89,7 @@ export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): Ro
       labels={labels}
       columns={columns ?? NO_COLUMNS}
       idParam={idParam}
+      analyst={analyst}
       onCommented={onCommented}
       onClose={close}
     />

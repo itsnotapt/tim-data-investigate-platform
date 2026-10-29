@@ -27,7 +27,9 @@ export interface RowDetailProps {
   columns: DetailColumns;
   /** The action takes its rows' id from an Id column param. */
   idParam: boolean;
-  /** Called with what a comment added from the panel changed. */
+  /** The signed-in analyst's UPN: whose comment the panel edits. */
+  analyst: string | null;
+  /** Called with what a comment saved from the panel changed. */
   onCommented: CommentsAndHistoryProps['onCommented'];
   onClose: () => void;
   call?: CallOptions;
@@ -100,13 +102,14 @@ export function RowDetail({
   labels,
   columns,
   idParam,
+  analyst,
   onCommented,
   onClose,
   call,
 }: RowDetailProps) {
   const id = row?.id ?? null;
   // Half-typed comments by id, kept while the panel is open.
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string | undefined>>({});
   return (
     <Drawer
       variant="persistent"
@@ -183,7 +186,9 @@ export function RowDetail({
               id={id}
               version={annotations?.version}
               labels={labels}
-              comment={drafts[id] ?? ''}
+              comments={annotations?.comments ?? []}
+              analyst={analyst}
+              comment={drafts[id]}
               setComment={(text) => setDrafts((d) => ({ ...d, [id]: text }))}
               onCommented={onCommented}
               call={call}

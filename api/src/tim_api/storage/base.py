@@ -175,7 +175,8 @@ class AnnotationEdit:
     - With ``set_label``, set the label to ``label``, or clear it when that is ``None``.
     - Add ``add_tags``, then remove ``remove_tags``; or, when ``set_tags`` isn't ``None``, make
       the tags exactly ``set_tags``.
-    - Append ``comment`` when it isn't ``None``.
+    - With ``set_comment``, set the author's comment to ``comment``, or clear it when that is
+      ``None`` (ADR-0023).
     """
 
     set_label: bool = False
@@ -183,6 +184,7 @@ class AnnotationEdit:
     add_tags: frozenset[str] = frozenset()
     remove_tags: frozenset[str] = frozenset()
     set_tags: frozenset[str] | None = None
+    set_comment: bool = False
     comment: str | None = None
 
     def tags_after(self, tags: Collection[str]) -> set[str]:
@@ -242,8 +244,8 @@ class AnnotationStore(ABC):
 
     @abstractmethod
     async def history(self, id: str) -> list[HistoryEntry]:
-        """The label changes and comments of ``id``, newest first, the label change before the
-        comment of the same change; none for an id never changed."""
+        """The label changes of ``id`` and each author's comment, newest first, the label change
+        before the comment of the same change; none for an id never changed."""
 
     @abstractmethod
     async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:

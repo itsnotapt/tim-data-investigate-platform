@@ -18,6 +18,7 @@ vi.mock('ag-grid-community', () => ({
       'ColumnApiModule',
       'ColumnAutoSizeModule',
       'CsvExportModule',
+      'CustomEditorModule',
       'CustomFilterModule',
       'DateFilterModule',
       'EventApiModule',

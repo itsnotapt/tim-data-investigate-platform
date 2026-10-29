@@ -20,13 +20,16 @@ class LabelState(ApiModel):
 
 
 class Comment(ApiModel):
+    """An author's current comment on an id."""
+
     author: str
     at: UtcDatetime
     text: str
 
 
 class Annotations(ApiModel):
-    """An id's annotations, as of ``version``: the version of the change that last touched it."""
+    """An id's annotations, as of ``version``: the version of the change that last touched it.
+    ``comments`` holds each author's current comment, oldest first."""
 
     id: str
     label: LabelState | None
@@ -43,7 +46,8 @@ class AnnotationsChange(ApiModel):
 
     - Leaving ``label`` out keeps it; ``null`` clears it.
     - ``addTags`` and ``removeTags`` change the tags; ``setTags`` (Override) replaces them.
-    - ``comment`` is appended to each id's comments.
+    - ``comment`` sets the caller's comment on each id, replacing theirs; ``null`` clears it;
+      leaving it out keeps it (ADR-0023).
     """
 
     ids: list[AnnotationId] = Field(min_length=1)
@@ -72,7 +76,7 @@ class LabelEntry(ApiModel):
 
 
 class CommentEntry(ApiModel):
-    """A comment in an id's history."""
+    """An author's comment in an id's history, as they last saved it."""
 
     kind: Literal["comment"]
     author: str
@@ -84,7 +88,8 @@ HistoryEntry = Annotated[LabelEntry | CommentEntry, Field(discriminator="kind")]
 
 
 class AnnotationHistory(ApiModel):
-    """``GET /api/annotations/history``: an id's label changes and comments, newest first."""
+    """``GET /api/annotations/history``: an id's label changes and each author's comment,
+    newest first."""
 
     entries: list[HistoryEntry]
 

@@ -12,7 +12,7 @@ const runColumns: RunColumn[] = [
 
 /** TIM's own columns, with their defaults. */
 const own: ColDef[] = [
-  { colId: 'tim:comments', headerName: 'Comments', width: 90 },
+  { colId: 'tim:comments', headerName: 'Comment', width: 280 },
   { colId: 'tim:tags', headerName: 'Tags', initialHide: true },
   { colId: 'tim:label', headerName: 'Label', initialHide: true },
 ];
@@ -38,7 +38,7 @@ const untouched: GridState = {
       { colId: 'Timestamp', width: 200 },
       { colId: 'User', width: 200 },
       { colId: 'Bytes', width: 200 },
-      { colId: 'tim:comments', width: 90 },
+      { colId: 'tim:comments', width: 280 },
       { colId: 'tim:tags', width: 200 },
       { colId: 'tim:label', width: 200 },
     ],
@@ -196,7 +196,7 @@ describe('actionFileColumns', () => {
     };
     expect(columnsOf(state)).toEqual([
       { name: 'Timestamp', type: 'datetime' },
-      { name: 'tim:comments', type: 'number' },
+      { name: 'tim:comments', type: 'string' },
       { name: 'User', type: 'string' },
       { name: 'Bytes', type: 'number' },
       { name: 'tim:tags', type: 'json', hidden: true, width: 150 },

@@ -4,7 +4,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import {
   changeAnnotations,
@@ -12,6 +12,7 @@ import {
   isApiError,
   type Annotations,
   type CallOptions,
+  type Comment,
   type HistoryEntry,
   type InstanceLabel,
 } from '../../lib/api';
@@ -23,10 +24,14 @@ export interface CommentsAndHistoryProps {
   /** The `id`'s annotations version: a new one reads the history again. */
   version: number | undefined;
   labels: readonly InstanceLabel[];
-  /** The comment typed so far. */
-  comment: string;
-  setComment: (text: string) => void;
-  /** Called with what an added comment changed. */
+  /** The `id`'s current comments, one per author. */
+  comments: readonly Comment[];
+  /** The signed-in analyst's UPN: whose comment the box edits. */
+  analyst: string | null;
+  /** The comment typed so far; `undefined` until the box is edited, when it shows yours. */
+  comment: string | undefined;
+  setComment: (text: string | undefined) => void;
+  /** Called with what a saved comment changed. */
   onCommented: (changes: Annotations[]) => void | Promise<void>;
   call?: CallOptions;
 }
@@ -112,11 +117,35 @@ const useFold = create<{ folded: boolean; setFolded: (folded: boolean) => void }
   setFolded: (folded) => set({ folded }),
 }));
 
-/** The comment box (Ctrl or Cmd+Enter adds), then the history of `id`, under a heading that folds. */
+/** The other authors' current comments, read-only, each with its author and time. */
+function OtherComments({ comments }: { comments: readonly Comment[] }) {
+  if (comments.length === 0) return null;
+  return (
+    <Box component="ul" aria-label="Other comments" sx={{ listStyle: 'none', p: 0, m: 0 }}>
+      {comments.map((c) => (
+        <Box component="li" key={c.author} sx={{ mb: 1.25 }}>
+          <Typography variant="caption" color="text.secondary" component="div">
+            {`${c.author} · ${formatUtcDateTime(c.at)}`}
+          </Typography>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>
+            {c.text}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+/**
+ * Your comment on `id`, which Save replaces and Delete comment deletes, the others' comments, then
+ * the history of `id`, under a heading that folds.
+ */
 export function CommentsAndHistory({
   id,
   version,
   labels,
+  comments,
+  analyst,
   comment,
   setComment,
   onCommented,
@@ -126,27 +155,24 @@ export function CommentsAndHistory({
   const { folded, setFolded } = useFold();
   const [commentError, setCommentError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const mine = comments.find((c) => c.author === analyst)?.text ?? '';
+  const others = comments.filter((c) => c.author !== analyst);
+  const text = comment ?? mine;
+  const trimmed = text.trim();
 
-  const addComment = async () => {
-    const text = comment.trim();
-    if (text === '' || saving) return;
+  /** Sets your comment to `to`, or deletes it when `null`; `failed` says what didn't happen. */
+  const commentAs = async (to: string | null, failed: string) => {
     setSaving(true);
     setCommentError(null);
     try {
-      const { changes } = await changeAnnotations({ ids: [id], comment: text }, call);
+      const { changes } = await changeAnnotations({ ids: [id], comment: to }, call);
       await onCommented(changes);
-      setComment('');
+      setComment(undefined);
       reload();
     } catch (e) {
-      setCommentError(`Couldn't add the comment: ${reasonOf(e)}`);
+      setCommentError(`${failed}: ${reasonOf(e)}`);
     } finally {
       setSaving(false);
-    }
-  };
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      void addComment();
     }
   };
 
@@ -177,7 +203,7 @@ export function CommentsAndHistory({
           </Typography>
           {entries && (
             <Typography variant="caption" sx={{ ml: 1 }}>
-              {`${plural(entries.filter((e) => e.kind === 'comment').length, 'comment', 'comments')} · ${plural(entries.length, 'entry', 'entries')}`}
+              {`${plural(comments.length, 'comment', 'comments')} · ${plural(entries.length, 'entry', 'entries')}`}
             </Typography>
           )}
         </Box>
@@ -191,22 +217,31 @@ export function CommentsAndHistory({
               minRows={2}
               fullWidth
               size="small"
-              value={comment}
+              value={text}
               onChange={(e) => setComment(e.target.value)}
-              onKeyDown={onKeyDown}
-              helperText="Ctrl+Enter adds"
             />
-            <Box sx={{ textAlign: 'right', mt: -2.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+              {mine !== '' && (
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={() => void commentAs(null, "Couldn't delete the comment")}
+                  disabled={saving}
+                >
+                  Delete comment
+                </Button>
+              )}
               <Button
                 size="small"
-                onClick={() => void addComment()}
-                disabled={comment.trim() === '' || saving}
+                onClick={() => void commentAs(trimmed, "Couldn't save the comment")}
+                disabled={trimmed === '' || trimmed === mine || saving}
               >
-                Add comment
+                Save
               </Button>
             </Box>
             {commentError && <Alert severity="error">{commentError}</Alert>}
           </Box>
+          <OtherComments comments={others} />
           {error && <Alert severity="error">{error}</Alert>}
           {entries && <HistoryItems entries={entries} labels={labels} />}
         </Box>

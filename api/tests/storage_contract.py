@@ -485,6 +485,10 @@ def label(key: str | None) -> AnnotationEdit:
     return AnnotationEdit(set_label=True, label=key)
 
 
+def comment(text: str | None) -> AnnotationEdit:
+    return AnnotationEdit(set_comment=True, comment=text)
+
+
 def labelled(id: str, key: str, by: str, at: datetime, version: int) -> Annotations:
     return Annotations(id=id, label=LabelState(key=key, by=by, at=at), version=version)
 
@@ -663,15 +667,19 @@ class AnnotationContract:
             unchanged = await store.change(["a"], edit, by="bob", at=_minutes(1))
             assert (unchanged.changes, unchanged.version) == ([], 1)
 
-    async def test_a_comment_is_appended_to_every_id_with_the_label_and_tags(
+    async def test_a_comment_is_set_on_every_id_with_the_label_and_tags(
         self, storage: Storage
     ) -> None:
         store = storage.annotations
-        await store.change(["a"], AnnotationEdit(comment="first look"), by="alice", at=T0)
+        await store.change(["a"], comment("first look"), by="alice", at=T0)
         changed = await store.change(
             ["a", "b"],
             AnnotationEdit(
-                set_label=True, label="malicious", add_tags=frozenset({"c2"}), comment="beacons"
+                set_label=True,
+                label="malicious",
+                add_tags=frozenset({"c2"}),
+                set_comment=True,
+                comment="beacons",
             ),
             by="bob",
             at=_minutes(1),
@@ -693,31 +701,66 @@ class AnnotationContract:
                 version=2,
             ),
         ]
-        again = await store.change(
-            ["b"], AnnotationEdit(comment="beacons"), by="bob", at=_minutes(1)
-        )
-        assert [len(a.comments) for a in again.changes] == [2]
-        assert again.version == 3
 
-    async def test_the_history_is_the_label_changes_and_comments_newest_first(
+    async def test_comments_hold_each_author_s_current_one_oldest_first(
         self, storage: Storage
     ) -> None:
         store = storage.annotations
-        await store.change(["a"], AnnotationEdit(comment="first look"), by="alice", at=T0)
+        await store.change(["a"], comment("first look"), by="alice", at=T0)
+        await store.change(["a"], comment("beacons"), by="bob", at=_minutes(1))
+        await store.change(["a"], comment("same C2 as b"), by="alice", at=_minutes(2))
+        await store.change(["a"], comment("tor exit"), by="carol", at=_minutes(3))
+        cleared = await store.change(["a"], comment(None), by="carol", at=_minutes(4))
+        expected = Annotations(
+            id="a",
+            label=None,
+            comments=[
+                Comment(author="bob", at=_minutes(1), text="beacons"),
+                Comment(author="alice", at=_minutes(2), text="same C2 as b"),
+            ],
+            version=5,
+        )
+        assert cleared.changes == [expected]
+        assert (await store.of_ids(["a"])).annotations == {"a": expected}
+        assert (await store.changes(4, 100)).changes == [expected]
+
+    async def test_a_comment_change_that_changes_nothing_takes_no_version(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+        await store.change(["a"], comment("first look"), by="alice", at=T0)
+        await store.change(["b"], comment("gone"), by="alice", at=T0)
+        await store.change(["b"], comment(None), by="alice", at=T0)
+        for ids, edit, by in (
+            (["a"], comment("first look"), "alice"),
+            (["a", "b"], comment(None), "bob"),
+            (["b"], comment(None), "alice"),
+        ):
+            unchanged = await store.change(ids, edit, by=by, at=_minutes(1))
+            assert (unchanged.changes, unchanged.version) == ([], 3)
+        assert len(await store.history("a")) == 1
+        assert await store.history("b") == []
+
+    async def test_the_history_is_the_label_changes_and_each_author_s_comment_newest_first(
+        self, storage: Storage
+    ) -> None:
+        store = storage.annotations
+        await store.change(["a"], comment("first look"), by="alice", at=T0)
         await store.change(
             ["a", "b"],
-            AnnotationEdit(set_label=True, label="malicious", comment="beacons"),
+            AnnotationEdit(set_label=True, label="malicious", set_comment=True, comment="beacons"),
             by="bob",
             at=_minutes(1),
         )
         await store.change(["a"], AnnotationEdit(add_tags=frozenset({"c2"})), by="bob", at=T0)
         await store.change(["a"], label("malicious"), by="carol", at=_minutes(2))
         await store.change(["a"], label(None), by="alice", at=_minutes(3))
+        await store.change(["a"], comment("same C2 as b"), by="alice", at=_minutes(4))
+        await store.change(["a"], comment(None), by="bob", at=_minutes(5))
         assert await store.history("a") == [
+            CommentEntry(kind="comment", author="alice", at=_minutes(4), text="same C2 as b"),
             LabelEntry(kind="label", label=None, by="alice", at=_minutes(3)),
             LabelEntry(kind="label", label="malicious", by="bob", at=_minutes(1)),
-            CommentEntry(kind="comment", author="bob", at=_minutes(1), text="beacons"),
-            CommentEntry(kind="comment", author="alice", at=T0, text="first look"),
         ]
         assert [e.kind for e in await store.history("b")] == ["label", "comment"]
         assert await store.history("never-changed") == []

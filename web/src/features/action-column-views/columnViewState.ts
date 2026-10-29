@@ -89,7 +89,7 @@ const pick = <T>(record: Record<string, T> | undefined, keep: (colId: string) =>
  * after `resetColumnState()`): columns the result doesn't have are dropped, and the result's
  * columns the column view doesn't know are appended to the order with their action default
  * visibility, pinning and width. The column view's calculated columns are kept; the tab's own are
- * not.
+ * not. A number filter on the Comment column is dropped.
  */
 export function fitColumnView(view: ColumnViewState, base: GridState): ColumnViewState {
   const baseCreated = new Set(createdIds(base));
@@ -168,8 +168,16 @@ export function fitColumnView(view: ColumnViewState, base: GridState): ColumnVie
   }
   if (view.filter) {
     const filter = structuredClone(view.filter);
-    if (filter.filterModel) filter.filterModel = pick(filter.filterModel, has);
-    if (filter.columnFilterState) filter.columnFilterState = pick(filter.columnFilterState, has);
+    // The Comment column shows text, so a number filter on it can't apply.
+    const fits = (colId: string) =>
+      has(colId) &&
+      !(
+        colId === 'tim:comments' &&
+        (filter.filterModel?.[colId] as { filterType?: string } | undefined)?.filterType ===
+          'number'
+      );
+    if (filter.columnFilterState) filter.columnFilterState = pick(filter.columnFilterState, fits);
+    if (filter.filterModel) filter.filterModel = pick(filter.filterModel, fits);
     fitted.filter = filter;
   }
   return fitted;

@@ -2,6 +2,7 @@ import { getApiClient, type CallOptions } from './client';
 import type { components } from './schema';
 
 export type Annotations = components['schemas']['Annotations'];
+export type Comment = components['schemas']['Comment'];
 export type ChangedAnnotations = components['schemas']['ChangedAnnotations'];
 export type AnnotationChangesPage = components['schemas']['AnnotationChangesPage'];
 export type AnnotationsChange = components['schemas']['AnnotationsChange'];

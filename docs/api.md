@@ -34,9 +34,9 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run (any signed-in analyst with the `runId`). |
 | POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (owner only; idempotent). |
 | GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations (any signed-in analyst with the `runId`). |
-| PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and comments of `id`s. |
+| PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and the caller's comment on `id`s. |
 | GET | `/api/annotations/changes` | 200 | 401, 422 | The change feed: the `id`s changed after a version. |
-| GET | `/api/annotations/history` | 200 | 401, 422 | The history of an `id`: its label changes and comments, newest first. |
+| GET | `/api/annotations/history` | 200 | 401, 422 | The history of an `id`: its label changes and each author's current comment, newest first. |
 | GET | `/api/tags/suggestions` | 200 | 401, 422 | Tags that start with a prefix: the caller's recent ones, then the most used. |
 | POST | `/api/connections/{name}/schema` | 200 or 204 | 400, 401, 403, 404, 422, 502, 503 | The editor schema of a connection, from its connection type's hook. |
 | GET | `/api/presets` | 200 | 401 | List your presets and the shared ones. |
@@ -272,7 +272,7 @@ An `id`'s annotations are shared by every analyst ([architecture.md](architectur
 
 - `id` is the text key the annotations belong to.
 - `label` is `null` when the `id` has none. `key` is a label's `key` from [`GET /api/instance`](#get-apiinstance), `by` the analyst who set it and `at` when.
-- `tags` and `comments` are arrays.
+- `tags` and `comments` are arrays. `comments` has each author's current comment, oldest `at` first.
 - `version` is the version of the change that last touched the `id`.
 
 ### PATCH /api/annotations
@@ -286,7 +286,10 @@ Body: `{"ids": ["evt-1042", "evt-1043"], "label": "malicious", "addTags": ["phis
 - `addTags` and `removeTags` are arrays of tags to add to, and remove from, every `id`.
 - `setTags` replaces every `id`'s tags with its array. `[]` clears them. It can't be combined with `addTags` or `removeTags`.
 - A tag is trimmed, and is 1 to 100 characters. A tag can't be in both `addTags` and `removeTags`. A removed tag is deleted.
-- `comment` is appended to every `id`'s comments. It is trimmed, can't be blank and has no length limit.
+- `comment` sets the caller's comment on every `id`, replacing the caller's current one. It is trimmed, can't be blank and has no length limit.
+  - `null` clears the caller's comment.
+  - Leaving it out keeps the comment.
+  - Setting the text the caller's comment already has, or clearing a comment the caller doesn't have, changes nothing.
 - The author of a label, tag or comment is the caller named in the token.
 
 The answer is `200`:
@@ -307,7 +310,7 @@ The answer is `200`:
 ```
 
 - `changes` has the `id`s that changed, as they now are, each with the change's `version`. An `id` that already had the asked-for label and tags is left out, and clearing an `id` with no label changes nothing.
-- A comment always changes every `id`.
+- A comment changes the `id`s where the caller's comment differs from the one asked for.
 - A change that changes nothing takes no version and writes no history. It answers `changes: []` and the current `version`.
 - A cleared `id` is in `changes` with `label: null`.
 
@@ -353,9 +356,9 @@ The history of one `id`. Query: `id`, required, 1 to 512 characters.
 }
 ```
 
-- `entries` has the label changes and comments of the `id`, newest first. There is no paging.
+- `entries` has the label changes and each author's current comment on the `id`, newest first. There is no paging.
 - A label entry has the `label` key it set, or `null` when the change cleared it, with who (`by`) and when (`at`).
-- A comment entry has its `author`, `at` and `text`.
+- A comment entry has its `author`, `at` (when it was last saved) and `text`. An author's earlier comments and cleared comments are not in the history.
 - Within one change, the label entry comes before the comment.
 - Tags are not in the history.
 - An `id` that was never changed answers `200` with `entries: []`.

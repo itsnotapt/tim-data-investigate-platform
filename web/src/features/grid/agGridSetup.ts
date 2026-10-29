@@ -7,6 +7,7 @@ import {
   ColumnApiModule,
   ColumnAutoSizeModule,
   CsvExportModule,
+  CustomEditorModule,
   CustomFilterModule,
   DateFilterModule,
   EventApiModule,
@@ -79,6 +80,7 @@ const MODULES: Module[] = [
   TooltipModule,
   TextEditorModule,
   LargeTextEditorModule,
+  CustomEditorModule,
   CsvExportModule,
   // Enterprise
   MultiFilterModule,
