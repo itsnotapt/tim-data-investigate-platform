@@ -11,7 +11,7 @@ import Popover from '@mui/material/Popover';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import type { ParamErrors } from '../tabs/types';
 import { DatetimeEditor } from './DatetimeEditor';
@@ -46,8 +46,6 @@ export interface PillsBarProps {
    * and the first one's popover opens when the bar mounts.
    */
   needed?: readonly string[];
-  /** Rendered at the right (Run). */
-  end?: ReactNode;
 }
 
 interface EditorProps {
@@ -298,7 +296,6 @@ export function PillsBar({
   errors,
   onReset,
   needed = [],
-  end,
 }: PillsBarProps) {
   const [open, setOpen] = useState<{ name: string; anchor: HTMLElement } | null>(null);
   const pills = params.filter(hasPill);
@@ -364,7 +361,6 @@ export function PillsBar({
           onClick={onReset}
         />
       )}
-      <Box sx={{ ml: 'auto' }}>{end}</Box>
       <Popover
         open={editing !== undefined}
         anchorEl={open?.anchor}

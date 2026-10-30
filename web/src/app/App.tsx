@@ -1,4 +1,5 @@
 import { RouterProvider } from 'react-router/dom';
+import { AppBarSlotProvider } from '../components/AppBarSlot';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthProvider, getAuthClient, type AuthClient } from '../lib/auth';
 import { router } from './router';
@@ -11,7 +12,9 @@ export function App({ authClient }: { authClient?: AuthClient } = {}) {
   return (
     <SnackbarHost>
       <AuthProvider client={authClient ?? getAuthClient()}>
-        <RouterProvider router={router} />
+        <AppBarSlotProvider>
+          <RouterProvider router={router} />
+        </AppBarSlotProvider>
       </AuthProvider>
     </SnackbarHost>
   );

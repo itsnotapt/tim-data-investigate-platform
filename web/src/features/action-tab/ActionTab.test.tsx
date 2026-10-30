@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppBarSlot, AppBarSlotProvider } from '../../components/AppBarSlot';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CatalogueAction, Instance, Run } from '../../lib/api';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
@@ -121,7 +122,11 @@ function Location() {
 function setup(
   state: Partial<TabState> = {},
   key = 'dev-sign-ins',
-  { params = { users: ['alice'] }, run = true }: { params?: object; run?: boolean } = {},
+  {
+    params = { users: ['alice'] },
+    run = true,
+    shown = true,
+  }: { params?: object; run?: boolean; shown?: boolean } = {},
 ) {
   const uuid = useTabsStore.getState().createTab({
     componentName: 'ActionResult',
@@ -133,21 +138,27 @@ function setup(
   // Without `run`, Run and Cancel go to the server (msw).
   const onRun = run ? vi.fn() : undefined;
   const onCancel = run ? vi.fn() : undefined;
+  // Without `shown`, another tab is on show.
   render(
     <SnackbarHost>
-      <MemoryRouter initialEntries={[`/view/${uuid}`]}>
-        <Routes>
-          <Route
-            path="/view/:uuid"
-            element={
-              <>
-                <ActionTab uuid={uuid} onRun={onRun} onCancel={onCancel} />
-                <Location />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
+      <AppBarSlotProvider>
+        <header>
+          <AppBarSlot />
+        </header>
+        <MemoryRouter initialEntries={[`/view/${shown ? uuid : 'another-tab'}`]}>
+          <Routes>
+            <Route
+              path="/view/:uuid"
+              element={
+                <>
+                  <ActionTab uuid={uuid} onRun={onRun} onCancel={onCancel} />
+                  <Location />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </AppBarSlotProvider>
     </SnackbarHost>,
   );
   return { uuid, onRun, onCancel };
@@ -178,11 +189,44 @@ beforeEach(() => {
 });
 
 describe('ActionTab', () => {
-  it('shows the menu path, the action and the title', () => {
+  it('shows the menu path, the action and the title in the app bar, with Save…, Clone and Copy link', () => {
     setup();
-    expect(screen.getByText('Development / Rows')).toBeInTheDocument();
-    expect(screen.getByText('Sign-ins')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Sign-ins for alice' })).toBeInTheDocument();
+    const appBar = within(screen.getByRole('banner'));
+    expect(appBar.getByText('Development / Rows')).toBeInTheDocument();
+    expect(appBar.getByText('Sign-ins')).toBeInTheDocument();
+    expect(appBar.getByRole('heading', { name: 'Sign-ins for alice' })).toBeInTheDocument();
+    for (const name of ['Save…', 'Clone', 'Copy link'])
+      expect(appBar.getByRole('button', { name })).toBeInTheDocument();
+  });
+
+  it('leaves the app bar to the tab on show', () => {
+    setup({}, 'dev-sign-ins', { shown: false });
+    const appBar = within(screen.getByRole('banner'));
+    expect(appBar.queryByRole('heading')).not.toBeInTheDocument();
+    expect(appBar.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument();
+  });
+
+  it('puts Run before the pills, so it stays put as the pills change', () => {
+    setup();
+    const run = screen.getByRole('button', { name: 'Run' });
+    const pill = screen.getByRole('button', { name: 'Users: alice' });
+    expect(run.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the quick filter beside the inner tabs only while the Results tab has rows', async () => {
+    setup(withResults);
+    const filter = screen.getByRole('textbox', { name: 'Filter rows' });
+    expect(
+      filter.compareDocumentPosition(screen.getByRole('tabpanel', { name: 'Results · 2' })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await userEvent.click(screen.getByRole('tab', { name: 'Run · 1 s' }));
+    expect(screen.queryByRole('textbox', { name: 'Filter rows' })).not.toBeInTheDocument();
+  });
+
+  it('has no quick filter when the run succeeded with no rows', () => {
+    setup({ run: succeeded, resultsRunId: 'r1', rowCount: 0 });
+    expect(screen.queryByRole('textbox', { name: 'Filter rows' })).not.toBeInTheDocument();
   });
 
   it('keeps the params edited in a pill on the tab, and runs from them', async () => {

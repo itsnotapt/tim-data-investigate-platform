@@ -30,12 +30,12 @@ test('quick filter, set filter and the filters side bar', async ({ page }) => {
   const status = page.locator('.ag-status-bar');
   await expect(status).toContainText('Total Rows');
 
-  await page.getByLabel('Quick UI filter').fill('KANSAS');
+  await page.getByLabel('Filter rows').fill('KANSAS');
   await expect(status).toContainText('Filtered');
   await expect(grid(page).locator('.ag-row[row-index="0"] .ag-cell[col-id="State"]')).toHaveText(
     'KANSAS',
   );
-  await page.getByLabel('Quick UI filter').fill('');
+  await page.getByLabel('Filter rows').fill('');
 
   // Multi filter: sub-menu text filter plus the set filter, from the header filter button.
   await grid(page)

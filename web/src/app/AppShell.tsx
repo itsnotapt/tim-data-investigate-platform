@@ -28,7 +28,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Link as RouterLink, Outlet } from 'react-router';
-import { useNotify } from '../components';
+import { AppBarSlot, useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
@@ -215,7 +215,7 @@ export function AppShell() {
               TIM
             </RouterLink>
           </Typography>
-          <Box sx={{ flexGrow: 1 }} />
+          <AppBarSlot />
           <ToolbarMenu label="Help" icon={<HelpIcon />}>
             {(close) => [
               <MenuItem
@@ -250,7 +250,7 @@ export function AppShell() {
           <AccountMenu />
         </Toolbar>
       </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, position: 'relative' }}>
+      <Box component="main" sx={{ flexGrow: 1, px: 2, py: 1, position: 'relative' }}>
         <AuthGate>
           <ShellContent />
         </AuthGate>

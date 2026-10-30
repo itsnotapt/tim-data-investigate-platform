@@ -5,7 +5,7 @@ import { runJsonRows } from '../stormRows';
 
 test('sidebar and column menu', async ({ page }) => {
   await runJsonRows(page);
-  await expect(page.getByLabel('Quick UI filter')).toBeVisible();
+  await expect(page.getByLabel('Filter rows')).toBeVisible();
 
   // 17: sidebar collapsed to the vertical Columns / Filters / Views / Action file tabs.
   const sideButtons = grid(page).locator('.ag-side-button');
