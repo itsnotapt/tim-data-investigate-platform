@@ -327,10 +327,10 @@ jobs:
 
       - name: Validate production stack
         run: |
-          # Required values left empty in the template.
+          # Required values left empty in the template. TIM_AUTH_CLIENT_SECRET stays empty: only
+          # an obo connection needs it.
           sed -e 's|^TIM_AUTH_TENANT_ID=$|TIM_AUTH_TENANT_ID=00000000-0000-0000-0000-000000000000|' \
               -e 's|^TIM_AUTH_CLIENT_ID=$|TIM_AUTH_CLIENT_ID=00000000-0000-0000-0000-000000000000|' \
-              -e 's|^TIM_AUTH_CLIENT_SECRET=$|TIM_AUTH_CLIENT_SECRET=ci|' \
               deploy/.env.example > deploy/.env
           docker compose -f deploy/compose.prod.yaml --env-file deploy/.env config --quiet
 

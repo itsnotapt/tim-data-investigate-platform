@@ -65,10 +65,10 @@ def upgrade() -> None:
             sa.ForeignKey("runs.run_id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("ordinal", sa.Integer(), nullable=False),
+        sa.Column("row_number", sa.Integer(), nullable=False),
         sa.Column("id", sa.Text()),
         sa.Column("data", _json(), nullable=False),
-        sa.PrimaryKeyConstraint("run_id", "ordinal"),
+        sa.PrimaryKeyConstraint("run_id", "row_number"),
         prefixes=["UNLOGGED"],
     )
 

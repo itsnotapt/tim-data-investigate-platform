@@ -48,5 +48,5 @@ class RunContext(Protocol):
         ...
 
     def declare_columns(self, columns: Sequence[Column]) -> None:
-        """Declare result columns, such as types the backend reports."""
+        """Declare result columns, such as types the connection reports."""
         ...

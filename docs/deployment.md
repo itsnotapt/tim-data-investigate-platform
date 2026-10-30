@@ -143,7 +143,7 @@ To run providers, set `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` to a [derived imag
 | `PUBLIC_URL` | yes | - | Public origin, no trailing slash; `REDIRECT_URI` is `${PUBLIC_URL}/blank.html` |
 | `POSTGRES_PASSWORD` | yes | - | `POSTGRES_USER` / `POSTGRES_DB` default `tim` |
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID` | yes | - | Also passed to web |
-| `TIM_AUTH_CLIENT_SECRET` | yes | - | OBO client secret |
+| `TIM_AUTH_CLIENT_SECRET` | with an `obo` connection | empty | OBO client secret |
 | `TIM_CORS_ALLOWED_ORIGINS` | no | empty | Comma separated |
 | `TIM_LOG_LEVEL` | no | `INFO` | |
 | `AGGRID_LICENSE` | no | empty | Empty = AG Grid Enterprise trial mode |

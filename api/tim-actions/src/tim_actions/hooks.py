@@ -1,4 +1,4 @@
-"""Hooks: how actions reach a connection type's backend."""
+"""Hooks: how actions reach the system behind a connection."""
 
 from __future__ import annotations
 
