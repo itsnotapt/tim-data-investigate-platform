@@ -395,6 +395,8 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - It hands `{kind, schema, connection, scope}` to its `onSchema` callback. It does not touch the editor.
 - `editorSchemaAdapters.ts`: `applyEditorSchema`, one adapter per schema kind, applied by the Query editor in `ActionTab.tsx`. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
   - `kql` also gives the Kusto language service the tab's query parameters, as global scalar parameters. `setEditorParameters` gives them again when they change.
+  - The page's Kusto editors share one language service. The adapters track the editor that holds it, and `setEditorParameters` leaves it alone while another editor holds it.
+  - `claimEditorSchema` makes an editor the holder when it gains focus (`onDidFocusEditorText`). It gives the language service that editor's last loaded schema with its tab's query parameters, or the parameters alone before any schema has loaded. It does nothing for the holder or for a `sql` editor, whose schemas are per model.
 - `declareStatement.ts`: `useDeclareStatement` asks `POST /api/actions/{key}/declareStatement` once the query parameters' names and types have stayed unchanged for 400 ms. The Query editor shows the result above its first line, and the Save dialog's preview before the query.
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns. A `bigint` column gets cell data type `bigint`.
 - `roundedColumns.ts` finds the `number` columns with a whole number beyond ±(2^53 − 1). `NumberHeader.tsx` is their header, with the warning icon.

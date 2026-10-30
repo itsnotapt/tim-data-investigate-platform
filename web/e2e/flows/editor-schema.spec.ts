@@ -80,15 +80,11 @@ async function pickConnection(page: Page) {
   await page.getByRole('option', { name: 'Development audit' }).click();
 }
 
-/** Sets the database, and waits for its schema. */
+/** Sets the database, whose schema loads, or comes from the cache, a moment later. */
 async function pickDatabase(page: Page) {
   await page.getByRole('button', { name: 'Database: not set' }).click();
-  const loaded = page.waitForResponse(
-    (r) => new URL(r.url()).pathname === '/api/connections/dev-audit/schema' && r.ok(),
-  );
   await page.getByRole('textbox', { name: 'Database' }).fill('Logs');
   await page.keyboard.press('Escape');
-  await loaded;
 }
 
 /** Retries Ctrl+Space until each of `items` is suggested: the worker takes changes a moment later. */
@@ -144,6 +140,43 @@ test('a schema that loads after a query parameter is added keeps it suggested', 
   await page.getByRole('textbox', { name: 'Query' }).focus();
   await expectSuggested(page, [/^SignIns, /]);
   await page.keyboard.press('Escape');
+  await page.keyboard.type('print sin');
+  await expectSuggested(page, [/^since, /]);
+});
+
+test("each tab's editor suggests its own query parameters once focused, not the last tab's", async ({
+  page,
+  idPrefix,
+}) => {
+  const first = `${idPrefix} Since`;
+  await openAction(page, ['Development', 'Run KQL (development)']);
+  await pickConnection(page);
+  await pickDatabase(page);
+  await addQueryParameter(page, first, 'since', 'datetime');
+
+  const tree = page.getByLabel('Query tree');
+  await tree.hover();
+  await tree.getByRole('button', { name: 'New query' }).click();
+  for (const step of ['Actions and presets', 'Development', 'Run KQL (development)']) {
+    await page.getByRole('button', { name: step, exact: true }).click();
+  }
+  // Off the tree, once its menu has closed: the tree stays expanded while the pointer is on either.
+  // The closing menu is aria-hidden, so it is waited out by its class.
+  await expect(page.locator('.MuiMenu-root')).toHaveCount(0);
+  await page.mouse.move(900, 500);
+  await pickConnection(page);
+  await pickDatabase(page);
+  await addQueryParameter(page, `${idPrefix} Limit`, 'limit', 'long');
+  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.keyboard.type('print lim');
+  await expectSuggested(page, [/^limit, /]);
+  await page.keyboard.press('Escape');
+
+  await tree.hover();
+  await tree.getByRole('button').filter({ hasText: first }).click();
+  await page.mouse.move(900, 500);
+  await expect(page.getByRole('heading', { name: first })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Query' }).focus();
   await page.keyboard.type('print sin');
   await expectSuggested(page, [/^since, /]);
 });

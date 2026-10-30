@@ -34,8 +34,8 @@ import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid'
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
 import { useDeclareStatement } from './declareStatement';
-import { useEditorSchema, type SchemaHandler } from './editorSchema';
-import { applyEditorSchema, setEditorParameters } from './editorSchemaAdapters';
+import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
+import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
 import { PillsBar } from './PillsBar';
 import {
@@ -110,13 +110,28 @@ function QueryEditor({
     // A refusal leaves them to the next schema load.
     if (editor) setEditorParameters(editor, param.kind, declaredRef.current).catch(() => undefined);
   }, [editor, param.kind, declaredKey]);
+  // The last schema given to the editor, which it takes back when focused.
+  const loadedRef = useRef<LoadedEditorSchema | null>(null);
   const applySchema = useMemo<SchemaHandler | null>(
     () =>
       editor
-        ? (loaded, signal) => applyEditorSchema(editor, loaded, signal, declaredRef.current)
+        ? (loaded, signal) => {
+            loadedRef.current = loaded;
+            return applyEditorSchema(editor, loaded, signal, declaredRef.current);
+          }
         : null,
     [editor],
   );
+  useEffect(() => {
+    if (!editor) return;
+    // The page's editors share one Kusto language service: the focused one has it for its own.
+    const focus = editor.onDidFocusEditorText(() => {
+      claimEditorSchema(editor, param.kind, loadedRef.current, declaredRef.current).catch(
+        () => undefined,
+      );
+    });
+    return () => focus.dispose();
+  }, [editor, param.kind]);
   useEditorSchema(param, params, values, applySchema);
   const declareStatement = useDeclareStatement(actionKey, declared);
   const value = values[param.name];

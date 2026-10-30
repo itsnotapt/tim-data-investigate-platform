@@ -288,6 +288,8 @@ The action tab has a header in the app bar, a pills bar and inner tabs.
     - `useDeclareStatement` (`web/src/features/action-tab/declareStatement.ts`) asks `POST /api/actions/{key}/declareStatement` once the tab's query parameters, name and type, have stayed unchanged for 400 ms. The Save dialog's preview uses it too.
     - The line is hidden when the tab has no query parameters, when the action declares nothing (`204`), and when the request fails.
     - The Kusto language service gets the query parameters (`setParameters` on a change, and as global scalar parameters with each schema load), so it suggests them where a scalar goes.
+    - The page's Kusto editors share one language service, with one schema and one set of query parameters. The editor that holds it decides what every Kusto editor suggests.
+    - When a Kusto editor gains focus, it takes the language service back, with its own last loaded schema and its tab's query parameters. Until a schema has loaded, it gets the parameters alone. A change of query parameters in an editor that doesn't hold the language service waits until that editor takes it.
 - **Results · N**, with the row count. While rows are loading, it shows how many have arrived out of the total ("Results · 20000 of 85000"). The grid already shows them.
   - While the grid shows rows, a **Filter rows** field at the right of the inner tabs keeps the rows with a cell that contains its text (AG Grid's quick filter).
 - **Run · duration**, the details of the latest run:
