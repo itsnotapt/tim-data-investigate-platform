@@ -31,6 +31,13 @@ CONTRACT: list[tuple[str, str, str, set[str], set[str]]] = [
     ),
     (
         "post",
+        "/api/actions/{key}/declareStatement",
+        "getDeclareStatement",
+        {"200", "204"},
+        {"400", "401", "404", "422", "500"},
+    ),
+    (
+        "post",
         "/api/connections/{name}/schema",
         "getEditorSchema",
         {"200", "204"},

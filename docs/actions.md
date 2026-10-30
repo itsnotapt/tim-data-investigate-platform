@@ -285,7 +285,7 @@ The run's time limit is passed to Kusto as the server timeout, cancelling the ru
 
 `parameters` is an ordered list of `{name, type, value}`. The `type` is `string`, `long`, `real`, `bool`, `datetime`, `timespan` or `dynamic`.
 
-- TIM puts `declare query_parameters(Name:type, ...);` and a newline before the KQL, with the parameters in the list's order, and sends the values as Kusto query parameters. The KQL uses the names as it would any query parameter.
+- TIM puts the [declare statement](../GLOSSARY.md) `declare query_parameters(Name:type, ...);` and a newline before the KQL, with the parameters in the list's order, and sends the values as Kusto query parameters. The analyst's KQL doesn't hold it: the action tab shows it above the query ([POST /api/actions/{key}/declareStatement](api.md#post-apiactionskeydeclarestatement)). The KQL uses the names as it would any query parameter.
 - A bad value answers `422` with `errors["params.parameters.<name>"]`, such as "Must be an ISO 8601 datetime", "Required" or, for a `long`, "Must be a whole number".
 - A structural problem answers `422` with `errors["params.parameters"]`: a bad name, a bad type, a duplicate name or a value that is not a list.
 - A [preset](../GLOSSARY.md) of Run KQL can have query parameters as inputs, and be copied as an action file: [GET /api/presets/{presetId}/actionFile](api.md#get-apipresetspresetidactionfile).
@@ -555,6 +555,8 @@ An action type can say how a preset of its actions becomes an action file by ove
   - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
 - `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries, in order.
 - `tim_actions.query_parameters` holds what Run KQL and Run SQL share. `TakesQueryParameters` is their base class: it checks `parameters` against its `parameter_types`, each query parameter type with the param kind of its value. `checked_parameters` does the check, and `preset_file_params` turns a preset's query parameters into the file's params.
+  - `declared_query_parameters(declared)` checks the names and types of a tab's query parameters, without values, with `check_declared`. Its problems are keyed `params.parameters`.
+  - `declare_statement(query_parameters)` returns the declare statement, with no newline. The default is `""`, for an action that declares nothing. `RunKql` returns `declare query_parameters(name:type, ...);`, and its run and its `preset_file` put it on the line before the query.
 - `Action.has_preset_file` is whether the type overrides it. It becomes `actionFile` in the catalogue.
 - `tim_actions.action_file_yaml(document)` writes the document as the YAML of an action file.
 

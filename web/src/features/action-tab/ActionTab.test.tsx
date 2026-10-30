@@ -661,4 +661,90 @@ describe('ActionTab with a query param', () => {
     setup();
     expect(screen.queryByRole('tab', { name: 'Query' })).not.toBeInTheDocument();
   });
+
+  describe('declare statement', () => {
+    const since = { name: 'since', type: 'datetime', value: null };
+    const limit = { name: 'limit', type: 'long', value: 10 };
+    let requests: unknown[] = [];
+    const answer = (parameters: { name: string; type: string }[]) =>
+      `declare query_parameters(${parameters.map((p) => `${p.name}:${p.type}`).join(', ')});`;
+
+    beforeEach(() => {
+      requests = [];
+      server.use(
+        http.post(apiUrl('/api/actions/tim.run_kql/declareStatement'), async ({ request }) => {
+          const body = (await request.json()) as { parameters: { name: string; type: string }[] };
+          requests.push(body);
+          return HttpResponse.json({ declareStatement: answer(body.parameters) });
+        }),
+      );
+    });
+
+    const setParameters = (uuid: string, parameters: object[]) =>
+      act(() => useTabsStore.getState().updateParams(uuid, { params: { ...kql, parameters } }));
+
+    it('shows the statement above the query, out of the query text', async () => {
+      setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since, limit] } });
+      expect(
+        await screen.findByText('declare query_parameters(since:datetime, limit:long);'),
+      ).toBeInTheDocument();
+      expect(requests).toEqual([
+        {
+          parameters: [
+            { name: 'since', type: 'datetime' },
+            { name: 'limit', type: 'long' },
+          ],
+        },
+      ]);
+      expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('StormEvents | take 2');
+    });
+
+    it('asks again once the query parameters settle, and hides it without any', async () => {
+      const { uuid } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
+      await screen.findByText('declare query_parameters(since:datetime);');
+      setParameters(uuid, [since, limit]);
+      setParameters(uuid, [{ ...since, name: 'from' }, limit]);
+      expect(
+        await screen.findByText('declare query_parameters(from:datetime, limit:long);'),
+      ).toBeInTheDocument();
+      expect(requests).toHaveLength(2);
+      setParameters(uuid, []);
+      expect(screen.queryByText(/^declare/)).not.toBeInTheDocument();
+      expect(requests).toHaveLength(2);
+    });
+
+    it('forgets the statement once there are none, so the next one shows only when answered', async () => {
+      const { uuid } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
+      await screen.findByText('declare query_parameters(since:datetime);');
+      setParameters(uuid, []);
+      setParameters(uuid, [limit]);
+      expect(screen.queryByText(/^declare/)).not.toBeInTheDocument();
+      expect(await screen.findByText('declare query_parameters(limit:long);')).toBeInTheDocument();
+    });
+
+    it('does not ask again when only a value changes', async () => {
+      const { uuid } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [limit] } });
+      await screen.findByText('declare query_parameters(limit:long);');
+      setParameters(uuid, [{ ...limit, value: 11 }]);
+      await new Promise((r) => setTimeout(r, 500));
+      expect(requests).toHaveLength(1);
+    });
+
+    it.each([
+      ['there is nothing to declare', () => new HttpResponse(null, { status: 204 })],
+      ['the request fails', () => problemResponse(500)],
+    ])('shows no statement when %s', async (_, respond) => {
+      let answered = false;
+      server.use(
+        http.post(apiUrl('/api/actions/tim.run_kql/declareStatement'), () => {
+          answered = true;
+          return respond();
+        }),
+      );
+      setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
+      await vi.waitFor(() => expect(answered).toBe(true));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByText(/^declare/)).not.toBeInTheDocument();
+    });
+  });
 });

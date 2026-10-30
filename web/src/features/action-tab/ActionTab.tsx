@@ -16,7 +16,7 @@ import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { InAppBar } from '../../components/AppBarSlot';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
@@ -33,11 +33,18 @@ import { useActionPivotMenu } from '../action-pivots';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
-import { useEditorSchema, type SchemaHandler } from './editorSchema';
-import { applyEditorSchema } from './editorSchemaAdapters';
+import { useDeclareStatement } from './declareStatement';
+import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
+import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
 import { PillsBar } from './PillsBar';
-import { pills, setPill, takesQueryParameters, withPresetQueryParameters } from './queryParameters';
+import {
+  pills,
+  queryParameters,
+  setPill,
+  takesQueryParameters,
+  withPresetQueryParameters,
+} from './queryParameters';
 import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
 import { durationText, outcomeText } from './runText';
@@ -65,10 +72,12 @@ const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
 
 /**
  * The editor of a `kql` or `sql` param, completing from the schema of its `schemaFrom` params, and
- * marked with the reason when the server refused it.
+ * marked with the reason when the server refused it. The action's declare statement for the
+ * query parameters shows above the query, outside its text.
  */
 function QueryEditor({
   uuid,
+  actionKey,
   param,
   params,
   values,
@@ -77,6 +86,8 @@ function QueryEditor({
   onRun,
 }: {
   uuid: string;
+  /** The tab's action, whose declare statement for its query parameters shows above the query. */
+  actionKey: string;
   param: CatalogueParam;
   /** The action's params, and the values of all of them. */
   params: readonly CatalogueParam[];
@@ -87,11 +98,42 @@ function QueryEditor({
   onRun: () => void;
 }) {
   const [editor, setEditor] = useState<CodeEditorInstance | null>(null);
+  const declared = queryParameters(values.parameters);
+  // The query parameters by name and type, which is all the editor is given of them.
+  const declaredKey = JSON.stringify(declared.map(({ name, type }) => [name, type]));
+  // Read when a schema loads, which replaces the editor's query parameters.
+  const declaredRef = useRef(declared);
+  useEffect(() => {
+    declaredRef.current = declared;
+  });
+  useEffect(() => {
+    // A refusal leaves them to the next schema load.
+    if (editor) setEditorParameters(editor, param.kind, declaredRef.current).catch(() => undefined);
+  }, [editor, param.kind, declaredKey]);
+  // The last schema given to the editor, which it takes back when focused.
+  const loadedRef = useRef<LoadedEditorSchema | null>(null);
   const applySchema = useMemo<SchemaHandler | null>(
-    () => (editor ? (loaded, signal) => applyEditorSchema(editor, loaded, signal) : null),
+    () =>
+      editor
+        ? (loaded, signal) => {
+            loadedRef.current = loaded;
+            return applyEditorSchema(editor, loaded, signal, declaredRef.current);
+          }
+        : null,
     [editor],
   );
+  useEffect(() => {
+    if (!editor) return;
+    // The page's editors share one Kusto language service: the focused one has it for its own.
+    const focus = editor.onDidFocusEditorText(() => {
+      claimEditorSchema(editor, param.kind, loadedRef.current, declaredRef.current).catch(
+        () => undefined,
+      );
+    });
+    return () => focus.dispose();
+  }, [editor, param.kind]);
   useEditorSchema(param, params, values, applySchema);
+  const declareStatement = useDeclareStatement(actionKey, declared);
   const value = values[param.name];
   const captionId = `${uuid}-${param.name}-caption`;
   const caption = error ?? param.help;
@@ -124,6 +166,7 @@ function QueryEditor({
           value={typeof value === 'string' ? value : ''}
           onChange={(text) => onChange(text === '' ? undefined : text)}
           onMount={setEditor}
+          headerLine={declareStatement}
         />
       </Box>
       {caption && (
@@ -486,6 +529,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           {queryStatus}
           <QueryEditor
             uuid={uuid}
+            actionKey={params.action}
             param={queryParam}
             params={action?.params ?? []}
             values={params.params}

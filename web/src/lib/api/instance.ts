@@ -35,3 +35,24 @@ export async function resolvePivot(
   });
   return res.data;
 }
+
+export type DeclaredParameter = components['schemas']['DeclaredParameter'];
+export type DeclareStatement = components['schemas']['DeclareStatement'];
+
+/**
+ * The statement the action `key` puts before its query to declare the query parameters, by name
+ * and type; `undefined` when it declares nothing.
+ */
+export async function getDeclareStatement(
+  key: string,
+  parameters: readonly DeclaredParameter[],
+  { client = getApiClient(), ...rest }: CallOptions = {},
+): Promise<string | undefined> {
+  const res = await client.request<DeclareStatement | undefined>({
+    method: 'POST',
+    path: `/api/actions/${encodeURIComponent(key)}/declareStatement`,
+    body: { parameters },
+    ...rest,
+  });
+  return res.data?.declareStatement;
+}

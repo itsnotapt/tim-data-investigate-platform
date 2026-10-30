@@ -1,6 +1,7 @@
 """Development actions, which TIM registers only with ``TIM_DEV_ACTIONS`` (ADR-0011): rows an
-analyst pastes, an action file type that gives rows, a sink type that discards them, delays and
-errors for e2e scenarios, and a connection type with a fixed editor schema."""
+analyst pastes, Run KQL on a connection with a fixed editor schema, an action file type that gives
+rows, a sink type that discards them, delays and errors for e2e scenarios, and that connection
+type."""
 
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, StrictInt, field_validator, model_validator
 
 from tim_actions._common import NonBlankStr
-from tim_actions.action import Action, Sink
+from tim_actions.action import Action, QueryParameter, Sink
 from tim_actions.columns import TIM_COLUMNS, Column
 from tim_actions.connections import Connection
 from tim_actions.files import ActionDocument, SinkDocument
@@ -20,6 +21,7 @@ from tim_actions.hooks import EditorSchema, Hook
 from tim_actions.params import Param
 from tim_actions.pivots import first_value
 from tim_actions.provider import Provider
+from tim_actions.query_parameters import QUERY_PARAMETER_TYPES, TakesQueryParameters
 from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
 
@@ -55,6 +57,43 @@ DEV_JSON = DevJson(
         ),
     ),
     pivot="rows",
+)
+
+
+class DevRunKql(TakesQueryParameters):
+    """``tim.dev_run_kql``: Run KQL's params and query parameters on a ``dev_kql`` connection,
+    declared as Run KQL declares them. It runs nothing and yields no rows."""
+
+    parameter_types = QUERY_PARAMETER_TYPES
+
+    def declare_statement(self, query_parameters: Sequence[QueryParameter]) -> str:
+        from tim_actions.kusto import RUN_KQL
+
+        return RUN_KQL.declare_statement(query_parameters)
+
+    def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
+        self.parameter_entries(params)
+        yield from ()
+
+
+DEV_RUN_KQL = DevRunKql(
+    key="tim.dev_run_kql",
+    name="Run KQL (development)",
+    menu="Development",
+    description="Run KQL's query and query parameters on a dev_kql connection. Yields no rows.",
+    params=(
+        Param("connection", "connection", title="Connection", connection_type="dev_kql"),
+        Param("database", "string", title="Database"),
+        Param("kql", "kql", title="Query", schema_from=("connection", "database")),
+        Param(
+            "parameters",
+            "json",
+            title="Query parameters",
+            required=False,
+            help="[{name, type, value}]: declared before the query",
+        ),
+    ),
+    pivot="none",
 )
 
 
@@ -246,4 +285,6 @@ class DevKqlHook(Hook):
 
 def provider() -> Provider:
     """The development actions, action types and connection type."""
-    return Provider(actions=[DEV_JSON], action_types=[DevRows, DevSink], hooks=[DevKqlHook])
+    return Provider(
+        actions=[DEV_JSON, DEV_RUN_KQL], action_types=[DevRows, DevSink], hooks=[DevKqlHook]
+    )

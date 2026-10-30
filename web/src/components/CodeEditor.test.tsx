@@ -7,7 +7,9 @@ const h = vi.hoisted(() => ({
     dispose: vi.fn(),
     getModel: vi.fn(),
     onDidDispose: vi.fn(),
+    changeViewZones: vi.fn(),
   },
+  zones: { addZone: vi.fn(), removeZone: vi.fn() },
   model: { dispose: vi.fn(), uri: { path: 'm' } },
   editorProps: [] as Record<string, unknown>[],
   loadMonaco: vi.fn(),
@@ -46,6 +48,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.editorProps.length = 0;
   h.editor.getModel.mockReturnValue(h.model);
+  h.editor.changeViewZones.mockImplementation((change: (zones: typeof h.zones) => void) =>
+    change(h.zones),
+  );
+  h.zones.addZone.mockReturnValue('zone-1');
   h.loadMonaco.mockResolvedValue({});
   h.loadMonacoKusto.mockResolvedValue({});
 });
@@ -117,6 +123,22 @@ describe('CodeEditor', () => {
     unmount();
     expect(h.model.dispose).toHaveBeenCalled();
     expect(h.editor.dispose).toHaveBeenCalled();
+  });
+
+  it('draws the header line above the first line, out of the text, until it is unset', async () => {
+    const { rerender } = render(
+      <CodeEditor value="StormEvents" language="kusto" headerLine="declare query_parameters();" />,
+      { wrapper: AppThemeProvider },
+    );
+    await waitFor(() => expect(h.zones.addZone).toHaveBeenCalledTimes(1));
+    const [zone] = h.zones.addZone.mock.calls[0] as [{ afterLineNumber: number; domNode: Node }];
+    expect(zone.afterLineNumber).toBe(0);
+    expect(zone.domNode.textContent).toBe('declare query_parameters();');
+    expect(h.editorProps.at(-1)).toMatchObject({ value: 'StormEvents' });
+
+    rerender(<CodeEditor value="StormEvents" language="kusto" />);
+    expect(h.zones.removeZone).toHaveBeenCalledWith('zone-1');
+    expect(h.zones.addZone).toHaveBeenCalledTimes(1);
   });
 
   it('shows an error when monaco fails to load', async () => {

@@ -1,4 +1,7 @@
-/** Replacement for `components/CodeEditor` (Monaco does not run in jsdom): a labelled textarea. */
+/**
+ * Replacement for `components/CodeEditor` (Monaco does not run in jsdom): a labelled textarea,
+ * with its header line above it.
+ */
 export async function fakeCodeEditorModule() {
   const React = await import('react');
   return {
@@ -8,13 +11,19 @@ export async function fakeCodeEditorModule() {
       readOnly?: boolean;
       ariaLabel?: string;
       language?: string;
+      headerLine?: string;
     }) =>
-      React.createElement('textarea', {
-        'aria-label': p.ariaLabel,
-        'data-language': p.language,
-        value: p.value,
-        readOnly: p.readOnly,
-        onChange: (e: { target: { value: string } }) => p.onChange?.(e.target.value),
-      }),
+      React.createElement(
+        React.Fragment,
+        null,
+        p.headerLine && React.createElement('div', null, p.headerLine),
+        React.createElement('textarea', {
+          'aria-label': p.ariaLabel,
+          'data-language': p.language,
+          value: p.value,
+          readOnly: p.readOnly,
+          onChange: (e: { target: { value: string } }) => p.onChange?.(e.target.value),
+        }),
+      ),
   };
 }

@@ -15,7 +15,7 @@ import {
   valueText,
   type QueryParameterType,
 } from '../action-tab/queryParameters';
-import { declareStatement, kqlNames, nameError } from './queryParameterNames';
+import { kqlNames, nameError } from './queryParameterNames';
 
 /** How one param that rows can fill is saved: its value fixed, or read from the clicked row. */
 export interface InputMode {
@@ -200,12 +200,14 @@ const fromRowText = (columns: readonly string[]): string =>
 /**
  * One line per param of the action: its value, the columns of the clicked row it reads, or when
  * it is unset the placeholder for its type. Query parameters have a line each in place of the
- * `parameters` param's: declared before KQL, or for SQL with the position each is bound to.
+ * `parameters` param's, for SQL with the position each is bound to. The action's
+ * `declareStatement`, if any, is the line before its query.
  */
 export function previewLines(
   action: CatalogueAction,
   params: Record<string, unknown>,
   form: PresetForm,
+  declareStatement?: string,
 ): string[] {
   const declared = form.queryParameters;
   const bound = bindsByPosition(action.params);
@@ -220,7 +222,8 @@ export function previewLines(
       );
     }
     const line = `${p.title} = ${mode && !mode.fixed ? fromRowText(mode.columns) : valueOrType(p, params[p.name])}`;
-    return p.kind === 'kql' && declared.length > 0 ? [declareStatement(declared), line] : [line];
+    const query = p.kind === 'kql' || p.kind === 'sql';
+    return query && declareStatement !== undefined ? [declareStatement, line] : [line];
   });
 }
 

@@ -4,6 +4,28 @@
  */
 
 export interface paths {
+    "/api/actions/{key}/declareStatement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Declare Statement
+         * @description The statement the action puts before its query to declare the query parameters, by name
+         *     and type; ``204`` when it declares nothing. ``422`` when a name isn't a valid query parameter
+         *     name or a type isn't one the action takes.
+         */
+        post: operations["getDeclareStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/actions/{key}/resolve": {
         parameters: {
             query?: never;
@@ -675,6 +697,33 @@ export interface components {
             text: string;
         };
         /**
+         * DeclareStatement
+         * @description The statement the action puts before the query to declare its query parameters.
+         */
+        DeclareStatement: {
+            /** Declarestatement */
+            declareStatement: string;
+        };
+        /**
+         * DeclareStatementRequest
+         * @description Body of ``POST /api/actions/{key}/declareStatement``: the tab's query parameters, in
+         *     order.
+         */
+        DeclareStatementRequest: {
+            /** Parameters */
+            parameters: components["schemas"]["DeclaredParameter"][];
+        };
+        /**
+         * DeclaredParameter
+         * @description A query parameter as it is declared: its name and type, without a value.
+         */
+        DeclaredParameter: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+        };
+        /**
          * EditorSchemaRequest
          * @description Body of ``POST /api/connections/{name}/schema``: the values of the editor param's
          *     ``schemaFrom`` params, by name, without its connection param.
@@ -1206,6 +1255,86 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getDeclareStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeclareStatementRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeclareStatement"];
+                };
+            };
+            /** @description The action declares nothing for these query parameters */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed JSON (`bad-request`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Missing, invalid or expired token (`unauthorized`). */
+            401: {
+                headers: {
+                    /** @description `Bearer` */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not found (`not-found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Invalid values, keyed by field such as `params.<name>` (`validation`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unhandled error (`internal`). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     resolvePivot: {
         parameters: {
             query?: never;

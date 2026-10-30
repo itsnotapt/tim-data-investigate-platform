@@ -12,7 +12,7 @@ import pytest
 from azure.kusto.data import ClientRequestProperties
 from azure.kusto.data import exceptions as kusto_exc
 
-from tim_actions import Column, Hook, Param, ParamKind, RunError, validate_params
+from tim_actions import Column, Hook, Param, ParamKind, QueryParameter, RunError, validate_params
 from tim_actions.kusto import (
     RUN_KQL,
     KustoConnection,
@@ -23,6 +23,7 @@ from tim_actions.kusto import (
     query_parameters,
     serialise_value,
 )
+from tim_actions.snowflake import RUN_SQL
 from tim_actions.testing import Connections, RunResult, run_action
 from tim_actions.testing.kusto import FakeKusto, KustoCall
 
@@ -125,6 +126,19 @@ def test_without_an_id_column_the_rows_have_no_id(
     tim_connections.add(CONNECTION)
     tim_kusto.respond([{"Id": 7}])
     assert run_kql(tim_connections, {}).ids == [None]
+
+
+def test_run_kql_declares_its_query_parameters_by_name_and_type() -> None:
+    declared = [QueryParameter("a", "string"), QueryParameter("b", "long", value=1)]
+    assert RUN_KQL.declare_statement(declared) == "declare query_parameters(a:string, b:long);"
+
+
+def test_run_kql_declares_nothing_without_query_parameters() -> None:
+    assert RUN_KQL.declare_statement([]) == ""
+
+
+def test_an_action_that_takes_query_parameters_declares_nothing_by_default() -> None:
+    assert RUN_SQL.declare_statement([QueryParameter("a", "string")]) == ""
 
 
 def test_run_kql_refuses_a_connection_of_another_type() -> None:

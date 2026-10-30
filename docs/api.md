@@ -31,6 +31,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/me` | 200 | 401 | The caller's name, as the API knows them. |
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
 | POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
+| POST | `/api/actions/{key}/declareStatement` | 200 or 204 | 401, 404, 422 | The declare statement of an action tab's query parameters. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
 | GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run (any signed-in analyst with the `runId`). |
 | POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (owner only; idempotent). |
@@ -84,7 +85,7 @@ Every non-2xx response has this body:
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A declare statement request with a bad query parameter (`errors["params.parameters"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, or editor schema failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -161,6 +162,20 @@ Errors:
   - "Not offered as a pivot" for an action with `pivot: none`;
   - "Takes one row" for an action with `pivot: row` and more than one row;
   - "At most 100 rows; 2,341 selected" for more rows than `TIM_MAX_PIVOT_ROWS`.
+
+### POST /api/actions/{key}/declareStatement
+
+The [declare statement](../GLOSSARY.md) TIM puts before the query of an action tab, from its query parameters' names and types ([actions.md](actions.md#query-parameters-of-run-kql)).
+
+Body: `{"parameters": [{"name": "<name>", "type": "<type>"}]}`, in the tab's order.
+
+Response: `200` with `{"declareStatement": "declare query_parameters(since:datetime, limit:long);"}`. It has no newline. `204` when the action declares nothing: it doesn't take query parameters (Run SQL), or `parameters` is empty.
+
+Errors:
+
+- `401` when signed out.
+- `404` with the detail "Action not found" for an unknown `key`.
+- `422` with `errors["params.parameters"]` holding the reasons: a name that isn't a Kusto identifier, a duplicate name, or a type the action doesn't take.
 
 ## Runs
 

@@ -1,15 +1,9 @@
-import type { QueryParameter } from '../action-tab/queryParameters';
-
 /** What a query parameter's name must be: a Kusto identifier. */
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Why `name` can't be a query parameter's name, or `undefined` when it can. */
 export const nameError = (name: string): string | undefined =>
   NAME.test(name) ? undefined : 'Starts with a letter or _ and holds only letters, digits and _';
-
-/** The statement TIM puts before the query to declare its query parameters. */
-export const declareStatement = (entries: readonly Omit<QueryParameter, 'value'>[]): string =>
-  `declare query_parameters(${entries.map((e) => `${e.name}:${e.type}`).join(', ')});`;
 
 // Comments, strings and numbers are skipped; what's left of a name is in the group.
 const TOKEN =

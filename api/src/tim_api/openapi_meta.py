@@ -47,6 +47,7 @@ _OPERATIONS: dict[tuple[str, str], tuple[str, tuple[int, ...]]] = {
     ("get", "/api/instance"): ("getInstance", ()),
     ("get", "/api/me"): ("getMe", ()),
     ("post", "/api/actions/{key}/resolve"): ("resolvePivot", (404,)),
+    ("post", "/api/actions/{key}/declareStatement"): ("getDeclareStatement", (404,)),
     # The connection's obo token is got first, hence 403/502/503; 502 also when the hook fails.
     ("post", "/api/connections/{name}/schema"): ("getEditorSchema", (403, 404, 502, 503)),
     # Each obo connection's token is got before the run exists, hence 403/502/503 here.

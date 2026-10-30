@@ -136,6 +136,7 @@ def test_check_with_dev_actions_accepts_dev_action_files(
     assert "unknown action type 'dev_rows'" in err
     assert check(capsys, "--dev-actions", "--actions", str(tmp_path)) == (
         0,
+        "Action tim.dev_run_kql left out: no dev_kql connection for its connection param\n"
         "OK: 2 actions, 0 connections, 3 labels\n",
         "",
     )
