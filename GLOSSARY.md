@@ -11,7 +11,7 @@ An analyst's tree of tabs. Each pivot adds a child tab under the tab it was made
 _Avoid_: session, case
 
 **Tab**:
-One node of an investigation: an action tab, with its results.
+One node of an investigation, holding its results. Every tab is an action tab.
 _Avoid_: display component, view
 
 **Action tab**:
