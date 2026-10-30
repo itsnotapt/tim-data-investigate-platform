@@ -1,9 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useContext, useMemo, useRef, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import Box from '@mui/material/Box';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
 import { AgGridReact, type CustomCellRendererProps } from 'ag-grid-react';
 import { themeBalham } from 'ag-grid-community';
 import type {
@@ -31,6 +28,7 @@ import {
 } from './gridOptions';
 import type { ExtraMenuItems, GetExtraContextMenuItems } from './gridOptions';
 import './grid.css';
+import { GridPlacementContext, QuickFilter } from '../action-tab/ActionTabHeader.prototype';
 
 // Registers modules and applies the licence key before any grid renders (this chunk is lazy).
 initAgGridFromConfig();
@@ -110,6 +108,7 @@ export function ResultsGrid({
   onStateUpdated,
 }: ResultsGridProps) {
   const [quick, setQuick] = useState('');
+  const placement = useContext(GridPlacementContext);
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
   const { containerRef, attach, save } = useTabColumnState(stateKey);
 
@@ -148,26 +147,22 @@ export function ResultsGrid({
 
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', pt: 1.25, pb: 0.5 }}>
-        <TextField
-          size="small"
-          label="Quick UI filter"
-          value={quick}
-          onChange={(e) => setQuick(e.target.value)}
-          sx={{ flex: 7 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <Box sx={{ flex: 5 }}>{toolbarExtra}</Box>
-      </Box>
-      <div ref={containerRef} style={{ height }} data-testid="results-grid">
+      {/* PROTOTYPE: the header variant may put the quick filter elsewhere. */}
+      <QuickFilter
+        value={quick}
+        onChange={setQuick}
+        toolbar={(field) => (
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', pt: 1.25, pb: 0.5 }}>
+            {field}
+            <Box sx={{ flex: 5 }}>{toolbarExtra}</Box>
+          </Box>
+        )}
+      />
+      <div
+        ref={containerRef}
+        style={{ height: placement.height ?? height }}
+        data-testid="results-grid"
+      >
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
           theme={gridTheme}

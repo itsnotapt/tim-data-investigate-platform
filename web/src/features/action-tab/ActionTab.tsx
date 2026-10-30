@@ -12,7 +12,7 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import { useContext, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import { NotifyContext } from '../../components/notifyContext';
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
@@ -33,6 +33,7 @@ import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './
 import { PillsBar } from './PillsBar';
 import { pills, setPill, takesQueryParameters, withPresetQueryParameters } from './queryParameters';
 import { RunPanel } from './RunPanel';
+import { PrototypeActionTabLayout, useHeaderVariant } from './ActionTabHeader.prototype';
 import { useRunRows } from './runRows';
 import { durationText, outcomeText } from './runText';
 import { useElapsed } from './useElapsed';
@@ -159,6 +160,10 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // Save…: the preset the tab came from or was saved as, once the presets are fresh, or why they
   // couldn't be loaded.
   const [saving, setSaving] = useState<{ source?: Preset } | { error: string } | null>(null);
+  // PROTOTYPE: the header variant, where its quick filter goes, and whether this tab is on show.
+  const variant = useHeaderVariant();
+  const [quickFilterSlot, setQuickFilterSlot] = useState<HTMLElement | null>(null);
+  const active = useParams().uuid === uuid;
 
   if (tab?.componentName !== 'ActionResult') return null;
   const { state, params } = tab;
@@ -302,7 +307,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     </Box>
   ) : (
     <Button
-      variant="contained"
+      // PROTOTYPE: a quieter Run in C2.
+      variant={variant === 'C2' ? 'outlined' : 'contained'}
       size="small"
       startIcon={<PlayArrowIcon />}
       disabled={!action}
@@ -311,6 +317,171 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       Run
     </Button>
   );
+
+  // PROTOTYPE: variants B–D lay out the same parts.
+  if (variant !== 'A') {
+    const caption = (
+      <>
+        {action && action.menuPath.length > 0 && (
+          <>
+            <span>{action.menuPath.join(' / ')}</span>
+            {' · '}
+          </>
+        )}
+        <span>{actionName}</span>
+      </>
+    );
+    return (
+      <PrototypeActionTabLayout
+        variant={variant}
+        quickFilterSlot={quickFilterSlot}
+        parts={{
+          title: tab.title,
+          caption,
+          save: { disabled: !action, onClick: () => void openSave() },
+          clone: { onClick: clone },
+          copyLink: {
+            disabled: linkRunId === null,
+            onClick: () => linkRunId !== null && void copyShareLink(linkRunId, null, notify),
+          },
+          pillsBar: (end, endInline) => (
+            <PillsBar
+              params={pillsBar.params}
+              values={pillsBar.values}
+              connections={connections}
+              onChange={setParam}
+              errors={state.paramErrors}
+              onReset={edited ? reset : undefined}
+              needed={needed}
+              end={end}
+              endInline={endInline}
+            />
+          ),
+          run,
+          innerTabs: (
+            <Tabs
+              value={inner}
+              onChange={(_, value: InnerTab) => pick(value)}
+              sx={{ px: 1, minHeight: 36 }}
+            >
+              {queryParam && <Tab value="query" label="Query" sx={{ minHeight: 36, py: 0 }} />}
+              <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
+              <Tab value="run" label={runLabel} sx={{ minHeight: 36, py: 0 }} />
+            </Tabs>
+          ),
+          notices: (
+            <>
+              {!action && (
+                <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
+                  This action is no longer available.
+                </Alert>
+              )}
+
+              {needed.length > 0 && !state.isExecuting && (
+                <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
+                  <div>Fill in {paramTitles(pillsBar.params, needed)} to run this pivot</div>
+                  {neededReasons.map((reason) => (
+                    <div key={reason}>{reason}</div>
+                  ))}
+                </Alert>
+              )}
+            </>
+          ),
+          panels: (
+            <>
+              {saving && 'error' in saving && (
+                <PresetsLoadErrorDialog
+                  error={saving.error}
+                  onRetry={() => void openSave()}
+                  onClose={() => setSaving(null)}
+                />
+              )}
+              {saving && !('error' in saving) && action && (
+                <SavePresetDialog
+                  action={action}
+                  params={params.params}
+                  source={saving.source}
+                  onClose={() => setSaving(null)}
+                  onSaved={saved}
+                />
+              )}
+
+              {queryParam && (
+                <Box role="tabpanel" aria-label="Query" hidden={inner !== 'query'} sx={{ px: 1 }}>
+                  {queryStatus}
+                  <QueryEditor
+                    uuid={uuid}
+                    param={queryParam}
+                    params={action?.params ?? []}
+                    values={params.params}
+                    error={state.paramErrors?.[queryParam.name]}
+                    onChange={(value) => setParam(queryParam.name, value)}
+                    onRun={runNow}
+                  />
+                </Box>
+              )}
+              <Box role="tabpanel" aria-label={runLabel} hidden={inner !== 'run'} sx={{ px: 1 }}>
+                <RunPanel run={state.run ?? null} error={state.error?.message ?? null} />
+              </Box>
+              {inner === 'results' && hasResults && showingPrevious && (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 0.5 }}>
+                  Showing {resultsFrom}
+                </Typography>
+              )}
+              {inner === 'results' && hasResults && !state.isExecuting && state.error && (
+                <Alert severity="warning" variant="outlined" role="status" sx={{ mx: 1, mb: 0.5 }}>
+                  {outcomeText(state.run)} Showing {resultsFrom}
+                </Alert>
+              )}
+              <Box
+                data-slot="results-grid"
+                role="tabpanel"
+                aria-label={resultsLabel}
+                aria-busy={hasResults && showingPrevious ? true : undefined}
+                hidden={inner !== 'results'}
+                sx={{ px: 1, opacity: hasResults && showingPrevious ? 0.5 : 1 }}
+              >
+                {(shown?.done ?? hasResults) && rowCount === 0 && (
+                  <Typography color="text.secondary" sx={{ p: 2 }}>
+                    The run succeeded with no rows.
+                  </Typography>
+                )}
+                {shown && rowCount !== 0 && (
+                  <ActionResultsGrid
+                    key={shown.runId}
+                    uuid={uuid}
+                    action={params.action}
+                    runId={shown.runId}
+                    rows={shown.rows}
+                    declaredColumns={action?.columns}
+                    runColumns={shown.columns}
+                    getContextMenuItems={pivotMenu}
+                    linkedRow={state.linkedRow}
+                    onLinkedRowShown={linkedRowShown}
+                  />
+                )}
+                {!shown && hasResults && rowCount !== 0 && (
+                  <StoredActionResultsGrid
+                    uuid={uuid}
+                    action={params.action}
+                    runId={state.resultsRunId}
+                    rowDataTrigger={tab.rowDataTrigger}
+                    declaredColumns={action?.columns}
+                    runColumns={state.resultColumns}
+                    getContextMenuItems={pivotMenu}
+                    linkedRow={state.linkedRow}
+                    onLinkedRowShown={linkedRowShown}
+                  />
+                )}
+              </Box>
+            </>
+          ),
+          active,
+          setQuickFilterSlot,
+        }}
+      />
+    );
+  }
 
   return (
     <Box>

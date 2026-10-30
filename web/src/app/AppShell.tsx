@@ -28,6 +28,13 @@ import {
   type ReactNode,
 } from 'react';
 import { Link as RouterLink, Outlet } from 'react-router';
+import { PrototypeSwitcher } from '../components/PrototypeSwitcher';
+import {
+  ACTION_TAB_HEADER_VARIANTS,
+  APP_BAR_SLOT,
+  mainPadding,
+  useHeaderVariant,
+} from '../features/action-tab/ActionTabHeader.prototype';
 import { useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
@@ -202,6 +209,7 @@ function ShellContent() {
 
 export function AppShell() {
   const { wikiUri, issueUri } = getConfig();
+  const variant = useHeaderVariant();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
@@ -215,7 +223,8 @@ export function AppShell() {
               TIM
             </RouterLink>
           </Typography>
-          <Box sx={{ flexGrow: 1 }} />
+          {/* PROTOTYPE: variant C puts the active tab's header here. */}
+          <Box id={APP_BAR_SLOT} sx={{ flexGrow: 1, display: 'flex', minWidth: 0, ml: 1, mr: 2 }} />
           <ToolbarMenu label="Help" icon={<HelpIcon />}>
             {(close) => [
               <MenuItem
@@ -250,11 +259,15 @@ export function AppShell() {
           <AccountMenu />
         </Toolbar>
       </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, position: 'relative' }}>
+      <Box component="main" sx={{ flexGrow: 1, ...mainPadding(variant), position: 'relative' }}>
         <AuthGate>
           <ShellContent />
         </AuthGate>
       </Box>
+      {/* PROTOTYPE */}
+      {import.meta.env.DEV && (
+        <PrototypeSwitcher title="Action tab header" variants={ACTION_TAB_HEADER_VARIANTS} />
+      )}
     </Box>
   );
 }

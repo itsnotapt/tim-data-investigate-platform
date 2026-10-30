@@ -48,6 +48,8 @@ export interface PillsBarProps {
   needed?: readonly string[];
   /** Rendered at the right (Run). */
   end?: ReactNode;
+  /** PROTOTYPE: `end` right after the last pill instead of at the right. */
+  endInline?: boolean;
 }
 
 interface EditorProps {
@@ -299,6 +301,7 @@ export function PillsBar({
   onReset,
   needed = [],
   end,
+  endInline = false,
 }: PillsBarProps) {
   const [open, setOpen] = useState<{ name: string; anchor: HTMLElement } | null>(null);
   const pills = params.filter(hasPill);
@@ -364,7 +367,7 @@ export function PillsBar({
           onClick={onReset}
         />
       )}
-      <Box sx={{ ml: 'auto' }}>{end}</Box>
+      <Box sx={{ ml: endInline ? 0.5 : 'auto' }}>{end}</Box>
       <Popover
         open={editing !== undefined}
         anchorEl={open?.anchor}
