@@ -677,6 +677,56 @@
         "title": "CommentEntry",
         "type": "object"
       },
+      "DeclareStatement": {
+        "description": "The statement the action puts before the query to declare its query parameters.",
+        "properties": {
+          "declareStatement": {
+            "title": "Declarestatement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "declareStatement"
+        ],
+        "title": "DeclareStatement",
+        "type": "object"
+      },
+      "DeclareStatementRequest": {
+        "description": "Body of ``POST /api/actions/{key}/declareStatement``: the tab's query parameters, in\norder.",
+        "properties": {
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredParameter"
+            },
+            "title": "Parameters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "parameters"
+        ],
+        "title": "DeclareStatementRequest",
+        "type": "object"
+      },
+      "DeclaredParameter": {
+        "description": "A query parameter as it is declared: its name and type, without a value.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "DeclaredParameter",
+        "type": "object"
+      },
       "EditorSchemaRequest": {
         "description": "Body of ``POST /api/connections/{name}/schema``: the values of the editor param's\n``schemaFrom`` params, by name, without its connection param.",
         "properties": {
@@ -1859,6 +1909,115 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/actions/{key}/declareStatement": {
+      "post": {
+        "description": "The statement the action puts before its query to declare the query parameters, by name\nand type; ``204`` when it declares nothing. ``422`` when a name isn't a valid query parameter\nname or a type isn't one the action takes.",
+        "operationId": "getDeclareStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclareStatementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeclareStatement"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "The action declares nothing for these query parameters"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Malformed JSON (`bad-request`)."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired token (`unauthorized`).",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "`Bearer`",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not found (`not-found`)."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid values, keyed by field such as `params.<name>` (`validation`)."
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unhandled error (`internal`)."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get Declare Statement",
+        "tags": [
+          "instance"
+        ]
+      }
+    },
     "/api/actions/{key}/resolve": {
       "post": {
         "description": "A pivot into the action: its params resolved from the selected rows, and the required\nparams left without a value. ``422`` when the action isn't offered on these rows.",

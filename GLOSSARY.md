@@ -65,6 +65,10 @@ _Avoid_: argument, variable, field, input
 One named, typed value of an action tab of Run KQL or Run SQL, sent to the connection as a bound value: to Kusto by name as a Kusto query parameter, to Snowflake by position, `:1` the first. An action tab's query parameters are an ordered list, whose order is the `declare` order for KQL and the bind position (`:N`) for SQL. It is not a param of the action. In a preset it is an input, fixed or From row, and the preset can be copied as an action file.
 _Avoid_: KQL variable
 
+**Declare statement**:
+The `declare query_parameters(…)` statement TIM puts before a KQL query, declaring its query parameters by name and type. It is shown above the query but isn't part of the query the analyst writes.
+_Avoid_: preamble, header
+
 **Action type** (for action authors):
 The reusable Python code behind a family of actions. Each action names one action type and gives its configuration.
 

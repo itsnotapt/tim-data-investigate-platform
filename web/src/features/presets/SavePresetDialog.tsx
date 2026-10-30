@@ -20,6 +20,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import type { CatalogueAction, Preset, PresetFields } from '../../lib/api';
+import { useDeclareStatement } from '../action-tab/declareStatement';
 import {
   bindsByPosition,
   positionLabel,
@@ -210,6 +211,7 @@ export function SavePresetDialog({
   const setQueryParameters = (change: (all: QueryParameterForm[]) => QueryParameterForm[]) =>
     setForm((f) => ({ ...f, queryParameters: change(f.queryParameters) }));
   const suggestions = suggestedNames(action, params, form);
+  const declareStatement = useDeclareStatement(action.key, form.queryParameters);
   const bound = bindsByPosition(action.params);
   const types = queryParameterTypes(action);
   const moveQueryParameter = (from: number, to: number) =>
@@ -364,7 +366,7 @@ export function SavePresetDialog({
               aria-labelledby="save-preset-preview"
               sx={{ listStyle: 'none', m: 0, p: 0 }}
             >
-              {previewLines(action, params, form).map((line, i) => (
+              {previewLines(action, params, form, declareStatement).map((line, i) => (
                 <Typography
                   component="li"
                   key={i}

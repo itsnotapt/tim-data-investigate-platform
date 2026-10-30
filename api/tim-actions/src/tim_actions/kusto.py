@@ -29,7 +29,6 @@ from tim_actions.hooks import EditorSchema, Hook, TokenFor
 from tim_actions.params import Param, ParamKind
 from tim_actions.query_parameters import (
     QUERY_PARAMETER_TYPES,
-    CheckedParameter,
     TakesQueryParameters,
     params_and_values,
 )
@@ -297,29 +296,9 @@ def query_parameters(params: Sequence[Param], values: Mapping[str, Any]) -> dict
     }
 
 
-def declare_statement(declared: Sequence[tuple[str, str]]) -> str:
-    """``declare query_parameters(name:type, …);`` and a newline, to go before the KQL; empty
-    without query parameters."""
-    if not declared:
-        return ""
-    return f"declare query_parameters({', '.join(f'{n}:{t}' for n, t in declared)});\n"
-
-
-@dataclass(frozen=True)
-class DeclaredParameters:
-    """Run KQL's ``parameters``: the ``declare query_parameters`` statement that goes before the
-    KQL, empty without entries, and the Kusto query parameters by name."""
-
-    declare: str
-    parameters: dict[str, str]
-
-
-def declared_parameters(entries: Sequence[CheckedParameter]) -> DeclaredParameters:
-    """Run KQL's checked ``parameters`` entries as sent to Kusto."""
-    return DeclaredParameters(
-        declare_statement([(entry.param.name, entry.type) for entry in entries]),
-        query_parameters(*params_and_values(entries)),
-    )
+def _declared_before(declare: str, kql: str) -> str:
+    """``kql`` with the declare statement on the line before it, if there is one."""
+    return f"{declare}\n{kql}" if declare else kql
 
 
 def sanitise_message(text: str) -> str:
@@ -603,6 +582,13 @@ class RunKql(TakesQueryParameters):
         column = params.get("idColumn")
         return IdColumns([column]) if column else None
 
+    def declare_statement(self, query_parameters: Sequence[QueryParameter]) -> str:
+        """``declare query_parameters(name:type, …);``; empty without query parameters."""
+        if not query_parameters:
+            return ""
+        declared = ", ".join(f"{p.name}:{p.type}" for p in query_parameters)
+        return f"declare query_parameters({declared});"
+
     def preset_file(
         self,
         *,
@@ -618,7 +604,7 @@ class RunKql(TakesQueryParameters):
         file_params = self.preset_file_params(params, query_parameters, _PRESET_FILE_PARAMS)
         if file_params is None:
             return None
-        declare = declare_statement([(p.name, p.type) for p in query_parameters])
+        declare = self.declare_statement(query_parameters)
         id_column = params.get("idColumn")
         return KqlQueryFile(
             type="kql_query",
@@ -628,19 +614,20 @@ class RunKql(TakesQueryParameters):
             pivot=file_params.pivot,
             connection=params["connection"],
             database=params["database"],
-            kql=declare + params["kql"],
+            kql=_declared_before(declare, params["kql"]),
             id=id_column or None,
             params=file_params.params,
         )
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
-        declared = declared_parameters(self.parameter_entries(params))
+        entries = self.parameter_entries(params)
+        declare = self.declare_statement([QueryParameter(e.param.name, e.type) for e in entries])
         yield from _run_query(
             ctx,
             params["connection"],
             params["database"],
-            declared.declare + params["kql"],
-            parameters=declared.parameters,
+            _declared_before(declare, params["kql"]),
+            parameters=query_parameters(*params_and_values(entries)),
         )
 
 

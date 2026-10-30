@@ -29,6 +29,11 @@ export interface CodeEditorProps {
   options?: Monaco.editor.IStandaloneEditorConstructionOptions;
   /** Called once the editor exists (and the Kusto service is registered for `kusto`). */
   onMount?: (editor: CodeEditorInstance, monaco: typeof Monaco) => void;
+  /**
+   * A greyed line drawn above the first line, which is not part of the text: it isn't copied and
+   * the line numbers start below it.
+   */
+  headerLine?: string;
 }
 
 /**
@@ -45,10 +50,12 @@ export function CodeEditor({
   ariaLabel,
   options,
   onMount,
+  headerLine,
 }: CodeEditorProps) {
   const [loadedLanguage, setLoadedLanguage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorInstance | null>(null);
+  const [mounted, setMounted] = useState<CodeEditorInstance | null>(null);
   // Same scheme as `app/theme.ts` and `public/theme-init.js`. The page's Monaco theme is picked
   // only here.
   const { colorScheme } = useColorScheme();
@@ -69,6 +76,23 @@ export function CodeEditor({
     };
   }, [language, palettes]);
 
+  // A view zone after line 0: drawn above the first line, outside the model's text.
+  useEffect(() => {
+    if (!mounted || !headerLine) return;
+    const node = document.createElement('div');
+    node.textContent = headerLine;
+    Object.assign(node.style, {
+      color: 'var(--vscode-editorLineNumber-foreground)',
+      whiteSpace: 'pre',
+      userSelect: 'none',
+    });
+    let zone = '';
+    mounted.changeViewZones((zones) => {
+      zone = zones.addZone({ afterLineNumber: 0, heightInLines: 1, domNode: node });
+    });
+    return () => mounted.changeViewZones((zones) => zones.removeZone(zone));
+  }, [mounted, headerLine]);
+
   useEffect(
     () => () => {
       const editor = editorRef.current;
@@ -83,6 +107,7 @@ export function CodeEditor({
   const handleMount = useCallback<OnMount>(
     (editor, monaco) => {
       editorRef.current = editor;
+      setMounted(editor);
       onMount?.(editor, monaco);
     },
     [onMount],

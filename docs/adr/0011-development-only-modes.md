@@ -11,7 +11,7 @@ Local work and tests need to run without Entra, Postgres or a Kusto cluster, but
 |---|---|---|---|
 | In-memory storage | `TIM_DATABASE_URL=memory://` | Data lives in the process and is lost on restart | Refuses to start |
 | Auth bypass | `TIM_AUTH_DISABLED=true` | Every request runs as the user named by the stub token (`dev:<upn>`), or a fixed dev user without one. OBO is unavailable (503). A warning is logged at startup | Refuses to start |
-| Development actions | `TIM_DEV_ACTIONS=true` | Registers `tim.dev_json`, the `dev_rows` and `dev_sink` action types and the `dev_kql` connection type. A warning is logged at startup | Refuses to start |
+| Development actions | `TIM_DEV_ACTIONS=true` | Registers `tim.dev_json`, `tim.dev_run_kql`, the `dev_rows` and `dev_sink` action types and the `dev_kql` connection type. A warning is logged at startup | Refuses to start |
 
 The auth bypass is also re-checked when each request is authenticated (`api/src/tim_api/auth/dependencies.py`).
 

@@ -1,7 +1,11 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { HttpResponse, http } from 'msw';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueAction, Preset, PresetFields } from '../../lib/api';
+import { apiUrl, problemResponse } from '../../test/msw/handlers';
+import { setupMswServer } from '../../test/msw/server';
+import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { createPresetsStore } from './presetsStore';
 import { SavePresetDialog } from './SavePresetDialog';
 
@@ -45,6 +49,28 @@ const runSql: CatalogueAction = {
     { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
   ],
 };
+
+const server = setupMswServer();
+/** The declare statements asked for, by action. */
+let declared: { key: string; parameters: { name: string; type: string }[] }[] = [];
+
+beforeEach(() => {
+  configureTestApp();
+  declared = [];
+  // Run KQL declares its query parameters, refusing a name that isn't a Kusto identifier; Run SQL
+  // declares nothing.
+  server.use(
+    http.post(apiUrl('/api/actions/:key/declareStatement'), async ({ params, request }) => {
+      const { parameters } = (await request.json()) as (typeof declared)[number];
+      declared.push({ key: String(params.key), parameters });
+      if (params.key !== 'tim.run_kql') return new HttpResponse(null, { status: 204 });
+      if (!parameters.every((p) => /^[A-Za-z_]\w*$/.test(p.name))) return problemResponse(422);
+      const names = parameters.map((p) => `${p.name}:${p.type}`).join(', ');
+      return HttpResponse.json({ declareStatement: `declare query_parameters(${names});` });
+    }),
+  );
+});
+afterEach(resetTestApp);
 
 const KQL = 'SigninLogs | where UserPrincipalName == Upn and TimeGenerated > Since';
 const tab = { connection: 'security', database: 'Samples', kql: KQL };
@@ -97,14 +123,27 @@ describe('SavePresetDialog query parameters', () => {
       'UserPrincipalName, Upn',
     );
 
-    expect(lines()).toEqual([
-      'Connection = security',
-      'Database = Samples',
-      'declare query_parameters(Upn:string, Since:datetime, States:dynamic);',
-      `Query = ${KQL}`,
-      'Upn = <UserPrincipalName or Upn of the clicked row>',
-      'Since = datetime(2026-10-01T00:00:00Z)',
-      'States = dynamic(["TEXAS","FLORIDA"])',
+    // The declare statement is the api's, before the query.
+    await vi.waitFor(() =>
+      expect(lines()).toEqual([
+        'Connection = security',
+        'Database = Samples',
+        'declare query_parameters(Upn:string, Since:datetime, States:dynamic);',
+        `Query = ${KQL}`,
+        'Upn = <UserPrincipalName or Upn of the clicked row>',
+        'Since = datetime(2026-10-01T00:00:00Z)',
+        'States = dynamic(["TEXAS","FLORIDA"])',
+      ]),
+    );
+    expect(declared).toEqual([
+      {
+        key: 'tim.run_kql',
+        parameters: [
+          { name: 'Upn', type: 'string' },
+          { name: 'Since', type: 'datetime' },
+          { name: 'States', type: 'dynamic' },
+        ],
+      },
     ]);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(saved).toEqual([
@@ -180,9 +219,15 @@ describe('SavePresetDialog query parameters', () => {
       parameters: [{ name: 'Upn', type: 'string', value: 'alice@example.com' }],
     });
     const name = within(parameter(1)).getByRole('combobox', { name: 'Name' });
+    expect(await screen.findByText('declare query_parameters(Upn:string);')).toBeInTheDocument();
 
     await userEvent.clear(name);
     await userEvent.type(name, 'a b');
+    // The api refuses the name, so the preview declares nothing.
+    await vi.waitFor(() =>
+      expect(declared.at(-1)?.parameters).toEqual([{ name: 'a b', type: 'string' }]),
+    );
+    await vi.waitFor(() => expect(lines().some((l) => l?.startsWith('declare'))).toBe(false));
     expect(
       within(parameter(1)).getByText(
         'Starts with a letter or _ and holds only letters, digits and _',
@@ -208,7 +253,9 @@ describe('SavePresetDialog query parameters', () => {
     expect(within(parameter(1)).getByRole('button', { name: 'Move up' })).toBeDisabled();
     await userEvent.click(within(parameter(2)).getByRole('button', { name: 'Move up' }));
 
-    expect(lines()).toContain('declare query_parameters(Within:timespan, Upn:string);');
+    expect(
+      await screen.findByText('declare query_parameters(Within:timespan, Upn:string);'),
+    ).toBeInTheDocument();
     expect(within(parameter(2)).getByRole('button', { name: 'Move down' })).toBeDisabled();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(saved[0]?.inputs?.map((i) => i.name)).toEqual(['Within', 'Upn']);

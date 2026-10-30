@@ -284,6 +284,10 @@ The action tab has a header in the app bar, a pills bar and inner tabs.
   - The `database` param's suggestions are the chosen connection's `databases`.
   - Above the editor, a status line shows the latest run: "Succeeded · N rows · duration" with **Show results**, or its error with **Details**. Details opens the Run tab. An error from the `POST` shows as "Couldn't start: …".
   - A `422` on the query param marks the editor's border and caption.
+  - On a `kql` editor, a greyed line above the first line shows the tab's [declare statement](../GLOSSARY.md), a Monaco view zone set by `CodeEditor`'s `headerLine` prop. It isn't part of the query text.
+    - `useDeclareStatement` (`web/src/features/action-tab/declareStatement.ts`) asks `POST /api/actions/{key}/declareStatement` once the tab's query parameters, name and type, have stayed unchanged for 400 ms. The Save dialog's preview uses it too.
+    - The line is hidden when the tab has no query parameters, when the action declares nothing (`204`), and when the request fails.
+    - The Kusto language service gets the query parameters (`setParameters` on a change, and as global scalar parameters with each schema load), so it suggests them where a scalar goes.
 - **Results · N**, with the row count. While rows are loading, it shows how many have arrived out of the total ("Results · 20000 of 85000"). The grid already shows them.
   - While the grid shows rows, a **Filter rows** field at the right of the inner tabs keeps the rows with a cell that contains its text (AG Grid's quick filter).
 - **Run · duration**, the details of the latest run:
@@ -390,7 +394,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
   - SQL offers no `timespan` type.
 - A preview of what the action receives, one line for every param of the action.
   - A From row input shows as `<column of the clicked row>`.
-  - For query parameters on KQL it shows the `declare query_parameters` line before the query, and a line per query parameter.
+  - For query parameters on KQL it shows the declare statement, from `useDeclareStatement`, before the query, and a line per query parameter.
   - A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
   - On SQL each query parameter's line starts with its `:N`, and a fixed value shows as its text, with no Kusto literal.
   - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
@@ -658,7 +662,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `deps.py` | FastAPI dependencies returning the storage and its preset, column-view, run and annotation stores |
 | `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
 | `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
-| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance` and `POST /api/actions/{key}/resolve` (`router.py`) |
+| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance`, `POST /api/actions/{key}/resolve` and `POST /api/actions/{key}/declareStatement` (`router.py`) |
 | `cli.py` | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check` |
 | `annotations/` | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models |
 | `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`), and the endpoint `GET /api/me` (`router.py`) |
@@ -687,7 +691,7 @@ Database migrations are in `api/migrations` (Alembic).
 | `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`) |
-| `query_parameters.py` | What Run KQL and Run SQL share: `TakesQueryParameters`, the base of an action with a `parameters` param, `checked_parameters`, which checks it, and `preset_file_params`, which makes a preset's query parameters the params of its action file |
+| `query_parameters.py` | What Run KQL and Run SQL share: `TakesQueryParameters`, the base of an action with a `parameters` param, `checked_parameters`, which checks it, `declared_query_parameters` and `declare_statement`, which check and write the declare statement of a tab's query parameters, and `preset_file_params`, which makes a preset's query parameters the params of its action file |
 | `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
 | `snowflake.py` | The `snowflake` connection type (`SnowflakeConnection`, `SnowflakeHook`), the built-in Run SQL action and the `snowflake_query` action type, and how values are bound (`bind_value`, `bind_values`); needs the `snowflake` extra |
 | `builtin.py` | TIM's built-in provider |
@@ -928,7 +932,7 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
 - `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
-- `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
+- `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts the declare statement `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
 A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
 

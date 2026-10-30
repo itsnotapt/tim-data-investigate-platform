@@ -300,7 +300,7 @@ One more piece lives beside it.
   - `SavePresetDialog` (`features/presets`) is opened by Save… in the action tab header, and by Edit….
     - On a tab with a `presetId`, Save… refetches the presets first; if that fails it opens `PresetsLoadErrorDialog`, with Retry, instead.
     - Its fields and its preview show an unset value as a placeholder for the param's type, e.g. `<number>`.
-    - The preview lists every param of the action. With query parameters it shows the declare line before the query, and a line per query parameter. A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
+    - The preview lists every param of the action. With query parameters it shows the declare statement (`useDeclareStatement`) before the query, and a line per query parameter. A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
     - After saving on an action tab of Run KQL, the tab takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
     - A Query parameters section adds a parameter (its name suggested from names in the query), picks its type, and makes it Fixed with a value or From row with columns.
 - Search: case-insensitive. For actions it matches name, folders and key; for presets, name, folders, action, owner and From columns. It expands the groups.
@@ -308,7 +308,7 @@ One more piece lives beside it.
 
 ## Code editor (Monaco)
 
-`src/components/CodeEditor` wraps `@monaco-editor/react` around the locally bundled `monaco-editor`, with no CDN. Its `language` is `kusto`, `json` or `plaintext`, and suggestions are on.
+`src/components/CodeEditor` wraps `@monaco-editor/react` around the locally bundled `monaco-editor`, with no CDN. Its `language` is `kusto`, `json` or `plaintext`, and suggestions are on. Its `headerLine` prop adds a greyed line above the first line, a view zone that isn't part of the text.
 
 - `src/lib/monaco`: loads Monaco lazily, with the json language, and `@kusto/monaco-kusto` for `language="kusto"`.
   - Workers come from Vite `?worker` imports, in `environment.ts` and `kusto.worker.ts`.
@@ -394,6 +394,8 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A late answer is ignored. A failure goes to the snackbar.
   - It hands `{kind, schema, connection, scope}` to its `onSchema` callback. It does not touch the editor.
 - `editorSchemaAdapters.ts`: `applyEditorSchema`, one adapter per schema kind, applied by the Query editor in `ActionTab.tsx`. `kql` calls `setSchemaFromShowSchema`, with the connection name as the cluster.
+  - `kql` also gives the Kusto language service the tab's query parameters, as global scalar parameters. `setEditorParameters` gives them again when they change.
+- `declareStatement.ts`: `useDeclareStatement` asks `POST /api/actions/{key}/declareStatement` once the query parameters' names and types have stayed unchanged for 400 ms. The Query editor shows the result above its first line, and the Save dialog's preview before the query.
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns. A `bigint` column gets cell data type `bigint`.
 - `roundedColumns.ts` finds the `number` columns with a whole number beyond ±(2^53 − 1). `NumberHeader.tsx` is their header, with the warning icon.
 - Tests pass `onRun` to `ActionTab` instead of running.

@@ -1,5 +1,6 @@
-"""``GET /api/instance``: what the browser needs to know about this instance; and
-``POST /api/actions/{key}/resolve``: a pivot's params."""
+"""``GET /api/instance``: what the browser needs to know about this instance;
+``POST /api/actions/{key}/resolve``: a pivot's params; and
+``POST /api/actions/{key}/declareStatement``: the statement that declares query parameters."""
 
 from __future__ import annotations
 
@@ -133,3 +134,23 @@ class PivotResolution(ApiModel):
     params: dict[str, JsonValue]
     missing: list[str]
     reasons: dict[str, str]
+
+
+class DeclaredParameter(ApiModel):
+    """A query parameter as it is declared: its name and type, without a value."""
+
+    name: str
+    type: str
+
+
+class DeclareStatementRequest(ApiModel):
+    """Body of ``POST /api/actions/{key}/declareStatement``: the tab's query parameters, in
+    order."""
+
+    parameters: list[DeclaredParameter]
+
+
+class DeclareStatement(ApiModel):
+    """The statement the action puts before the query to declare its query parameters."""
+
+    declare_statement: str

@@ -6,8 +6,15 @@ from typing import Any
 
 import pytest
 
-from tim_actions import Action, RunError, Sink, dev
-from tim_actions.testing import ActionFilesError, load_actions, run_action, run_sink
+from tim_actions import Action, QueryParameter, RunError, Sink, dev
+from tim_actions.kusto import RUN_KQL
+from tim_actions.testing import (
+    ActionFilesError,
+    Connections,
+    load_actions,
+    run_action,
+    run_sink,
+)
 
 
 def run(action: Action, values: Mapping[str, Any] | None = None) -> list[tuple[Any, Any]]:
@@ -40,10 +47,22 @@ def problems(tmp_path: Path, text: str) -> list[str]:
     return [problem.removeprefix(f"{tmp_path / 'dev.yaml'}:") for problem in raised.value.problems]
 
 
-def test_the_provider_has_dev_json_and_the_dev_rows_and_dev_sink_types() -> None:
+def test_the_provider_has_dev_json_dev_run_kql_and_the_dev_rows_and_dev_sink_types() -> None:
     provider = dev.provider()
-    assert [action.key for action in provider.actions] == ["tim.dev_json"]
+    assert [action.key for action in provider.actions] == ["tim.dev_json", "tim.dev_run_kql"]
     assert provider.action_types == [dev.DevRows, dev.DevSink]
+
+
+def test_dev_run_kql_declares_its_query_parameters_as_run_kql_does_and_yields_no_rows() -> None:
+    declared = [QueryParameter("since", "datetime")]
+    assert dev.DEV_RUN_KQL.declare_statement(declared) == RUN_KQL.declare_statement(declared)
+    parameters = [{"name": "since", "type": "datetime", "value": "2026-01-01T00:00:00Z"}]
+    connections = Connections()
+    connections.add(
+        dev.DevKqlConnection(name="logs", title="Logs", type="dev_kql", auth="workload_identity")
+    )
+    values = {"connection": "logs", "database": "Logs", "kql": "SignIns", "parameters": parameters}
+    assert run_action(dev.DEV_RUN_KQL, values, connections=connections).rows == []
 
 
 def test_dev_json_yields_the_pasted_rows_with_ids_from_its_id_column() -> None:

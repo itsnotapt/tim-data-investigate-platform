@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from tim_actions.action import Action, Pivot, QueryParameter, QueryParameterType
 from tim_actions.params import PARAM_NAME, Param, ParamKind, ParamsError, validate_params
@@ -33,6 +33,26 @@ class CheckedParameter:
     value: Any
 
 
+def check_declared(
+    declared: Sequence[tuple[Any, Any]], types: Mapping[QueryParameterType, ParamKind]
+) -> None:
+    """Raises ``ParamsError`` keyed ``params.parameters`` when a ``(name, type)`` of ``declared``
+    has a name that isn't a valid or unique query parameter name, or a type not in ``types``."""
+    problems: list[str] = []
+    names: list[str] = [str(name) for name, _ in declared]
+    for name, type_ in declared:
+        if not isinstance(name, str) or not PARAM_NAME.match(name):
+            problems.append(
+                f"{name}: name must start with a letter or _ and hold only letters, digits and _"
+            )
+        elif names.count(name) > 1:
+            problems.append(f"{name}: names must be unique")
+        elif type_ not in types:
+            problems.append(f"{name}: type must be one of {', '.join(types)}")
+    if problems:
+        raise ParamsError({"params.parameters": list(dict.fromkeys(problems))})
+
+
 def checked_parameters(
     entries: Any, types: Mapping[QueryParameterType, ParamKind]
 ) -> list[CheckedParameter]:
@@ -45,20 +65,7 @@ def checked_parameters(
         isinstance(entry, dict) and set(entry) == {"name", "type", "value"} for entry in entries
     ):
         raise ParamsError({"params.parameters": ["Must be a list of {name, type, value}"]})
-    problems: list[str] = []
-    names: list[str] = [str(entry["name"]) for entry in entries]
-    for entry in entries:
-        name = entry["name"]
-        if not isinstance(name, str) or not PARAM_NAME.match(name):
-            problems.append(
-                f"{name}: name must start with a letter or _ and hold only letters, digits and _"
-            )
-        elif names.count(name) > 1:
-            problems.append(f"{name}: names must be unique")
-        elif entry["type"] not in types:
-            problems.append(f"{name}: type must be one of {', '.join(types)}")
-    if problems:
-        raise ParamsError({"params.parameters": list(dict.fromkeys(problems))})
+    check_declared([(entry["name"], entry["type"]) for entry in entries], types)
     params = [Param(entry["name"], types[entry["type"]]) for entry in entries]
     values = {entry["name"]: entry["value"] for entry in entries}
     errors: dict[str, list[str]] = {}
@@ -142,6 +149,20 @@ class TakesQueryParameters(Action):
         if errors:
             raise ParamsError(errors)
         return checked
+
+    def declared_query_parameters(
+        self, declared: Sequence[tuple[str, str]]
+    ) -> list[QueryParameter]:
+        """``declared``, each a name and a type, as query parameters without values; raises
+        ``ParamsError`` as ``check_declared`` does, by this action's ``parameter_types``."""
+        check_declared(declared, self.parameter_types)
+        return [QueryParameter(name, cast(QueryParameterType, type_)) for name, type_ in declared]
+
+    def declare_statement(self, query_parameters: Sequence[QueryParameter]) -> str:
+        """The statement that declares ``query_parameters`` before the query, by name and type,
+        as it runs and is shown above the query; empty when the query declares nothing, as by
+        default."""
+        return ""
 
     def parameter_entries(self, values: Mapping[str, Any]) -> list[CheckedParameter]:
         """The ``parameters`` entries of ``values``, checked; raises ``ParamsError``."""
