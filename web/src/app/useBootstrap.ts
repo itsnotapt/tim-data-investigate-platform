@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { NotifyContext, type Notify } from '../components/notifyContext';
-import { loadAppliedViews } from '../features/action-column-views';
+import { loadDefaultViews } from '../features/action-column-views';
 import { resumeActionRuns } from '../features/action-tab';
 import { useAnalystStore } from '../features/analyst';
 import { refreshInstanceOnFocus, useInstanceStore } from '../features/instance';
@@ -15,8 +15,8 @@ export interface BootstrapSteps {
   /** The name the API knows the analyst by. */
   loadAnalyst: () => Promise<void>;
   loadInstance: () => Promise<void>;
-  /** The analyst's applied views. */
-  loadAppliedViews: (analyst: string) => Promise<void>;
+  /** The analyst's default views. */
+  loadDefaultViews: (analyst: string) => Promise<void>;
   loadTabs: () => Promise<void>;
   /** Picks up the runs the loaded tabs were following. */
   resumeRuns: () => void;
@@ -38,7 +38,7 @@ async function loadTabs(): Promise<void> {
 const defaultSteps: BootstrapSteps = {
   loadAnalyst: () => useAnalystStore.getState().load(),
   loadInstance: () => useInstanceStore.getState().load(),
-  loadAppliedViews,
+  loadDefaultViews,
   loadTabs,
   resumeRuns: () => void resumeActionRuns(),
   resumeSinkRuns: (notify) => void resumeSinkRuns({ notify }),
@@ -58,7 +58,7 @@ export interface UseBootstrap {
 }
 
 /**
- * Startup sequence: sign in, then the analyst's name, the instance, applied views and tabs, then
+ * Startup sequence: sign in, then the analyst's name, the instance, default views and tabs, then
  * the tabs' runs and the sink runs are picked up again.
  * A failed attempt leaves the app retryable.
  */
@@ -82,7 +82,7 @@ export function useBootstrap(steps: BootstrapSteps = defaultSteps): UseBootstrap
       try {
         await steps.loadAnalyst();
         await steps.loadInstance();
-        await steps.loadAppliedViews(accountName);
+        await steps.loadDefaultViews(accountName);
         await steps.loadTabs();
         if (!cancelled) steps.resumeRuns();
         if (!cancelled) steps.resumeSinkRuns((options) => notifyContext?.(options));

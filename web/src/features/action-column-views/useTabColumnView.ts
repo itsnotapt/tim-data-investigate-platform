@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { useTabsStore } from '../tabs';
-import { scopeKey, useAppliedViewsStore } from './appliedViewsStore';
+import { scopeKey, useDefaultViewsStore } from './defaultViewsStore';
 import { isModified } from './columnViewState';
 import { scopeOf, type ColumnViewScope } from './ranking';
+import { BUILT_IN_NAME } from './useActionColumnView';
 
 /**
  * An action tab's column view as the Views panel and the status bar show it: the column view it
- * started from or last picked, whether that's the one new tabs start with, and whether the tab
- * changed it.
+ * started from or last picked, the default view of its preset or action, and whether the tab is
+ * edited.
  */
 export function useTabColumnView(uuid: string) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
@@ -20,20 +21,21 @@ export function useTabColumnView(uuid: string) {
   );
   const columnView = tab?.state.columnView ?? null;
   const gridState = tab?.state.gridState ?? null;
-  const entry = useAppliedViewsStore((s) => (scope ? s.applied[scopeKey(scope)] : undefined));
-  const modified = useMemo(
+  const defaultView = useDefaultViewsStore((s) =>
+    scope ? s.defaults[scopeKey(scope)] : undefined,
+  );
+  const edited = useMemo(
     () => (columnView && gridState ? isModified(columnView.baseline, gridState) : false),
     [columnView, gridState],
   );
-  /** The column view new tabs for the scope start with; `null` for the action default. */
-  const appliedId = entry?.viewId ?? null;
   return {
     scope,
     columnView,
+    /** The column view's name; the Built-in view's is always `BUILT_IN_NAME`. */
+    name: columnView && (columnView.viewId === null ? BUILT_IN_NAME : columnView.name),
     gridState,
-    modified,
-    /** The applied column view's entry, when one is applied (not the action default). */
-    entry,
-    applied: columnView !== null && columnView.viewId === appliedId,
+    edited,
+    /** The default view's entry; `undefined` when new tabs open with the Built-in view. */
+    defaultView,
   };
 }

@@ -85,9 +85,9 @@ const pick = <T>(record: Record<string, T> | undefined, keep: (colId: string) =>
   record && Object.fromEntries(Object.entries(record).filter(([colId]) => keep(colId)));
 
 /**
- * The column view `view` fitted to a result whose action default is `base` (the grid's state just
+ * The column view `view` fitted to a result whose Built-in view is `base` (the grid's state just
  * after `resetColumnState()`): columns the result doesn't have are dropped, and the result's
- * columns the column view doesn't know are appended to the order with their action default
+ * columns the column view doesn't know are appended to the order with their Built-in view
  * visibility, pinning and width. The column view's calculated columns are kept; the tab's own are
  * not. A number filter on the Comment column is dropped.
  */

@@ -13,6 +13,8 @@ export const ACTION_SIDE_BAR: SideBarDef = {
       labelKey: 'views',
       labelDefault: 'Views',
       iconKey: 'eye',
+      width: 320,
+      minWidth: 280,
       toolPanel: ColumnViewsToolPanel,
     },
     {
@@ -25,7 +27,7 @@ export const ACTION_SIDE_BAR: SideBarDef = {
   ],
 };
 
-/** An action tab's status bar panel "View: X (applied) • modified". */
+/** An action tab's status bar panel "View: X • Edited". */
 export const ACTION_STATUS_PANELS: StatusPanelDef[] = [
   { statusPanel: ColumnViewStatusPanel, align: 'left' },
 ];

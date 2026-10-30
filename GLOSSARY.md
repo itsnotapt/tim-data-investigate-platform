@@ -21,8 +21,9 @@ A tab that runs an action with the analyst's param values and shows the rows of 
 A named, saved set of the grid's columns and filters, private to its owner or shared with everyone.
 _Avoid_: view, layout
 
-**Applied view**:
-The column view an analyst has chosen for a preset or action. New tabs opened from it start with this view.
+**Default view**:
+The column view an analyst has chosen for a preset or action. New tabs opened from it open with this view, or with the Built-in view when none is chosen.
+_Avoid_: applied view
 
 ### Actions
 
@@ -33,11 +34,12 @@ _Avoid_: query, query template
 **Sink**:
 An action that takes the rows an analyst selected and writes them somewhere, such as a ticket queue. It has no params and returns no rows.
 
-**Action default**:
-The columns an action declares. A tab starts with them when there's no applied view.
+**Built-in view**:
+The columns an action declares, shown as "Built-in" among the column views. A tab opens with it when there's no Default view.
+_Avoid_: action default
 
 **Action file panel**:
-The panel in an action tab's side bar that shows the tab's column layout as an action file's `columns:` block, with Copy. Pasted into the action file, it becomes the action default.
+The panel in an action tab's side bar that shows the tab's column layout as an action file's `columns:` block, with Copy. Pasted into the action file, it becomes the action's Built-in view.
 
 **Preset**:
 An action with some of its params fixed and the rest filled in by the analyst or from rows, saved by an analyst under a name and a menu folder. It is private to its owner or shared with everyone. An analyst can hide someone else's preset for themselves.
