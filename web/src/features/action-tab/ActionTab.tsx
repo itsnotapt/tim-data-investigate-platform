@@ -3,16 +3,22 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LinkIcon from '@mui/icons-material/Link';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
+import SearchIcon from '@mui/icons-material/Search';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { useContext, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useContext, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import { InAppBar } from '../../components/AppBarSlot';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import { NotifyContext } from '../../components/notifyContext';
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
@@ -52,6 +58,8 @@ const EDITOR_LANGUAGES: Partial<Record<CatalogueParam['kind'], EditorLanguage>> 
   kql: 'kusto',
   sql: 'sql',
 };
+/** The results grid's height: the window below the app bar, the tab's rows and the status bar. */
+const GRID_HEIGHT = 'calc(100vh - 156px)';
 const defaultRun = (uuid: string) => void runActionTab(uuid);
 const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
 
@@ -103,7 +111,7 @@ function QueryEditor({
     >
       <Box
         sx={{
-          height: 'calc(100vh - 240px)',
+          height: 'calc(100vh - 170px)',
           minHeight: 160,
           border: '1px solid',
           borderColor: error !== undefined ? 'error.main' : 'editor.border',
@@ -131,13 +139,39 @@ function QueryEditor({
   );
 }
 
+/** An icon button named by its tooltip. */
+function TooltipButton({
+  title,
+  icon,
+  disabled = false,
+  onClick,
+}: {
+  title: string;
+  icon: ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip title={title}>
+      {/* A disabled button gets no pointer events, so the tooltip hangs on a wrapper. */}
+      <span>
+        <IconButton size="small" aria-label={title} disabled={disabled} onClick={onClick}>
+          {icon}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
 /**
- * An action tab: the header (menu path, action and title) with Save…, Clone and Copy link, the
- * pills bar with Run or the run going, and the inner tabs: the query of an action with a `kql` or
- * `sql` param, the results of the last run that succeeded, and the latest run's details. An action
- * with a query never switches inner tabs: a status line above the editor says how the latest run
- * went. A pivot that left params missing waits for them, with its reasons. A share link's row is
- * shown on the Results tab.
+ * An action tab. While it is on show, the app bar holds its menu path, action and title, with
+ * Save…, Clone and Copy link. The tab starts with New, then Run or the run going, then the pills
+ * bar; Run comes first so it stays put as the pills change. Then the inner tabs: the query of an
+ * action with a `kql` or `sql` param, the results of the last run that succeeded, with the quick
+ * filter beside the inner tabs, and the latest run's details. An action with a query never
+ * switches inner tabs: a status line above the editor says how the latest run went. A pivot that
+ * left params missing waits for them, with its reasons. A share link's row is shown on the Results
+ * tab.
  */
 export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
@@ -159,6 +193,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // Save…: the preset the tab came from or was saved as, once the presets are fresh, or why they
   // couldn't be loaded.
   const [saving, setSaving] = useState<{ source?: Preset } | { error: string } | null>(null);
+  const [quickFilter, setQuickFilter] = useState('');
+  const onShow = useParams().uuid === uuid;
 
   if (tab?.componentName !== 'ActionResult') return null;
   const { state, params } = tab;
@@ -286,7 +322,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   ) : null;
 
   const run = state.isExecuting ? (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       <CircularProgress size={16} aria-label="Running" />
       <Typography variant="body2" sx={{ minWidth: 48 }}>
         {state.cancelling ? 'Cancelling…' : elapsed !== null ? durationText(elapsed) : 'Starting…'}
@@ -302,11 +338,13 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     </Box>
   ) : (
     <Button
-      variant="contained"
+      variant="outlined"
       size="small"
       startIcon={<PlayArrowIcon />}
       disabled={!action}
       onClick={runNow}
+      // Light primary text on the hover tint, which shows after each click, is under 4.5:1.
+      sx={(theme) => theme.applyStyles('light', { color: 'primary.dark' })}
     >
       Run
     </Button>
@@ -314,47 +352,67 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
+      {onShow && (
+        <InAppBar>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, ml: 1 }}>
+            <Typography color="text.secondary" aria-hidden>
+              ›
+            </Typography>
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ flexShrink: 10 }}>
+              {action && action.menuPath.length > 0 && (
+                <>
+                  <span>{action.menuPath.join(' / ')}</span>
+                  {' · '}
+                </>
+              )}
+              <span>{actionName}</span>
+            </Typography>
+            <Typography color="text.secondary" aria-hidden>
+              ›
+            </Typography>
+            <Typography variant="subtitle1" component="h2" noWrap sx={{ fontWeight: 500 }}>
+              {tab.title}
+            </Typography>
+            <Box sx={{ display: 'flex', flexShrink: 0 }}>
+              <TooltipButton
+                title="Save…"
+                icon={<BookmarkAddIcon fontSize="small" />}
+                disabled={!action}
+                onClick={() => void openSave()}
+              />
+              <TooltipButton
+                title="Clone"
+                icon={<ContentCopyIcon fontSize="small" />}
+                onClick={clone}
+              />
+              <TooltipButton
+                title="Copy link"
+                icon={<LinkIcon fontSize="small" />}
+                disabled={linkRunId === null}
+                onClick={() => linkRunId !== null && void copyShareLink(linkRunId, null, notify)}
+              />
+            </Box>
+          </Box>
+        </InAppBar>
+      )}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1 }}>
         <NewQueryMenu size="small">
           <AddIcon fontSize="small" sx={{ mr: 0.5 }} />
           New
         </NewQueryMenu>
-        <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
-        <Box component="header" sx={{ minWidth: 0 }}>
-          <Typography variant="caption" color="text.secondary" component="div">
-            {action && action.menuPath.length > 0 && (
-              <>
-                <span>{action.menuPath.join(' / ')}</span>
-                {' · '}
-              </>
-            )}
-            <span>{actionName}</span>
-          </Typography>
-          <Typography variant="subtitle1" component="h2" noWrap>
-            {tab.title}
-          </Typography>
+        <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
+        <Box sx={{ flexShrink: 0 }}>{run}</Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <PillsBar
+            params={pillsBar.params}
+            values={pillsBar.values}
+            connections={connections}
+            onChange={setParam}
+            errors={state.paramErrors}
+            onReset={edited ? reset : undefined}
+            needed={needed}
+          />
         </Box>
-        <Button
-          size="small"
-          startIcon={<BookmarkAddIcon />}
-          disabled={!action}
-          onClick={() => void openSave()}
-          sx={{ ml: 'auto', flexShrink: 0 }}
-        >
-          Save…
-        </Button>
-        <Button size="small" startIcon={<ContentCopyIcon />} onClick={clone} sx={{ flexShrink: 0 }}>
-          Clone
-        </Button>
-        <Button
-          size="small"
-          startIcon={<LinkIcon />}
-          disabled={linkRunId === null}
-          onClick={() => linkRunId !== null && void copyShareLink(linkRunId, null, notify)}
-          sx={{ flexShrink: 0 }}
-        >
-          Copy link
-        </Button>
       </Box>
       {saving && 'error' in saving && (
         <PresetsLoadErrorDialog
@@ -379,17 +437,6 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         </Alert>
       )}
 
-      <PillsBar
-        params={pillsBar.params}
-        values={pillsBar.values}
-        connections={connections}
-        onChange={setParam}
-        errors={state.paramErrors}
-        onReset={edited ? reset : undefined}
-        needed={needed}
-        end={run}
-      />
-
       {needed.length > 0 && !state.isExecuting && (
         <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
           <div>Fill in {paramTitles(pillsBar.params, needed)} to run this pivot</div>
@@ -399,15 +446,41 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         </Alert>
       )}
 
-      <Tabs
-        value={inner}
-        onChange={(_, value: InnerTab) => pick(value)}
-        sx={{ px: 1, minHeight: 36 }}
-      >
-        {queryParam && <Tab value="query" label="Query" sx={{ minHeight: 36, py: 0 }} />}
-        <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
-        <Tab value="run" label={runLabel} sx={{ minHeight: 36, py: 0 }} />
-      </Tabs>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
+        <Tabs
+          value={inner}
+          onChange={(_, value: InnerTab) => pick(value)}
+          sx={{ px: 1, minHeight: 36 }}
+        >
+          {queryParam && <Tab value="query" label="Query" sx={{ minHeight: 36, py: 0 }} />}
+          <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
+          <Tab value="run" label={runLabel} sx={{ minHeight: 36, py: 0 }} />
+        </Tabs>
+        {inner === 'results' && (shown || hasResults) && rowCount !== 0 && (
+          <TextField
+            size="small"
+            placeholder="Filter rows"
+            value={quickFilter}
+            onChange={(e) => setQuickFilter(e.target.value)}
+            sx={{
+              ml: 'auto',
+              width: 280,
+              '& .MuiInputBase-root': { typography: 'body2' },
+              '& .MuiInputBase-input': { py: 0.75 },
+            }}
+            slotProps={{
+              htmlInput: { 'aria-label': 'Filter rows' },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        )}
+      </Box>
       {queryParam && (
         <Box role="tabpanel" aria-label="Query" hidden={inner !== 'query'} sx={{ px: 1 }}>
           {queryStatus}
@@ -460,6 +533,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             getContextMenuItems={pivotMenu}
             linkedRow={state.linkedRow}
             onLinkedRowShown={linkedRowShown}
+            quickFilterText={quickFilter}
+            height={GRID_HEIGHT}
           />
         )}
         {!shown && hasResults && rowCount !== 0 && (
@@ -473,6 +548,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             getContextMenuItems={pivotMenu}
             linkedRow={state.linkedRow}
             onLinkedRowShown={linkedRowShown}
+            quickFilterText={quickFilter}
+            height={GRID_HEIGHT}
           />
         )}
       </Box>

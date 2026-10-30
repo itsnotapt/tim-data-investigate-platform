@@ -184,7 +184,7 @@ From the rows, an analyst pivots:
 
 A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. The code is in `web/src/features/share-links/`.
 
-- **Copy link.** The action tab's header button copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
+- **Copy link.** The action tab's button in the app bar copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
 - **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
   - A `404` (unknown or expired run) or a `410` (results gone) shows only "This result is no longer available".
   - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<uuid>`. A run still going is followed, and the tab fills in when it ends.
@@ -245,11 +245,11 @@ Opening a preset creates a root action tab in the same way, titled with the pres
 
 A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
 
-The action tab has a header, a pills bar and inner tabs.
+The action tab has a header in the app bar, a pills bar and inner tabs.
 
-**Header:** the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
+**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
 
-**Pills bar:** one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
+**Pills bar:** the first row of the tab is **New**, then **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
 - A `connection` param whose type has exactly one connection is filled in when the tab opens from the New menu. Its pill is greyed out.
 - A pill shows the param's title and value. It opens a popover that edits the param by kind:
@@ -269,7 +269,7 @@ The action tab has a header, a pills bar and inner tabs.
 
   Once the popover has finished opening, it focuses the editor's field. So a suggestions list, such as the `database` param's, opens under its field.
 
-- **Run** sits at the right of the bar. While the run is going, it is replaced by a spinner with the elapsed time (from the run's `startedAt`) and **Cancel**.
+- **Run** sits before the pills, so it stays put as they change. While the run is going, it is replaced by a spinner with the elapsed time (from the run's `startedAt`) and **Cancel**.
   - Cancel is disabled until the run has an id.
   - The tab says "Cancelling…" until the run ends.
   - A failed cancel shows "Couldn't cancel: …".
@@ -285,6 +285,7 @@ The action tab has a header, a pills bar and inner tabs.
   - Above the editor, a status line shows the latest run: "Succeeded · N rows · duration" with **Show results**, or its error with **Details**. Details opens the Run tab. An error from the `POST` shows as "Couldn't start: …".
   - A `422` on the query param marks the editor's border and caption.
 - **Results · N**, with the row count. While rows are loading, it shows how many have arrived out of the total ("Results · 20000 of 85000"). The grid already shows them.
+  - While the grid shows rows, a **Filter rows** field at the right of the inner tabs keeps the rows with a cell that contains its text (AG Grid's quick filter).
 - **Run · duration**, the details of the latest run:
   - its status, with an icon ("Succeeded, no rows" for an empty success);
   - start, duration and run id;
@@ -380,7 +381,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - A required param left unset is missing, as when the server resolves a pivot, and so is a query parameter left without a value, by its pill's name (`parameters.<name>`). The child tab sets `pivotMissing` and waits.
 - The other params come from the action's defaults and the preset's fixed values, as when [opening a preset](#the-tab-and-new-menu).
 
-**Save….** The action tab header opens the Save dialog (`SavePresetDialog`).
+**Save….** The action tab's button in the app bar opens the Save dialog (`SavePresetDialog`).
 
 - Name, menu folder (folders separated by `/`) and **Share with everyone**.
 - For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.

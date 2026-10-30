@@ -1,9 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
-import type { ComponentType, ReactNode } from 'react';
+import { useMemo, useRef } from 'react';
+import type { ComponentType } from 'react';
 import Box from '@mui/material/Box';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
 import { AgGridReact, type CustomCellRendererProps } from 'ag-grid-react';
 import { themeBalham } from 'ag-grid-community';
 import type {
@@ -65,8 +62,8 @@ export interface ResultsGridProps {
   getMainMenuItems?: GetMainMenuItems<GridRowWithId>;
   /** Exposes the grid api (column state save/restore, transactions). */
   onGridReady?: (event: GridReadyEvent<GridRowWithId>) => void;
-  /** Rendered right of the quick filter. */
-  toolbarExtra?: ReactNode;
+  /** Shows only the rows with a cell that contains this text (AG Grid's quick filter). */
+  quickFilterText?: string;
   /** CSS height of the grid. */
   height?: string | number;
   /**
@@ -97,7 +94,7 @@ export function ResultsGrid({
   getContextMenuItems,
   getMainMenuItems,
   onGridReady,
-  toolbarExtra,
+  quickFilterText,
   height = 'calc(100vh - 200px)',
   stateKey,
   rowClassRules,
@@ -109,7 +106,6 @@ export function ResultsGrid({
   context: extraContext,
   onStateUpdated,
 }: ResultsGridProps) {
-  const [quick, setQuick] = useState('');
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
   const { containerRef, attach, save } = useTabColumnState(stateKey);
 
@@ -148,25 +144,6 @@ export function ResultsGrid({
 
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', pt: 1.25, pb: 0.5 }}>
-        <TextField
-          size="small"
-          label="Quick UI filter"
-          value={quick}
-          onChange={(e) => setQuick(e.target.value)}
-          sx={{ flex: 7 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <Box sx={{ flex: 5 }}>{toolbarExtra}</Box>
-      </Box>
       <div ref={containerRef} style={{ height }} data-testid="results-grid">
         <AgGridReact<GridRowWithId>
           {...staticGridOptions}
@@ -175,7 +152,7 @@ export function ResultsGrid({
           rowData={rowData}
           columnDefs={columnDefs}
           context={extraContext}
-          quickFilterText={quick}
+          quickFilterText={quickFilterText}
           getContextMenuItems={menu}
           getMainMenuItems={getMainMenuItems}
           onCellFocused={onCellFocused}

@@ -1,6 +1,5 @@
 import 'fake-indexeddb/auto';
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { GridApi } from 'ag-grid-community';
 import { ResultsGrid } from './ResultsGrid';
@@ -26,12 +25,22 @@ describe('ResultsGrid', () => {
     expect(() => initAgGrid({})).not.toThrow();
   });
 
-  it('quick filter filters rows and all row keys become columns', async () => {
-    const api = await ready();
-    expect(api.getColumns()?.map((c) => c.getColId())).toContain('Extra');
+  it('filters rows by the quick filter text, and makes every row key a column', async () => {
+    let api: GridApi | undefined;
+    const grid = (quickFilterText?: string) => (
+      <ResultsGrid
+        rows={rows}
+        height={400}
+        quickFilterText={quickFilterText}
+        onGridReady={(e) => (api = e.api)}
+      />
+    );
+    const { rerender } = render(grid());
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
+    expect(api?.getColumns()?.map((c) => c.getColId())).toContain('Extra');
 
-    await userEvent.type(screen.getByLabelText('Quick UI filter'), 'bet');
-    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
+    rerender(grid('bet'));
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(1));
   });
 
   it("uses each row's row number as its grid row id", async () => {
