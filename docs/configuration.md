@@ -289,7 +289,7 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | `POSTGRES_PASSWORD`                                   | yes      | none                          | PostgreSQL container and the api's `TIM_DATABASE_URL`.                                         |
 | `POSTGRES_USER`, `POSTGRES_DB`                        | no       | `tim`, `tim`                  | Same.                                                                                          |
 | `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`            | yes      | none                          | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`.                       |
-| `TIM_AUTH_CLIENT_SECRET`                              | yes      | none                          | Passed to `migrate` and `api`. See the note below.                                             |
+| `TIM_AUTH_CLIENT_SECRET`                              | see note | empty                         | Passed to `migrate` and `api`. See the note below.                                             |
 | `TIM_CORS_ALLOWED_ORIGINS` | no       | empty                         | Passed to `migrate` and `api`.                                                                 |
 | `TIM_LOG_LEVEL`                                       | no       | `INFO`                        | Passed to `migrate` and `api`.                                                                 |
 | `TIM_CONFIG_DIR`                                      | no       | `./config`                    | Host directory mounted read-only at `/etc/tim` in the api; a relative path is from `deploy/`.  |
@@ -303,7 +303,11 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 
 `TIM_ENVIRONMENT=production`, `BACKEND_URI=http://api:8080` and the other fixed values are set in the compose file.
 
-`TIM_AUTH_CLIENT_SECRET` is required by the production compose file because the api does not start without an OBO credential: either `TIM_AUTH_CLIENT_SECRET` or a readable `AZURE_FEDERATED_TOKEN_FILE`, and compose provides no token file.
+`TIM_AUTH_CLIENT_SECRET` is required when a connection uses `obo`.
+
+- The api does not start without an OBO credential then: either `TIM_AUTH_CLIENT_SECRET` or a readable `AZURE_FEDERATED_TOKEN_FILE`.
+- Compose provides no token file, so under compose the credential is the client secret.
+- An instance with no `obo` connection leaves it empty.
 
 ## Helm
 
@@ -331,7 +335,7 @@ The chart in `deploy/helm/tim` sets the same variable names; the install procedu
   - `actions.files` or `actions.existingConfigMap` sets `TIM_ACTIONS_DIR=/etc/tim/actions`.
   - `connections` sets `TIM_CONNECTIONS_FILE=/etc/tim/connections.yaml`.
   - `labels` sets `TIM_LABELS_FILE=/etc/tim/labels.yaml`.
-- **OBO credential:** the chart does not require `TIM_AUTH_CLIENT_SECRET` the way production compose does.
+- **OBO credential:** the chart requires one only when a connection uses `obo`.
   - In production mode with a connection in `connections` that uses `obo`, rendering fails unless a client secret is supplied (`secrets.authClientSecret` or an existing Secret), or Entra workload identity is enabled (`api.podLabels` `azure.workload.identity/use: "true"`).
   - Without such a connection, no credential is required.
   - With workload identity, the webhook injects `AZURE_FEDERATED_TOKEN_FILE` into the api pod. The api uses it when `TIM_AUTH_CLIENT_SECRET` is unset.

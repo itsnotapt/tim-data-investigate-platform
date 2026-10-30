@@ -92,7 +92,7 @@ export interface ActionDisplayComponent extends DisplayComponentBase {
 /** A tab node without `children` (the tree is rebuilt in memory). */
 export type DisplayComponent = ActionDisplayComponent;
 
-/** One stored row: an action run row `{row, id, data}`. */
+/** One stored row: a row of the tab's run, `{row, id, data}`. */
 export type RowResult = Record<string, unknown>;
 
 /**
