@@ -1,4 +1,4 @@
-# The example instance under Helm, on top of the operator's own values
+# The deployment example under Helm, on top of the operator's own values
 # (docs/actions.md#building-and-deploying):
 #   helm upgrade --install tim oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim \
 #     --version X.Y.Z -n tim -f <your values> -f values.yaml

@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - deploy/**
-      - examples/instance/config/**
-      - examples/instance/deploy/**
+      - examples/deployment/config/**
+      - examples/deployment/deploy/**
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -20,8 +20,8 @@ on:
       - main
     paths:
       - deploy/**
-      - examples/instance/config/**
-      - examples/instance/deploy/**
+      - examples/deployment/config/**
+      - examples/deployment/deploy/**
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -287,11 +287,11 @@ jobs:
             exit 1
           fi
 
-      # examples/instance/deploy/helm/values.yaml renders on top of the operator's values, with
+      # examples/deployment/deploy/helm/values.yaml renders on top of the operator's values, with
       # the files of the example's config/.
-      - name: The example instance renders its files
+      - name: The deployment example renders its files
         run: |
-          example=examples/instance
+          example=examples/deployment
           rendered="$(helm template acme "$CHART" -f "$CHART/ci/minimal-values.yaml" \
             -f "$example/deploy/helm/values.yaml" --kube-version "${{ matrix.kubernetes }}")"
           kubeconform -strict -summary -kubernetes-version "${{ matrix.kubernetes }}" - <<<"$rendered"
@@ -360,12 +360,12 @@ jobs:
                  -e 's|^TIM_LABELS_FILE=$|TIM_LABELS_FILE=/etc/tim/labels.yaml|' deploy/.env
           assert_api_mount -f deploy/compose.prod.yaml --env-file deploy/.env -- /srv/tim \
             /etc/tim/actions /etc/tim/connections.yaml /etc/tim/labels.yaml
-          # The example instance's variables, on top of the operator's.
-          example=(--env-file deploy/.env --env-file examples/instance/deploy/compose/.env)
+          # The deployment example's variables, on top of the operator's.
+          example=(--env-file deploy/.env --env-file examples/deployment/deploy/compose/.env)
           assert_api_mount -f deploy/compose.prod.yaml "${example[@]}" -- /srv/tim-instance/config \
             /etc/tim/actions /etc/tim/connections.yaml /etc/tim/labels.yaml
           image="$(docker compose -f deploy/compose.prod.yaml "${example[@]}" config --format json | jq -r .services.api.image)"
           if [ "$image" != registry.example.com/tim-instance:2.0.0-example.1 ]; then
-            echo "the example instance must run its derived image, got $image" >&2
+            echo "the deployment example must run its derived image, got $image" >&2
             exit 1
           fi

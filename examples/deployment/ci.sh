@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The instance's checks, which .github/workflows/ci.yaml runs: the tests in the image, the image
+# The example's checks, which .github/workflows/ci.yaml runs: the tests in the image, the image
 # build, `tim-api check` on config/, and the committed schema against the image's.
-#   ./ci.sh <api image> [instance image tag]
+#   ./ci.sh <api image> [derived image tag]
 # Needs Docker and uv.
 set -euo pipefail
 cd "$(dirname "$0")"

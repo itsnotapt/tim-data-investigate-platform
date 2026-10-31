@@ -1,4 +1,4 @@
-"""The example instance's provider: the ``storm_summary`` action type and its action file, the
+"""The deployment example's provider: the ``storm_summary`` action type and its action file, the
 ``lookup`` connection type, and a Python action on it."""
 
 from importlib.resources import files

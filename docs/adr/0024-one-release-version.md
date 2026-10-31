@@ -33,7 +33,7 @@ Decided by the user. Replaces ADR-0016. Contributors follow [RULES.md §6–7](.
 
 ## Consequences
 
-- An instance that sets `api.image.repository`, `web.image.repository`, `TIM_API_IMAGE` or `TIM_WEB_IMAGE` to TIM's images, or builds a derived image `FROM …/backend`, changes the name once. The `backend` and `frontend` images get no new tags.
+- A deployment that sets `api.image.repository`, `web.image.repository`, `TIM_API_IMAGE` or `TIM_WEB_IMAGE` to TIM's images, or builds a derived image `FROM …/backend`, changes the name once. The `backend` and `frontend` images get no new tags.
 - A frontend-only fix also publishes the backend under the new version and restarts it.
 - The release PR runs the full e2e suite on the commit both images are built from, so the frontend and backend a chart deploys have run together in CI.
 - A derived image's tag stays `<tim version>-<revision>`; the TIM version is now the one version.

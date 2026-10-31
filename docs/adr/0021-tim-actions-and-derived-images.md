@@ -28,6 +28,6 @@ Decided by the user. Related: [0008](0008-helm-chart.md), [0024](0024-one-releas
 
 ## Consequences
 
-- Every instance with providers maintains a small image build and retags it on each TIM release.
+- Every deployment with providers maintains a small image build and retags it on each TIM release.
 - An interface change is a breaking `tim-actions` version, and providers pin to one: `>=0.1,<0.2` while it's 0.x ([0024](0024-one-release-version.md)).
-- `examples/instance/` is built in this repo's CI, so a breaking interface change fails its own PR.
+- `examples/deployment/` is built in this repo's CI, so a breaking interface change fails its own PR.

@@ -1,6 +1,6 @@
-# Example instance
+# Deployment example
 
-A TIM instance laid out as its own repository: a provider, the instance files, and how to build and deploy them. [docs/actions.md](../../docs/actions.md) walks through it.
+The example for deploying TIM: the repository behind a deployment, with a provider, the instance files, and how to build and deploy them. [docs/actions.md](../../docs/actions.md) walks through it.
 
 - **`src/example_provider/`**: the provider. It holds the `storm_summary` action type, the `lookup` connection type with its hook, the State regions action, and an action file in the package data.
 - **`tests/`**: the provider's tests, with `tim_actions.testing`.

@@ -22,8 +22,8 @@ test-results/
 
 # Local environment and tooling
 **/.env
-# The example instance's Compose variables hold no secrets.
-!examples/instance/deploy/compose/.env
+# The deployment example's Compose variables hold no secrets.
+!examples/deployment/deploy/compose/.env
 # Claude Code local settings and agent worktrees
 .claude/settings.local.json
 .claude/worktrees/

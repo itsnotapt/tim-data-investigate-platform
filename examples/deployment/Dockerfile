@@ -1,4 +1,4 @@
-# The instance's image: TIM's api image with this provider installed against its constraints
+# The derived image: TIM's api image with this provider installed against its constraints
 # (docs/actions.md#building-and-deploying).
 #   docker build --build-arg BASE=<api image> --tag <image> .
 #   docker build --build-arg BASE=<api image> --target test .   # the tests, in the image
