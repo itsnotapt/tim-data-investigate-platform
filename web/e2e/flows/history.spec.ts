@@ -137,7 +137,9 @@ test('Row detail is on the right-click menu, and says why a row without an id ha
   await grid(page).getByText(none).click({ button: 'right' });
   await expect(menuOption(page, 'Row detail')).not.toHaveAttribute('aria-disabled', 'true');
   await menuOption(page, 'Row detail').click();
-  await expect(panel(page)).toContainText('No id: set Id column and run again to annotate');
+  await expect(panel(page)).toContainText(
+    'No id: right-click a cell and use its column as the Id column',
+  );
   await expect(panel(page).getByRole('region', { name: 'Fields' })).toContainText(none);
   await expect(panel(page).getByRole('textbox', { name: 'Comment' })).toBeHidden();
   await grid(page).getByText(none).click();

@@ -8,6 +8,8 @@ description: Storm events by state and event type over a time window
 pivot: rows
 connection: samples
 database: Samples
+# The query's SummaryId keeps a row's annotations with the window it counted.
+id: SummaryId
 columns:
   - {name: State, type: string, pinned: left}
   - {name: EventType, type: string, title: Event type}

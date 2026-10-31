@@ -30,7 +30,6 @@ from tim_actions.query_parameters import (
     TakesQueryParameters,
     params_and_values,
 )
-from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext, RunError
 
 # --- the connection type ----------------------------------------------------------------
@@ -382,13 +381,9 @@ has no ``timespan``."""
 
 class RunSql(TakesQueryParameters):
     """``tim.run_sql``: ad-hoc SQL on a Snowflake connection, its query parameters bound by
-    position, each row's ``id`` read from the ``idColumn`` param's column."""
+    position. Its ``idColumn`` param names the Id column its results open with."""
 
     parameter_types = BOUND_PARAMETER_TYPES
-
-    def row_id(self, params: Mapping[str, Any]) -> RowId | None:
-        column = params.get("idColumn")
-        return IdColumns([column]) if column else None
 
     def preset_file(
         self,

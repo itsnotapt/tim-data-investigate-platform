@@ -12,7 +12,6 @@ from tim_actions.columns import Column
 from tim_actions.connections import Connection
 from tim_actions.hooks import Hook, TokenFor
 from tim_actions.params import validate_params
-from tim_actions.rows import MAX_ID_CHARS, canonical_id, id_warnings
 from tim_actions.run import Analyst, DetailValue
 
 DEFAULT_ANALYST = Analyst("Alice", "alice@example.com")
@@ -20,15 +19,14 @@ DEFAULT_ANALYST = Analyst("Alice", "alice@example.com")
 
 @dataclass(frozen=True)
 class RunResult:
-    """What a run of an action gave: its rows as yielded, each row's ``id`` in the text form TIM
-    stores (``None`` for none), the declared columns and the run details.
+    """What a run of an action gave: its rows as yielded, the declared columns and the run
+    details.
 
     ``columns`` are the action's own, then those ``run`` declared; a name keeps its first
     declaration. TIM adds the undeclared columns of the rows after them.
     """
 
     rows: list[dict[str, Any]]
-    ids: list[str | None]
     columns: list[Column]
     details: dict[str, DetailValue]
 
@@ -139,7 +137,6 @@ def run_action(
     that isn't a mapping or a bad run detail, and whatever ``run`` raises."""
     connections = connections or Connections()
     values = validate_params(action.params, params or {}, connections=connections.types())
-    row_id = action.row_id(values)
     ctx = _Context(
         analyst,
         datetime.now(UTC) + timeout,
@@ -152,20 +149,7 @@ def run_action(
         if not isinstance(row, Mapping):
             raise TypeError(f"run yielded a {type(row).__name__}, not a mapping")
         rows.append(dict(row))
-    ids = [canonical_id(row_id(row)) if row_id else None for row in rows]
-    long_ids = sum(1 for id in ids if id is not None and len(id) > MAX_ID_CHARS)
-    ids = [None if id is not None and len(id) > MAX_ID_CHARS else id for id in ids]
-    seen = list(dict.fromkeys(name for row in rows for name in row))
-    _add_warnings(ctx.details, id_warnings(row_id, seen, long_ids))
-    return RunResult(rows=rows, ids=ids, columns=list(ctx.columns.values()), details=ctx.details)
-
-
-def _add_warnings(details: dict[str, DetailValue], warnings: list[str]) -> None:
-    """Add ``warnings`` to the ``warning`` run detail, after the one ``run`` reported."""
-    if warnings:
-        details["warning"] = "; ".join(
-            [str(details["warning"]), *warnings] if "warning" in details else warnings
-        )
+    return RunResult(rows=rows, columns=list(ctx.columns.values()), details=ctx.details)
 
 
 def run_sink(

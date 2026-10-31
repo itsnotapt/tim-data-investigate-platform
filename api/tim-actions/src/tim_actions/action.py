@@ -13,7 +13,6 @@ from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
 from tim_actions.params import Param, validate_params
 from tim_actions.pivots import PivotContext, Resolved, resolve_from_columns
-from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import RunContext
 
 if TYPE_CHECKING:
@@ -85,8 +84,8 @@ class Action(ActionBase):
     implements ``run``; each instance is one action.
 
     ``pivot``, which has no default, says whether the action is offered on one row, several rows
-    or not at all in the grid's context menu. ``id`` is the column, or alternatives where the
-    first non-empty one wins, that gives each row its ``id``.
+    or not at all in the grid's context menu. ``id`` is the Id column its results open with:
+    the column whose value is each row's ``id``.
     """
 
     File: ClassVar[type[ActionDocument] | None] = None
@@ -95,7 +94,7 @@ class Action(ActionBase):
     params: Sequence[Param] = ()
     pivot: Pivot
     columns: Sequence[Column] | None = None
-    id: NonBlankStr | Sequence[NonBlankStr] | None = None
+    id: NonBlankStr | None = None
 
     @field_validator("params")
     @classmethod
@@ -116,13 +115,6 @@ class Action(ActionBase):
             names = [column.name for column in value]
             if len(set(names)) != len(names):
                 raise ValueError("names must be unique")
-        return value
-
-    @field_validator("id")
-    @classmethod
-    def _id(cls, value: str | Sequence[str] | None) -> str | Sequence[str] | None:
-        if value is not None and not value:
-            raise ValueError("give a column name, or leave id out")
         return value
 
     def check_params(
@@ -170,14 +162,6 @@ class Action(ActionBase):
         param's ``from_columns``; override it, with ``pivot_columns()``, for logic that needs
         code."""
         return resolve_from_columns(self.params, context)
-
-    def row_id(self, params: Mapping[str, Any]) -> RowId | None:
-        """How each row of a run with these params gets its ``id``, or ``None`` for no ``id``.
-        The default reads the action's ``id`` columns; override it for any other scheme, such as
-        a composite key or an id column chosen by a param."""
-        if self.id is None:
-            return None
-        return IdColumns([self.id] if isinstance(self.id, str) else self.id)
 
     @abstractmethod
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterable[Mapping[str, Any]]:

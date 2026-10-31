@@ -94,7 +94,6 @@ def test_the_provider(tmp_path: Path, tim_connections: Connections, tim_analyst:
     resolved = resolve_pivot(tickets, [{"User": "alice", "Host": "h-1"}])
     result = run_action(tickets, resolved.params, connections=tim_connections)
     assert result.rows == [{"Ticket": "T-alice", "Token": "obo api://tickets/.default"}]
-    assert result.ids == ["T-alice"]
     assert result.details == {"analyst": tim_analyst.upn}
 
     assert run_sink(save, result.rows).details == {"saved": 1}

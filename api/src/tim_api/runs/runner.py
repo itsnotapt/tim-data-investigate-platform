@@ -176,7 +176,6 @@ class _ActiveRun:
         query = action if isinstance(action, Action) else None
         self.builder = ResultBuilder(
             query.columns if query else None,
-            query.row_id(params) if query else None,
             max_rows=settings.max_result_rows,
             max_bytes=settings.max_result_bytes,
         )
@@ -323,12 +322,6 @@ class _ActiveRun:
             details["rowCount"] = self.builder.row_count
         own = {k: v for k, v in self.ctx.details.items() if k not in details}
         details.update(own)
-        if kept:
-            warnings = self.builder.warnings()
-            if warnings:
-                details["warning"] = "; ".join(
-                    [str(details["warning"]), *warnings] if "warning" in details else warnings
-                )
         now = self._runner.clock()
         try:
             return await self._runner.store.finish(

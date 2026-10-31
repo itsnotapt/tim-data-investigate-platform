@@ -1,11 +1,8 @@
 import type { Annotations } from '../api/annotations';
 import { annotationsDao } from '../storage';
 
-/**
- * Where applied annotations came from: the analyst's own change in this browser, the change feed,
- * or a page of rows.
- */
-export type AnnotationsSource = 'own' | 'feed' | 'rows';
+/** Where applied annotations came from: the analyst's own change in this browser, or the change feed. */
+export type AnnotationsSource = 'own' | 'feed';
 
 export interface AnnotationsApplied {
   changes: Annotations[];

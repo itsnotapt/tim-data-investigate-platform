@@ -126,8 +126,12 @@ A link to a run, or to one row of it, that any signed-in analyst holding it can 
 ### Results
 
 **`id`**:
-The action-defined key a row is annotated by. It is shared across actions, so rows with the same `id` carry the same annotations. A row without one cannot be annotated.
+The key a row is annotated by: the value of the row's Id column, computed in the browser. It is shared across actions, so rows with the same `id` carry the same annotations. A row without one cannot be annotated.
 _Avoid_: EventId, event id, row id
+
+**Id column**:
+The column of a result that its rows' `id`s come from. It starts as the action's `id` or the `idColumn` param, and the analyst can switch it on the results without rerunning.
+_Avoid_: id field, key column
 
 **Row number**:
 A row's position in its run's results, unique within the run where `id` can repeat.

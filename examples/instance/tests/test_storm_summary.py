@@ -30,7 +30,7 @@ def test_a_pivot_summarises_the_selected_states_over_the_rows_time_window() -> N
     assert resolved.missing == {}
 
 
-def test_a_run_binds_the_params_by_name_and_ids_each_row_by_its_window(
+def test_a_run_binds_the_params_by_name(
     tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
     tim_connections.add(
@@ -59,4 +59,3 @@ def test_a_run_binds_the_params_by_name_and_ids_each_row_by_its_window(
         "until": "datetime(2007-08-19T00:00:00.0000000Z)",
     }
     assert result.rows == [{"State": "TEXAS", "EventType": "Hail", "Events": 3}]
-    assert result.ids == ['["TEXAS","Hail","2007-05-04T21:00:00Z","2007-08-19T00:00:00Z"]']

@@ -12,7 +12,6 @@ from typing import Any
 import httpx2 as httpx
 import pytest
 from app_factory import AuthKit, create_test_app
-from scripted_actions import Rows
 from tim_actions import Provider
 
 from tim_api.storage import Storage
@@ -385,34 +384,6 @@ async def test_concurrent_changes_take_gapless_versions_in_commit_order(
     )
     [shared] = [c for c in feed["changes"] if c["id"] == "shared"]
     assert shared == next(c for c in last["changes"] if c["id"] == "shared")
-
-
-async def test_the_rows_carry_their_ids_annotations(storage: Storage, auth: AuthKit) -> None:
-    sign_ins = Rows(
-        key="acme.sign_ins",
-        name="Sign-ins",
-        pivot="none",
-        id="CorrelationId",
-        rows=(
-            {"CorrelationId": "c-1", "User": "alice"},
-            {"CorrelationId": "c-2", "User": "bob"},
-            {"CorrelationId": "c-1", "User": "carol"},
-            {"User": "no id"},
-        ),
-    )
-    async with open_env(storage, auth, [sign_ins]) as env:
-        await env.label(["c-1", "elsewhere"], "malicious")
-        run = (
-            await env.client.post("/api/runs", json={"action": "acme.sign_ins", "params": {}})
-        ).json()
-        async with asyncio.timeout(10):
-            while run["status"] == "running":
-                await asyncio.sleep(0.02)
-                run = (await env.client.get(f"/api/runs/{run['runId']}")).json()
-        page = (await env.client.get(f"/api/runs/{run['runId']}/rows")).json()
-    assert page["annotationVersion"] == 1
-    assert list(page["annotations"]) == ["c-1"]
-    assert label_of(page["annotations"]["c-1"]) == ("c-1", "malicious", ALICE)
 
 
 async def test_the_history_gives_an_id_s_label_changes_newest_first(

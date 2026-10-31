@@ -25,8 +25,6 @@ export interface RowDetailProps {
   labels: readonly InstanceLabel[];
   /** The run's columns: the order of the fields. */
   columns: DetailColumns;
-  /** The action takes its rows' id from an Id column param. */
-  idParam: boolean;
   /** The name the API knows the signed-in analyst by: whose comment the panel edits. */
   analyst: string | null;
   /** Called with what a comment saved from the panel changed. */
@@ -101,7 +99,6 @@ export function RowDetail({
   annotations,
   labels,
   columns,
-  idParam,
   analyst,
   onCommented,
   onClose,
@@ -171,7 +168,7 @@ export function RowDetail({
         >
           {id === null ? (
             <Alert severity="info" variant="outlined" sx={{ py: 0, fontSize: 13 }}>
-              {whyUnlabellable(targetIds(row ? [row] : []), Infinity, idParam)}
+              {whyUnlabellable(targetIds(row ? [row] : []), Infinity)}
             </Alert>
           ) : (
             <Annotated id={id} annotations={annotations} labels={labels} />

@@ -12,8 +12,6 @@ const NO_COLUMNS: DetailColumns = [];
 
 export interface RowDetailOptions {
   labels: readonly InstanceLabel[];
-  /** The action takes its rows' id from an Id column param. */
-  idParam: boolean;
   /** The run's columns: the order of the fields. */
   columns?: DetailColumns | null;
 }
@@ -29,6 +27,8 @@ export interface RowDetailState {
   panel: ReactNode;
   /** Opens the panel on `row`. */
   open: (row: LabelledRow) => void;
+  /** The open panel takes its row from `rows`, the grid's new row data, by row number. */
+  follow: (rows: readonly LabelledRow[]) => void;
 }
 
 /**
@@ -36,7 +36,7 @@ export interface RowDetailState {
  * focused row and takes the annotations of its `id` from the annotation store, so a change from
  * the feed updates it. A comment saved from it goes into the store as the analyst's own.
  */
-export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): RowDetailState {
+export function useRowDetail({ labels, columns }: RowDetailOptions): RowDetailState {
   // The row the panel shows; null while it's closed.
   const analyst = useAnalyst();
   const [row, setRow] = useState<LabelledRow | null>(null);
@@ -77,6 +77,9 @@ export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): Ro
     const data = e.api.getDisplayedRowAtIndex(e.rowIndex)?.data;
     if (data) setRow((current) => current && data);
   }, []);
+  const follow = useCallback((rows: readonly LabelledRow[]) => {
+    setRow((current) => (current && rows.find((r) => r.row === current.row)) ?? current);
+  }, []);
   const onCommented = useCallback(async (changes: Annotations[]) => {
     await getAnnotationStore().apply(changes, 'own');
     pollAnnotationsSoon();
@@ -88,11 +91,10 @@ export function useRowDetail({ labels, idParam, columns }: RowDetailOptions): Ro
       annotations={annotations}
       labels={labels}
       columns={columns ?? NO_COLUMNS}
-      idParam={idParam}
       analyst={analyst}
       onCommented={onCommented}
       onClose={close}
     />
   );
-  return { menu, keys, onCellFocused, panel, open: setRow };
+  return { menu, keys, onCellFocused, panel, open: setRow, follow };
 }

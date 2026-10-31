@@ -4,8 +4,6 @@ import { targetIds, targetRows, whyUnlabellable, type LabelledRow } from '../lab
 import type { AnnotateMode } from './annotateLogic';
 
 export interface AnnotateMenuOptions {
-  /** The action takes its rows' id from an Id column param. */
-  idParam: boolean;
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
   /** Opens the dialog for `rows`. */
@@ -17,15 +15,11 @@ export interface AnnotateMenuOptions {
  * Annotate… (T) and Comment… (C) for the selected rows. With targets that can't be annotated, the
  * items are disabled with the reason as their tooltip.
  */
-export function buildAnnotateMenu({
-  idParam,
-  max,
-  open,
-}: AnnotateMenuOptions): GetExtraContextMenuItems {
+export function buildAnnotateMenu({ max, open }: AnnotateMenuOptions): GetExtraContextMenuItems {
   return (params) => {
     const rows = targetRows(params.api as GridApi<GridRowWithId>, params.node);
     if (rows.length === 0) return [];
-    const reason = whyUnlabellable(targetIds(rows), max, idParam);
+    const reason = whyUnlabellable(targetIds(rows), max);
     const state = { disabled: reason !== null, tooltip: reason ?? undefined };
     return [
       { name: 'Annotate…', shortcut: 'T', ...state, action: () => open('annotate', rows) },
@@ -58,7 +52,7 @@ const KEYS: Record<string, AnnotateMode> = { t: 'annotate', c: 'comment' };
  * T opens Annotate…, C opens Comment…, for the selected rows or the focused row. When the rows
  * can't be annotated, the reason shows in a toast.
  */
-export function makeAnnotateKeys({ idParam, max, open, notify }: AnnotateMenuOptions) {
+export function makeAnnotateKeys({ max, open, notify }: AnnotateMenuOptions) {
   return (e: CellKeyDownEvent<GridRowWithId>) => {
     const key = plainKey(e);
     const mode = key && KEYS[key.key.toLowerCase()];
@@ -66,7 +60,7 @@ export function makeAnnotateKeys({ idParam, max, open, notify }: AnnotateMenuOpt
     const rows = targetRows(e.api, e.node);
     if (rows.length === 0) return;
     key.preventDefault();
-    const reason = whyUnlabellable(targetIds(rows), max, idParam);
+    const reason = whyUnlabellable(targetIds(rows), max);
     if (reason !== null) return notify(reason);
     open(mode, rows);
   };

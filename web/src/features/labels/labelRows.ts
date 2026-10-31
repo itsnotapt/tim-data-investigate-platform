@@ -5,8 +5,31 @@ import { gridRowId, type GridRowWithId } from '../grid';
 import { SELECTION_COLUMN_ID } from '../grid/gridOptions';
 import { shownLabel } from './labels';
 
-/** An action grid's row: the run's row, its grid row id, and its `id`'s annotations. */
+/** An action grid's row: the run's row, its grid row id, its `id` and the `id`'s annotations. */
 export type LabelledRow = GridRowWithId & { id?: string | null; annotations?: Annotations };
+
+/** The longest `id` an annotation can have. */
+export const MAX_ID_LENGTH = 512;
+
+/**
+ * A row's `id`: the value of its Id column, a string as is and anything else as JSON. No Id
+ * column, a missing, `null` or empty value, or one longer than {@link MAX_ID_LENGTH}, is no id.
+ */
+export function rowId(
+  data: Readonly<Record<string, unknown>>,
+  idColumn: string | null,
+): string | null {
+  if (idColumn === null) return null;
+  const value = data[idColumn];
+  if (value === undefined || value === null) return null;
+  const id = typeof value === 'string' ? value : JSON.stringify(value);
+  return id === '' || id.length > MAX_ID_LENGTH ? null : id;
+}
+
+/** `rows` with the `id` of their Id column, and no annotations yet. */
+export function withIds(rows: readonly RunRow[], idColumn: string | null): LabelledRow[] {
+  return rows.map((r) => ({ row: r.row, data: r.data, id: rowId(r.data, idColumn) }));
+}
 
 /** The label key of a grid row's annotations, else `null`. */
 export function rowLabelKey(data: unknown): string | null {
@@ -52,7 +75,7 @@ export function labelColumnDef(labels: readonly InstanceLabel[]): ColDef {
 export type RowsById = Map<string, string[]>;
 
 /** Adds `rows` to `index`. */
-export function indexRows(index: RowsById, rows: readonly RunRow[]): void {
+export function indexRows(index: RowsById, rows: readonly LabelledRow[]): void {
   for (const row of rows) {
     if (!row.id) continue;
     const ids = index.get(row.id);

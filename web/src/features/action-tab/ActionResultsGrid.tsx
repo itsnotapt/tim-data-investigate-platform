@@ -34,6 +34,7 @@ import {
   makeLabelKeys,
   targetRows,
   updateRowAnnotations,
+  withIds,
   type LabelMenuOptions,
   type RowsById,
 } from '../labels';
@@ -42,8 +43,6 @@ import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
 
-/** The param that names the column giving each row its id (Run KQL's Id column). */
-const ID_PARAM = 'idColumn';
 const NO_LABELS: readonly InstanceLabel[] = [];
 /** `maxAnnotationIds` until the instance says otherwise. */
 const DEFAULT_MAX_IDS = 10_000;
@@ -63,10 +62,12 @@ export type ActionResultsGridProps = Omit<
   | 'onCellFocused'
 > & {
   uuid: string;
-  /** The action the rows came from. */
-  action: string;
   /** The rows to show. Rows that continue the ones shown are added to them, as each page loads. */
   rows: readonly RunRow[];
+  /** The Id column: the column whose value is each row's `id`. `null`: the rows have no id. */
+  idColumn?: string | null;
+  /** Called with the column a cell's Use … as Id column picks. */
+  onIdColumnChange?: (column: string) => void;
   /** The action's declared columns. */
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** The columns of the run the rows came from. */
@@ -75,6 +76,8 @@ export type ActionResultsGridProps = Omit<
   getContextMenuItems?: GetExtraContextMenuItems;
   /** The run the rows came from, for each row's Copy link. */
   runId?: string | null;
+  /** The Id column Copy link carries: `idColumn` when it isn't the one the run opens with. */
+  linkIdColumn?: string | null;
   /** The row a share link named: focused, with Row detail open on it, once it has arrived. */
   linkedRow?: number | null;
   /** Called once the linked row is focused. */
@@ -87,9 +90,12 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
 
 /**
  * An action tab's rows, keyed by `row`, with the action's columns and the annotations of each row's
- * `id`: the label's fill, stripe and symbol, the comments column, the hidden Label, Tags and Comment
- * text columns, Label ▸, Annotate…, Comment…, Row detail and their keys, the Row detail side panel, the
- * sinks, which take the rows, Copy column settings, and Copy link to the right-clicked row.
+ * `id`, the value of its Id column. A cell's Use … as Id column asks for its column to be the Id
+ * column; when `idColumn` changes, the rows take the annotations of their new ids in place, keeping
+ * the selection, filters, sort and scroll. The annotations show the label's fill, stripe and
+ * symbol, the comments column, the hidden Label, Tags and Comment text columns, Label ▸, Annotate…,
+ * Comment…, Row detail and their keys, the Row detail side panel, the sinks, which take the rows,
+ * Copy column settings, and Copy link to the right-clicked row.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
  * from the feed flashes the rows it changes.
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
@@ -99,24 +105,21 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
  */
 export function ActionResultsGrid({
   uuid,
-  action,
   rows,
+  idColumn = null,
+  onIdColumnChange,
   declaredColumns,
   runColumns,
   onGridReady,
   getContextMenuItems,
   runId = null,
+  linkIdColumn = null,
   linkedRow = null,
   onLinkedRowShown,
   ...rest
 }: ActionResultsGridProps) {
   const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
   const max = useInstanceStore((s) => s.instance?.limits.maxAnnotationIds) ?? DEFAULT_MAX_IDS;
-  const idParam = useInstanceStore(
-    (s) =>
-      s.instance?.actions.find((a) => a.key === action)?.params.some((p) => p.name === ID_PARAM) ??
-      false,
-  );
   const notifyContext = useContext(NotifyContext);
   const analyst = useAnalyst();
   const own = useMemo(
@@ -149,15 +152,16 @@ export function ActionResultsGrid({
     (state: GridState) => actionFileColumns({ state, declared: declaredColumns, runColumns, own }),
     [declaredColumns, runColumns, own],
   );
-  // The grid is given `given` as its row data; rows that continue them go in by transaction, so a
-  // page doesn't make the grid take every row again.
-  const [given, setGiven] = useState(rows);
-  const shown = useRef(rows);
+  // The grid is given `given`, the rows with their ids, as its row data; rows that continue them go
+  // in by transaction, so a page doesn't make the grid take every row again. Another Id column
+  // gives the grid every row again, with the same row ids, so it updates them in place.
+  const [given, setGiven] = useState(() => withIds(rows, idColumn));
+  const shown = useRef({ rows, idColumn });
   const api = useRef<GridApi<GridRowWithId> | null>(null);
   const [gridReady, setGridReady] = useState(false);
   const [index] = useState<RowsById>(() => {
     const byId: RowsById = new Map();
-    indexRows(byId, rows);
+    indexRows(byId, given);
     return byId;
   });
   /** Gives the rows of `ids` (else every `id`) the annotations the store has. */
@@ -170,19 +174,21 @@ export function ActionResultsGrid({
     [index],
   );
   useEffect(() => {
-    if (rows === shown.current) return;
-    if (api.current && continues(shown.current, rows)) {
-      const added = rows.slice(shown.current.length);
-      api.current.applyTransaction({ add: [...added] });
+    const was = shown.current;
+    if (rows === was.rows && idColumn === was.idColumn) return;
+    if (api.current && idColumn === was.idColumn && continues(was.rows, rows)) {
+      const added = withIds(rows.slice(was.rows.length), idColumn);
+      api.current.applyTransaction({ add: added });
       indexRows(index, added);
       void showStoredAnnotations(added.flatMap((r) => (r.id ? [r.id] : [])));
     } else {
+      const all = withIds(rows, idColumn);
       index.clear();
-      indexRows(index, rows);
-      setGiven(rows);
+      indexRows(index, all);
+      setGiven(all);
     }
-    shown.current = rows;
-  }, [rows, index, showStoredAnnotations]);
+    shown.current = { rows, idColumn };
+  }, [rows, idColumn, index, showStoredAnnotations]);
   // After the grid takes new row data.
   useEffect(() => {
     void showStoredAnnotations();
@@ -214,11 +220,10 @@ export function ActionResultsGrid({
       store: getAnnotationStore(),
       labels,
       max,
-      idParam,
       notify: (options) => notifyContext?.(options),
       pollSoon: pollAnnotationsSoon,
     }),
-    [labels, max, idParam, notifyContext],
+    [labels, max, notifyContext],
   );
   const labelMenu = useMemo(() => buildLabelMenu(labelling), [labelling]);
   const sinks = useSinks(runColumns);
@@ -226,7 +231,7 @@ export function ActionResultsGrid({
     menu: annotateMenu,
     keys: annotateKeys,
     dialog,
-  } = useAnnotating({ labels, max, idParam, rowsById: index, sinks });
+  } = useAnnotating({ labels, max, rowsById: index, sinks });
   const sinkMenu = useCallback<GetExtraContextMenuItems>(
     (params) => {
       const rows = targetRows(params.api as GridApi<GridRowWithId>, params.node);
@@ -245,7 +250,9 @@ export function ActionResultsGrid({
     onCellFocused,
     panel: rowDetail,
     open: openRowDetail,
-  } = useRowDetail({ labels, idParam, columns: runColumns });
+    follow: followRows,
+  } = useRowDetail({ labels, columns: runColumns });
+  useEffect(() => followRows(given), [given, followRows]);
   const linkedShown = useRef(false);
   useEffect(() => {
     const grid = api.current;
@@ -271,12 +278,24 @@ export function ActionResultsGrid({
           name: 'Copy link',
           disabled: typeof row !== 'number',
           action: () => {
-            if (typeof row === 'number') void copyShareLink(runId, row, notifyContext);
+            if (typeof row === 'number') {
+              void copyShareLink(runId, row, notifyContext, linkIdColumn);
+            }
           },
         },
       ];
     },
-    [runId, notifyContext],
+    [runId, linkIdColumn, notifyContext],
+  );
+  const idColumnMenu = useCallback<GetExtraContextMenuItems>(
+    ({ column, node }) => {
+      const name = column?.getColId();
+      const data = node?.data as RunRow | undefined;
+      if (!onIdColumnChange || !name || name === idColumn || !data || !(name in data.data))
+        return [];
+      return [{ name: `Use ${name} as Id column`, action: () => onIdColumnChange(name) }];
+    },
+    [idColumn, onIdColumnChange],
   );
   const copySettingsItem = useCallback(
     (api: GridApi) => copyColumnSettingsItem(() => actionFile(api.getState()), notifyContext),
@@ -293,6 +312,7 @@ export function ActionResultsGrid({
         ...annotateMenu(params),
         ...rowDetailMenu(params),
       ]) satisfies GetExtraContextMenuItems,
+      idColumnMenu,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
       copyColumnSettingsMenu,
@@ -302,6 +322,7 @@ export function ActionResultsGrid({
       labelMenu,
       annotateMenu,
       rowDetailMenu,
+      idColumnMenu,
       getContextMenuItems,
       sinkMenu,
       copyColumnSettingsMenu,

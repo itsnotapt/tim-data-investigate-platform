@@ -179,7 +179,7 @@ With `TIM_DEV_ACTIONS=true`, the api registers actions that need no connection, 
 There are two actions and two action file types:
 
 - **`tim.dev_json` "JSON (development)"**: the run yields the rows the analyst pastes into its `rows` param, a JSON array of objects.
-  - The optional `idColumn` param names the column that gives each row its `id`.
+  - The optional `idColumn` param names the column the results start with as their Id column.
   - Its `pivot` is `rows`, for running it on selected rows.
 - **`tim.dev_run_kql` "Run KQL (development)"**, in the Development menu: Run KQL's params on a `dev_kql` connection. Its query parameters are declared as Run KQL declares them. The run yields no rows.
   - `check --dev-actions` leaves it out when the directory has no `dev_kql` connection.

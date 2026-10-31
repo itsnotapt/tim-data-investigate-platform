@@ -24,7 +24,6 @@ from pydantic import (
     TypeAdapter,
     ValidationError,
     create_model,
-    field_validator,
 )
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
@@ -59,9 +58,6 @@ def sidecar_fields(model: type[BaseModel]) -> list[str]:
         for name, info in model.model_fields.items()
         if any(isinstance(item, Sidecar) for item in info.metadata)
     ]
-
-
-_ColumnName = Annotated[str, Field(min_length=1)]
 
 
 class DocumentBase(BaseModel):
@@ -103,30 +99,13 @@ class ActionDocument(DocumentBase):
     """A query action in an action file. A query action type's ``File`` model subclasses this
     and adds the type's own fields.
 
-    ``id`` is a column name, or a list of alternative columns where the first non-empty value
-    wins; leaving it out means the rows have no ``id``.
+    ``id`` is the Id column the results open with; leaving it out opens them with none.
     """
 
     pivot: Pivot
     params: tuple[Param, ...] = ()
     columns: tuple[Column, ...] | None = None
-    id: _ColumnName | Annotated[tuple[_ColumnName, ...], Field(min_length=1)] | None = None
-
-    @field_validator("id", mode="before")
-    @classmethod
-    def _id(cls, value: Any) -> Any:
-        names = [value] if isinstance(value, str) else value
-        if value is None:
-            return value
-        if (
-            not isinstance(names, list)
-            or not names
-            or not all(isinstance(name, str) and name.strip() for name in names)
-        ):
-            raise ValueError(
-                "give a column name, or a list of column names where the first non-empty value wins"
-            )
-        return value
+    id: Annotated[NonBlankStr, Field(min_length=1)] | None = None
 
 
 class SinkDocument(DocumentBase):

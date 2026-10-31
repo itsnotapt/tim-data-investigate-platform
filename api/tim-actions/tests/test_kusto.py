@@ -114,18 +114,10 @@ def test_run_kql_runs_the_query_and_reports_kustos_columns_and_metrics(
     columns = [Column("Id", "number"), Column("Who", "string")]
     tim_kusto.respond([{"Id": 7, "Who": "a"}], columns=columns, details={"executionTime": 0.25})
     result = run_kql(tim_connections, {"kql": "T | take 1", "idColumn": "Id"})
-    assert (result.rows, result.ids) == ([{"Id": 7, "Who": "a"}], ["7"])
+    assert result.rows == [{"Id": 7, "Who": "a"}]
     assert result.columns == columns
     assert result.details == {"executionTime": 0.25}
     assert tim_kusto.calls == [KustoCall("security", "Samples", "T | take 1", {})]
-
-
-def test_without_an_id_column_the_rows_have_no_id(
-    tim_kusto: FakeKusto, tim_connections: Connections
-) -> None:
-    tim_connections.add(CONNECTION)
-    tim_kusto.respond([{"Id": 7}])
-    assert run_kql(tim_connections, {}).ids == [None]
 
 
 def test_run_kql_declares_its_query_parameters_by_name_and_type() -> None:

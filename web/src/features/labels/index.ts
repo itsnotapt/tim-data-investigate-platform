@@ -1,5 +1,5 @@
 export { buildLabelMenu, makeLabelKeys, targetRows } from './labelMenu';
-export { targetIds, whyUnlabellable } from './labelling';
+export { NO_ID, targetIds, whyUnlabellable } from './labelling';
 export type { LabelMenuOptions } from './labelMenu';
 export {
   indexRows,
@@ -7,6 +7,7 @@ export {
   labelColumnDef,
   rowLabelKey,
   updateRowAnnotations,
+  withIds,
   LABEL_COLUMN_ID,
 } from './labelRows';
 export type { LabelledRow, RowsById } from './labelRows';

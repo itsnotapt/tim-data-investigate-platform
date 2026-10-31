@@ -1,10 +1,8 @@
 import 'fake-indexeddb/auto';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAnnotationStore } from '../../lib/annotations';
 import type { Run, RunRow } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
-import { annotated } from '../../test/annotationFakes';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
@@ -37,9 +35,9 @@ const succeeded = (rowCount: number) =>
     columns: [{ name: 'User', type: 'string', declared: true }],
   });
 const rows: RunRow[] = [
-  { row: 0, id: 'c-1', data: { User: 'alice' } },
-  { row: 1, id: 'c-2', data: { User: 'bob' } },
-  { row: 2, id: null, data: { User: 'carol' } },
+  { row: 0, data: { User: 'alice' } },
+  { row: 1, data: { User: 'bob' } },
+  { row: 2, data: { User: 'carol' } },
 ];
 
 /** Rows at most two per page, as a server with a small `rowsPageSize`. */
@@ -53,7 +51,6 @@ const rowsHandler = (pages: string[] = []) =>
     return HttpResponse.json({
       rows: page,
       lastRow: rows.length,
-      annotations: page.some((r) => r.id === 'c-1') ? { 'c-1': annotated('c-1', 4) } : {},
       annotationVersion: 7,
     });
   });
@@ -160,18 +157,6 @@ describe('runActionTab', () => {
     expect(tab().rowDataTrigger).not.toBeNull();
   });
 
-  it('keeps the annotations that come with the rows apart from the rows', async () => {
-    server.use(
-      http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(3))),
-      rowsHandler(),
-    );
-    await runActionTab('a', { store, sleep });
-    expect(await rowResultsDao.get('a')).toEqual(rows);
-    expect([...(await getAnnotationStore().get(['c-1', 'c-2'])).values()]).toEqual([
-      annotated('c-1', 4),
-    ]);
-  });
-
   it('shows each page of rows as it arrives, before every page is stored', async () => {
     let releaseSecondPage = () => {};
     const secondPage = new Promise<void>((resolve) => (releaseSecondPage = resolve));
@@ -183,7 +168,6 @@ describe('runActionTab', () => {
         return HttpResponse.json({
           rows: rows.slice(start, start + 2),
           lastRow: rows.length,
-          annotations: {},
           annotationVersion: 0,
         });
       }),
@@ -213,7 +197,6 @@ describe('runActionTab', () => {
         return HttpResponse.json({
           rows: rows.slice(0, 2),
           lastRow: rows.length,
-          annotations: {},
           annotationVersion: 0,
         });
       }),

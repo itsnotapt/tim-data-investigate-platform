@@ -66,7 +66,6 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("row_number", sa.Integer(), nullable=False),
-        sa.Column("id", sa.Text()),
         sa.Column("data", _json(), nullable=False),
         sa.PrimaryKeyConstraint("run_id", "row_number"),
         prefixes=["UNLOGGED"],

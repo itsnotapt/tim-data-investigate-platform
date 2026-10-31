@@ -109,7 +109,6 @@ run_rows = Table(
     metadata,
     Column("run_id", Uuid, ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False),
     Column("row_number", Integer, nullable=False),
-    Column("id", Text),
     # json, not jsonb: a row keeps the key order the run produced, at every depth (ADR-0004).
     Column("data", JSON(none_as_null=True), nullable=False),
     PrimaryKeyConstraint("run_id", "row_number"),
@@ -335,7 +334,7 @@ class PostgresRunStore(RunStore):
     async def add_rows(self, run_id: UUID, rows: Sequence[RunRow]) -> None:
         if not rows:
             return
-        values = [{"run_id": run_id, "row_number": r.row, "id": r.id, "data": r.data} for r in rows]
+        values = [{"run_id": run_id, "row_number": r.row, "data": r.data} for r in rows]
         try:
             async with self._db.begin() as conn:
                 await conn.execute(insert(run_rows), values)
@@ -344,7 +343,7 @@ class PostgresRunStore(RunStore):
 
     async def rows(self, run_id: UUID, start: int, end: int) -> list[RunRow]:
         stmt = (
-            select(run_rows.c.row_number, run_rows.c.id, run_rows.c.data)
+            select(run_rows.c.row_number, run_rows.c.data)
             .where(
                 run_rows.c.run_id == run_id,
                 run_rows.c.row_number >= start,
@@ -354,7 +353,7 @@ class PostgresRunStore(RunStore):
         )
         async with self._db.begin() as conn:
             found = (await conn.execute(stmt)).all()
-        return [RunRow(row=r.row_number, id=r.id, data=r.data) for r in found]
+        return [RunRow(row=r.row_number, data=r.data) for r in found]
 
     async def has_rows(self, run_id: UUID) -> bool:
         stmt = select(exists().where(run_rows.c.run_id == run_id))

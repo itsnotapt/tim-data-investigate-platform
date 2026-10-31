@@ -12,7 +12,7 @@ TIM stops being a Kusto query tool and runs actions instead, which needs an exte
 - **Params are data.** Params, and the columns a pivot resolves them from (`from_columns`), are declared, so TIM can validate them, build the form and filter the right-click menu without running code. `resolve()` and `pivot_columns()` can be overridden for logic that needs code, and that is why pivots are resolved on the server.
 - **Action files.** A file-capable action type declares a `type_name` and a pydantic `File` model. Action files name the type and give its configuration. Most actions are files; Python is for actions that need code.
 - **Startup only.** Action files come from package data and one instance directory (`TIM_ACTIONS_DIR`). Any error (a bad file, a duplicate key, a missing connection) stops startup, with file:line errors. `tim-api check` runs the same validation offline.
-- **`id`.** TIM never makes up an `id`: the action type's `row_id(params)` decides it, or returns none, and rows without one can't be annotated (0020).
+- **`id`.** TIM never makes up an `id`, and rows without one can't be annotated (0020). Superseded by [0025](0025-ids-from-the-id-column-in-the-browser.md): an action's `id` names a column, and the browser takes each row's `id` from it.
 
 Code: the interface in `api/tim-actions/src/tim_actions/` (`action.py`, `params.py`, `provider.py`), action files in `api/tim-actions/src/tim_actions/files.py`, loading and validation in `api/src/tim_api/actions/registry.py`, `tim-api check` in `api/src/tim_api/cli.py`.
 

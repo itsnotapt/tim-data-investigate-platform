@@ -25,7 +25,6 @@ def test_state_regions_looks_each_state_up_in_the_lookup_connection() -> None:
         {"State": "TEXAS", "Region": "South", "Division": "West South Central"},
         {"State": "GUAM"},
     ]
-    assert result.ids == ["TEXAS", "GUAM"]
 
 
 def test_a_pivot_into_state_regions_takes_the_distinct_states() -> None:

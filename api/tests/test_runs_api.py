@@ -168,22 +168,18 @@ async def test_a_run_goes_end_to_end_over_http(storage: Storage, auth: AuthKit) 
             "rows": [
                 {
                     "row": 0,
-                    "id": "c-1",
                     "data": {"CorrelationId": "c-1", "User": "alice", "Count": 3},
                 },
                 {
                     "row": 1,
-                    "id": "c-2",
                     "data": {"CorrelationId": "c-2", "User": "bob", "Count": 5},
                 },
             ],
             "lastRow": 3,
-            "annotations": {},
-            "annotationVersion": 0,
         }
         rest = await env.rows(run["runId"], startRow=2, endRow=10)
         assert rest.json()["rows"] == [
-            {"row": 2, "id": "c-1", "data": {"CorrelationId": "c-1", "User": "carol", "Count": 1}}
+            {"row": 2, "data": {"CorrelationId": "c-1", "User": "carol", "Count": 1}}
         ]
 
 
@@ -345,7 +341,7 @@ async def test_rows_come_in_pages_of_at_most_the_page_size(
         first = (await env.rows(run["runId"])).json()
         assert [r["row"] for r in first["rows"]] == list(range(1000))
         assert first["lastRow"] == 1500
-        assert first["rows"][7] == {"row": 7, "id": None, "data": {"n": 7}}
+        assert first["rows"][7] == {"row": 7, "data": {"n": 7}}
         clamped = (await env.rows(run["runId"], startRow=200, endRow=1500)).json()
         assert len(clamped["rows"]) == 1000
         assert clamped["rows"][0]["row"] == 200
@@ -356,8 +352,6 @@ async def test_rows_come_in_pages_of_at_most_the_page_size(
         assert past.json() == {
             "rows": [],
             "lastRow": 1500,
-            "annotations": {},
-            "annotationVersion": 0,
         }
         backwards = await env.rows(run["runId"], startRow=10, endRow=5)
         assert backwards.status_code == 422
@@ -375,8 +369,6 @@ async def test_a_run_with_no_rows_has_an_empty_first_page(storage: Storage, auth
         assert page.json() == {
             "rows": [],
             "lastRow": 0,
-            "annotations": {},
-            "annotationVersion": 0,
         }
 
 
@@ -416,97 +408,17 @@ async def test_rows_lost_after_a_crash_are_gone(postgres_dsn: str, auth: AuthKit
         await storage.aclose()
 
 
-def ids_of(page: dict[str, Any]) -> list[str | None]:
-    return [row["id"] for row in page["rows"]]
-
-
-async def test_the_id_is_the_first_non_empty_alternative_in_canonical_text(
+async def test_a_row_is_its_row_number_and_data_even_when_the_action_has_an_id_column(
     storage: Storage, auth: AuthKit
 ) -> None:
-    action = Rows(
-        key="acme.ids",
-        name="Ids",
-        pivot="none",
-        id=["CorrelationId", "EventId"],
-        rows=(
-            {"CorrelationId": "c-1", "EventId": 9},
-            {"CorrelationId": None, "EventId": 9},
-            {"CorrelationId": "", "EventId": 1.5},
-            {"CorrelationId": "", "EventId": None},
-            {"CorrelationId": " padded ", "EventId": None},
-            {"CorrelationId": 1, "EventId": None},
-            {"CorrelationId": "1", "EventId": None},
-            {"CorrelationId": "x" * 512, "EventId": None},
-            {"CorrelationId": "y" * 513, "EventId": None},
-            {"CorrelationId": "a\x00b", "EventId": None},
-        ),
-    )
+    action = Rows(key="acme.ids", name="Ids", pivot="none", id="EventId", rows=({"EventId": 9},))
     async with open_env(storage, auth, [action]) as env:
         run = (await env.start("acme.ids")).json()
-        assert run["status"] == "succeeded"
-        assert ids_of((await env.rows(run["runId"])).json()) == [
-            "c-1",
-            "9",
-            "1.5",
-            None,
-            " padded ",
-            "1",
-            "1",
-            "x" * 512,
-            None,
-            "a\ufffdb",
-        ]
-        assert run["details"]["warning"] == "1 row(s) have an id over 512 characters and get no id"
-
-
-@pytest.mark.parametrize(
-    ("id_", "warning"),
-    [
-        ("CorrelationId", "Id column CorrelationId not in results"),
-        (["EventId", "CorrelationId"], "Id column CorrelationId not in results"),
-        (["Missing", "CorrelationId"], "Id columns Missing, CorrelationId not in results"),
-    ],
-)
-async def test_an_id_column_missing_from_the_results_is_a_warning(
-    storage: Storage, auth: AuthKit, id_: str | list[str], warning: str
-) -> None:
-    action = Rows(
-        key="acme.no_id",
-        name="No id",
-        pivot="none",
-        id=id_,
-        rows=({"EventId": "e-1", "User": "alice"},),
-    )
-    async with open_env(storage, auth, [action]) as env:
-        run = (await env.start("acme.no_id")).json()
-        assert run["status"] == "succeeded"
-        assert run["details"]["warning"] == warning
-        expected = "e-1" if "EventId" in id_ else None
-        assert ids_of((await env.rows(run["runId"])).json()) == [expected]
-
-
-async def test_a_declared_id_column_no_row_carries_is_a_warning(
-    storage: Storage, auth: AuthKit
-) -> None:
-    action = Rows(
-        key="acme.declared_id",
-        name="Declared id",
-        pivot="none",
-        id="CorrelationId",
-        columns=(Column("CorrelationId", "string"),),
-        rows=({"User": "alice"},),
-    )
-    async with open_env(storage, auth, [action]) as env:
-        run = (await env.start("acme.declared_id")).json()
-        assert run["details"]["warning"] == "Id column CorrelationId not in results"
-
-
-async def test_an_action_without_an_id_gives_rows_no_id(storage: Storage, auth: AuthKit) -> None:
-    action = Rows(key="acme.plain", name="Plain", pivot="none", rows=({"CorrelationId": "c"},))
-    async with open_env(storage, auth, [action]) as env:
-        run = (await env.start("acme.plain")).json()
         assert "warning" not in run["details"]
-        assert ids_of((await env.rows(run["runId"])).json()) == [None]
+        assert (await env.rows(run["runId"])).json() == {
+            "rows": [{"row": 0, "data": {"EventId": 9}}],
+            "lastRow": 1,
+        }
 
 
 ECHO = Echo(
@@ -563,7 +475,6 @@ async def test_details_come_after_duration_and_row_count_in_the_order_reported(
         key="acme.details",
         name="Details",
         pivot="none",
-        id="Missing",
         details=(
             ("zeta", "z"),
             ("rowCount", 99),
@@ -577,7 +488,7 @@ async def test_details_come_after_duration_and_row_count_in_the_order_reported(
         run = (await env.start("acme.details")).json()
         assert list(run["details"]) == ["duration", "rowCount", "zeta", "alpha", "warning", "ok"]
         assert run["details"]["rowCount"] == 1
-        assert run["details"]["warning"] == "Sampled; Id column Missing not in results"
+        assert run["details"]["warning"] == "Sampled"
         assert isinstance(run["details"]["duration"], int | float)
         again = (await env.client.get(f"/api/runs/{run['runId']}")).json()
         assert list(again["details"]) == list(run["details"])

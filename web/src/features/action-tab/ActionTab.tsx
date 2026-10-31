@@ -34,6 +34,14 @@ import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid'
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
 import { useDeclareStatement } from './declareStatement';
+import {
+  ID_COLUMN_PARAM,
+  resultsIdColumn,
+  shareLinkIdColumn,
+  switchedText,
+  switchIdColumn,
+  takesIdColumn,
+} from './idColumn';
 import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
 import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
@@ -289,6 +297,14 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       tabs.updateState(uuid, { paramErrors });
     }
   };
+  // The results' Id column, and the one a link carries when it isn't the one the run opens with.
+  const idColumn = resultsIdColumn(action, state);
+  const linkIdColumn = shareLinkIdColumn(action, state);
+  const switchTo = (column: string | null) => {
+    switchIdColumn(uuid, action, column);
+    notify?.(switchedText(column));
+  };
+  const resultColumns = (shown?.columns ?? state.resultColumns ?? []).map((c) => c.name);
   const reset = () => {
     if (!state.runParams) return;
     useTabsStore.getState().updateParams(uuid, { params: state.runParams });
@@ -432,7 +448,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
                 title="Copy link"
                 icon={<LinkIcon fontSize="small" />}
                 disabled={linkRunId === null}
-                onClick={() => linkRunId !== null && void copyShareLink(linkRunId, null, notify)}
+                onClick={() =>
+                  linkRunId !== null && void copyShareLink(linkRunId, null, notify, linkIdColumn)
+                }
               />
             </Box>
           </Box>
@@ -454,6 +472,16 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             errors={state.paramErrors}
             onReset={edited ? reset : undefined}
             needed={needed}
+            idColumn={
+              takesIdColumn(action) && (shown || hasResults)
+                ? {
+                    param: ID_COLUMN_PARAM,
+                    columns: resultColumns,
+                    current: idColumn,
+                    apply: switchTo,
+                  }
+                : undefined
+            }
           />
         </Box>
       </Box>
@@ -569,7 +597,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           <ActionResultsGrid
             key={shown.runId}
             uuid={uuid}
-            action={params.action}
+            idColumn={idColumn}
+            onIdColumnChange={switchTo}
+            linkIdColumn={linkIdColumn}
             runId={shown.runId}
             rows={shown.rows}
             declaredColumns={action?.columns}
@@ -584,7 +614,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         {!shown && hasResults && rowCount !== 0 && (
           <StoredActionResultsGrid
             uuid={uuid}
-            action={params.action}
+            idColumn={idColumn}
+            onIdColumnChange={switchTo}
+            linkIdColumn={linkIdColumn}
             runId={state.resultsRunId}
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}

@@ -22,17 +22,12 @@ from tim_actions.params import Param
 from tim_actions.pivots import first_value
 from tim_actions.provider import Provider
 from tim_actions.query_parameters import QUERY_PARAMETER_TYPES, TakesQueryParameters
-from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
 
 
 class DevJson(Action):
-    """``tim.dev_json``: yields the rows of its ``rows`` param, each row's ``id`` read from the
-    ``idColumn`` param's column."""
-
-    def row_id(self, params: Mapping[str, Any]) -> RowId | None:
-        column = params.get("idColumn")
-        return IdColumns([column]) if column else None
+    """``tim.dev_json``: yields the rows of its ``rows`` param. Its ``idColumn`` param names the
+    Id column its results open with."""
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
         rows = params["rows"]

@@ -76,7 +76,7 @@ def test_the_params_are_bound_in_their_order_with_the_sidecar_sql_as_written(
         "limit": 10,
         "filter": {"app": "Teams"},
     }
-    result = run_action(actions["acme.signins"], params, connections=connections)
+    run_action(actions["acme.signins"], params, connections=connections)
     assert tim_snowflake.calls == [
         SnowflakeCall(
             "warehouse",
@@ -89,7 +89,6 @@ def test_the_params_are_bound_in_their_order_with_the_sidecar_sql_as_written(
             ),
         )
     ]
-    assert result.ids == ["7", "8"]
 
 
 def test_an_optional_param_without_a_value_is_bound_as_null(

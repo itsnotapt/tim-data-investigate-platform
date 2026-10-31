@@ -110,10 +110,7 @@ def make_run(
 
 
 def make_rows(start: int, count: int) -> list[RunRow]:
-    return [
-        RunRow(row=n, id=None if n % 3 == 0 else f"evt-{n}", data={"n": n, "tags": ["a", n]})
-        for n in range(start, start + count)
-    ]
+    return [RunRow(row=n, data={"n": n, "tags": ["a", n]}) for n in range(start, start + count)]
 
 
 COLUMNS = [
@@ -218,7 +215,7 @@ class RunContract:
             "SHA1": "da39",
             "Alert": alert,
         }
-        await storage.runs.add_rows(run.run_id, [RunRow(row=0, id=None, data=data)])
+        await storage.runs.add_rows(run.run_id, [RunRow(row=0, data=data)])
         (got,) = await storage.runs.rows(run.run_id, 0, 1)
         assert json.dumps(got.data) == json.dumps(data)
 

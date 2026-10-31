@@ -74,7 +74,7 @@ def test_the_params_reach_kusto_as_query_parameters_with_the_sidecar_kql(
 ) -> None:
     tim_kusto.respond([{"EventId": 61032, "State": "TEXAS"}, {"EventId": 60904}])
     params = {"states": ["TEXAS", "FLORIDA"], "since": "2007-09-01T00:00:00Z", "limit": 10}
-    result = run_action(actions["acme.storms"], params, connections=connections)
+    run_action(actions["acme.storms"], params, connections=connections)
     assert tim_kusto.calls == [
         KustoCall(
             "security",
@@ -87,7 +87,6 @@ def test_the_params_reach_kusto_as_query_parameters_with_the_sidecar_kql(
             },
         )
     ]
-    assert result.ids == ["61032", "60904"]
 
 
 def test_an_optional_param_without_a_value_leaves_the_kql_default(

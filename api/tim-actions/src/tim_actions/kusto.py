@@ -32,7 +32,6 @@ from tim_actions.query_parameters import (
     TakesQueryParameters,
     params_and_values,
 )
-from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
 
 # --- cluster URLs (ADR-0010's shape checks) ---------------------------------------------
@@ -573,14 +572,10 @@ _PRESET_FILE_PARAMS = ("connection", "database", "kql")
 
 
 class RunKql(TakesQueryParameters):
-    """``tim.run_kql``: ad-hoc KQL on a Kusto connection, each row's ``id`` read from the
-    ``idColumn`` param's column."""
+    """``tim.run_kql``: ad-hoc KQL on a Kusto connection. Its ``idColumn`` param names the Id
+    column its results open with."""
 
     parameter_types = QUERY_PARAMETER_TYPES
-
-    def row_id(self, params: Mapping[str, Any]) -> RowId | None:
-        column = params.get("idColumn")
-        return IdColumns([column]) if column else None
 
     def declare_statement(self, query_parameters: Sequence[QueryParameter]) -> str:
         """``declare query_parameters(name:type, …);``; empty without query parameters."""

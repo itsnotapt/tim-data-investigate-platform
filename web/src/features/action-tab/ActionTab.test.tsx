@@ -433,14 +433,14 @@ describe('ActionTab', () => {
         .getState()
         .start(uuid, 'r1', [{ name: 'User', type: 'string', declared: false }], 3);
       runRowsStore.getState().append(uuid, 'r1', [
-        { row: 0, id: null, data: { User: 'alice' } },
-        { row: 1, id: null, data: { User: 'bob' } },
+        { row: 0, data: { User: 'alice' } },
+        { row: 1, data: { User: 'bob' } },
       ]);
     });
     expect(screen.getByRole('tab', { name: 'Results · 2 of 3' })).toBeInTheDocument();
     expect(await screen.findByText('bob')).toBeInTheDocument();
     act(() => {
-      runRowsStore.getState().append(uuid, 'r1', [{ row: 2, id: null, data: { User: 'carol' } }]);
+      runRowsStore.getState().append(uuid, 'r1', [{ row: 2, data: { User: 'carol' } }]);
       runRowsStore.getState().finish(uuid, 'r1');
     });
     expect(screen.getByRole('tab', { name: 'Results · 3' })).toBeInTheDocument();
@@ -504,11 +504,10 @@ describe('ActionTab with a query param', () => {
       http.get(apiUrl('/api/runs/r1/rows'), () =>
         HttpResponse.json({
           rows: [
-            { row: 0, id: null, data: { State: 'TEXAS' } },
-            { row: 1, id: null, data: { State: 'IOWA' } },
+            { row: 0, data: { State: 'TEXAS' } },
+            { row: 1, data: { State: 'IOWA' } },
           ],
           lastRow: 2,
-          annotations: {},
           annotationVersion: 0,
         }),
       ),

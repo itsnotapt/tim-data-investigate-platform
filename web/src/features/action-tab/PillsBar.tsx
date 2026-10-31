@@ -1,6 +1,7 @@
 import UndoIcon from '@mui/icons-material/Undo';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -15,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import type { ParamErrors } from '../tabs/types';
 import { DatetimeEditor } from './DatetimeEditor';
+import { columnName } from './idColumn';
 import {
   connectionChoices,
   databaseSuggestions,
@@ -46,6 +48,21 @@ export interface PillsBarProps {
    * and the first one's popover opens when the bar mounts.
    */
   needed?: readonly string[];
+  /**
+   * Given when the action takes its Id column from a param and has results: the param's editor
+   * suggests the results' columns, and Apply to these results switches their Id column to its value.
+   */
+  idColumn?: IdColumnPill;
+}
+
+export interface IdColumnPill {
+  /** The param that names the Id column. */
+  param: string;
+  /** The results' columns. */
+  columns: readonly string[];
+  /** The results' Id column. */
+  current: string | null;
+  apply: (column: string | null) => void;
 }
 
 interface EditorProps {
@@ -296,10 +313,13 @@ export function PillsBar({
   errors,
   onReset,
   needed = [],
+  idColumn,
 }: PillsBarProps) {
   const [open, setOpen] = useState<{ name: string; anchor: HTMLElement } | null>(null);
   const pills = params.filter(hasPill);
   const editing = pills.find((p) => p.name === open?.name);
+  const editingIdColumn = idColumn !== undefined && editing?.name === idColumn.param;
+  const typedIdColumn = editingIdColumn ? columnName(values[idColumn.param]) : null;
   const chips = useRef(new Map<string, HTMLElement>());
   // The editor's field, focused once the popover has opened.
   const field = useRef<Focusable | null>(null);
@@ -377,11 +397,29 @@ export function PillsBar({
             param={editing}
             value={values[editing.name]}
             connections={connections}
-            suggestions={databaseSuggestions(editing, params, values, connections)}
+            suggestions={
+              editingIdColumn
+                ? idColumn.columns
+                : databaseSuggestions(editing, params, values, connections)
+            }
             onChange={(value) => onChange(editing.name, value)}
             onDone={() => setOpen(null)}
             focusRef={takeField}
           />
+        )}
+        {editingIdColumn && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <Button
+              size="small"
+              disabled={typedIdColumn === idColumn.current}
+              onClick={() => {
+                idColumn.apply(typedIdColumn);
+                setOpen(null);
+              }}
+            >
+              Apply to these results
+            </Button>
+          </Box>
         )}
       </Popover>
     </Box>

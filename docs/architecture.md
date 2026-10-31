@@ -162,8 +162,8 @@ Besides the common fields, an action tab's state holds:
 4. **Store.** For a succeeded run, the rows are loaded page by page from `GET /api/runs/{runId}/rows`.
    - Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load.
    - Until they all have, the tab shows "Results · 20000 of 85000".
-   - The page's `annotations` go to the annotation store before its rows reach the grid ([Annotations in the browser](#annotations-in-the-browser)).
-   - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, id, data}` rows, in one write. The tab's `resultsRunId`, `resultColumns` and row count are written with them.
+   - The grid gives each row its `id` from the results' Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
+   - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `resultsRunId`, `resultColumns` and row count are written with them.
    - A failed or abandoned load shows none of its rows.
    - A tab whose rows are stored needs no API call. So it still shows them after the run has expired on the server.
 5. **Resume.** After a reload, bootstrap calls `resumeActionRuns` once the tabs are loaded.
@@ -182,12 +182,13 @@ From the rows, an analyst pivots:
 
 ### Share links
 
-A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. The code is in `web/src/features/share-links/`.
+A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. Either form takes `idColumn=<column>` (`…?row=<n>&idColumn=<column>`) when the results' Id column isn't the one they start with. The code is in `web/src/features/share-links/`.
 
 - **Copy link.** The action tab's button in the app bar copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
 - **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
   - A `404` (unknown or expired run) or a `410` (results gone) shows only "This result is no longer available".
   - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<uuid>`. A run still going is followed, and the tab fills in when it ends.
+  - The link's `idColumn`, when it has one, becomes the tab's Id column ([The Id column](#the-id-column)).
   - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens Row detail on it, and `linkedRow` is cleared. It is also cleared when the run ends without success, when the stored rows don't have that row, and when a new run of the tab starts.
 - **Run.** Run starts a new run as the recipient, with the tab's params. For an action the instance does not know, the rows still show and Run is disabled.
 
@@ -200,12 +201,12 @@ Database `tim` (version 5):
 | Store | Key | Value |
 |---|---|---|
 | `display_components` | `componentUuid` | Tab: name (`ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
-| `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, id, data}` rows of its run |
+| `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, data}` rows of its run |
 | `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the default view an analyst chose. `scope` is `preset:<presetId>` or `action:<key>` |
 | `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
 
-Annotations are never stored in `row_results`.
+Annotations and `id`s are never stored in `row_results`.
 
 ### The tab and New menu
 
@@ -520,9 +521,9 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 
 - **The store.** `apply` writes each `Annotations` newer than the stored one to IndexedDB `annotations`, so the newest `version` wins. It then tells the listeners of every tab of the browser, over a `BroadcastChannel` named `tim-annotations`.
 - **Where annotations come from.** Each applied change has a source:
-  - `rows`: the `annotations` of a page of a run's rows;
   - `own`: the answer to the analyst's own `PATCH`;
   - `feed`: the change feed.
+  - A run's rows carry none. The grid reads them from this store, so annotations show once the feed has been loaded.
 - **The poller.** One poller runs per browser: the tab that holds the Web Lock `tim-annotations-poller`. The other tabs queue for the lock, and take over when the holder closes.
   - It reads the feed from the cursor in `annotation_sync` when it starts, every `annotationPollSeconds` (30 by default), when its window gets focus, and when asked.
   - It is asked soon after the analyst's own change. A tab that doesn't hold the lock asks the holder through the channel.
@@ -531,6 +532,21 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
   - Without Web Locks every tab polls.
 - **Starting.** Bootstrap (`web/src/app/useBootstrap.ts`) starts the poller once the instance is loaded, with the instance's `limits.annotationPollSeconds`.
 - **A new browser** starts at cursor `0` and reads the whole feed.
+
+### The Id column
+
+A row's `id` is computed in the browser, from one column of its results: the **Id column** ([GLOSSARY.md](../GLOSSARY.md)). The server stores and sends no `id`s.
+
+- **The `id`.** `rowId` (`web/src/features/labels/labelRows.ts`) takes the value of the Id column: a string as it is, anything else as its JSON. A missing or `null` value, `""`, and a value over `MAX_ID_LENGTH` (512) characters give no `id`.
+- **Where it starts.** `startingIdColumn` (`web/src/features/action-tab/idColumn.ts`) takes the `idColumn` param of the run (Run KQL, Run SQL and `dev_json`), else the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action.
+- **The tab's Id column.** `resultsIdColumn` is the tab's `state.idColumn` when the analyst has switched it, else the starting one. The tab keeps a switched column across runs. A new run of an action with an `idColumn` param takes the param's.
+- **In the grid.** `ActionResultsGrid.tsx` gives each row its `id` with `withIds`, and its annotations from the annotation store. A switch recomputes both in place and keeps the selection, filters, sort and scroll.
+- **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
+  - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
+  - An action with an `idColumn` param shows an **Id column** pill. Its editor suggests the results' columns and has **Apply to these results**.
+  - `switchIdColumn` sets the tab's `state.idColumn`. For an action with the param it also writes the param and `runParams` as the last run would have, so the params don't show as edited.
+  - A toast says "Id column set to Host: labels now follow Host". Switching back shows the earlier annotations again, as they follow the `id`s.
+- **No `id`.** A row without one can't be annotated. Row detail and the disabled items say "No id: right-click a cell and use its column as the Id column".
 
 ### Grid annotating
 
@@ -579,7 +595,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
     - its current label with a swatch;
     - who set the label and when;
     - its tags;
-  - for a row without an `id`, the reason in place of the band: "No id: set Id column and run again to annotate" or "No id: this action gives its rows no id";
+  - for a row without an `id`, the reason in place of the band: "No id: right-click a cell and use its column as the Id column";
   - the row's fields;
   - the **Comments and history** section.
 - **The fields.** They follow the run's column order: the declared columns first, then the order the query returned them, hidden columns included (`web/src/features/grid/detailText.ts`).
@@ -604,8 +620,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. D opens or closes Row detail on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
 - **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
-  - no target row has an `id`, and the action has an `idColumn` param (Run KQL): "No id: set Id column and run again to annotate";
-  - no target row has an `id`, and the action has no such param: "No id: this action gives its rows no id".
+  - no target row has an `id`: "No id: right-click a cell and use its column as the Id column".
 - **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it. The Annotate dialog's own save reports "Annotated N ids", "Commented on N ids" or "Nothing to change".
   - "Labelled 3 ids Malicious", or "Cleared the label of 3 ids". Ids that already had the label are left out of the count.
   - "Already Malicious" or "No labels to clear" when nothing changed.
@@ -690,7 +705,6 @@ Database migrations are in `api/migrations` (Alembic).
 | `labels_file.py` | The labels file: `Label`, the default labels, the loader (`load_labels_file`) and the JSON Schema (`labels_file_schema`) |
 | `hooks.py` | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema` |
 | `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
-| `rows.py` | `RowId`, how a row's `id` is taken from it, and `IdColumns` |
 | `provider.py` | `Provider` and the `tim.actions` entry-point group |
 | `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`) |
 | `query_parameters.py` | What Run KQL and Run SQL share: `TakesQueryParameters`, the base of an action with a `parameters` param, `checked_parameters`, which checks it, `declared_query_parameters` and `declare_statement`, which check and write the declare statement of a tab's query parameters, and `preset_file_params`, which makes a preset's query parameters the params of its action file |
@@ -933,7 +947,7 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `connection`: a Kusto connection;
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
-- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
+- `idColumn`, optional: the column the results' Id column starts as. Without it, the results start with no Id column;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts the declare statement `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
 A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
@@ -942,7 +956,7 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 
 - `connection`: a Snowflake connection;
 - `sql`: a `sql` param scoped by the `connection` param;
-- `idColumn`, optional: the column that gives each row its `id`. Without it, rows have no `id`;
+- `idColumn`, optional: the column the results' Id column starts as. Without it, the results start with no Id column;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` with the types of Run KQL but `timespan` ([actions.md](actions.md#query-parameters-of-run-sql)). `check_params` checks them as for Run KQL.
 
 The run sends `sql` unchanged through `SnowflakeHook.query`, with the parameters bound by position, `:1` the first. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
@@ -978,7 +992,6 @@ A run:
    - `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value. It gives one hook per connection per run.
 3. **Rows.** The thread passes each yielded row to `ResultBuilder` (`results.py`), which:
    - counts rows and bytes (compact JSON per row, summed);
-   - takes the row's `id` with `Action.row_id(params)`;
    - replaces NUL with U+FFFD;
    - builds the columns.
 
@@ -1009,8 +1022,6 @@ Cancel (`POST /api/runs/{runId}/cancel`) sets `cancel_requested` on the run.
 2. `rowCount`, when the run succeeded;
 3. the action's own `ctx.detail` values, in the order they were reported.
 
-Problems with `id` never fail the run, such as an id column missing from the results or an `id` over 512 characters. They are added to a `warning` detail.
-
 `columns` lists the declared columns first, the action's and then those the run declared. The rest follow in first-seen order. A column's type is inferred from its values:
 
 - `boolean` and `number` as themselves;
@@ -1018,10 +1029,7 @@ Problems with `id` never fail the run, such as an id column missing from the res
 - objects and arrays as `json`;
 - `string` when the values disagree or are all `null`.
 
-`id` comes from `Action.row_id(params)`, a `RowId`.
-
-- By default it is `IdColumns` over the action's `id` column or list of alternatives, taking the first that isn't `null` or `""`.
-- It is stored as text: a string as it is (not trimmed), anything else as its compact JSON. So the number `1` and the string `"1"` match.
+A run has no `id`s. The browser computes them from the Id column ([The Id column](#the-id-column)).
 
 `GET /api/runs/{runId}/rows` reads a page of `run_rows` by row number. When a succeeded run with rows has none stored, it answers `410`.
 
@@ -1148,7 +1156,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - `mostUsed` is the other tags, on the most `id`s first. A tag the caller added is only in `recent`.
 - Each list has at most 10 tags.
 
-**Rows.** `GET /api/runs/{runId}/rows` adds the annotations of its page's `id`s (`annotations`, by `id`) and `annotationVersion`, the version read before them, so the annotations are never older than it.
+**Rows.** `GET /api/runs/{runId}/rows` carries no annotations. The browser attaches them to rows from its own copy of the change feed ([Annotations in the browser](#annotations-in-the-browser)).
 
 ### Persistence
 
@@ -1165,7 +1173,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
 | `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
 | `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`, `heartbeat_at`; indexes on expiry and `running` runs, none on `heartbeat_at` so its updates can be HOT |
-| `run_rows` | `(run_id, row_number)` | `UNLOGGED`. `row_number`, `id` (text), `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
+| `run_rows` | `(run_id, row_number)` | `UNLOGGED`. `row_number`, `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
 | `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |
 | `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |

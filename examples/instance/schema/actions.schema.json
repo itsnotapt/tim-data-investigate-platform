@@ -303,14 +303,6 @@
               "type": "string"
             },
             {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "minItems": 1,
-              "type": "array"
-            },
-            {
               "type": "null"
             }
           ],
@@ -437,14 +429,6 @@
               "type": "string"
             },
             {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "minItems": 1,
-              "type": "array"
-            },
-            {
               "type": "null"
             }
           ],
@@ -548,14 +532,6 @@
             {
               "minLength": 1,
               "type": "string"
-            },
-            {
-              "items": {
-                "minLength": 1,
-                "type": "string"
-              },
-              "minItems": 1,
-              "type": "array"
             },
             {
               "type": "null"

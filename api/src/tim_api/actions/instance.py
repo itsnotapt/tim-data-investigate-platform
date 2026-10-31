@@ -84,6 +84,7 @@ def _action(action: Action | Sink) -> CatalogueAction:
         params=[_param(param) for param in action.params],
         pivot=pivot,
         columns=None if action.columns is None else [_column(c) for c in action.columns],
+        id_column=action.id,
         action_file=action.has_preset_file,
     )
 

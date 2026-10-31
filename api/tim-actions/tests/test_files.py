@@ -46,7 +46,7 @@ def test_a_sidecar_must_sit_next_to_the_action_file(tmp_path: Path) -> None:
     ]
 
 
-def test_columns_and_id_alternatives_come_through(tmp_path: Path) -> None:
+def test_columns_and_the_id_column_come_through(tmp_path: Path) -> None:
     (tmp_path / "users.yaml").write_text(
         """
 type: query
@@ -54,7 +54,7 @@ key: users
 name: Users
 pivot: row
 query: Users
-id: [CorrelationId, RequestId]
+id: CorrelationId
 columns:
   - {name: Timestamp, type: datetime, sort: desc, pinned: left}
   - {name: Kilobytes, type: number, calculated: "[Bytes] / 1024"}
@@ -62,7 +62,7 @@ columns:
     )
     [item] = load_action_files(tmp_path, TYPES).actions
     assert isinstance(item.action, Action)
-    assert item.action.id == ("CorrelationId", "RequestId")
+    assert item.action.id == "CorrelationId"
     assert item.action.columns == (
         Column("Timestamp", "datetime", sort="desc", pinned="left"),
         Column("Kilobytes", "number", calculated="[Bytes] / 1024"),

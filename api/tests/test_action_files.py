@@ -43,6 +43,7 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
             "connections": [],
             "params": [],
             "pivot": None,
+            "idColumn": "UserPrincipalName",
             "actionFile": False,
         },
         {
@@ -70,6 +71,7 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
                 },
             ],
             "pivot": {"rows": "rows", "columns": [["UserPrincipalName", "Upn"]]},
+            "idColumn": "CorrelationId",
             "actionFile": False,
             "columns": [
                 {
@@ -138,11 +140,8 @@ def test_an_unknown_field_stops_startup() -> None:
     ]
 
 
-def test_an_id_that_is_not_columns_stops_startup() -> None:
-    assert startup_problems("bad_id") == [
-        f"{at('bad_id', 5)}: id: give a column name, or a list of column names where the "
-        "first non-empty value wins"
-    ]
+def test_an_id_that_is_not_a_column_name_stops_startup() -> None:
+    assert startup_problems("bad_id") == [f"{at('bad_id', 5)}: id: Input should be a valid string"]
 
 
 def test_a_missing_sidecar_stops_startup() -> None:

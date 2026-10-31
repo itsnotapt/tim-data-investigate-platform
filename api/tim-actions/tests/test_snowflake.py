@@ -74,7 +74,7 @@ def test_run_sql_runs_the_query_and_reports_snowflakes_columns(
     columns = [Column("ID", "number"), Column("WHO", "string")]
     tim_snowflake.respond([{"ID": 7, "WHO": "a"}], columns=columns)
     result = run_sql(tim_connections, {"sql": "SELECT * FROM T", "idColumn": "ID"})
-    assert (result.rows, result.ids) == ([{"ID": 7, "WHO": "a"}], ["7"])
+    assert result.rows == [{"ID": 7, "WHO": "a"}]
     assert result.columns == columns
     assert tim_snowflake.calls == [SnowflakeCall("warehouse", "SELECT * FROM T")]
 
@@ -110,14 +110,6 @@ def test_run_sqls_query_parameters_are_bound_in_their_order(
             ),
         )
     ]
-
-
-def test_without_an_id_column_the_rows_have_no_id(
-    tim_snowflake: FakeSnowflake, tim_connections: Connections
-) -> None:
-    tim_connections.add(CONNECTION)
-    tim_snowflake.respond([{"ID": 7}])
-    assert run_sql(tim_connections, {}).ids == [None]
 
 
 def test_a_failed_query_ends_the_run_with_snowflakes_message(

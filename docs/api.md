@@ -35,7 +35,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
 | GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run (any signed-in analyst with the `runId`). |
 | POST | `/api/runs/{runId}/cancel` | 200 | 401, 404, 422 | Cancel a run (owner only; idempotent). |
-| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows, with their annotations (any signed-in analyst with the `runId`). |
+| GET | `/api/runs/{runId}/rows` | 200 | 401, 404, 409, 410, 422 | Read a page of a run's rows (any signed-in analyst with the `runId`). |
 | PATCH | `/api/annotations` | 200 | 400, 401, 422 | Change the label, tags and the caller's comment on `id`s. |
 | GET | `/api/annotations/changes` | 200 | 401, 422 | The change feed: the `id`s changed after a version. |
 | GET | `/api/annotations/history` | 200 | 401, 422 | The history of an `id`: its label changes and each author's current comment, newest first. |
@@ -114,13 +114,14 @@ What the browser needs to know about this instance, built once at startup from t
 ```
 
 - `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, the labels file, and the rest of this body. It changes when any of them does, for example after a rolling update.
-- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, actionFile}`:
+- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, idColumn?, actionFile}`:
   - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []`, `pivot: {rows: "rows", columns: []}` and `actionFile: false`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
+  - `idColumn` is the column the action's results start with as their Id column: the `id` of its action file. It is left out when the action has none. An `idColumn` param's value takes its place ([architecture.md](architecture.md#the-id-column)).
   - `actionFile` is whether a preset of the action can be copied as an action file ([GET /api/presets/{presetId}/actionFile](#get-apipresetspresetidactionfile)).
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql` for Kusto, `sql` for Snowflake). `databases` are the suggestions a Kusto or `dev_kql` connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
@@ -236,15 +237,13 @@ Only the owner can cancel; anyone else gets the same `404` as for an unknown run
 Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `startRow + rowsPageSize`). Returns the rows with `startRow <= row < endRow`:
 
 ```
-{rows: [{row, id, data}], lastRow, annotations: {id: Annotations}, annotationVersion}
+{rows: [{row, data}], lastRow}
 ```
 
 - `row` is the row number, from `0`, unique within the run.
-- `id` is the row's `id` as text, or `null` when it has none. Rows can share an `id`.
 - `data` is the row as the action returned it, as column-name to value; datetimes are ISO 8601 strings, and NaN and infinities are `null`.
 - `lastRow` is the run's row count. A page past it is empty.
-- `annotations` holds the [Annotations](#annotations) of the page's `id`s, by `id`. An `id` that was never annotated has none. An `id` whose annotations were all removed has an entry with `label: null`.
-- `annotationVersion` is the change feed version the annotations are current as of. They are never older than it.
+- Rows carry no `id` and no annotations. The browser takes a row's `id` from one column and its annotations from the [change feed](#get-apiannotationschanges) ([architecture.md](architecture.md#the-id-column)).
 
 `409 run-not-succeeded` when the run isn't `succeeded`. `410 results-gone` when it succeeded with rows but they are no longer stored, after a database crash or failover; the run can be started again.
 
@@ -260,7 +259,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 | `startedAt` | datetime | |
 | `finishedAt` | datetime | Once the run has ended. |
 | `expiresAt` | datetime | |
-| `details` | object | Scalars: `duration` (seconds), `inputRowCount` for a sink, `rowCount` when a query action succeeded, then the action's own, in the order reported. A `warning` holds problems with the rows' `id`s, which never fail the run: an `id` column no row carries (`Id column CorrelationId not in results`), and rows whose `id` is over 512 characters, which get no `id` (`N row(s) have an id over 512 characters and get no id`). An action's own `warning` comes first, joined with `; `. |
+| `details` | object | Scalars: `duration` (seconds), `inputRowCount` for a sink, `rowCount` when a query action succeeded, then the action's own, in the order reported. |
 | `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first, without TIM's own `tim:` columns, and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json` or `bigint`; only an action file declares `bigint`, and its whole-number values are served as strings of digits. |
 | `rowCount` | integer | When succeeded. |
 | `error` | string | A message safe to show, when `error` or `timedOut`. |
