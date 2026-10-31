@@ -175,3 +175,33 @@ def test_an_obo_connection_without_an_obo_credential_stops_startup(
         TestClient(create_test_app(providers=None)),
     ):
         pass
+
+
+EMULATOR = """\
+- name: emulator
+  title: Emulator
+  type: kusto
+  auth: none
+  cluster: http://kusto:8080
+"""
+
+
+def test_a_connection_without_auth_stops_startup_in_production(
+    connections: Path,
+) -> None:
+    connections.write_text(EMULATOR)
+    assert startup_problems([Provider(hooks=[KustoHook])]) == [
+        f"{connections}: connection emulator: auth none is not allowed when "
+        "TIM_ENVIRONMENT=production"
+    ]
+
+
+def test_a_connection_without_auth_needs_no_obo_credential_in_development(
+    connections: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connections.write_text(EMULATOR)
+    monkeypatch.setenv("TIM_ENVIRONMENT", "development")
+    monkeypatch.delenv("TIM_AUTH_CLIENT_SECRET")
+    with TestClient(create_test_app(providers=[Provider(hooks=[KustoHook])])) as client:
+        [connection] = client.app.state.instance.connections  # type: ignore[attr-defined]
+        assert connection.name == "emulator"

@@ -195,14 +195,19 @@ The connections file lists the instance's **connections**: the fixed endpoints a
 
 Every entry has `name`, `title`, `type` and `auth`, and a `scope` for `obo` that some connection types default, plus the fields of its connection type. A connection type comes from an installed provider, which adds a hook for it ([Writing connection types and hooks](#writing-connection-types-and-hooks)); an unknown `type` or field stops startup, with the file and line.
 
-`auth` says whose identity the system behind the connection sees.
+`auth` says whose identity the system behind the connection sees. A connection type lists the `auth` values it supports: `kusto` supports `obo` and `none`, `snowflake` supports `obo` and `workload_identity`.
 
 - **`obo`** runs as the analyst.
   - TIM exchanges the analyst's token for the connection's `scope` ([ADR-0009](adr/0009-obo-token-exchange.md)).
   - An instance that has an `obo` connection needs the OBO credential ([configuration.md](configuration.md#authentication)).
-- **`workload_identity`** runs as TIM, so every analyst gets TIM's access. The example's `regions` connection is one. A connection type lists the `auth` values it supports; `snowflake` supports both, `kusto` only `obo`.
+- **`workload_identity`** runs as TIM, so every analyst gets TIM's access. The example's `regions` connection is one.
   - A `scope` on it stops startup: the connections file refuses it with "scope is only for auth obo".
   - An instance whose connections all use `workload_identity` needs no OBO credential.
+- **`none`** sends no token, so the system behind the connection sees TIM as anonymous.
+  - It is for a local Kusto emulator in development ([ADR-0026](adr/0026-a-demo-instance-needs-no-accounts.md)).
+  - The api refuses to start with one when `TIM_ENVIRONMENT=production`.
+  - A `scope` on it stops startup with the same message.
+  - It needs no OBO credential.
 
 Every analyst sees every connection. The system behind it enforces access.
 
@@ -210,9 +215,9 @@ The `kusto` connection type, from the `kusto` extra of `tim-actions`:
 
 | Field | Required | Description |
 |---|---|---|
-| `cluster` | yes | The cluster's https URL, checked and normalised to `https://<host>` at startup. |
+| `cluster` | yes | The cluster's URL, checked and normalised at startup: `https://<host>` for `obo`, `<scheme>://<host>[:<port>]` for `none`, which may be `http` or `https`. |
 | `databases` | no | Database names suggested for the `database` param of actions on this connection. The analyst can type another. |
-| `scope` | no | The OBO scope, `{cluster}/.default` when left out. |
+| `scope` | no | The OBO scope, `{cluster}/.default` when left out. `none` refuses it. |
 
 The `snowflake` connection type, from the `snowflake` extra of `tim-actions`:
 

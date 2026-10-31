@@ -26,7 +26,8 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
 - **`TIM_ENVIRONMENT` defaults to `production`.** These dev-only switches are refused or silently ignored unless it is `development` ([ADR-0011](adr/0011-development-only-modes.md)):
   - `TIM_AUTH_DISABLED`;
   - `TIM_DEV_ACTIONS`;
-  - `TIM_DATABASE_URL=memory://`.
+  - `TIM_DATABASE_URL=memory://`;
+  - a kusto connection with `auth: none`.
 
   `api/.env.example` sets it to `development`.
 - **A connection that uses `obo` needs a credential at startup, unless auth is disabled.** This applies when `TIM_CONNECTIONS_FILE` names such a connection. Set one of:

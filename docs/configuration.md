@@ -28,7 +28,7 @@ How values are read:
 
 | Variable          | Default      | Required | Description                                                                                                |
 | ----------------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `TIM_ENVIRONMENT` | `production` | no       | `development` or `production`. Production refuses `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true` and a `memory://` database URL. |
+| `TIM_ENVIRONMENT` | `production` | no       | `development` or `production`. Production refuses `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true`, a `memory://` database URL and a connection with `auth: none`. |
 | `TIM_LOG_LEVEL`   | `INFO`       | no       | `CRITICAL`, `ERROR`, `WARNING`, `INFO` or `DEBUG`. Applies to the `tim_api` logger.                        |
 
 ### Authentication
@@ -62,22 +62,22 @@ The file is a YAML list of the instance's connections. Each entry has:
 | `name`  | yes | Lowercase letters, digits and `-`, unique in the file. Actions and the browser refer to the connection by it. |
 | `title` | yes | What analysts see. |
 | `type`  | yes | A connection type installed in the image; `tim-api schema connections` lists them. |
-| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity`: runs as TIM; the `snowflake` type supports it, the `kusto` type supports only `obo`. |
+| `auth`  | yes | `obo`: runs as the analyst, through an on-behalf-of token. `workload_identity`: runs as TIM. `none`: sends no token, for a local Kusto emulator in development ([ADR-0026](adr/0026-a-demo-instance-needs-no-accounts.md)); the api refuses to start with one when `TIM_ENVIRONMENT=production`. The `kusto` type supports `obo` and `none`; the `snowflake` type supports `obo` and `workload_identity`. |
 | `scope` | for `obo` | The scope an `obo` token is requested for; the type may default it (`kusto` does, `snowflake` doesn't). Any other `auth` refuses it ("scope is only for auth obo"). |
 
 The `kusto` connection type adds `cluster` (required), `databases` (optional) and `scope`:
 
 | Field       | Description |
 | ----------- | ----------- |
-| `cluster`   | An absolute https URL of a plain DNS host with no credentials, port other than 443, path, query or fragment, and not an IP address. It is normalised to `https://<host>` at startup. |
+| `cluster`   | An absolute URL of a plain DNS host with no credentials, path, query or fragment, and not an IP address. With `obo` it is `https` on port 443 only, and is normalised to `https://<host>` at startup. With `none` it may be `http` or `https` and keeps its port, normalised to `<scheme>://<host>[:<port>]`. |
 | `databases` | Database names the browser suggests for Run KQL's `database` param. Not a restriction. |
-| `scope`     | The OBO scope. Defaults to `{cluster}/.default`. |
+| `scope`     | The OBO scope. Defaults to `{cluster}/.default`. `none` refuses it. |
 
 A `cluster` is checked when the file is read. A rejected value stops startup with the reason.
 
-- It is an absolute `https://` URL, with no whitespace or control characters.
+- It is an absolute URL, with no whitespace or control characters. With `obo` the scheme is `https`; with `none` it is `http` or `https`.
 - It has no credentials, query, fragment or path (a trailing `/` is accepted), and no IP address literal.
-- Its port is omitted or `443`.
+- With `obo`, its port is omitted or `443`. With `none`, any port is kept.
 - Its host is a valid domain name; an internationalised name is converted to punycode.
 
 The `snowflake` connection type adds `account`, `warehouse`, `role` (optional) and `scope`:

@@ -17,7 +17,7 @@ from uuid import uuid4
 
 from azure.kusto.data import ClientRequestProperties, KustoClient, KustoConnectionStringBuilder
 from azure.kusto.data import exceptions as kusto_exc
-from pydantic import field_validator
+from pydantic import ValidationInfo, field_validator
 
 from tim_actions import connections
 from tim_actions._common import NonBlankStr
@@ -60,10 +60,13 @@ def _ascii_host(host: str) -> str:
     return ascii_host
 
 
-def normalise_cluster_url(url: str) -> str:
+def normalise_cluster_url(url: str, *, https_only: bool = True) -> str:
     """``https://<host>`` for a cluster URL: an absolute ``https`` URL with a plain DNS host and
     no credentials, port other than 443, path, query or fragment. Raises ``ValueError`` with the
-    reason otherwise."""
+    reason otherwise.
+
+    Without ``https_only``, an ``http`` URL is accepted too, and the scheme and any port are
+    kept: ``<scheme>://<host>[:<port>]``."""
     raw = url.strip() if isinstance(url, str) else ""
     if not raw:
         raise ValueError("value is required")
@@ -73,8 +76,10 @@ def normalise_cluster_url(url: str) -> str:
         parts = urlsplit(raw)
     except ValueError:
         raise ValueError("not a valid URL") from None
-    if parts.scheme.lower() != "https" or not raw.lower().startswith("https://"):
-        raise ValueError("must be an absolute https URL")
+    schemes = ("https",) if https_only else ("http", "https")
+    scheme = parts.scheme.lower()
+    if scheme not in schemes or not raw.lower().startswith(f"{scheme}://"):
+        raise ValueError(f"must be an absolute {' or '.join(schemes)} URL")
     if parts.query or parts.fragment or "?" in raw or "#" in raw:
         raise ValueError("must not contain a query or fragment")
     if parts.path not in ("", "/"):
@@ -88,7 +93,9 @@ def normalise_cluster_url(url: str) -> str:
         port = parts.port
     except ValueError:
         raise ValueError("invalid port") from None
-    if netloc.endswith(":") or (port is not None and port != 443):
+    if netloc.endswith(":"):
+        raise ValueError("invalid port")
+    if https_only and port is not None and port != 443:
         raise ValueError("port must be omitted or 443")
     hostname = parts.hostname
     if not hostname:
@@ -98,26 +105,30 @@ def normalise_cluster_url(url: str) -> str:
     host = _ascii_host(hostname)
     if _is_ip_literal(host):
         raise ValueError("must not be an IP address")
-    return f"https://{host}"
+    if https_only:
+        return f"https://{host}"
+    return f"{scheme}://{host}" if port is None else f"{scheme}://{host}:{port}"
 
 
 # --- the connection type ----------------------------------------------------------------
 
 
 class KustoConnection(Connection):
-    """A Kusto cluster. ``cluster`` is normalised to ``https://<host>``; ``databases`` are
-    suggestions for the analyst, not a restriction. The ``obo`` scope defaults to
-    ``{cluster}/.default``."""
+    """A Kusto cluster. ``databases`` are suggestions for the analyst, not a restriction.
+
+    With ``auth: obo``, ``cluster`` is normalised to ``https://<host>`` and the scope defaults
+    to ``{cluster}/.default``. ``auth: none`` is for a local Kusto emulator in development
+    (ADR-0026): ``cluster`` may be ``http`` too, and keeps its scheme and port."""
 
     type: Literal["kusto"]
-    auth: Literal["obo"]
+    auth: Literal["obo", "none"]
     cluster: str
     databases: tuple[NonBlankStr, ...] | None = None
 
     @field_validator("cluster")
     @classmethod
-    def _cluster(cls, value: str) -> str:
-        return normalise_cluster_url(value)
+    def _cluster(cls, value: str, info: ValidationInfo) -> str:
+        return normalise_cluster_url(value, https_only=info.data.get("auth") != "none")
 
     def default_scope(self) -> str:
         return f"{self.cluster}/.default"
@@ -382,8 +393,11 @@ class SdkClient(Protocol):
     def close(self) -> None: ...
 
 
-def _sdk_client(cluster: str, token: str) -> SdkClient:
-    kcsb = KustoConnectionStringBuilder.with_aad_user_token_authentication(cluster, token)
+def _sdk_client(cluster: str, token: str | None) -> SdkClient:
+    if token is None:
+        kcsb = KustoConnectionStringBuilder.with_no_authentication(cluster)
+    else:
+        kcsb = KustoConnectionStringBuilder.with_aad_user_token_authentication(cluster, token)
     return KustoClient(kcsb)
 
 
@@ -460,13 +474,14 @@ class KustoHook(Hook):
     """Runs KQL on one Kusto cluster as the analyst.
 
     Each query carries a client request id, so ``cancel`` can name it in ``.cancel query``.
-    ``client_factory`` builds the SDK client from the cluster URL and a token.
+    ``client_factory`` builds the SDK client from the cluster URL and a token, or ``None`` for a
+    connection with ``auth: none``.
     """
 
     connection_type = "kusto"
     Connection = KustoConnection
     editor = "kql"
-    client_factory: ClassVar[staticmethod[[str, str], SdkClient]] = staticmethod(_sdk_client)
+    client_factory: ClassVar[staticmethod[[str, str | None], SdkClient]] = staticmethod(_sdk_client)
 
     connection: KustoConnection
 
@@ -477,9 +492,10 @@ class KustoHook(Hook):
         self._cancelled = False
 
     def get_conn(self) -> SdkClient:
-        """An SDK client for the cluster, with a token for the analyst."""
-        scope = self.connection.scope or self.connection.default_scope()
-        return self.client_factory(self.connection.cluster, self.token_for(scope))
+        """An SDK client for the cluster, with a token for the analyst, or none without auth."""
+        scope = self.connection.obo_scope
+        token = None if scope is None else self.token_for(scope)
+        return self.client_factory(self.connection.cluster, token)
 
     def query(
         self,

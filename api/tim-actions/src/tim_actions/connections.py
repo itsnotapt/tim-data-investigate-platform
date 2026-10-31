@@ -12,9 +12,10 @@ from tim_actions._common import NonBlankStr
 ConnectionName = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]+$")]
 """Lowercase letters, digits and ``-``."""
 
-Auth = Literal["obo", "workload_identity"]
+Auth = Literal["obo", "workload_identity", "none"]
 """Whose identity the system behind the connection sees: ``obo``, the analyst's, through an
-on-behalf-of token for the connection's scope; ``workload_identity``, TIM's own."""
+on-behalf-of token for the connection's scope; ``workload_identity``, TIM's own; ``none``, no
+one's, for a system without authentication in development (ADR-0026)."""
 
 
 class Connection(BaseModel):

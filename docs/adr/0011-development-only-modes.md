@@ -5,17 +5,18 @@ date: 2026-10-06
 
 # Development-only modes refuse to run in production
 
-Local work and tests need to run without Entra, Postgres or a Kusto cluster, but those shortcuts must never reach a deployment, where they would drop authentication or lose data on restart. `TIM_ENVIRONMENT` is `development` or `production` and **defaults to `production`**, and settings validation (`api/src/tim_api/config.py`) makes the app fail at startup if a shortcut is enabled in production.
+Local work and tests need to run without Entra, Postgres or a Kusto cluster, but those shortcuts must never reach a deployment, where they would drop authentication or lose data on restart. `TIM_ENVIRONMENT` is `development` or `production` and **defaults to `production`**, and the app fails at startup if a shortcut is enabled in production. Settings validation (`api/src/tim_api/config.py`) checks the settings; the registry build (`api/src/tim_api/actions/registry.py`) checks the connections file.
 
 | Mode | Setting | Effect | In production |
 |---|---|---|---|
 | In-memory storage | `TIM_DATABASE_URL=memory://` | Data lives in the process and is lost on restart | Refuses to start |
 | Auth bypass | `TIM_AUTH_DISABLED=true` | Every request runs as the user named by the stub token (`dev:<upn>`), or a fixed dev user without one. OBO is unavailable (503). A warning is logged at startup | Refuses to start |
 | Development actions | `TIM_DEV_ACTIONS=true` | Registers `tim.dev_json`, `tim.dev_run_kql`, the `dev_rows` and `dev_sink` action types and the `dev_kql` connection type. A warning is logged at startup | Refuses to start |
+| Kusto without a token | `auth: none` on a `kusto` connection in the connections file | Queries go to the cluster without a token, and its `cluster` may be `http`. | Refuses to start |
 
 The auth bypass is also re-checked when each request is authenticated (`api/src/tim_api/auth/dependencies.py`).
 
-Decided by the user. Related: [0004](0004-postgresql-persistence.md), [0005](0005-auth-entra-popup-obo.md), [configuration](../configuration.md).
+Decided by the user. Related: [0004](0004-postgresql-persistence.md), [0005](0005-auth-entra-popup-obo.md), [0026](0026-a-demo-instance-needs-no-accounts.md), [configuration](../configuration.md).
 
 ## Considered Options
 

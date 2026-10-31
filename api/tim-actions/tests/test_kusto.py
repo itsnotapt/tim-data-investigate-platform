@@ -56,13 +56,13 @@ class FakeSdkClient:
         self.tables: list[Any] = []
         self.error: Exception | None = None
         self.hold = False
-        self.clients: list[tuple[str, str]] = []
+        self.clients: list[tuple[str, str | None]] = []
         self.queries: list[tuple[str, str, ClientRequestProperties]] = []
         self.commands: list[tuple[str | None, str]] = []
         self.querying = threading.Event()
         self.cancelled = threading.Event()
 
-    def __call__(self, cluster: str, token: str) -> "FakeSdkClient":
+    def __call__(self, cluster: str, token: str | None) -> "FakeSdkClient":
         self.clients.append((cluster, token))
         return self
 
@@ -172,6 +172,21 @@ def test_the_hook_queries_as_the_analyst_and_gives_columns_rows_and_metrics(
     assert timedelta(seconds=25) < timeout <= timedelta(seconds=30)
 
 
+def test_the_hook_of_a_connection_without_auth_queries_without_a_token(
+    sdk: FakeSdkClient,
+) -> None:
+    def no_token(scope: str) -> str:
+        raise AssertionError(f"asked for a token for {scope}")
+
+    sdk.tables = [table("PrimaryResult", [("Id", "long")], [[7]]), STATS]
+    connection = emulator(cluster="http://kusto:8080")
+    result = KustoHook(connection, no_token).query(
+        "Samples", "T", deadline=datetime.now(UTC) + timedelta(seconds=30)
+    )
+    assert result.rows == [{"Id": 7}]
+    assert sdk.clients == [("http://kusto:8080", None)]
+
+
 def test_a_kusto_error_raises_a_run_error_with_its_message(sdk: FakeSdkClient) -> None:
     sdk.error = kusto_exc.KustoServiceError("Semantic error: no T\n   at Kusto.Engine.Run()")
     with pytest.raises(RunError, match=r"^Semantic error: no T$"):
@@ -238,6 +253,26 @@ def test_a_cluster_url_is_normalised(url: str, normalised: str) -> None:
 def test_a_cluster_url_of_another_shape_is_refused(url: str, reason: str) -> None:
     with pytest.raises(ValueError, match=reason):
         normalise_cluster_url(url)
+
+
+def emulator(**fields: Any) -> KustoConnection:
+    return KustoConnection.model_validate(
+        {"name": "security", "title": "Security", "type": "kusto", "auth": "none", **fields}
+    )
+
+
+@pytest.mark.parametrize(
+    ("url", "normalised"),
+    [
+        ("http://Kusto:8080/", "http://kusto:8080"),
+        ("http://kusto", "http://kusto"),
+        ("https://kusto:8443", "https://kusto:8443"),
+    ],
+)
+def test_a_connection_without_auth_keeps_the_clusters_scheme_and_port(
+    url: str, normalised: str
+) -> None:
+    assert emulator(cluster=url).cluster == normalised
 
 
 @pytest.mark.parametrize(
@@ -381,3 +416,28 @@ def test_a_preset_file_has_the_id_column_as_its_id(
     )
     assert file is not None
     assert file.id == expected
+
+
+def test_a_connection_without_auth_takes_no_scope() -> None:
+    with pytest.raises(ValueError, match="scope is only for auth obo"):
+        emulator(cluster="http://kusto:8080", scope="api://kusto/.default")
+
+
+def test_an_obo_connection_still_needs_an_https_cluster() -> None:
+    with pytest.raises(ValueError, match="absolute https"):
+        KustoConnection.model_validate(
+            {
+                "name": "security",
+                "title": "Security",
+                "type": "kusto",
+                "auth": "obo",
+                "cluster": "http://kusto:8080",
+            }
+        )
+
+
+def test_a_connection_without_auth_still_refuses_other_shapes() -> None:
+    with pytest.raises(ValueError, match="absolute http or https"):
+        emulator(cluster="ftp://kusto")
+    with pytest.raises(ValueError, match="path"):
+        emulator(cluster="http://kusto:8080/db")

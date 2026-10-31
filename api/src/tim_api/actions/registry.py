@@ -169,10 +169,12 @@ def build_registry(
     action_files: bool = True,
     connections_file: Path | None = None,
     labels_file: Path | None = None,
+    production: bool = True,
 ) -> Registry:
     """Check the providers against each other, load their action files and those in
     ``actions_dir``, the connections file and the labels file, and index what they add.
-    ``action_files=False`` loads no files, for what needs only the action types."""
+    ``action_files=False`` loads no files, for what needs only the action types.
+    ``production`` refuses connections with ``auth: none`` (ADR-0026)."""
     problems: list[str | None] = []
     actions: dict[str, tuple[Action | Sink, str]] = {}
     action_types: dict[str, tuple[ActionType, str]] = {}
@@ -220,6 +222,13 @@ def build_registry(
         problems.extend(from_file.problems)
         connections = from_file.connections
         files.extend(from_file.files)
+        if production:
+            problems.extend(
+                f"{connections_file}: connection {name}: auth none is not allowed when "
+                "TIM_ENVIRONMENT=production"
+                for name, connection in connections.items()
+                if connection.auth == "none"
+            )
     if action_files:
         problems.extend(_fixed_connection_problems(actions, connections))
     labels = DEFAULT_LABELS
