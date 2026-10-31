@@ -1,4 +1,4 @@
-# The instance's CI: the tests in the image, the image build, `tim-api check` on config/ and the
+# The example's CI: the tests in the image, the image build, `tim-api check` on config/ and the
 # committed schema (ci.sh). TIM's own CI runs ci.sh too, against each PR's api image.
 name: CI
 
@@ -24,5 +24,5 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.2.0
 
-      - name: Check the instance
+      - name: Check the example
         run: ./ci.sh "$TIM_API_IMAGE"

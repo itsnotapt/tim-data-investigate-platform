@@ -1,6 +1,6 @@
 # Actions
 
-The guide for operators and action authors. It covers what an instance holds, how to write and check its files, how to write action types, connection types and providers, and how to test, build and deploy them. It walks through [`examples/instance/`](../examples/instance/README.md).
+The guide for operators and action authors. It covers what an instance holds, how to write and check its files, how to write action types, connection types and providers, and how to test, build and deploy them. It walks through [`examples/deployment/`](../examples/deployment/README.md).
 
 - How TIM loads them is in [architecture.md](architecture.md#actions-and-providers).
 - The decisions are [ADR-0017](adr/0017-actions-from-providers.md) and, for connections, [ADR-0018](adr/0018-fixed-connections.md).
@@ -16,9 +16,9 @@ The three kinds of file are mounted under `/etc/tim`. All are read once, at star
 
 ## Action files
 
-The examples here are from [`examples/instance/`](../examples/instance/README.md), an instance laid out as its own repository. An action file holds one or more actions, one YAML document each, with `---` between them. Each action names an installed, file-capable action type in `type`, and gives its `key` and the rest of its configuration. Each document is validated on its own.
+The examples here are from [`examples/deployment/`](../examples/deployment/README.md), the repository behind a deployment. An action file holds one or more actions, one YAML document each, with `---` between them. Each action names an installed, file-capable action type in `type`, and gives its `key` and the rest of its configuration. Each document is validated on its own.
 
-[`config/actions/storm-events.yaml`](../examples/instance/config/actions/storm-events.yaml) holds two `kql_query` actions, shown here without some of their params, columns and KQL:
+[`config/actions/storm-events.yaml`](../examples/deployment/config/actions/storm-events.yaml) holds two `kql_query` actions, shown here without some of their params, columns and KQL:
 
 ```yaml
 # yaml-language-server: $schema=../../schema/actions.schema.json
@@ -157,7 +157,7 @@ A query can be written in one of two places. Give one or the other, not both.
   - The action type marks which of its fields take a sidecar. For a `kql_query` it is `kql_file`.
   - The sidecar is a file name in the same directory as the action file, not a path.
 
-The sidecar [`storm-events.kql`](../examples/instance/config/actions/storm-events.kql) declares the params it uses:
+The sidecar [`storm-events.kql`](../examples/deployment/config/actions/storm-events.kql) declares the params it uses:
 
 ```kusto
 declare query_parameters(states: dynamic, since: datetime = datetime(2007-01-01),
@@ -174,7 +174,7 @@ One file can hold several actions, as `storm-events.yaml` does. Each has its own
 
 ## Connections file
 
-The connections file lists the instance's **connections**: the fixed endpoints actions run against. It is a YAML list, one entry per connection. Analysts never type an endpoint; they pick a connection by its title. The example's [`connections.yaml`](../examples/instance/config/connections.yaml) holds a Kusto connection and a `lookup` one:
+The connections file lists the instance's **connections**: the fixed endpoints actions run against. It is a YAML list, one entry per connection. Analysts never type an endpoint; they pick a connection by its title. The example's [`connections.yaml`](../examples/deployment/config/connections.yaml) holds a Kusto connection and a `lookup` one:
 
 ```yaml
 # yaml-language-server: $schema=../schema/connections.schema.json
@@ -238,7 +238,7 @@ Before a run exists TIM gets each `obo` token it needs, so a consent or sign-in 
 
 The labels file lists the instance's **labels**: what analysts can mark a row with. It is a YAML list, one entry per label. Without it the instance has Malicious (red, skull), Suspicious (amber, warning) and Benign (green, check).
 
-The example's [`labels.yaml`](../examples/instance/config/labels.yaml):
+The example's [`labels.yaml`](../examples/deployment/config/labels.yaml):
 
 ```yaml
 # yaml-language-server: $schema=../schema/labels.schema.json
@@ -413,18 +413,18 @@ docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connect
 ```
 
 - **In the editor:** run `tim-api schema` in the derived image, so the schemas include the providers' types, and commit the output for `yaml-language-server`.
-  - The example's [`schema.sh`](../examples/instance/schema.sh) builds the image and writes `schema/actions.schema.json`, `schema/connections.schema.json` and `schema/labels.schema.json`.
+  - The example's [`schema.sh`](../examples/deployment/schema.sh) builds the image and writes `schema/actions.schema.json`, `schema/connections.schema.json` and `schema/labels.schema.json`.
   - Each file starts with a `# yaml-language-server: $schema=...` line that points at its schema, such as `$schema=../../schema/actions.schema.json`. A `yaml.schemas` setting does the same.
   - The editor completes and checks the fields of each document by its `type`.
   - Regenerate the schemas when the image's providers or the TIM version change.
 - **In CI:** run `tim-api check --actions <dir> --connections <file> --labels <file>` with the image you deploy. It prints the actions left out of the catalogue, then `OK: <n> actions, <m> connections, <k> labels`, or the same `<file>:<line>: <field>: <message>` problems startup reports and exits 1.
-  - The example's [`ci.sh`](../examples/instance/ci.sh) runs `tim-api check` on `config/`.
+  - The example's [`ci.sh`](../examples/deployment/ci.sh) runs `tim-api check` on `config/`.
   - It compares each committed schema with the image's, and fails when one is stale.
   - It validates each YAML document, those of the package data included, against its schema, as an editor does.
 
 ## Writing action types
 
-An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`. [`storm_summary.py`](../examples/instance/src/example_provider/storm_summary.py) is the example.
+An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`. [`storm_summary.py`](../examples/deployment/src/example_provider/storm_summary.py) is the example.
 
 - **`Param`** declares a param as data, with the fields of [Params](#params). `Column` declares a result column the same way, with the fields of [Columns](#columns). An invalid declaration fails when it is constructed.
 - **`run(params, ctx)`** is synchronous and yields rows as mappings.
@@ -491,7 +491,7 @@ TIM validates each document against the `File` model, then builds the action wit
 
 - The action type's docstring becomes the type's description in the schema.
 
-The action file [`storm-summary.yaml`](../examples/instance/src/example_provider/actions/storm-summary.yaml) then needs no `params`. A field of the `File` model annotated `Sidecar()` reads `<field>_file:`; `kql_query` does so for `kql`.
+The action file [`storm-summary.yaml`](../examples/deployment/src/example_provider/actions/storm-summary.yaml) then needs no `params`. A field of the `File` model annotated `Sidecar()` reads `<field>_file:`; `kql_query` does so for `kql`.
 
 ### Pivots
 
@@ -549,7 +549,7 @@ An action type can say how a preset of its actions becomes an action file by ove
 
 ## Writing connection types and hooks
 
-A connection type has two parts: a `Connection` model for its entries in the connections file, and a `Hook` that gives actions access to the system behind the connection. [`lookup.py`](../examples/instance/src/example_provider/lookup.py) is the example.
+A connection type has two parts: a `Connection` model for its entries in the connections file, and a `Hook` that gives actions access to the system behind the connection. [`lookup.py`](../examples/deployment/src/example_provider/lookup.py) is the example.
 
 `Connection` is a subclass of `tim_actions.Connection`. It narrows `type` to the type's name and `auth` to the mechanisms it supports, and adds the type's fields:
 
@@ -603,7 +603,7 @@ table = hook.get_conn()
 
 ## Providers
 
-A provider is what a package adds to TIM. `Provider` takes four lists, all optional. The example's [`__init__.py`](../examples/instance/src/example_provider/__init__.py):
+A provider is what a package adds to TIM. `Provider` takes four lists, all optional. The example's [`__init__.py`](../examples/deployment/src/example_provider/__init__.py):
 
 ```python
 def provider() -> Provider:
@@ -620,7 +620,7 @@ def provider() -> Provider:
 - **`hooks`** are the hooks of the connection types the package adds.
 - **`action_files`** is a directory of action files in the package data, read like `TIM_ACTIONS_DIR`. Its files can name any installed action type, not only the package's own.
 
-TIM finds the provider through the `tim.actions` entry-point group. The callable that returns it is named in [`pyproject.toml`](../examples/instance/pyproject.toml):
+TIM finds the provider through the `tim.actions` entry-point group. The callable that returns it is named in [`pyproject.toml`](../examples/deployment/pyproject.toml):
 
 ```toml
 [project]
@@ -675,7 +675,7 @@ The package registers a `pytest11` plugin, so the fixtures need no import.
   - `calls` lists each query as `SnowflakeCall(connection, sql, params)`, where `params` is a tuple of the values bound, `:1` first.
   - A query with no answer queued fails the test, and so does reaching a Snowflake account, as the editor schema does.
 
-The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them.
+The tests in [`examples/deployment/tests/`](../examples/deployment/tests/) show them.
 
 - **A fake Kusto.** `tim_kusto` records the KQL and parameters sent, so a test of `StormSummary` checks that the params are bound by name:
 
@@ -715,7 +715,7 @@ The tests also run inside the derived image ([Building and deploying](#building-
 
 An instance's providers reach it in a [derived image](deployment.md#derived-images), and its files are mounted under `/etc/tim`.
 
-The example's [`Dockerfile`](../examples/instance/Dockerfile) installs the provider into the api image against its constraints, and has a `test` stage:
+The example's [`Dockerfile`](../examples/deployment/Dockerfile) installs the provider into the api image against its constraints, and has a `test` stage:
 
 ```dockerfile
 ARG BASE
@@ -742,13 +742,13 @@ FROM instance
 
 Then deploy it with Helm or Compose.
 
-- **Helm.** [`deploy/helm/values.yaml`](../examples/instance/deploy/helm/values.yaml) goes on top of the operator's values:
+- **Helm.** [`deploy/helm/values.yaml`](../examples/deployment/deploy/helm/values.yaml) goes on top of the operator's values:
   - `helm upgrade --install tim oci://ghcr.io/itsnotapt/tim-data-investigate-platform/charts/tim --version X.Y.Z -n tim -f <your values> -f values.yaml`.
   - `api.image.repository` and `api.image.tag` name the derived image. `api.image.digest` also works.
   - `actions.files` holds the files of `config/actions/`, sidecars included, by file name. `actions.existingConfigMap` is the alternative.
   - `connections` and `labels` hold the other two files as YAML ([deployment.md](deployment.md#instance-files-under-helm)).
   - A change to `actions.files`, `connections` or `labels` restarts the api pods. A change to an `actions.existingConfigMap` needs `kubectl rollout restart deployment/<release>-tim-api`.
-- **Compose.** [`deploy/compose/.env`](../examples/instance/deploy/compose/.env) is a second `--env-file`, after the operator's own, for TIM's `deploy/compose.prod.yaml` ([deployment.md](deployment.md#instance-files)):
+- **Compose.** [`deploy/compose/.env`](../examples/deployment/deploy/compose/.env) is a second `--env-file`, after the operator's own, for TIM's `deploy/compose.prod.yaml` ([deployment.md](deployment.md#instance-files)):
   - `docker compose -f deploy/compose.prod.yaml --env-file deploy/.env --env-file <this file> up -d --no-build`.
   - `TIM_API_IMAGE` and `TIM_API_IMAGE_TAG` name the derived image.
   - `TIM_CONFIG_DIR` is the host directory holding a copy of `config/`, here `/srv/tim-instance/config`. `TIM_ACTIONS_DIR`, `TIM_CONNECTIONS_FILE` and `TIM_LABELS_FILE` name the files under `/etc/tim` ([deployment.md](deployment.md#instance-files)).

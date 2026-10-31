@@ -88,7 +88,14 @@ A container image built `FROM` TIM's api image that installs providers into it. 
 ### Instance
 
 **Instance**:
-One deployment of TIM with its configured actions, connections, labels and limits.
+One running TIM, configured by its instance files.
+
+**Deployment** (for operators):
+An instance run for real users, in production mode with Entra sign-in. Not the Kubernetes Deployment object.
+
+**Demo instance**:
+An instance that runs on one machine with only Docker, against sample data, in development mode. It is never a deployment.
+_Avoid_: sandbox, playground
 
 **Instance files**:
 The action files, the connections file and the labels file an instance reads at startup.

@@ -8,10 +8,11 @@ TIM is an investigation platform: analysts run actions against an instance's con
 |---|---|
 | [CODING_STANDARDS.md](../CODING_STANDARDS.md) | Coding rules a reviewer judges: docs, security, frontend, backend, tests |
 | [RULES.md](RULES.md) | Process: sources of truth, when to ask the user, git, PRs and releases |
-| [GLOSSARY.md](../GLOSSARY.md) | Domain vocabulary: investigations, tabs, actions, pivots, runs, annotations |
+| [GLOSSARY.md](../GLOSSARY.md) | Domain vocabulary: instances, investigations, tabs, actions, pivots, runs, annotations |
 | [architecture.md](architecture.md) | Parts of the system, data flow, web and api internals, annotations and the change feed, persistence and the security model |
 | [api.md](api.md) | HTTP API reference: endpoints, schemas, errors |
-| [actions.md](actions.md) | The guide for operators and action authors, walking through the example instance (`examples/instance/`): action files, connections and labels, checking them, writing action types, connection types and providers, testing, and building and deploying |
+| [examples/](../examples/README.md) | The demo instance, to try TIM, and the deployment example, to deploy it |
+| [actions.md](actions.md) | The guide for operators and action authors, walking through the deployment example (`examples/deployment/`): action files, connections and labels, checking them, writing action types, connection types and providers, testing, and building and deploying |
 | [development.md](development.md) | Local setup, running the stack, tests, linting, migrations, CI |
 | [configuration.md](configuration.md) | Environment variables for api, web and the local stack, incl. the AG Grid licence key |
 | [deployment.md](deployment.md) | Production deployment |
