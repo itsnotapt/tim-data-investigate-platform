@@ -121,7 +121,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
-  - `idColumn` is the column the action's results start with as their Id column: the `id` of its action file. It is left out when the action has none. An `idColumn` param's value takes its place ([architecture.md](architecture.md#the-id-column)).
+  - `idColumn` is the column the action's results start with as their Id column: the `id` of its action file. It is left out when the action has none. A preset's `idColumn` takes its place in a tab opened from it ([architecture.md](architecture.md#the-id-column)).
   - `actionFile` is whether a preset of the action can be copied as an action file ([GET /api/presets/{presetId}/actionFile](#get-apipresetspresetidactionfile)).
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql` for Kusto, `sql` for Snowflake). `databases` are the suggestions a Kusto or `dev_kql` connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
@@ -463,7 +463,7 @@ Returns the preset as an action file ([actions.md](actions.md#action-files)): th
 - The file is built from the preset:
   - `key` is a slug of the preset's name, and `menu` is its `menuPath` joined with `/`.
   - `pivot` is `rows` when the preset has From row query parameters and every one of them has columns, as a preset is a pivot. Otherwise it is `none`.
-  - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from `idColumn`. For Run SQL, `sql` is the query as it is.
+  - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from the preset's `idColumn`. For Run SQL, `sql` is the query as it is.
   - Each query parameter is a param of the file, in the preset's order. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`. In a `snowflake_query`, the order sets the position each is bound to, `:1` the first.
 
 ### PUT, DELETE /api/presets/{presetId}/hidden
@@ -488,6 +488,7 @@ Returns the preset as an action file ([actions.md](actions.md#action-files)): th
 | `action` | string | An action key in the catalogue. |
 | `params` | map | Param values by name. Default `{}`. Not validated until a run starts. |
 | `inputs` | array of `PresetInput` | Default `[]`. |
+| `idColumn` | string \| null | Optional. The Id column a tab opened from the preset starts with, when it isn't the action's. Not blank. Default `null`. |
 | `createdAt`, `updatedAt` | datetime | Server-set. |
 
 ### PresetInput

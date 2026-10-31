@@ -64,6 +64,8 @@ class PresetFields(ApiModel):
     action: NonBlankStr
     params: dict[str, Any] = Field(default_factory=dict)
     inputs: list[PresetInput] = Field(default_factory=list)
+    id_column: NonBlankStr | None = None
+    """The Id column its results open with, when it isn't the action's."""
 
 
 class StoredPreset(PresetFields):

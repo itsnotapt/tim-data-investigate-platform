@@ -182,7 +182,7 @@ From the rows, an analyst pivots:
 
 ### Share links
 
-A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. Either form takes `idColumn=<column>` (`…?row=<n>&idColumn=<column>`) when the results' Id column isn't the one they start with. The code is in `web/src/features/share-links/`.
+A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` for one row. Either form takes `idColumn=<column>` (`…?row=<n>&idColumn=<column>`) when the tab's Id column isn't the action's. The code is in `web/src/features/share-links/`.
 
 - **Copy link.** The action tab's button in the app bar copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
 - **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
@@ -402,6 +402,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
   - On SQL each query parameter's line starts with its `:N`, and a fixed value shows as its text, with no Kusto literal.
   - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
+- The preset saves the tab's Id column as `idColumn` when it isn't the action's ([The Id column](#the-id-column)).
 - After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL or Run SQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
 - On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
 
@@ -538,13 +539,12 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 A row's `id` is computed in the browser, from one column of its results: the **Id column** ([GLOSSARY.md](../GLOSSARY.md)). The server stores and sends no `id`s.
 
 - **The `id`.** `rowId` (`web/src/features/labels/labelRows.ts`) takes the value of the Id column: a string as it is, anything else as its JSON. A missing or `null` value, `""`, and a value over `MAX_ID_LENGTH` (512) characters give no `id`.
-- **Where it starts.** `startingIdColumn` (`web/src/features/action-tab/idColumn.ts`) takes the `idColumn` param of the run (Run KQL, Run SQL and `dev_json`), else the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action.
-- **The tab's Id column.** `resultsIdColumn` is the tab's `state.idColumn` when the analyst has switched it, else the starting one. The tab keeps a switched column across runs. A new run of an action with an `idColumn` param takes the param's.
+- **Where it starts.** `actionIdColumn` (`web/src/features/action-tab/idColumn.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
+- **The tab's Id column.** `resultsIdColumn` is the tab's `state.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
 - **In the grid.** `ActionResultsGrid.tsx` gives each row its `id` with `withIds`, and its annotations from the annotation store. A switch recomputes both in place and keeps the selection, filters, sort and scroll.
 - **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
-  - An action with an `idColumn` param shows an **Id column** pill. Its editor suggests the results' columns and has **Apply to these results**.
-  - `switchIdColumn` sets the tab's `state.idColumn`. For an action with the param it also writes the param and `runParams` as the last run would have, so the params don't show as edited.
+  - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter).
   - A toast says "Id column set to Host: labels now follow Host". Switching back shows the earlier annotations again, as they follow the `id`s.
 - **No `id`.** A row without one can't be annotated. Row detail and the disabled items say "No id: right-click a cell and use its column as the Id column".
 
@@ -947,7 +947,6 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `connection`: a Kusto connection;
 - `database`;
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
-- `idColumn`, optional: the column the results' Id column starts as. Without it, the results start with no Id column;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts the declare statement `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
 A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
@@ -956,7 +955,6 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 
 - `connection`: a Snowflake connection;
 - `sql`: a `sql` param scoped by the `connection` param;
-- `idColumn`, optional: the column the results' Id column starts as. Without it, the results start with no Id column;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` with the types of Run KQL but `timespan` ([actions.md](actions.md#query-parameters-of-run-sql)). `check_params` checks them as for Run KQL.
 
 The run sends `sql` unchanged through `SnowflakeHook.query`, with the parameters bound by position, `:1` the first. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.

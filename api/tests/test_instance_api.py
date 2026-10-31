@@ -197,7 +197,6 @@ def test_the_instance_lists_its_connections_without_their_endpoints(
         ("connection", "connection"),
         ("database", "string"),
         ("kql", "kql"),
-        ("idColumn", "string"),
         ("parameters", "json"),
     ]
     assert run_kql["actionFile"] is True

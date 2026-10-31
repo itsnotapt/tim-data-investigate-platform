@@ -49,6 +49,8 @@ export interface SavePresetDialogProps {
   params: Record<string, unknown>;
   /** The preset being edited or saved again, if any. */
   source?: Preset;
+  /** The Id column to save: the tab's, or the preset's when editing it, when it isn't the action's. */
+  idColumn?: string | null;
   onClose: () => void;
   /** After a save, with the preset as saved. */
   onSaved?: (preset: Preset) => void;
@@ -198,6 +200,7 @@ export function SavePresetDialog({
   action,
   params,
   source,
+  idColumn = null,
   onClose,
   onSaved,
   store = usePresetsStore,
@@ -225,7 +228,7 @@ export function SavePresetDialog({
     setSaving(true);
     setError(null);
     try {
-      const preset = await write(formFields(action, params, form));
+      const preset = await write(formFields(action, params, form, idColumn));
       onSaved?.(preset);
       onClose();
     } catch (e) {

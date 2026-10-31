@@ -130,7 +130,7 @@ The key a row is annotated by: the value of the row's Id column, computed in the
 _Avoid_: EventId, event id, row id
 
 **Id column**:
-The column of a result that its rows' `id`s come from. It starts as the action's `id` or the `idColumn` param, and the analyst can switch it on the results without rerunning.
+The column of a result that its rows' `id`s come from. It starts as the action's `id`, or the `idColumn` of the preset the tab was opened from, and the analyst can switch it on the results without rerunning.
 _Avoid_: id field, key column
 
 **Row number**:

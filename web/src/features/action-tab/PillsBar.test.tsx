@@ -413,3 +413,74 @@ describe('PillsBar', () => {
     },
   );
 });
+
+describe('PillsBar Id column', () => {
+  /** The bar with an Id column pill over the results' `columns`, which keeps what it applies. */
+  function IdColumnHarness({ apply }: { apply: (column: string | null) => void }) {
+    const [current, setCurrent] = useState<string | null>('User');
+    return (
+      <PillsBar
+        params={[param({ name: 'host', kind: 'string', title: 'Host' })]}
+        values={{}}
+        connections={connections}
+        onChange={() => {}}
+        idColumn={{
+          current,
+          columns: ['User', 'Host'],
+          onChange: (column) => {
+            apply(column);
+            setCurrent(column);
+          },
+        }}
+      />
+    );
+  }
+
+  it('shows the results’ Id column after the params, and switches to a picked column at once', async () => {
+    const apply = vi.fn();
+    render(<IdColumnHarness apply={apply} />);
+    const pills = screen.getAllByRole('button').map((b) => b.textContent);
+    expect(pills).toEqual(['Host: not set', 'Id column: User']);
+
+    await openPill(/^Id column:/);
+    await userEvent.click(within(popover()).getByRole('combobox', { name: 'Id column' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Host' }));
+
+    expect(apply).toHaveBeenCalledExactlyOnceWith('Host');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Id column: Host' })).toBeInTheDocument();
+  });
+
+  it('switches to a typed column when its editor closes, and not when it is unchanged', async () => {
+    const apply = vi.fn();
+    render(<IdColumnHarness apply={apply} />);
+
+    await openPill(/^Id column:/);
+    const field = within(popover()).getByRole('combobox', { name: 'Id column' });
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Seen');
+    expect(apply).not.toHaveBeenCalled();
+    // The first Escape closes the suggestions.
+    await userEvent.keyboard('{Escape}{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(apply).toHaveBeenCalledExactlyOnceWith('Seen');
+
+    await openPill(/^Id column:/);
+    await userEvent.keyboard('{Escape}{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it('switches to a typed column on Enter', async () => {
+    const apply = vi.fn();
+    render(<IdColumnHarness apply={apply} />);
+
+    await openPill(/^Id column:/);
+    const field = within(popover()).getByRole('combobox', { name: 'Id column' });
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Seen{Enter}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(apply).toHaveBeenCalledExactlyOnceWith('Seen');
+  });
+});

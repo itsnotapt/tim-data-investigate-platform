@@ -37,6 +37,7 @@ def preset_action_file(preset: Preset, action: Action | Sink | None) -> str:
         menu="/".join(preset.menu_path),
         params=params,
         query_parameters=query_parameters,
+        id_column=preset.id_column,
     )
     if document is None:
         raise NoActionFileError

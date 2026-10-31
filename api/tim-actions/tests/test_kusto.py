@@ -113,7 +113,7 @@ def test_run_kql_runs_the_query_and_reports_kustos_columns_and_metrics(
     tim_connections.add(CONNECTION)
     columns = [Column("Id", "number"), Column("Who", "string")]
     tim_kusto.respond([{"Id": 7, "Who": "a"}], columns=columns, details={"executionTime": 0.25})
-    result = run_kql(tim_connections, {"kql": "T | take 1", "idColumn": "Id"})
+    result = run_kql(tim_connections, {"kql": "T | take 1"})
     assert result.rows == [{"Id": 7, "Who": "a"}]
     assert result.columns == columns
     assert result.details == {"executionTime": 0.25}
@@ -365,3 +365,19 @@ def test_query_parameters_are_the_validated_params_with_a_value() -> None:
         "users": 'dynamic(["alice"])',
         "since": "datetime(2026-10-01T00:00:00.0000000Z)",
     }
+
+
+@pytest.mark.parametrize(("id_column", "expected"), [("EventId", "EventId"), (None, None)])
+def test_a_preset_file_has_the_id_column_as_its_id(
+    id_column: str | None, expected: str | None
+) -> None:
+    file = RUN_KQL.preset_file(
+        key="storms",
+        name="Storms",
+        menu="Kusto",
+        params={"connection": "security", "database": "Samples", "kql": "StormEvents"},
+        query_parameters=[],
+        id_column=id_column,
+    )
+    assert file is not None
+    assert file.id == expected

@@ -60,7 +60,7 @@ async def env(
 
 
 async def test_run_kql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
-    started = await env.start(database="Samples", kql="StormEvents | take 2", idColumn="EventId")
+    started = await env.start(database="Samples", kql="StormEvents | take 2")
     assert started.status_code == 200
     run = started.json()
     assert run["status"] == "succeeded"
@@ -285,7 +285,6 @@ async def test_run_kql_on_a_real_cluster(
                 "connection": "security",
                 "database": database,
                 "kql": "print n = 1, s = 'x'",
-                "idColumn": "n",
             },
         }
         run = await live_run(client, body)
@@ -317,7 +316,6 @@ async def test_run_kql_with_query_parameters_on_a_real_cluster(
                 "database": database,
                 "kql": "print n = Limit + 1, s = Source, t = Since + Within, f = not(Fatal),"
                 " r = Ratio * 2, c = array_length(States)",
-                "idColumn": "n",
                 "parameters": [
                     {"name": "States", "type": "dynamic", "value": ["TEXAS", "FLORIDA"]},
                     {"name": "Since", "type": "datetime", "value": "2007-09-01T00:00:00Z"},

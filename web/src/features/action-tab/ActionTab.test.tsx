@@ -394,6 +394,13 @@ describe('ActionTab', () => {
     );
   });
 
+  it('clones the tab with its Id column', async () => {
+    const { uuid } = setup({ ...withResults, idColumn: 'Host' });
+    await userEvent.click(screen.getByRole('button', { name: 'Clone' }));
+    const copy = Object.values(useTabsStore.getState().tabs).find((t) => t.componentUuid !== uuid);
+    expect(copy?.state).toMatchObject({ idColumn: 'Host' });
+  });
+
   it('says so when the action is no longer in the instance, and cannot run', () => {
     setup({}, 'gone');
     expect(screen.getByText('This action is no longer available.')).toBeInTheDocument();

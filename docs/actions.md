@@ -87,6 +87,7 @@ Annotations are kept by `id`, so a row needs one to be annotated. The browser co
 - A row whose value is `null`, missing or `""`, or longer than 512 characters, has no `id` and cannot be annotated.
 - `id` is one column name, not a list. For an `id` made of several columns, build the column in the query, such as `extend SummaryId = strcat(State, "|", EventType)`.
 - Without `id`, the results start with no Id column.
+- A preset of Run KQL or Run SQL copied as an action file gets the preset's `idColumn` as its `id`.
 - The analyst can switch the Id column on any results without rerunning ([architecture.md](architecture.md#the-id-column)).
 
 ### Params
@@ -256,7 +257,7 @@ The example's [`labels.yaml`](../examples/instance/config/labels.yaml):
 
 - The file lists at least one label, and no other fields.
 - The first nine labels take the keys 1 to 9 in the grid.
-- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or `idColumn` of Run KQL or Run SQL).
+- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or the tab's Id column).
 - Keep a `key` for good. Annotations store it, so renaming it leaves the old key on every `id` that has it, shown grey. Change `name`, `colour` or `symbol` instead.
 
 ## Built-in actions
@@ -277,7 +278,6 @@ The built-in provider adds, for each extra of `tim-actions` that is installed, t
 | `connection` | A `kusto` connection. When there is exactly one, a new tab fills it in. |
 | `database` | The database to query. The tab suggests the chosen connection's `databases`. |
 | `kql` | The query, written in the tab's Query editor, scoped by the `connection` and `database` params. |
-| `idColumn` | Optional. The result column the results' Id column starts as; without it the results start with no Id column. |
 | `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-kql). |
 
 The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
@@ -336,7 +336,6 @@ An optional param without a value is not sent, so the default in `declare query_
 |---|---|
 | `connection` | A `snowflake` connection. |
 | `sql` | The query, written in the tab's Query editor. It completes databases, and the columns of the tables the query names in `FROM` and `JOIN` (`db.schema.table`, the path perhaps shortened, with an optional alias), from the connection. After `DB.` it offers schemas, after a table's alias or name its columns; `DB.SCHEMA.` gives tables and `DB.SCHEMA.TABLE.` gives columns. |
-| `idColumn` | Optional. The result column the results' Id column starts as; without it the results start with no Id column. |
 | `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-sql). |
 
 - The query is sent as written, with its query parameters bound by position ([How Snowflake binds params](#how-snowflake-binds-params)).

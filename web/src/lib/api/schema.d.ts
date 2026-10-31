@@ -1018,6 +1018,8 @@ export interface components {
             createdAt: string;
             /** Hidden */
             hidden: boolean;
+            /** Idcolumn */
+            idColumn?: string | null;
             /** Inputs */
             inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"] | components["schemas"]["FixedQueryParameter"] | components["schemas"]["FromRowQueryParameter"])[];
             /** Menupath */
@@ -1053,6 +1055,8 @@ export interface components {
         PresetFields: {
             /** Action */
             action: string;
+            /** Idcolumn */
+            idColumn?: string | null;
             /** Inputs */
             inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"] | components["schemas"]["FixedQueryParameter"] | components["schemas"]["FromRowQueryParameter"])[];
             /** Menupath */

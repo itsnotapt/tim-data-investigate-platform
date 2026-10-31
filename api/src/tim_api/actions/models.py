@@ -65,7 +65,7 @@ class CatalogueAction(ApiModel):
     columns: list[CatalogueColumn] | None = omitted()
     id_column: str | None = omitted()
     """The Id column the action's results open with: the column whose value is each row's
-    ``id``. An ``idColumn`` param's value takes its place."""
+    ``id``. A preset's ``idColumn`` takes its place."""
     action_file: bool
     """Whether a preset of this action has an action file, from
     ``GET /api/presets/{presetId}/actionFile``."""

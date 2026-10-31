@@ -134,10 +134,12 @@ class Action(ActionBase):
         menu: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
+        id_column: str | None,
     ) -> ActionDocument | None:
         """The action file document of an action that runs what a preset of this action runs:
-        ``params`` are the preset's fixed values, ``query_parameters`` its query parameters.
-        ``None`` when the preset has none; by default no preset of this action has one."""
+        ``params`` are the preset's fixed values, ``query_parameters`` its query parameters and
+        ``id_column`` the Id column its results open with, the document's ``id``. ``None`` when
+        the preset has none; by default no preset of this action has one."""
         return None
 
     @property

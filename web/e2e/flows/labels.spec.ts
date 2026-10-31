@@ -1,5 +1,6 @@
 import type { Page, Request } from '@playwright/test';
 import { test, expect } from '../realApi';
+import { setIdColumn } from '../actionTab';
 
 const grid = (page: Page) => page.getByTestId('results-grid');
 const menuOption = (page: Page, text: string | RegExp) =>
@@ -22,9 +23,7 @@ async function runJson(page: Page, rows: Record<string, unknown>[], idColumn: st
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
   if (idColumn !== null) {
-    await page.getByRole('button', { name: /^Id column: / }).click();
-    await page.getByRole('textbox', { name: 'Id column' }).fill(idColumn);
-    await page.keyboard.press('Escape');
+    await setIdColumn(page, idColumn);
   }
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();

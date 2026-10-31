@@ -202,6 +202,7 @@ export function NewQueryMenu({
           action={editing.action}
           params={presetValues(editing.preset)}
           source={editing.preset}
+          idColumn={editing.preset.idColumn}
           store={presetsStore}
           onClose={() => setEditing(null)}
         />

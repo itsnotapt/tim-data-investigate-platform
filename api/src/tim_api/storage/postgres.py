@@ -126,6 +126,7 @@ presets = Table(
     Column("action", Text, nullable=False),
     Column("params", _JSON, nullable=False),
     Column("inputs", _JSON, nullable=False),
+    Column("id_column", Text, nullable=True),
     Column("created_at", _TS, nullable=False),
     Column("updated_at", _TS, nullable=False),
     # list() orders by (created_at, preset_id).

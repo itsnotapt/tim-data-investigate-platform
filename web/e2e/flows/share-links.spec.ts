@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { components } from '../../src/lib/api/schema';
-import { grid, openAction } from '../actionTab';
+import { grid, openAction, setIdColumn } from '../actionTab';
 import { test, expect } from '../realApi';
 
 type Run = components['schemas']['Run'];
@@ -28,9 +28,7 @@ async function runJson(
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
   if (idColumn !== null) {
-    await page.getByRole('button', { name: /^Id column: / }).click();
-    await page.getByRole('textbox', { name: 'Id column' }).fill(idColumn);
-    await page.keyboard.press('Escape');
+    await setIdColumn(page, idColumn);
   }
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();
@@ -59,7 +57,8 @@ test('a teammate opens a row link: the rows, the focused row with Row detail ope
   await menu.getByText('Copy link', { exact: true }).click();
   await expect(page.getByText('Copied a link to this row')).toBeVisible();
   const link = await clipboard(page);
-  expect(link).toMatch(/#\/runs\/[0-9a-f-]{36}\?row=1$/);
+  // The action has no Id column, so the link carries the tab's.
+  expect(link).toMatch(/#\/runs\/[0-9a-f-]{36}\?row=1&idColumn=Host$/);
 
   const teammate = await signIn(`${idPrefix}.teammate@example.com`);
   const started: Run[] = [];

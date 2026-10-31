@@ -11,8 +11,7 @@ import {
 import { rowResultsDao } from '../../lib/storage';
 import { useInstanceStore } from '../instance';
 import { useTabsStore, type ParamErrors, type TabsStore } from '../tabs';
-import { ID_COLUMN_PARAM, takesIdColumn } from './idColumn';
-import { pills, setPill } from './queryParameters';
+import { pills } from './queryParameters';
 import { runRowsStore } from './runRows';
 
 const FAST_POLL_MS = 1000;
@@ -229,15 +228,10 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
     return;
   }
   if (signal.aborted) return;
-  const action = useInstanceStore
-    .getState()
-    .instance?.actions.find((a) => a.key === tab.params.action);
   store.getState().updateState(uuid, {
     run,
     runParams: tab.params.params,
     pivotMissing: null,
-    // The run takes its Id column from the param, which a switch has set too.
-    ...(takesIdColumn(action) && { idColumn: undefined }),
   });
   // Saved at once, so a reload picks the run up by its id.
   await store.getState().flush();
@@ -309,22 +303,14 @@ export function openRunTab(
   options: ActionRunOptions = {},
 ): string {
   const store = options.store ?? useTabsStore;
-  const action = useInstanceStore
-    .getState()
-    .instance?.actions.find((a) => a.key === run.action.key);
-  // An `idColumn` param takes the link's Id column too, as if the run had.
-  const params =
-    idColumn !== null && takesIdColumn(action)
-      ? setPill(run.params, ID_COLUMN_PARAM, idColumn)
-      : run.params;
   const uuid = store.getState().createTab({
     componentName: 'ActionResult',
     parentUuid: null,
     title: run.action.name,
-    params: { action: run.action.key, params },
+    params: { action: run.action.key, params: run.params },
     state: {
       run,
-      runParams: params,
+      runParams: run.params,
       isExecuting: true,
       linkedRow,
       ...(idColumn !== null && { idColumn }),

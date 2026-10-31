@@ -1350,6 +1350,17 @@
             "title": "Hidden",
             "type": "boolean"
           },
+          "idColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idcolumn"
+          },
           "inputs": {
             "items": {
               "anyOf": [
@@ -1432,6 +1443,17 @@
           "action": {
             "title": "Action",
             "type": "string"
+          },
+          "idColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idcolumn"
           },
           "inputs": {
             "items": {

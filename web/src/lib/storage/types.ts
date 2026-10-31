@@ -48,8 +48,7 @@ export interface DisplayComponentState {
   /** The column view the tab started from or last picked. */
   columnView?: TabColumnView | null;
   /**
-   * The Id column the analyst switched the results to, over the run's. Kept across runs, except
-   * by an action with an `idColumn` param, whose next run takes the param's.
+   * The Id column the analyst switched the results to, over the action's. Kept across runs.
    */
   idColumn?: string | null;
   /**

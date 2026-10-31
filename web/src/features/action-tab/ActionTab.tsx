@@ -34,14 +34,7 @@ import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid'
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
 import { useDeclareStatement } from './declareStatement';
-import {
-  ID_COLUMN_PARAM,
-  resultsIdColumn,
-  shareLinkIdColumn,
-  switchedText,
-  switchIdColumn,
-  takesIdColumn,
-} from './idColumn';
+import { resultsIdColumn, shareLinkIdColumn, switchedText } from './idColumn';
 import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
 import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
@@ -297,11 +290,11 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       tabs.updateState(uuid, { paramErrors });
     }
   };
-  // The results' Id column, and the one a link carries when it isn't the one the run opens with.
+  // The results' Id column, and the one a link carries when it isn't the action's.
   const idColumn = resultsIdColumn(action, state);
   const linkIdColumn = shareLinkIdColumn(action, state);
   const switchTo = (column: string | null) => {
-    switchIdColumn(uuid, action, column);
+    useTabsStore.getState().updateState(uuid, { idColumn: column });
     notify?.(switchedText(column));
   };
   const resultColumns = (shown?.columns ?? state.resultColumns ?? []).map((c) => c.name);
@@ -472,16 +465,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             errors={state.paramErrors}
             onReset={edited ? reset : undefined}
             needed={needed}
-            idColumn={
-              takesIdColumn(action) && (shown || hasResults)
-                ? {
-                    param: ID_COLUMN_PARAM,
-                    columns: resultColumns,
-                    current: idColumn,
-                    apply: switchTo,
-                  }
-                : undefined
-            }
+            idColumn={{ current: idColumn, columns: resultColumns, onChange: switchTo }}
           />
         </Box>
       </Box>
@@ -497,6 +481,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           action={action}
           params={params.params}
           source={saving.source}
+          idColumn={linkIdColumn}
           onClose={() => setSaving(null)}
           onSaved={saved}
         />

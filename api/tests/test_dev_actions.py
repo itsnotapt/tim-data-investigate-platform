@@ -76,14 +76,6 @@ def test_the_catalogue_lists_the_dev_actions(auth: AuthKit, dev_env: Path) -> No
                 "many": False,
                 "help": "A JSON array of objects, one per row",
             },
-            {
-                "name": "idColumn",
-                "title": "Id column",
-                "kind": "string",
-                "required": False,
-                "many": False,
-                "help": "The column that gives each row its id",
-            },
         ],
         "pivot": {"rows": "rows", "columns": []},
         "actionFile": False,
@@ -132,7 +124,7 @@ def rows(client: TestClient, run_id: str) -> list[dict[str, Any]]:
 def test_dev_json_yields_the_pasted_rows(auth: AuthKit, dev_env: Path) -> None:
     pasted = [{"Host": "h-1", "Bytes": 10}, {"Host": "h-2", "Bytes": None}, {"Bytes": 3}]
     with started(auth) as client:
-        body = run(client, "tim.dev_json", {"rows": pasted, "idColumn": "Host"})
+        body = run(client, "tim.dev_json", {"rows": pasted})
         assert body["status"] == "succeeded"
         assert body["rowCount"] == 3
         assert rows(client, body["runId"]) == [

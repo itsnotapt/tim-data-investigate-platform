@@ -65,7 +65,7 @@ def test_dev_run_kql_declares_its_query_parameters_as_run_kql_does_and_yields_no
 
 def test_dev_json_yields_the_pasted_rows() -> None:
     pasted = [{"Host": "h-1"}, {"Bytes": 3}]
-    assert run(dev.DEV_JSON, {"rows": pasted, "idColumn": "Host"}) == pasted
+    assert run(dev.DEV_JSON, {"rows": pasted}) == pasted
     with pytest.raises(RunError, match="Rows must be a JSON array of objects"):
         run(dev.DEV_JSON, {"rows": {"Host": "h-1"}})
 

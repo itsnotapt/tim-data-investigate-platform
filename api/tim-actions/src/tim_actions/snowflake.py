@@ -381,7 +381,7 @@ has no ``timespan``."""
 
 class RunSql(TakesQueryParameters):
     """``tim.run_sql``: ad-hoc SQL on a Snowflake connection, its query parameters bound by
-    position. Its ``idColumn`` param names the Id column its results open with."""
+    position."""
 
     parameter_types = BOUND_PARAMETER_TYPES
 
@@ -393,6 +393,7 @@ class RunSql(TakesQueryParameters):
         menu: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
+        id_column: str | None,
     ) -> SnowflakeQueryFile | None:
         """A ``snowflake_query`` action with the preset's connection, SQL and Id column, and its
         query parameters as params in their order (``preset_file_params``); ``None`` when the
@@ -408,7 +409,7 @@ class RunSql(TakesQueryParameters):
             pivot=file_params.pivot,
             connection=params["connection"],
             sql=params["sql"],
-            id=params.get("idColumn") or None,
+            id=id_column,
             params=file_params.params,
         )
 
@@ -438,13 +439,6 @@ RUN_SQL = RunSql(
     params=(
         Param("connection", "connection", title="Connection", connection_type="snowflake"),
         Param("sql", "sql", title="Query", schema_from=("connection",)),
-        Param(
-            "idColumn",
-            "string",
-            title="Id column",
-            required=False,
-            help="The column that gives each row its id",
-        ),
         Param(
             "parameters",
             "json",

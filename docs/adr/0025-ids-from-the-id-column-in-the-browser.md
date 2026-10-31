@@ -8,10 +8,11 @@ date: 2026-10-30
 The server computed each row's `id` when a run executed, so an analyst who found the results had no `id` (or the wrong one) had to change the Id column and run again before annotating. A row's `id` is now computed in the browser, from one column of the results, the Id column, which the analyst can switch on results they already have.
 
 - **The `id`.** It is the value of the row's Id column: a string as it is, anything else as JSON. A missing or `null` value, `""` and a value over 512 characters give no `id`.
-- **Where it starts.** The Id column starts as the action's `id`, or as the `idColumn` param of Run KQL, Run SQL and `dev_json`. The analyst can switch it without rerunning, from a cell's context menu or the Id column pill.
+- **Where it starts.** The Id column starts as the action's `id`, or as the `idColumn` of the preset the tab was opened from. It is tab state, not a param. The analyst can switch it without rerunning, from a cell's context menu or the Id column pill that every action tab shows.
 - **Browser only.** The server stores and sends no `id`s: `run_rows` has no `id` column, the rows page carries no annotations, and a run has no `id` warnings. Annotations reach rows from the browser's copy of the change feed.
 - **One column.** An action's `id` is one column name. An `id` made of several columns is built in the query, such as `extend SummaryId = strcat(State, "|", EventType)`. `RowId`, `IdColumns`, `Action.row_id` and the list form of `id` are gone.
-- **Share links.** A link carries `idColumn` when it differs from the column the results start with.
+- **Presets.** A preset has an optional `idColumn`, saved when the tab's Id column isn't the action's. Exporting a preset as an action file gives the file that `id`.
+- **Share links.** A link carries `idColumn` when it differs from the action's.
 
 Decided by the user. Supersedes the `id` part of [0017](0017-actions-from-providers.md) and [0020](0020-annotations-in-postgres.md). Related: [architecture](../architecture.md#the-id-column).
 

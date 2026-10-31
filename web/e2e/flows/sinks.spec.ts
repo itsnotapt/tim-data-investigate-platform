@@ -1,5 +1,5 @@
 import type { Page, Request } from '@playwright/test';
-import { grid } from '../actionTab';
+import { grid, setIdColumn } from '../actionTab';
 import { test, expect } from '../realApi';
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Annotate' });
@@ -20,9 +20,7 @@ async function runJson(page: Page, rows: Record<string, unknown>[]) {
   await page.getByRole('button', { name: /^Rows: / }).click();
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: /^Id column: / }).click();
-  await page.getByRole('textbox', { name: 'Id column' }).fill('Host');
-  await page.keyboard.press('Escape');
+  await setIdColumn(page, 'Host');
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();
 }

@@ -75,7 +75,7 @@ async def env(
 
 
 async def test_run_sql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
-    started = await env.start(sql="SELECT * FROM SIGNINS", idColumn="ID")
+    started = await env.start(sql="SELECT * FROM SIGNINS")
     assert started.status_code == 200
     run = started.json()
     assert run["status"] == "succeeded", run.get("error")
@@ -274,7 +274,6 @@ async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
         "params": {
             "connection": "warehouse",
             "sql": LIVE_SQL,
-            "idColumn": "N",
             "parameters": parameters,
         },
     }
