@@ -135,5 +135,6 @@ def test_schema_connections_describes_the_kusto_and_snowflake_types(
     }
     assert snowflake["required"] == ["name", "title", "type", "auth", "account", "warehouse"]
     assert kusto["properties"]["type"]["const"] == "kusto"
+    assert kusto["properties"]["auth"]["enum"] == ["obo", "none"]
     assert kusto["required"] == ["name", "title", "type", "auth", "cluster"]
     assert kusto["additionalProperties"] is False

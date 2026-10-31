@@ -790,6 +790,7 @@ These stop startup:
 - a file that isn't YAML or UTF-8, isn't a single document, or isn't a list of mappings;
 - a missing or unknown `type`, an unknown field, or a value the type's model rejects. `name` is lowercase letters, digits and `-`. `obo` needs a `scope`, which a connection type may default;
 - a duplicate connection name;
+- a connection with `auth: none` when `TIM_ENVIRONMENT=production`, reported as `<file>: connection <name>: auth none is not allowed when TIM_ENVIRONMENT=production`;
 - an action's fixed connection that isn't in the file or is of another type. `Action.connections()` maps each name to the connection type it must have.
 
 An action with a `connection` param is left out of the catalogue when the instance has no connection of the param's `connection_type`.
@@ -799,7 +800,7 @@ An action with a `connection` param is left out of the catalogue when the instan
 
 The `tim-api` command (`cli.py`):
 
-- **`tim-api check`** runs `build_registry` the same way, without the rest of the lifespan. So it needs no settings, database or credentials ([operations.md](operations.md#tim-api-check)).
+- **`tim-api check`** runs `build_registry` the same way, without the rest of the lifespan. So it needs no database or credentials. It reads only `TIM_ENVIRONMENT`, which defaults to `production` ([operations.md](operations.md#tim-api-check)).
 - **`tim-api schema actions`** prints `action_files_schema`: one `File` model per installed type. `type` is fixed to its `type_name`, and each sidecar field accepts `<field>_file` instead.
 - **`tim-api schema connections`** prints `connections_file_schema`: a list whose entries are one `Connection` model per installed connection type, told apart by `type`.
 
@@ -879,13 +880,13 @@ A hook class sets:
 
 An action reaches a connection only through `ctx.hook(name)`. It refuses a connection the run didn't declare: one in the action's `connections()`, or one named by its `connection` params.
 
-The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fields `cluster`, `databases` (optional) and `scope` (optional), and the auth `obo`:
+The `kusto` connection type (`tim_actions/kusto.py`, extra `kusto`) has the fields `cluster`, `databases` (optional) and `scope` (optional), and the auth `obo` or `none`:
 
-- `cluster` gets the URL shape checks and normalisation to `https://<host>` ([configuration.md](configuration.md#connections)) when the file is read.
-- `scope` defaults to `{cluster}/.default`.
+- `cluster` gets the URL shape checks and normalisation ([configuration.md](configuration.md#connections)) when the file is read. `obo` allows only `https` on port 443. `none` also allows `http` and keeps the port.
+- `scope` defaults to `{cluster}/.default` for `obo`. `none` refuses it.
 - `databases` are suggestions the browser offers for the `database` param. They don't restrict it.
 
-`KustoHook` runs the synchronous `azure-kusto-data` client on a worker thread, with a token from `token_for`.
+`KustoHook` runs the synchronous `azure-kusto-data` client on a worker thread, with a token from `token_for`. With `none` it sends no token and never calls `token_for`.
 
 - It passes the time left until the run's deadline as the Kusto server timeout.
 - It sets the client request id `TIM.RunKql;<uuid>`.

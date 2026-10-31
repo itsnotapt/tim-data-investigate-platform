@@ -121,7 +121,7 @@ To migrate without a chart upgrade, run `alembic upgrade head` in a pod of the a
 
 ### `tim-api check`
 
-The api image runs the startup validation of its providers, an action files directory, a connections file and a labels file. It needs no database, credentials or other settings:
+The api image runs the startup validation of its providers, an action files directory, a connections file and a labels file. It needs no database or credentials. It reads `TIM_ENVIRONMENT` (default `production`, as for the api) and refuses a connection with `auth: none` in production:
 
 ```bash
 docker run --rm -v "$PWD/actions:/actions:ro" <api image> tim-api check --actions /actions
@@ -136,7 +136,7 @@ docker run --rm <api image> tim-api schema labels > labels.schema.json
 
 - **Valid:** it prints one line for each action left out of the catalogue, such as `Action tim.run_kql left out: no kusto connection for its connection param`. Then it prints `OK: <n> actions, <m> connections, <k> labels`, and exits 0.
 - **Invalid:** it prints `Invalid instance:` and the same problems startup would report, one per line, and exits 1.
-- **Bad path:** a `--actions` path that isn't a directory, or a `--connections` or `--labels` path that isn't a file, exits 2.
+- **Bad input:** a `--actions` path that isn't a directory, a `--connections` or `--labels` path that isn't a file, or a `TIM_ENVIRONMENT` that is neither `development` nor `production`, exits 2.
 
 Options and use:
 
@@ -254,6 +254,7 @@ Each line names the file, the line and the field.
 | `not valid YAML` | The file doesn't parse; the line is where the parser stopped, which can be after the mistake. |
 | `unknown connection type` | A connection's `type` is misspelt, or the provider that adds the type isn't installed in this image. The message lists the installed connection types. |
 | `duplicate connection name` | Two connections share a `name`. |
+| `auth none is not allowed when TIM_ENVIRONMENT=production` | A connection uses `auth: none`, which is for a local Kusto emulator. Use `obo`, or set `TIM_ENVIRONMENT=development` to check a development file. |
 | `scope is required for auth obo` | The connection type has no default scope, so the connection must give one. |
 | `no connection named <name>`, `connection <name> is <type>, not <type>` | An action's fixed connection isn't in the connections file, or is of another connection type. |
 | `TIM_ACTIONS_DIR: invalid (Value error, no directory ...)` | `TIM_ACTIONS_DIR` names a path that isn't a directory. The api exits with `Invalid configuration:`. |

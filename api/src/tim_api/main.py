@@ -67,6 +67,7 @@ async def _lifespan(
         settings.actions_dir,
         connections_file=settings.connections_file,
         labels_file=settings.labels_file,
+        production=settings.environment == "production",
     )
     for reason in registry.left_out:
         logger.info(reason)

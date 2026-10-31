@@ -5,7 +5,9 @@
   labels file, for ``yaml-language-server``.
 - ``tim-api check [--actions <dir>] [--connections <file>] [--labels <file>]`` runs the startup
   validation of the installed providers, the action files, the connections file and the labels
-  file, without a database, credentials or other settings.
+  file, without a database, credentials or other settings. It reads ``TIM_ENVIRONMENT``, which
+  defaults to ``production`` as for the api, and refuses connections with ``auth: none`` in
+  production.
 
 ``--dev-actions`` adds the development actions and action types, as ``TIM_DEV_ACTIONS`` does.
 """
@@ -14,9 +16,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import get_args
 
 from tim_actions import Provider
 from tim_actions.connections_file import connections_file_schema
@@ -24,6 +28,7 @@ from tim_actions.files import action_files_schema
 from tim_actions.labels_file import labels_file_schema
 
 from tim_api.actions import InstanceConfigError, Registry, build_registry, load_providers
+from tim_api.config import Environment
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +61,7 @@ def _checked_registry(
     dev_actions: bool,
     connections_file: Path | None = None,
     labels_file: Path | None = None,
+    production: bool = True,
 ) -> Registry | None:
     """The registry, or ``None`` with its problems printed."""
     try:
@@ -65,6 +71,7 @@ def _checked_registry(
             action_files=action_files,
             connections_file=connections_file,
             labels_file=labels_file,
+            production=production,
         )
     except InstanceConfigError as exc:
         print(exc, file=sys.stderr)
@@ -89,6 +96,14 @@ def main(argv: Sequence[str] | None = None, *, providers: Sequence[Provider] | N
             schema = labels_file_schema()
         print(json.dumps(schema, indent=2))
         return 0
+    environment = os.environ.get("TIM_ENVIRONMENT", "production")
+    if environment not in get_args(Environment):
+        print(
+            f"error: TIM_ENVIRONMENT must be {' or '.join(get_args(Environment))}, "
+            f"not {environment!r}",
+            file=sys.stderr,
+        )
+        return 2
     if args.actions is not None and not args.actions.is_dir():
         print(f"error: --actions: no directory {args.actions}", file=sys.stderr)
         return 2
@@ -105,6 +120,7 @@ def main(argv: Sequence[str] | None = None, *, providers: Sequence[Provider] | N
         dev_actions=args.dev_actions,
         connections_file=args.connections,
         labels_file=args.labels,
+        production=environment == "production",
     )
     if registry is None:
         return 1

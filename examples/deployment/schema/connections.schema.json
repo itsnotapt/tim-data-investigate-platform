@@ -4,7 +4,7 @@
   "$defs": {
     "kusto": {
       "additionalProperties": false,
-      "description": "A Kusto cluster. ``cluster`` is normalised to ``https://<host>``; ``databases`` are\nsuggestions for the analyst, not a restriction. The ``obo`` scope defaults to\n``{cluster}/.default``.",
+      "description": "A Kusto cluster. ``databases`` are suggestions for the analyst, not a restriction.\n\nWith ``auth: obo``, ``cluster`` is normalised to ``https://<host>`` and the scope defaults\nto ``{cluster}/.default``. ``auth: none`` is for a local Kusto emulator in development\n(ADR-0026): ``cluster`` may be ``http`` too, and keeps its scheme and port.",
       "properties": {
         "name": {
           "pattern": "^[a-z0-9-]+$",
@@ -21,7 +21,10 @@
           "type": "string"
         },
         "auth": {
-          "const": "obo",
+          "enum": [
+            "obo",
+            "none"
+          ],
           "title": "Auth",
           "type": "string"
         },

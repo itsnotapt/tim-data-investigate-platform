@@ -16,6 +16,9 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ENV_PREFIX = "TIM_"
 
+Environment = Literal["development", "production"]
+"""``TIM_ENVIRONMENT``: development-only modes refuse to run in ``production`` (ADR-0011)."""
+
 
 def _split_list(value: object) -> object:
     """Accept comma-separated strings (or a JSON-ish list) for list settings."""
@@ -37,7 +40,7 @@ class Settings(BaseSettings):
     )
 
     # --- mode -------------------------------------------------------------------------
-    environment: Literal["development", "production"] = "production"
+    environment: Environment = "production"
     log_level: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"] = "INFO"
 
     # --- auth (Entra ID, ADR-0005) -----------------------------------------------------

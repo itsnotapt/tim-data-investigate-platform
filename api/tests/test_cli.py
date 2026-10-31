@@ -11,6 +11,7 @@ import yaml
 from scripted_actions import FileRows
 from test_action_files import FILE_TYPES, FIXTURES, startup_problems
 from tim_actions import Provider
+from tim_actions.kusto import KustoHook
 
 from tim_api.cli import main
 
@@ -23,8 +24,10 @@ def _no_settings(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(key)
 
 
-def check(capsys: pytest.CaptureFixture[str], *args: str) -> tuple[int, str, str]:
-    code = main(["check", *args], providers=[FILE_TYPES])
+def check(
+    capsys: pytest.CaptureFixture[str], *args: str, providers: list[Provider] | None = None
+) -> tuple[int, str, str]:
+    code = main(["check", *args], providers=providers or [FILE_TYPES])
     out, err = capsys.readouterr()
     return code, out, err
 
@@ -62,6 +65,53 @@ def test_check_refuses_a_directory_that_does_not_exist(
 ) -> None:
     code, out, err = check(capsys, "--actions", str(tmp_path / "missing"))
     assert (code, out, err) == (2, "", f"error: --actions: no directory {tmp_path / 'missing'}\n")
+
+
+KUSTO = Provider(hooks=[KustoHook])
+EMULATOR = """\
+- name: emulator
+  title: Emulator
+  type: kusto
+  auth: none
+  cluster: http://kusto:8080
+"""
+
+
+def test_check_in_production_reports_a_connection_without_auth(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "connections.yaml"
+    path.write_text(EMULATOR)
+    monkeypatch.setenv("TIM_ENVIRONMENT", "production")
+    code, out, err = check(capsys, "--connections", str(path), providers=[KUSTO])
+    assert (code, out) == (1, "")
+    assert err.splitlines()[1:] == [
+        f"  - {path}: connection emulator: auth none is not allowed when TIM_ENVIRONMENT=production"
+    ]
+
+
+def test_check_in_development_accepts_a_connection_without_auth(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "connections.yaml"
+    path.write_text(EMULATOR)
+    monkeypatch.setenv("TIM_ENVIRONMENT", "development")
+    assert check(capsys, "--connections", str(path), providers=[KUSTO]) == (
+        0,
+        "OK: 0 actions, 1 connections, 3 labels\n",
+        "",
+    )
+
+
+def test_check_refuses_an_unknown_environment(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TIM_ENVIRONMENT", "staging")
+    assert check(capsys) == (
+        2,
+        "",
+        "error: TIM_ENVIRONMENT must be development or production, not 'staging'\n",
+    )
 
 
 def schema(capsys: pytest.CaptureFixture[str], providers: list[Provider]) -> dict[str, Any]:
