@@ -544,7 +544,7 @@ A row's `id` is computed in the browser, from one column of its results: the **I
 - **In the grid.** `ActionResultsGrid.tsx` gives each row its `id` with `withIds`, and its annotations from the annotation store. A switch recomputes both in place and keeps the selection, filters, sort and scroll.
 - **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
-  - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter).
+  - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter). Clearing it goes back to the action's Id column.
   - A toast says "Id column set to Host: labels now follow Host". Switching back shows the earlier annotations again, as they follow the `id`s.
 - **No `id`.** A row without one can't be annotated. Row detail and the disabled items say "No id: right-click a cell and use its column as the Id column".
 

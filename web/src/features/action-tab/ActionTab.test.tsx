@@ -32,6 +32,7 @@ const action: CatalogueAction = {
   connections: [],
   params: [{ name: 'users', title: 'Users', kind: 'string', required: false, many: true }],
   pivot: null,
+  idColumn: 'User',
 };
 const runKql: CatalogueAction = {
   key: 'tim.run_kql',
@@ -399,6 +400,17 @@ describe('ActionTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clone' }));
     const copy = Object.values(useTabsStore.getState().tabs).find((t) => t.componentUuid !== uuid);
     expect(copy?.state).toMatchObject({ idColumn: 'Host' });
+  });
+
+  it('goes back to the action’s Id column when the Id column pill is cleared', async () => {
+    const { uuid } = setup({ ...withResults, idColumn: 'Host' });
+    await userEvent.click(screen.getByRole('button', { name: 'Id column: Host' }));
+    await userEvent.clear(screen.getByRole('combobox', { name: 'Id column' }));
+    await userEvent.keyboard('{Escape}{Escape}');
+
+    expect(await screen.findByRole('button', { name: 'Id column: User' })).toBeInTheDocument();
+    expect(screen.getByText('Id column set to User: labels now follow User')).toBeInTheDocument();
+    expect(useTabsStore.getState().tabs[uuid]?.state.idColumn).toBeUndefined();
   });
 
   it('says so when the action is no longer in the instance, and cannot run', () => {

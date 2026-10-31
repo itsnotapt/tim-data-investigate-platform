@@ -34,7 +34,7 @@ import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid'
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
 import { useDeclareStatement } from './declareStatement';
-import { resultsIdColumn, shareLinkIdColumn, switchedText } from './idColumn';
+import { actionIdColumn, resultsIdColumn, shareLinkIdColumn, switchedText } from './idColumn';
 import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
 import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
@@ -293,9 +293,10 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // The results' Id column, and the one a link carries when it isn't the action's.
   const idColumn = resultsIdColumn(action, state);
   const linkIdColumn = shareLinkIdColumn(action, state);
+  // Clearing goes back to the action's Id column.
   const switchTo = (column: string | null) => {
-    useTabsStore.getState().updateState(uuid, { idColumn: column });
-    notify?.(switchedText(column));
+    useTabsStore.getState().updateState(uuid, { idColumn: column ?? undefined });
+    notify?.(switchedText(column ?? actionIdColumn(action)));
   };
   const resultColumns = (shown?.columns ?? state.resultColumns ?? []).map((c) => c.name);
   const reset = () => {
