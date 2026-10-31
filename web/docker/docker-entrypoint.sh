@@ -28,8 +28,23 @@ case "$TIM_ENVIRONMENT" in
     *) fail "TIM_ENVIRONMENT must be 'development' or 'production' (got '$TIM_ENVIRONMENT')" ;;
 esac
 
+# Stub sign-in replaces Entra with a "Who are you?" screen, in development only (ADR-0026).
+STUB_SIGN_IN=${STUB_SIGN_IN:-false}
+case "$STUB_SIGN_IN" in
+    true | false) ;;
+    *) fail "STUB_SIGN_IN must be 'true' or 'false' (got '$STUB_SIGN_IN')" ;;
+esac
+if [ "$STUB_SIGN_IN" = true ] && [ "$TIM_ENVIRONMENT" != development ]; then
+    fail "STUB_SIGN_IN=true is refused when TIM_ENVIRONMENT is '$TIM_ENVIRONMENT'; it is allowed only in 'development'"
+fi
+
 # --- required variables ---------------------------------------------------------------
-required="BACKEND_URI REDIRECT_URI AUTH_CLIENT_ID AUTH_TENANT_ID"
+# The Entra variables are not used by stub sign-in.
+if [ "$STUB_SIGN_IN" = true ]; then
+    required="BACKEND_URI"
+else
+    required="BACKEND_URI REDIRECT_URI AUTH_CLIENT_ID AUTH_TENANT_ID"
+fi
 missing=""
 for name in $required; do
     eval "value=\${$name-}"
@@ -50,9 +65,11 @@ BACKEND_URI=$(printf '%s' "$BACKEND_URI" | sed 's|/*$||')
 # Scheme + host[:port] only. A path would change how nginx forwards /api/.
 printf '%s' "$BACKEND_URI" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' \
     || fail "BACKEND_URI must be http(s)://host[:port] with no path (got '$BACKEND_URI')"
-is_http_url "$REDIRECT_URI" || fail "REDIRECT_URI must be an http(s) URL"
-printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
-    || fail "AUTH_TENANT_ID must be a tenant GUID or domain name"
+if [ "$STUB_SIGN_IN" = false ]; then
+    is_http_url "$REDIRECT_URI" || fail "REDIRECT_URI must be an http(s) URL"
+    printf '%s' "$AUTH_TENANT_ID" | grep -Eq '^[A-Za-z0-9.-]+$' \
+        || fail "AUTH_TENANT_ID must be a tenant GUID or domain name"
+fi
 
 API_BASEPATH=${API_BASEPATH-}
 # Optional: without a key AG Grid Enterprise runs in trial mode.
@@ -66,25 +83,28 @@ HELP_ISSUE_URI=${HELP_ISSUE_URI-}
 # --- config.js --------------------------------------------------------------------------
 # jq does all JSON escaping. "<" is additionally emitted as < so the file stays safe even
 # if it is ever inlined in HTML. Empty optional values are omitted so the app's own defaults
-# apply, except agGridLicenseKey, which is always written (empty = trial mode).
+# apply, except agGridLicenseKey, which is always written (empty = trial mode). With stub sign-in,
+# stubSignIn replaces auth and redirectUri.
 mkdir -p "$RUNTIME_DIR"
 config_tmp="$RUNTIME_DIR/.config.js.$$"
 {
     printf 'window.appConfig = '
     jq -n \
-        --arg clientId "$AUTH_CLIENT_ID" \
-        --arg tenant "$AUTH_TENANT_ID" \
-        --arg redirectUri "$REDIRECT_URI" \
+        --argjson stubSignIn "$STUB_SIGN_IN" \
+        --arg clientId "${AUTH_CLIENT_ID-}" \
+        --arg tenant "${AUTH_TENANT_ID-}" \
+        --arg redirectUri "${REDIRECT_URI-}" \
         --arg apiEndpoint "$API_BASEPATH" \
         --arg agGridLicenseKey "$AGGRID_LICENSE" \
         --arg wikiUri "$HELP_WIKI_URI" \
         --arg issueUri "$HELP_ISSUE_URI" \
-        '{
+        '(if $stubSignIn then {stubSignIn: true} else {
             auth: {
                 clientId: $clientId,
                 authority: ("https://login.microsoftonline.com/" + $tenant)
             },
-            redirectUri: $redirectUri,
+            redirectUri: $redirectUri
+        } end) + {
             apiEndpoint: $apiEndpoint,
             agGridLicenseKey: $agGridLicenseKey,
             wikiUri: $wikiUri,

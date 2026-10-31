@@ -11,6 +11,9 @@ export interface AuthClient {
   getAccount(): Promise<AuthAccount | null>;
   /** Access token for `scopes`. Rejects when not signed in. */
   acquireToken(scopes: string[]): Promise<string>;
-  login(): Promise<AuthAccount>;
+  /** Resolves `null` when the stub has no analyst chosen yet. */
+  login(): Promise<AuthAccount | null>;
   logout(): Promise<void>;
+  /** Stub sign-in only: signs in as the analyst `name` (a name or email) and remembers them. */
+  signInAs?(name: string): Promise<AuthAccount>;
 }

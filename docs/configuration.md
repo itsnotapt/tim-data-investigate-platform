@@ -203,14 +203,15 @@ The root filesystem can be read-only. Only `/tmp` must be writable. A validation
 | Variable           | Required | Default                                                   | `window.appConfig` key | Description                                                                                              |
 | ------------------ | -------- | --------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `BACKEND_URI`      | yes      | none                                                      | none (nginx only)      | Where nginx forwards `/api/`: `http(s)://host[:port]`, no path. Trailing slashes are removed.            |
-| `REDIRECT_URI`     | yes      | none                                                      | `redirectUri`          | MSAL popup redirect target, `https://<web host>/blank.html`. Register it as a SPA redirect URI in Entra. |
-| `AUTH_CLIENT_ID`   | yes      | none                                                      | `auth.clientId`        | Client id of the app registration the SPA signs in with.                                                 |
-| `AUTH_TENANT_ID`   | yes      | none                                                      | `auth.authority`       | Tenant GUID or domain; the authority becomes `https://login.microsoftonline.com/<tenant>`.               |
+| `STUB_SIGN_IN`     | no       | `false`                                                   | `stubSignIn`           | Development only. `true` or `false`. `true` shows a "Who are you?" screen instead of Entra sign-in and sends the stub token `dev:<upn>`; pair it with `TIM_AUTH_DISABLED=true` on the api. The value must be exactly `true` or `false`. The container exits unless `TIM_ENVIRONMENT=development`. The three Entra variables below are then not required and not rendered. |
+| `REDIRECT_URI`     | yes, unless `STUB_SIGN_IN=true` | none                                       | `redirectUri`          | MSAL popup redirect target, `https://<web host>/blank.html`. Register it as a SPA redirect URI in Entra. |
+| `AUTH_CLIENT_ID`   | yes, unless `STUB_SIGN_IN=true` | none                                       | `auth.clientId`        | Client id of the app registration the SPA signs in with.                                                 |
+| `AUTH_TENANT_ID`   | yes, unless `STUB_SIGN_IN=true` | none                                       | `auth.authority`       | Tenant GUID or domain; the authority becomes `https://login.microsoftonline.com/<tenant>`.               |
 | `API_BASEPATH`     | no       | empty (same origin)                                       | `apiEndpoint`          | Prefix for API calls. A cross-origin `http(s)://host[:port]` is added to the CSP `connect-src`.          |
 | `AGGRID_LICENSE`   | no       | empty                                                     | `agGridLicenseKey`     | AG Grid Enterprise licence key, see [below](#ag-grid-enterprise-licence).                                |
 | `HELP_WIKI_URI`    | no       | project wiki (built in)                                   | `wikiUri`              | Target of the help link.                                                                                 |
 | `HELP_ISSUE_URI`   | no       | project issue tracker (built in)                          | `issueUri`             | Target of the issue link.                                                                                |
-| `TIM_ENVIRONMENT`  | no       | `production`                                              | none                   | Only validated: must be `development` or `production`.                                                   |
+| `TIM_ENVIRONMENT`  | no       | `production`                                              | none                   | Must be `development` or `production`. `STUB_SIGN_IN=true` is accepted only with `development`.           |
 | `NGINX_RESOLVER`   | no       | first nameserver in `/etc/resolv.conf`, else `127.0.0.11` | none                   | DNS resolver nginx uses to resolve `BACKEND_URI`.                                                        |
 
 Empty optional values are left out of `config.js` so the app defaults apply; `agGridLicenseKey` is always written (empty means trial).
@@ -236,13 +237,13 @@ The image serves `/config.js` from `/tmp/tim`, and includes `nginx.conf` from th
 | `VITE_AGGRID_LICENSE_KEY` | `agGridLicenseKey` / `AGGRID_LICENSE`                                                                                       |
 | `VITE_HELP_WIKI_URI`      | `wikiUri` / `HELP_WIKI_URI`                                                                                                 |
 | `VITE_HELP_ISSUE_URI`     | `issueUri` / `HELP_ISSUE_URI`                                                                                               |
-| `VITE_AUTH_STUB`          | `true` signs in a fake account without Entra and sends its stub token (`dev:<upn>`). The account is `dev.user@example.com`, or the upn in the `localStorage` key `tim.devStubUpn`. A production build refuses it and shows the configuration error screen. |
+| `VITE_AUTH_STUB`          | `true` signs in a fake account without Entra and sends its stub token (`dev:<upn>`). The account is `dev.user@example.com`, or the upn in the `localStorage` key `tim.devStubUpn`. A production build refuses it and shows the configuration error screen. This stub has no "Who are you?" screen, and its Sign out keeps the stored upn. `stubSignIn: true` in `config.js` (container `STUB_SIGN_IN`) picks a different stub: it shows "Who are you?" until an analyst is chosen, and its Sign out forgets the upn. |
 
 ### How the SPA merges and validates configuration
 
 1. Each key comes from `window.appConfig`, else from the matching `VITE_*` variable.
 2. Empty strings and unsubstituted placeholders such as `$VAR` or `${VAR}` count as missing.
-3. The result is validated: `auth.clientId`, `auth.authority` and `redirectUri` are required (URLs must be http(s)); `apiEndpoint` defaults to same origin (trailing slashes are stripped).
+3. The result is validated: `auth.clientId`, `auth.authority` and `redirectUri` are required unless `stubSignIn` is `true` (URLs must be http(s)); `apiEndpoint` defaults to same origin (trailing slashes are stripped).
 4. On any problem the app renders a configuration error screen listing every missing or invalid key instead of starting.
 
 ### AG Grid Enterprise licence
@@ -266,10 +267,10 @@ Result grids use AG Grid Enterprise; there is no Community build ([ADR-0006](adr
 | `POSTGRES_PORT`                                       | `5432`                                                     | Host port, bound to `127.0.0.1`.                                                            |
 | `API_PORT`                                            | `8080`                                                     | Host port of `api`.                                                                         |
 | `WEB_PORT`                                            | `8081`                                                     | Host port of `web`.                                                                         |
-| `TIM_AUTH_DISABLED`                                   | `true`                                                     | Passed to `migrate` and `api`.                                                              |
+| `TIM_AUTH_DISABLED`                                   | `true`                                                     | Passed to `migrate` and `api`. Also sets the `web` container's `STUB_SIGN_IN`. `true` shows "Who are you?". `false` signs in with Entra. Must be exactly `true` or `false`. |
 | `TIM_LOG_LEVEL`                                       | `INFO`                                                     | Passed to `migrate` and `api`.                                                              |
-| `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`            | all-zero GUID                                              | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`.                    |
-| `REDIRECT_URI`                                        | `http://localhost:8081/blank.html`                         | Passed to `web`. Must match `WEB_PORT`.                                                     |
+| `TIM_AUTH_TENANT_ID`, `TIM_AUTH_CLIENT_ID`            | all-zero GUID                                              | Passed to the api and, as `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, to `web`. `web` uses them only with `TIM_AUTH_DISABLED=false`. |
+| `REDIRECT_URI`                                        | `http://localhost:8081/blank.html`                         | Passed to `web`. Must match `WEB_PORT`. Used only with `TIM_AUTH_DISABLED=false`.           |
 | `AGGRID_LICENSE`                                      | empty                                                      | Passed to `web`.                                                                            |
 | `TIM_AUTH_CLIENT_SECRET`                              | empty                                                      | Passed to `migrate` and `api`. Needed only with `TIM_AUTH_DISABLED=false` (OBO credential). |
 | `HELP_WIKI_URI`, `HELP_ISSUE_URI` | empty                                                      | Passed to `web`.                                                                            |

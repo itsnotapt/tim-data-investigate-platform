@@ -4,19 +4,23 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Container from '@mui/material/Container';
 import Link from '@mui/material/Link';
 import type { ReactNode } from 'react';
+import { useAuth } from '../lib/auth';
 import { useBootstrap, type BootstrapSteps } from './useBootstrap';
+import { WhoAreYou } from './WhoAreYou';
 
 /**
  * Renders the routes only when signed in and bootstrapped (instance, column views, tabs);
- * otherwise the sign-in / loading / error states.
+ * otherwise the sign-in ("Who are you?" with stub sign-in) / loading / error states.
  */
 export function AuthGate({ children, steps }: { children: ReactNode; steps?: BootstrapSteps }) {
   const { status, error, login, retry } = useBootstrap(steps);
+  const { signInAs } = useAuth();
 
   switch (status) {
     case 'loaded':
       return <>{children}</>;
     case 'signedOut':
+      if (signInAs) return <WhoAreYou signInAs={signInAs} />;
       return (
         <Container sx={{ mt: 2 }}>
           <Alert severity="info" variant="outlined">

@@ -1,4 +1,4 @@
-import { apiScopes, getAuthClient } from '../auth';
+import { getApiToken } from '../auth';
 import { getConfig } from '../config/runtimeConfig';
 import { ApiError, CLIENT_PROBLEM, apiErrorFromResponse } from './errors';
 
@@ -168,7 +168,7 @@ let cached: ApiClient | undefined;
 export function getApiClient(): ApiClient {
   cached ??= createApiClient({
     baseUrl: getConfig().apiEndpoint,
-    getToken: () => getAuthClient().acquireToken(apiScopes(getConfig().auth.clientId)),
+    getToken: getApiToken,
   });
   return cached;
 }

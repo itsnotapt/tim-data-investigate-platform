@@ -44,7 +44,7 @@ export function AuthProvider({ client, scopes, children }: Props) {
     setState((s) => ({ ...s, status: 'loading', error: null }));
     try {
       const account = await client.login();
-      setState({ status: 'signedIn', account, error: null });
+      setState({ status: account ? 'signedIn' : 'signedOut', account, error: null });
     } catch (e) {
       // Stay retryable: the error is shown, and calling login() again starts a fresh attempt.
       setState({ status: 'error', account: null, error: toAuthError(e) });
@@ -60,6 +60,20 @@ export function AuthProvider({ client, scopes, children }: Props) {
     }
   }, [client]);
 
+  const signInAs = useCallback(
+    async (name: string) => {
+      if (!client.signInAs) return;
+      try {
+        const account = await client.signInAs(name);
+        setState({ status: 'signedIn', account, error: null });
+      } catch (e) {
+        setState({ status: 'error', account: null, error: toAuthError(e) });
+      }
+    },
+    [client],
+  );
+  const hasSignInAs = client.signInAs !== undefined;
+
   const defaultScopes = scopes ?? (isMsal(client) ? apiScopes(clientIdOf(client)) : []);
   const scopeKey = defaultScopes.join(' ');
   const getToken = useCallback(
@@ -68,8 +82,8 @@ export function AuthProvider({ client, scopes, children }: Props) {
   );
 
   const value = useMemo<UseAuth>(
-    () => ({ ...state, login, logout, getToken }),
-    [state, login, logout, getToken],
+    () => ({ ...state, login, logout, signInAs: hasSignInAs ? signInAs : null, getToken }),
+    [state, login, logout, hasSignInAs, signInAs, getToken],
   );
 
   const tree = <AuthContext value={value}>{children}</AuthContext>;

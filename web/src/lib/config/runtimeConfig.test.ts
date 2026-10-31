@@ -21,20 +21,26 @@ const fullEnv = {
 describe('loadRuntimeConfig', () => {
   it('lets window.appConfig override env values', () => {
     const c = loadRuntimeConfig(fullWindow, fullEnv);
-    expect(c.auth.clientId).toBe('cid');
-    expect(c.redirectUri).toBe('https://app.example.com/blank.html');
+    expect(c).toHaveProperty('auth.clientId', 'cid');
+    expect(c).toHaveProperty('redirectUri', 'https://app.example.com/blank.html');
     expect(c.apiEndpoint).toBe('/api');
   });
 
   it('falls back to env when appConfig is absent', () => {
     const c = loadRuntimeConfig(undefined, fullEnv);
-    expect(c.auth).toEqual({ clientId: 'env-cid', authority: 'https://login.env.com/tenant' });
+    expect(c).toHaveProperty('auth', {
+      clientId: 'env-cid',
+      authority: 'https://login.env.com/tenant',
+    });
     expect(c.apiEndpoint).toBe('/env-api');
   });
 
   it('merges per key, including nested auth fields', () => {
     const c = loadRuntimeConfig({ auth: { clientId: 'only-id' } }, fullEnv);
-    expect(c.auth).toEqual({ clientId: 'only-id', authority: 'https://login.env.com/tenant' });
+    expect(c).toHaveProperty('auth', {
+      clientId: 'only-id',
+      authority: 'https://login.env.com/tenant',
+    });
   });
 
   it('names every missing required key in the error', () => {
@@ -60,7 +66,7 @@ describe('loadRuntimeConfig', () => {
     expect(() => loadRuntimeConfig(w, {})).toThrow(/auth\.clientId[\s\S]*auth\.authority/);
     // Placeholder falls through to the env fallback.
     const c = loadRuntimeConfig({ ...fullWindow, redirectUri: '${REDIRECT_URI}' }, fullEnv);
-    expect(c.redirectUri).toBe('https://env.example.com/blank.html');
+    expect(c).toHaveProperty('redirectUri', 'https://env.example.com/blank.html');
   });
 
   it('treats agGridLicenseKey as optional', () => {
@@ -101,6 +107,30 @@ describe('loadRuntimeConfig', () => {
   it('nodeEnv is not part of the config', () => {
     expect(loadRuntimeConfig({ ...fullWindow, nodeEnv: 'production' }, {})).not.toHaveProperty(
       'nodeEnv',
+    );
+  });
+
+  it('stubSignIn is false unless window.appConfig sets it', () => {
+    expect(loadRuntimeConfig(fullWindow, fullEnv).stubSignIn).toBe(false);
+    expect(loadRuntimeConfig({ ...fullWindow, stubSignIn: false }, {}).stubSignIn).toBe(false);
+  });
+
+  it('with stubSignIn, auth and redirectUri are not required and are left out', () => {
+    const c = loadRuntimeConfig({ stubSignIn: true, apiEndpoint: '/api/' }, {});
+    expect(c).toEqual({
+      stubSignIn: true,
+      apiEndpoint: '/api',
+      wikiUri: expect.stringMatching(/^https:\/\//) as unknown,
+      issueUri: expect.stringMatching(/^https:\/\//) as unknown,
+    });
+    expect(loadRuntimeConfig({ ...fullWindow, stubSignIn: true }, fullEnv)).not.toHaveProperty(
+      'auth',
+    );
+  });
+
+  it('reports a stubSignIn that is not a boolean', () => {
+    expect(() => loadRuntimeConfig({ ...fullWindow, stubSignIn: 'true' }, {})).toThrow(
+      /stubSignIn/,
     );
   });
 

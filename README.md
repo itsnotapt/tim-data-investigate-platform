@@ -18,8 +18,10 @@ docker compose up --build
 Open http://localhost:8081.
 
 - The api runs with authentication disabled.
-- The web container signs in with Entra ID, so the UI needs a real app registration (see [docs/configuration.md](docs/configuration.md)).
-- To work on the UI without one, use the edit-reload loop with stub sign-in described in [docs/development.md](docs/development.md). That guide also covers tests and linting.
+- The web container shows a "Who are you?" screen. Choose `alice@demo.example` or `bob@demo.example`, or type a name or email. No app registration is needed.
+- The browser remembers the choice. For a second analyst, use another browser or a private window.
+- Set `TIM_AUTH_DISABLED=false` in `.env` to sign in with Entra ID instead (see [docs/configuration.md](docs/configuration.md)).
+- To edit the UI with reload, use the loop described in [docs/development.md](docs/development.md). That guide also covers tests and linting.
 
 ## Repository layout
 

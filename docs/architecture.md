@@ -638,8 +638,9 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 
 | Key | Meaning |
 |---|---|
-| `auth.clientId`, `auth.authority` | Entra app registration and authority (`https://login.microsoftonline.com/<tenant>`) |
-| `redirectUri` | MSAL redirect page (`/blank.html`) |
+| `auth.clientId`, `auth.authority` | Entra app registration and authority (`https://login.microsoftonline.com/<tenant>`). Absent with `stubSignIn` |
+| `redirectUri` | MSAL redirect page (`/blank.html`). Absent with `stubSignIn` |
+| `stubSignIn` | `true` replaces Entra with the "Who are you?" screen. The web container renders it only when `TIM_ENVIRONMENT=development` |
 | `apiEndpoint` | API origin; empty means same origin |
 | `agGridLicenseKey` | AG Grid Enterprise key; empty runs in trial mode |
 | `wikiUri`, `issueUri` | Help links |
@@ -654,7 +655,13 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 - `/blank.html` is the redirect page. MSAL silent flows load it in a same-origin hidden iframe.
 - Tokens are acquired silently for every API call, with `ssoSilent` or a popup as fallback.
 - A `401` triggers one retry with a fresh token.
-- A development stub (`VITE_AUTH_STUB=true`) exists. It throws in a production build.
+- A development stub replaces MSAL, chosen by `VITE_AUTH_STUB=true` or by `stubSignIn` in the runtime config. `VITE_AUTH_STUB` throws in a production build.
+  - With `VITE_AUTH_STUB`, the stub signs in as `dev.user@example.com` unless an analyst is stored in `localStorage['tim.devStubUpn']`.
+  - Its Sign out shows the "You must sign-in first" gate, and keeps the stored analyst.
+  - With `stubSignIn`, the SPA shows "Who are you?" until an analyst is chosen: `alice@demo.example`, `bob@demo.example` or a typed name or email.
+  - The `stubSignIn` stub keeps the choice in `localStorage['tim.devStubUpn']`.
+  - Its Sign out forgets the choice and returns to "Who are you?".
+  - Either stub sends `Bearer dev:<upn>`, which an api with `TIM_AUTH_DISABLED=true` runs as that analyst.
 
 ## API architecture
 
@@ -1203,7 +1210,7 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
   - Hooks get a `token_for(scope)` callable and never see the analyst's token.
   - `GET /api/instance` shows a connection's name, title, type, editor and databases. It never shows its cluster, auth or scope.
 - **Connections run as the user** (OBO).
-- **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's auth stub throws in a production build.
+- **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's `VITE_AUTH_STUB` throws in a production build, and the web container refuses `STUB_SIGN_IN=true`.
 - **Request bodies are capped:**
   - `TIM_MAX_REQUEST_BYTES` on the API (default 64 MiB, `413`);
   - `client_max_body_size 64m` on nginx;
