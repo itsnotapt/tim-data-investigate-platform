@@ -121,7 +121,7 @@ def test_an_action_with_its_menu_path_and_pivot_columns() -> None:
             Param("note", "string"),
         ],
         columns=[Column("User", "string")],
-        id=["UserId", "Upn"],
+        id="UserId",
         pivot="row",
     )
     assert action.menu_path == ["Identity", "Entra"]
@@ -146,7 +146,7 @@ def test_an_action_with_its_menu_path_and_pivot_columns() -> None:
             {"columns": [Column("A", "string"), Column("A", "number")]},
             r"columns\n  Value error, names must be unique",
         ),
-        ({"id": []}, "give a column name"),
+        ({"id": ["Upn"]}, "id"),
         ({"id": " "}, "id"),
         ({"colour": "red"}, "colour"),
     ],

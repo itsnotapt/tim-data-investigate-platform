@@ -141,13 +141,14 @@ const queryParameterInputs = (form: PresetForm): PresetInput[] =>
   );
 
 /**
- * The preset the form saves: unset values are left out, From row inputs keep no value, and query
- * parameters are inputs in place of the `parameters` param.
+ * The preset the form saves, with `idColumn`: unset values are left out, From row inputs keep no
+ * value, and query parameters are inputs in place of the `parameters` param.
  */
 export function formFields(
   action: CatalogueAction,
   params: Record<string, unknown>,
   form: PresetForm,
+  idColumn: string | null = null,
 ): PresetFields {
   const inputs: PresetInput[] = [];
   const kept: Record<string, unknown> = {};
@@ -176,6 +177,7 @@ export function formFields(
     action: action.key,
     params: kept,
     inputs,
+    idColumn,
   };
 }
 

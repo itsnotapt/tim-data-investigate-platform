@@ -23,8 +23,9 @@ async function readRun(runId: string): Promise<Run | null> {
 }
 
 /**
- * `#/runs/:runId?row=<n>`, a share link: opens the run in an ordinary tab, with the row it names
- * focused and Row detail open on it, and runs nothing. A run that is gone shows only that.
+ * `#/runs/:runId?row=<n>&idColumn=<column>`, a share link: opens the run in an ordinary tab, with
+ * the row it names focused and Row detail open on it, and the Id column it names, and runs
+ * nothing. A run that is gone shows only that.
  */
 export default function ShareLinkPage() {
   const { runId = '' } = useParams();
@@ -34,21 +35,22 @@ export default function ShareLinkPage() {
   const [error, setError] = useState<string | null>(null);
   const handled = useRef<string | null>(null);
   const row = rowParam(search.get('row'));
+  const idColumn = search.get('idColumn') || null;
 
   useEffect(() => {
     if (!loaded) return;
-    const key = `${runId}|${row}`;
+    const key = `${runId}|${row}|${idColumn}`;
     if (handled.current === key) return; // StrictMode / re-render guard
     handled.current = key;
     readRun(runId).then(
       (run) => {
         if (!run) return setError(GONE);
-        void navigate(`/view/${openRunTab(run, row)}`, { replace: true });
+        void navigate(`/view/${openRunTab(run, row, idColumn)}`, { replace: true });
       },
       (e: unknown) =>
         setError(`Couldn't open the result: ${e instanceof Error ? e.message : String(e)}`),
     );
-  }, [loaded, runId, row, navigate]);
+  }, [loaded, runId, row, idColumn, navigate]);
 
   return (
     <Container sx={{ mt: 2 }}>

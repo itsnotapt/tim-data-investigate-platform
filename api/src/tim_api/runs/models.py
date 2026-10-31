@@ -8,7 +8,6 @@ from uuid import UUID
 from pydantic import Field, JsonValue
 from tim_actions import ColumnType, DetailValue
 
-from tim_api.annotations.models import Annotations
 from tim_api.models_common import ApiModel, UtcDatetime, omitted
 
 
@@ -80,19 +79,14 @@ class Run(ApiModel):
 
 
 class RunRow(ApiModel):
-    """One result row. ``row`` is its row number, unique within the run; ``id`` is what it is
-    annotated by, and may repeat."""
+    """One result row. ``row`` is its row number, unique within the run."""
 
     row: int
-    id: str | None
     data: dict[str, JsonValue]
 
 
 class RowsPage(ApiModel):
-    """``lastRow`` is the run's row count. ``annotations`` are those of the rows' ids that have
-    any, current as of ``annotationVersion``."""
+    """``lastRow`` is the run's row count."""
 
     rows: list[RunRow]
     last_row: int
-    annotations: dict[str, Annotations]
-    annotation_version: int

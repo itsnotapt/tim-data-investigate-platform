@@ -32,7 +32,6 @@ from tim_actions.query_parameters import (
     TakesQueryParameters,
     params_and_values,
 )
-from tim_actions.rows import IdColumns, RowId
 from tim_actions.run import DetailValue, RunContext, RunError
 
 # --- cluster URLs (ADR-0010's shape checks) ---------------------------------------------
@@ -573,14 +572,9 @@ _PRESET_FILE_PARAMS = ("connection", "database", "kql")
 
 
 class RunKql(TakesQueryParameters):
-    """``tim.run_kql``: ad-hoc KQL on a Kusto connection, each row's ``id`` read from the
-    ``idColumn`` param's column."""
+    """``tim.run_kql``: ad-hoc KQL on a Kusto connection."""
 
     parameter_types = QUERY_PARAMETER_TYPES
-
-    def row_id(self, params: Mapping[str, Any]) -> RowId | None:
-        column = params.get("idColumn")
-        return IdColumns([column]) if column else None
 
     def declare_statement(self, query_parameters: Sequence[QueryParameter]) -> str:
         """``declare query_parameters(name:type, …);``; empty without query parameters."""
@@ -597,6 +591,7 @@ class RunKql(TakesQueryParameters):
         menu: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
+        id_column: str | None,
     ) -> KqlQueryFile | None:
         """A ``kql_query`` action with the preset's connection, database and Id column, and its
         query parameters declared before the KQL, as params (``preset_file_params``); ``None``
@@ -605,7 +600,6 @@ class RunKql(TakesQueryParameters):
         if file_params is None:
             return None
         declare = self.declare_statement(query_parameters)
-        id_column = params.get("idColumn")
         return KqlQueryFile(
             type="kql_query",
             key=key,
@@ -615,7 +609,7 @@ class RunKql(TakesQueryParameters):
             connection=params["connection"],
             database=params["database"],
             kql=_declared_before(declare, params["kql"]),
-            id=id_column or None,
+            id=id_column,
             params=file_params.params,
         )
 
@@ -659,13 +653,6 @@ RUN_KQL = RunKql(
         Param("connection", "connection", title="Connection", connection_type="kusto"),
         Param("database", "string", title="Database"),
         Param("kql", "kql", title="Query", schema_from=("connection", "database")),
-        Param(
-            "idColumn",
-            "string",
-            title="Id column",
-            required=False,
-            help="The column that gives each row its id",
-        ),
         Param(
             "parameters",
             "json",

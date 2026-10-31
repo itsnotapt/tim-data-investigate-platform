@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { grid, openAction } from './actionTab';
+import { grid, openAction, setIdColumn } from './actionTab';
 import { expect } from './realApi';
 
 const STATES = ['TEXAS', 'KANSAS', 'IOWA', 'FLORIDA', 'OHIO', 'GEORGIA'];
@@ -37,9 +37,7 @@ export async function runJsonRows(
   await page.getByRole('button', { name: /^Rows: / }).click();
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: /^Id column: / }).click();
-  await page.getByRole('textbox', { name: 'Id column' }).fill(idColumn);
-  await page.keyboard.press('Escape');
+  await setIdColumn(page, idColumn);
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();
   await expect(stateCell(page, 0)).toHaveText(String(rows[0]?.['State']));

@@ -1,5 +1,6 @@
 import type { Page, Request } from '@playwright/test';
 import { test, expect } from '../realApi';
+import { setIdColumn } from '../actionTab';
 
 const grid = (page: Page) => page.getByTestId('results-grid');
 const menuOption = (page: Page, text: string | RegExp) =>
@@ -22,9 +23,7 @@ async function runJson(page: Page, rows: Record<string, unknown>[], idColumn: st
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
   if (idColumn !== null) {
-    await page.getByRole('button', { name: /^Id column: / }).click();
-    await page.getByRole('textbox', { name: 'Id column' }).fill(idColumn);
-    await page.keyboard.press('Escape');
+    await setIdColumn(page, idColumn);
   }
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();
@@ -142,6 +141,34 @@ test('right-clicking a row that isn’t selected labels just that row; with rows
   await expect(rowsWith(page, c)).toHaveClass(/tim-label-green/);
 });
 
+test('a cell’s Use … as Id column gives rows run without one their ids, to label at once', async ({
+  page,
+  idPrefix,
+}) => {
+  const [a, b] = [`${idPrefix}-a`, `${idPrefix}-b`];
+  await runJson(
+    page,
+    [
+      { Host: a, Seen: 1 },
+      { Host: b, Seen: 2 },
+      { Host: a, Seen: 3 },
+    ],
+    null,
+  );
+  await grid(page).getByText(b).click({ button: 'right' });
+  await menuOption(page, 'Use Host as Id column').click();
+  await expect(page.getByText('Id column set to Host: labels now follow Host')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Id column: Host' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edited' })).toBeHidden();
+
+  await grid(page).getByText(a).first().click({ button: 'right' });
+  await menuOption(page, /^Label/).hover();
+  await menuOption(page, 'Malicious').click();
+  await expect(page.getByText('Labelled 1 id Malicious')).toBeVisible();
+  for (const row of await rowsWith(page, a).all()) await expect(row).toHaveClass(/tim-label-red/);
+  await expect(rowsWith(page, b)).not.toHaveClass(/tim-label/);
+});
+
 test('rows without an id, or more ids than one change takes, say why they can’t be labelled', async ({
   page,
   idPrefix,
@@ -154,7 +181,9 @@ test('rows without an id, or more ids than one change takes, say why they can’
   await page.keyboard.press('Escape');
   await grid(page).getByText(`${idPrefix}-none`).click();
   await page.keyboard.press('1');
-  await expect(page.getByText('No id: set Id column and run again to annotate')).toBeVisible();
+  await expect(
+    page.getByText('No id: right-click a cell and use its column as the Id column'),
+  ).toBeVisible();
 
   // The e2e api takes at most 5 ids in one change.
   const many = Array.from({ length: 6 }, (_, i) => ({ Host: `${idPrefix}-${i}` }));
@@ -170,17 +199,17 @@ test('a stored label no longer in the labels file shows grey as its bare key', a
   idPrefix,
 }) => {
   const id = `${idPrefix}-old`;
-  // The api only takes configured keys; the rows page brings one from an older labels file.
-  await page.route('**/api/runs/*/rows**', async (route) => {
+  // The api only takes configured keys; the change feed brings one from an older labels file.
+  await page.route('**/api/annotations/changes**', async (route) => {
     const response = await route.fetch();
-    const body = (await response.json()) as { annotations: Record<string, unknown> };
-    body.annotations[id] = {
+    const body = (await response.json()) as { changes: unknown[] };
+    body.changes.push({
       id,
       label: { key: 'retired', by: 'someone@example.com', at: '2026-10-01T08:00:00Z' },
       tags: [],
       comments: [],
       version: 1,
-    };
+    });
     await route.fulfill({ response, json: body });
   });
   await runJson(page, [{ Host: id }], 'Host');

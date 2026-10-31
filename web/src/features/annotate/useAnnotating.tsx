@@ -15,8 +15,6 @@ export interface AnnotatingOptions {
   labels: readonly InstanceLabel[];
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
-  /** The action takes its rows' id from an Id column param. */
-  idParam: boolean;
   /** The grid's rows of each `id`. */
   rowsById: RowsById;
   /** The sinks Annotate… offers to run on the rows after tagging. */
@@ -47,20 +45,13 @@ interface OpenDialog {
  * change goes into the annotation store as the analyst's own, then a toast says what changed, and
  * the sink picked in Annotate… starts on the rows.
  */
-export function useAnnotating({
-  labels,
-  max,
-  idParam,
-  rowsById,
-  sinks,
-}: AnnotatingOptions): Annotating {
+export function useAnnotating({ labels, max, rowsById, sinks }: AnnotatingOptions): Annotating {
   const notify = useContext(NotifyContext);
   const analyst = useAnalyst();
   const [open, setOpen] = useState<OpenDialog | null>(null);
   const options = useMemo(
     () => ({
       max,
-      idParam,
       notify: (message: string) => notify?.(message),
       open: (mode: AnnotateMode, rows: LabelledRow[]) => {
         const targets = targetIds(rows);
@@ -77,7 +68,7 @@ export function useAnnotating({
           );
       },
     }),
-    [max, idParam, notify, rowsById],
+    [max, notify, rowsById],
   );
   const onSaved = useCallback(
     async (mode: AnnotateMode, changes: Annotations[]) => {

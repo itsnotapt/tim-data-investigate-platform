@@ -11,7 +11,7 @@ import {
 import { apiUrl, problemResponse, TEST_API } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { SnackbarHost } from '../../components/SnackbarHost';
-import type { LabelledRow } from '../labels';
+import { NO_ID, type LabelledRow } from '../labels';
 import { RowDetail, type RowDetailProps } from './RowDetail';
 
 const server = setupMswServer();
@@ -83,7 +83,7 @@ const commented: Annotations = {
   ],
 };
 
-const fixed = { labels, columns: [], idParam: true, analyst: ALICE, call };
+const fixed = { labels, columns: [], analyst: ALICE, call };
 
 function renderPanel(props: Partial<RowDetailProps> = {}) {
   const onCommented = vi.fn();
@@ -323,19 +323,10 @@ describe('RowDetail', () => {
 
   it("shows a row without an id with the menu's reason in place of its annotations", () => {
     renderPanel({ row: row(null, { Host: 'h9' }), annotations: null });
-    expect(
-      within(panel()).getByText('No id: set Id column and run again to annotate'),
-    ).toBeInTheDocument();
+    expect(within(panel()).getByText(NO_ID)).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Comment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Comments and history' })).not.toBeInTheDocument();
     expect(fields().getByText('h9')).toBeVisible();
     expect(asked).toEqual([]);
-  });
-
-  it("gives an action without an Id column param that action's reason", () => {
-    renderPanel({ row: row(null, { Host: 'h9' }), annotations: null, idParam: false });
-    expect(
-      within(panel()).getByText('No id: this action gives its rows no id'),
-    ).toBeInTheDocument();
   });
 });

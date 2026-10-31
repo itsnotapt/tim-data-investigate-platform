@@ -76,7 +76,11 @@ const KQL = 'SigninLogs | where UserPrincipalName == Upn and TimeGenerated > Sin
 const tab = { connection: 'security', database: 'Samples', kql: KQL };
 
 /** The presets API, keeping what was saved. */
-function setup(params: Record<string, unknown>, action: CatalogueAction = runKql) {
+function setup(
+  params: Record<string, unknown>,
+  action: CatalogueAction = runKql,
+  idColumn: string | null = null,
+) {
   const saved: PresetFields[] = [];
   const api = {
     list: () => Promise.resolve([]),
@@ -93,6 +97,7 @@ function setup(params: Record<string, unknown>, action: CatalogueAction = runKql
     <SavePresetDialog
       action={action}
       params={params}
+      idColumn={idColumn}
       onClose={() => {}}
       store={createPresetsStore({ api })}
     />,
@@ -105,6 +110,19 @@ const lines = () =>
   within(screen.getByRole('list', { name: 'Preview' }))
     .getAllByRole('listitem')
     .map((e) => e.textContent);
+
+describe('SavePresetDialog Id column', () => {
+  it('saves the tab’s Id column, when it isn’t the action’s', async () => {
+    const { saved, dialog } = setup(tab, runKql, 'Host');
+    const name = within(dialog).getByRole('textbox', { name: 'Name' });
+    await userEvent.clear(name);
+    await userEvent.type(name, 'By host');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toMatchObject({ name: 'By host', idColumn: 'Host' });
+  });
+});
 
 describe('SavePresetDialog query parameters', () => {
   it("saves the tab's query parameters, one fixed and one read from the row", async () => {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { grid, openAction } from '../actionTab';
+import { grid, openAction, setIdColumn } from '../actionTab';
 import { test, expect } from '../realApi';
 
 const panel = (page: Page) => page.getByRole('complementary', { name: 'Row detail' });
@@ -17,9 +17,7 @@ async function runJson(page: Page, rows: Record<string, unknown>[]) {
   await page.getByRole('button', { name: /^Rows: / }).click();
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: /^Id column: / }).click();
-  await page.getByRole('textbox', { name: 'Id column' }).fill('Host');
-  await page.keyboard.press('Escape');
+  await setIdColumn(page, 'Host');
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();
 }
@@ -137,7 +135,9 @@ test('Row detail is on the right-click menu, and says why a row without an id ha
   await grid(page).getByText(none).click({ button: 'right' });
   await expect(menuOption(page, 'Row detail')).not.toHaveAttribute('aria-disabled', 'true');
   await menuOption(page, 'Row detail').click();
-  await expect(panel(page)).toContainText('No id: set Id column and run again to annotate');
+  await expect(panel(page)).toContainText(
+    'No id: right-click a cell and use its column as the Id column',
+  );
   await expect(panel(page).getByRole('region', { name: 'Fields' })).toContainText(none);
   await expect(panel(page).getByRole('textbox', { name: 'Comment' })).toBeHidden();
   await grid(page).getByText(none).click();

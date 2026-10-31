@@ -222,7 +222,7 @@ Outcomes:
 
 | Outcome | Status |
 |---|---|
-| `run` returns | `succeeded`, with `columns`, `rowCount`, and any `id` warnings in `details["warning"]` |
+| `run` returns | `succeeded`, with `columns` and `rowCount` |
 | `tim_actions.RunError` or `ResultLimitError` | `error`, with its message |
 | Any other exception | `error` "The run failed unexpectedly". The traceback is logged with the trace id |
 | `TIM_RUN_TIMEOUT_SECONDS` after the slot | `timedOut` |

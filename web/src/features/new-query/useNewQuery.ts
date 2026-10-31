@@ -46,6 +46,7 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
         parentUuid: null,
         title: preset.name,
         params: { action: action.key, params, presetId: preset.presetId },
+        ...(preset.idColumn ? { state: { idColumn: preset.idColumn } } : {}),
       });
       if (Object.keys(missing).length > 0)
         store.getState().updateState(uuid, { pivotMissing: missing });

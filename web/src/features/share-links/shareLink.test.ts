@@ -9,9 +9,12 @@ afterEach(() => {
 });
 
 describe('shareLink', () => {
-  it('links to a run, or to one of its rows', () => {
+  it('links to a run, or to one of its rows, with the Id column it shows with', () => {
     expect(shareLink('r 1')).toBe('http://localhost:3000/#/runs/r%201');
     expect(shareLink('r1', 0)).toBe('http://localhost:3000/#/runs/r1?row=0');
+    expect(shareLink('r1', 0, 'Host Name')).toBe(
+      'http://localhost:3000/#/runs/r1?row=0&idColumn=Host+Name',
+    );
   });
 });
 

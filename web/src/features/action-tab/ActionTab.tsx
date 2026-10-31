@@ -34,6 +34,7 @@ import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid'
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { cloneActionTab } from './cloneActionTab';
 import { useDeclareStatement } from './declareStatement';
+import { actionIdColumn, resultsIdColumn, shareLinkIdColumn, switchedText } from './idColumn';
 import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
 import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
 import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
@@ -289,6 +290,15 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       tabs.updateState(uuid, { paramErrors });
     }
   };
+  // The results' Id column, and the one a link carries when it isn't the action's.
+  const idColumn = resultsIdColumn(action, state);
+  const linkIdColumn = shareLinkIdColumn(action, state);
+  // Clearing goes back to the action's Id column.
+  const switchTo = (column: string | null) => {
+    useTabsStore.getState().updateState(uuid, { idColumn: column ?? undefined });
+    notify?.(switchedText(column ?? actionIdColumn(action)));
+  };
+  const resultColumns = (shown?.columns ?? state.resultColumns ?? []).map((c) => c.name);
   const reset = () => {
     if (!state.runParams) return;
     useTabsStore.getState().updateParams(uuid, { params: state.runParams });
@@ -432,7 +442,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
                 title="Copy link"
                 icon={<LinkIcon fontSize="small" />}
                 disabled={linkRunId === null}
-                onClick={() => linkRunId !== null && void copyShareLink(linkRunId, null, notify)}
+                onClick={() =>
+                  linkRunId !== null && void copyShareLink(linkRunId, null, notify, linkIdColumn)
+                }
               />
             </Box>
           </Box>
@@ -454,6 +466,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             errors={state.paramErrors}
             onReset={edited ? reset : undefined}
             needed={needed}
+            idColumn={{ current: idColumn, columns: resultColumns, onChange: switchTo }}
           />
         </Box>
       </Box>
@@ -469,6 +482,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           action={action}
           params={params.params}
           source={saving.source}
+          idColumn={linkIdColumn}
           onClose={() => setSaving(null)}
           onSaved={saved}
         />
@@ -569,7 +583,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           <ActionResultsGrid
             key={shown.runId}
             uuid={uuid}
-            action={params.action}
+            idColumn={idColumn}
+            onIdColumnChange={switchTo}
+            linkIdColumn={linkIdColumn}
             runId={shown.runId}
             rows={shown.rows}
             declaredColumns={action?.columns}
@@ -584,7 +600,9 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         {!shown && hasResults && rowCount !== 0 && (
           <StoredActionResultsGrid
             uuid={uuid}
-            action={params.action}
+            idColumn={idColumn}
+            onIdColumnChange={switchTo}
+            linkIdColumn={linkIdColumn}
             runId={state.resultsRunId}
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}

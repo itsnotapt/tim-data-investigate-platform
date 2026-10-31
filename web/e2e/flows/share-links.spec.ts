@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { components } from '../../src/lib/api/schema';
-import { grid, openAction } from '../actionTab';
+import { grid, openAction, setIdColumn } from '../actionTab';
 import { test, expect } from '../realApi';
 
 type Run = components['schemas']['Run'];
@@ -17,15 +17,19 @@ const rowsWith = (page: Page, host: string) =>
     .locator('.ag-row')
     .filter({ has: page.locator('.ag-cell[col-id="Host"]', { hasText: host }) });
 
-/** Opens the development JSON action with `rows`, each row's id from `Host`, and runs it. */
-async function runJson(page: Page, rows: Record<string, unknown>[]) {
+/** Opens the development JSON action with `rows`, each row's id from `idColumn`, and runs it. */
+async function runJson(
+  page: Page,
+  rows: Record<string, unknown>[],
+  idColumn: string | null = 'Host',
+) {
   await openAction(page, ['Development', 'JSON (development)']);
   await page.getByRole('button', { name: /^Rows: / }).click();
   await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: /^Id column: / }).click();
-  await page.getByRole('textbox', { name: 'Id column' }).fill('Host');
-  await page.keyboard.press('Escape');
+  if (idColumn !== null) {
+    await setIdColumn(page, idColumn);
+  }
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: `Results · ${rows.length}` })).toBeVisible();
 }
@@ -53,7 +57,8 @@ test('a teammate opens a row link: the rows, the focused row with Row detail ope
   await menu.getByText('Copy link', { exact: true }).click();
   await expect(page.getByText('Copied a link to this row')).toBeVisible();
   const link = await clipboard(page);
-  expect(link).toMatch(/#\/runs\/[0-9a-f-]{36}\?row=1$/);
+  // The action has no Id column, so the link carries the tab's.
+  expect(link).toMatch(/#\/runs\/[0-9a-f-]{36}\?row=1&idColumn=Host$/);
 
   const teammate = await signIn(`${idPrefix}.teammate@example.com`);
   const started: Run[] = [];
@@ -77,6 +82,27 @@ test('a teammate opens a row link: the rows, the focused row with Row detail ope
 
   await teammate.page.getByRole('button', { name: 'Run' }).click();
   await expect.poll(() => started.map((r) => r.owner)).toEqual([teammate.upn]);
+});
+
+test('a row link carries the Id column switched to after the run, and opens with it', async ({
+  page,
+  signIn,
+  idPrefix,
+}) => {
+  const [a, b] = [`${idPrefix}-a`, `${idPrefix}-b`];
+  await runJson(page, [{ Host: a }, { Host: b }], null);
+  await rowsWith(page, b).locator('.ag-cell[col-id="Host"]').click({ button: 'right' });
+  await page.locator('.ag-menu').getByText('Use Host as Id column', { exact: true }).click();
+  await rowsWith(page, b).locator('.ag-cell[col-id="Host"]').click({ button: 'right' });
+  await page.locator('.ag-menu').getByText('Copy link', { exact: true }).click();
+  const link = await clipboard(page);
+  expect(link).toMatch(/#\/runs\/[0-9a-f-]{36}\?row=1&idColumn=Host$/);
+
+  const teammate = await signIn(`${idPrefix}.teammate@example.com`);
+  await teammate.page.goto(link);
+  await expect(teammate.page.getByRole('button', { name: 'Id column: Host' })).toBeVisible();
+  await expect(teammate.page.getByRole('button', { name: 'Edited' })).toBeHidden();
+  await expect(rowDetail(teammate.page).locator('code')).toHaveText(b);
 });
 
 test('a link to a run still going fills in when it ends', async ({ page, signIn, idPrefix }) => {

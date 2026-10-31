@@ -27,11 +27,10 @@ const run: Run = {
   rowCount: 2,
 };
 const rows: RunRow[] = [
-  { row: 0, id: 'c-1', data: { User: 'alice' } },
-  { row: 1, id: 'c-2', data: { User: 'bob' } },
+  { row: 0, data: { User: 'alice' } },
+  { row: 1, data: { User: 'bob' } },
 ];
-const rowsPage = () =>
-  HttpResponse.json({ rows, lastRow: rows.length, annotations: {}, annotationVersion: 1 });
+const rowsPage = () => HttpResponse.json({ rows, lastRow: rows.length, annotationVersion: 1 });
 
 /** Runs started; a link never starts one. */
 let started = 0;

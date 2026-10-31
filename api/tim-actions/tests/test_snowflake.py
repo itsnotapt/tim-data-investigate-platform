@@ -73,8 +73,8 @@ def test_run_sql_runs_the_query_and_reports_snowflakes_columns(
     tim_connections.add(CONNECTION)
     columns = [Column("ID", "number"), Column("WHO", "string")]
     tim_snowflake.respond([{"ID": 7, "WHO": "a"}], columns=columns)
-    result = run_sql(tim_connections, {"sql": "SELECT * FROM T", "idColumn": "ID"})
-    assert (result.rows, result.ids) == ([{"ID": 7, "WHO": "a"}], ["7"])
+    result = run_sql(tim_connections, {"sql": "SELECT * FROM T"})
+    assert result.rows == [{"ID": 7, "WHO": "a"}]
     assert result.columns == columns
     assert tim_snowflake.calls == [SnowflakeCall("warehouse", "SELECT * FROM T")]
 
@@ -110,14 +110,6 @@ def test_run_sqls_query_parameters_are_bound_in_their_order(
             ),
         )
     ]
-
-
-def test_without_an_id_column_the_rows_have_no_id(
-    tim_snowflake: FakeSnowflake, tim_connections: Connections
-) -> None:
-    tim_connections.add(CONNECTION)
-    tim_snowflake.respond([{"ID": 7}])
-    assert run_sql(tim_connections, {}).ids == [None]
 
 
 def test_a_failed_query_ends_the_run_with_snowflakes_message(
@@ -743,3 +735,19 @@ def test_a_position_without_a_value_ends_the_query_with_snowflakes_message(
 def test_a_query_without_values_binds_none(sdk: FakeConnector) -> None:
     hook().query("SELECT ':1' AS LIT", deadline=in_30s())
     assert sdk.binds == [None]
+
+
+@pytest.mark.parametrize(("id_column", "expected"), [("ID", "ID"), (None, None)])
+def test_a_preset_file_has_the_id_column_as_its_id(
+    id_column: str | None, expected: str | None
+) -> None:
+    file = RUN_SQL.preset_file(
+        key="signins",
+        name="Sign-ins",
+        menu="Snowflake",
+        params={"connection": "warehouse", "sql": "SELECT * FROM T"},
+        query_parameters=[],
+        id_column=id_column,
+    )
+    assert file is not None
+    assert file.id == expected

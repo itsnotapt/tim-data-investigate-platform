@@ -25,12 +25,8 @@ RUN_KQL_PRESET: dict[str, Any] = {
     "menuPath": ["Identity", "Daily"],
     "visibility": "shared",
     "action": "tim.run_kql",
-    "params": {
-        "connection": "security",
-        "database": "Samples",
-        "kql": KQL,
-        "idColumn": "CorrelationId",
-    },
+    "params": {"connection": "security", "database": "Samples", "kql": KQL},
+    "idColumn": "CorrelationId",
     "inputs": [
         {
             "name": "Upn",
@@ -73,7 +69,8 @@ RUN_SQL_PRESET: dict[str, Any] = {
     "menuPath": ["Identity"],
     "visibility": "shared",
     "action": "tim.run_sql",
-    "params": {"connection": "warehouse", "sql": SQL, "idColumn": "ID"},
+    "params": {"connection": "warehouse", "sql": SQL},
+    "idColumn": "ID",
     "inputs": [
         {
             "name": "upns",

@@ -54,21 +54,17 @@ HOSTS = Hosts(
 
 
 class Yields(Action):
-    """Yields what it is given, reporting its ``warning``."""
+    """Yields what it is given."""
 
     yields: list[Any]
-    warning: str | None = None
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
-        if self.warning:
-            ctx.detail("warning", self.warning)
         yield from self.yields
 
 
-def test_run_action_validates_the_params_and_gives_each_row_its_id() -> None:
+def test_run_action_validates_the_params_and_gives_the_rows() -> None:
     result = run_action(HOSTS, {"hosts": ["h-1", "h-2"]})
     assert result.rows == [{"Host": "h-1", "Seen": None}, {"Host": "h-2", "Seen": None}]
-    assert result.ids == ["h-1", "h-2"]
 
 
 def test_run_action_refuses_params_tim_would_refuse() -> None:
@@ -95,25 +91,6 @@ def test_a_run_detail_is_a_string_key_with_a_string_number_or_bool_value() -> No
 def test_a_row_is_a_mapping() -> None:
     with pytest.raises(TypeError, match="run yielded a list, not a mapping"):
         run_action(Yields(key="y", name="Y", pivot="none", yields=[["h-1"]]))
-
-
-def test_ids_are_in_tims_text_form() -> None:
-    rows = [{"Id": 7}, {"Id": ""}, {"Id": "x"}, {"Id": None}, {"Id": {"a": 1.5}}]
-    action = Yields(key="y", name="Y", pivot="none", id="Id", yields=rows)
-    assert run_action(action).ids == ["7", None, "x", None, '{"a":1.5}']
-
-
-def test_an_id_column_missing_from_the_results_adds_a_warning() -> None:
-    action = Yields(
-        key="y",
-        name="Y",
-        pivot="none",
-        id=["Ticket", "Host"],
-        yields=[{"Host": "h-1"}],
-        warning="Slow",
-    )
-    assert run_action(action).details == {"warning": "Slow; Id column Ticket not in results"}
-    assert run_action(action.model_copy(update={"yields": []})).details == {"warning": "Slow"}
 
 
 class Ticketing(Hook):

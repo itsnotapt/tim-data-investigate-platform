@@ -1,4 +1,3 @@
-import { getAnnotationStore } from '../../lib/annotations';
 import {
   cancelRun,
   getRun,
@@ -121,7 +120,7 @@ function startErrors(
 
 /**
  * Every row of a succeeded run, page by page (the server returns at most its page size). Each page
- * is shown in the tab's grid as it arrives, once its ids' annotations are in the annotation store.
+ * is shown in the tab's grid as it arrives.
  */
 async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<RunRow[]> {
   const rowCount = run.rowCount ?? 0;
@@ -131,7 +130,6 @@ async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<Ru
   while (rows.length < rowCount) {
     const page = await getRunRows(run.runId, rows.length, rowCount, { signal });
     if (page.rows.length === 0) break;
-    await getAnnotationStore().apply(Object.values(page.annotations), 'rows');
     rows.push(...page.rows);
     shown.append(uuid, run.runId, page.rows);
   }
@@ -230,7 +228,11 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
     return;
   }
   if (signal.aborted) return;
-  store.getState().updateState(uuid, { run, runParams: tab.params.params, pivotMissing: null });
+  store.getState().updateState(uuid, {
+    run,
+    runParams: tab.params.params,
+    pivotMissing: null,
+  });
   // Saved at once, so a reload picks the run up by its id.
   await store.getState().flush();
   await followRun(uuid, run, signal, options);
@@ -291,12 +293,13 @@ export async function resumeActionRuns(options: ActionRunOptions = {}): Promise<
 
 /**
  * Opens `run` in a new root action tab, as a share link does: the tab holds the run's action and
- * params, and `linkedRow` when the link names a row. Starts no run; follows `run` until its rows
- * are stored. Returns the tab's uuid.
+ * params, `linkedRow` when the link names a row, and `idColumn` when it names an Id column. Starts no
+ * run; follows `run` until its rows are stored. Returns the tab's uuid.
  */
 export function openRunTab(
   run: Run,
   linkedRow: number | null,
+  idColumn: string | null = null,
   options: ActionRunOptions = {},
 ): string {
   const store = options.store ?? useTabsStore;
@@ -305,7 +308,13 @@ export function openRunTab(
     parentUuid: null,
     title: run.action.name,
     params: { action: run.action.key, params: run.params },
-    state: { run, runParams: run.params, isExecuting: true, linkedRow },
+    state: {
+      run,
+      runParams: run.params,
+      isExecuting: true,
+      linkedRow,
+      ...(idColumn !== null && { idColumn }),
+    },
   });
   void followRun(uuid, run, follow(uuid), options);
   return uuid;

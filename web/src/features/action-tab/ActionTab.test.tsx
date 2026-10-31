@@ -32,6 +32,7 @@ const action: CatalogueAction = {
   connections: [],
   params: [{ name: 'users', title: 'Users', kind: 'string', required: false, many: true }],
   pivot: null,
+  idColumn: 'User',
 };
 const runKql: CatalogueAction = {
   key: 'tim.run_kql',
@@ -394,6 +395,24 @@ describe('ActionTab', () => {
     );
   });
 
+  it('clones the tab with its Id column', async () => {
+    const { uuid } = setup({ ...withResults, idColumn: 'Host' });
+    await userEvent.click(screen.getByRole('button', { name: 'Clone' }));
+    const copy = Object.values(useTabsStore.getState().tabs).find((t) => t.componentUuid !== uuid);
+    expect(copy?.state).toMatchObject({ idColumn: 'Host' });
+  });
+
+  it('goes back to the action’s Id column when the Id column pill is cleared', async () => {
+    const { uuid } = setup({ ...withResults, idColumn: 'Host' });
+    await userEvent.click(screen.getByRole('button', { name: 'Id column: Host' }));
+    await userEvent.clear(screen.getByRole('combobox', { name: 'Id column' }));
+    await userEvent.keyboard('{Escape}{Escape}');
+
+    expect(await screen.findByRole('button', { name: 'Id column: User' })).toBeInTheDocument();
+    expect(screen.getByText('Id column set to User: labels now follow User')).toBeInTheDocument();
+    expect(useTabsStore.getState().tabs[uuid]?.state.idColumn).toBeUndefined();
+  });
+
   it('says so when the action is no longer in the instance, and cannot run', () => {
     setup({}, 'gone');
     expect(screen.getByText('This action is no longer available.')).toBeInTheDocument();
@@ -433,14 +452,14 @@ describe('ActionTab', () => {
         .getState()
         .start(uuid, 'r1', [{ name: 'User', type: 'string', declared: false }], 3);
       runRowsStore.getState().append(uuid, 'r1', [
-        { row: 0, id: null, data: { User: 'alice' } },
-        { row: 1, id: null, data: { User: 'bob' } },
+        { row: 0, data: { User: 'alice' } },
+        { row: 1, data: { User: 'bob' } },
       ]);
     });
     expect(screen.getByRole('tab', { name: 'Results · 2 of 3' })).toBeInTheDocument();
     expect(await screen.findByText('bob')).toBeInTheDocument();
     act(() => {
-      runRowsStore.getState().append(uuid, 'r1', [{ row: 2, id: null, data: { User: 'carol' } }]);
+      runRowsStore.getState().append(uuid, 'r1', [{ row: 2, data: { User: 'carol' } }]);
       runRowsStore.getState().finish(uuid, 'r1');
     });
     expect(screen.getByRole('tab', { name: 'Results · 3' })).toBeInTheDocument();
@@ -504,11 +523,10 @@ describe('ActionTab with a query param', () => {
       http.get(apiUrl('/api/runs/r1/rows'), () =>
         HttpResponse.json({
           rows: [
-            { row: 0, id: null, data: { State: 'TEXAS' } },
-            { row: 1, id: null, data: { State: 'IOWA' } },
+            { row: 0, data: { State: 'TEXAS' } },
+            { row: 1, data: { State: 'IOWA' } },
           ],
           lastRow: 2,
-          annotations: {},
           annotationVersion: 0,
         }),
       ),

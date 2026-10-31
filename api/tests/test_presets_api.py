@@ -282,3 +282,19 @@ def test_query_parameter_inputs_need_an_action_that_takes_them_and_unique_names(
         },
     )
     assert bad_type.status_code == 422
+
+
+def test_a_presets_id_column_round_trips_and_is_null_when_not_given(auth: AuthKit) -> None:
+    with client_for(auth) as client:
+        plain = client.post("/api/presets", json=bookmark()).json()
+        created = client.post("/api/presets", json=bookmark(idColumn="Upn")).json()
+        url = f"/api/presets/{created['presetId']}"
+        listed = client.get("/api/presets").json()
+        replaced = client.put(url, json=bookmark(idColumn="Host")).json()
+        cleared = client.put(url, json=bookmark()).json()
+
+    assert plain["idColumn"] is None
+    assert created["idColumn"] == "Upn"
+    assert [p["idColumn"] for p in listed] == [None, "Upn"]
+    assert replaced["idColumn"] == "Host"
+    assert cleared["idColumn"] is None

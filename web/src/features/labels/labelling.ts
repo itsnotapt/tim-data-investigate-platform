@@ -6,6 +6,8 @@ import type { LabelledRow } from './labelRows';
 
 const count = (n: number) => n.toLocaleString('en-US');
 const ids = (n: number) => `${count(n)} ${n === 1 ? 'id' : 'ids'}`;
+/** Why a row without an `id` can't be annotated, and how to give it one. */
+export const NO_ID = 'No id: right-click a cell and use its column as the Id column';
 const reasonOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** The distinct `id`s of `rows`; rows without one have nothing to annotate. */
@@ -13,20 +15,9 @@ export function targetIds(rows: readonly LabelledRow[]): string[] {
   return [...new Set(rows.flatMap((r) => (r.id ? [r.id] : [])))];
 }
 
-/**
- * Why rows with `targets` can't be labelled now, else `null`. `idParam`: the action takes its rows'
- * id from an Id column param, as Run KQL does.
- */
-export function whyUnlabellable(
-  targets: readonly string[],
-  max: number,
-  idParam: boolean,
-): string | null {
-  if (targets.length === 0) {
-    return idParam
-      ? 'No id: set Id column and run again to annotate'
-      : 'No id: this action gives its rows no id';
-  }
+/** Why rows with `targets` can't be labelled now, else `null`. */
+export function whyUnlabellable(targets: readonly string[], max: number): string | null {
+  if (targets.length === 0) return NO_ID;
   if (targets.length > max) return `At most ${count(max)} ids; ${count(targets.length)} selected`;
   return null;
 }

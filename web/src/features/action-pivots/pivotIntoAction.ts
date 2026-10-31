@@ -47,6 +47,8 @@ interface ChildTab {
   missing: Record<string, string | null>;
   /** The preset it was opened from. */
   presetId?: string;
+  /** The preset's Id column, over the action's. */
+  idColumn?: string | null;
 }
 
 /**
@@ -55,13 +57,14 @@ interface ChildTab {
  */
 function openChildTab(
   { parentUuid, notify, goTo, run, store = useTabsStore }: ChildTabInput,
-  { action, title, params, missing, presetId }: ChildTab,
+  { action, title, params, missing, presetId, idColumn }: ChildTab,
 ): string {
   const uuid = store.getState().createTab({
     componentName: 'ActionResult',
     parentUuid,
     title,
     params: { action: action.key, params, ...(presetId ? { presetId } : {}) },
+    ...(idColumn ? { state: { idColumn } } : {}),
   });
   const needed = Object.keys(missing);
   const goToChild = { label: 'Go to', onClick: () => goTo(uuid) };
@@ -144,5 +147,6 @@ export function pivotIntoPreset({
     title: preset.name,
     ...resolved,
     presetId: preset.presetId,
+    idColumn: preset.idColumn,
   });
 }

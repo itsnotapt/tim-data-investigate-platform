@@ -46,7 +46,31 @@ export interface PillsBarProps {
    * and the first one's popover opens when the bar mounts.
    */
   needed?: readonly string[];
+  /** The tab's Id column: its pill comes after the params'. */
+  idColumn?: IdColumnPill;
 }
+
+/**
+ * The Id column pill. It isn't a param: its editor suggests the results' columns, and a column
+ * picked, or typed and the editor closed, switches the results to it at once.
+ */
+export interface IdColumnPill {
+  /** The results' Id column. */
+  current: string | null;
+  /** The results' columns. */
+  columns: readonly string[];
+  onChange: (column: string | null) => void;
+}
+
+/** The Id column pill's editor, as a param's. */
+const ID_COLUMN: CatalogueParam = {
+  name: 'tim:idColumn',
+  kind: 'string',
+  title: 'Id column',
+  help: 'The column whose value is each row’s id',
+  required: false,
+  many: false,
+};
 
 interface EditorProps {
   param: CatalogueParam;
@@ -243,6 +267,11 @@ function SuggestEditor({
       onInputChange={(_, text, reason) => {
         if (reason === 'input') onChange(text || undefined);
       }}
+      // The typed text is already the value, so Enter on no highlighted suggestion just finishes.
+      onKeyDown={(e) => {
+        const highlighted = (e.target as HTMLElement).getAttribute('aria-activedescendant');
+        if (e.key === 'Enter' && !highlighted) onDone();
+      }}
       sx={{ width: 320, mt: 1 }}
       renderInput={(input) => (
         <TextField
@@ -296,10 +325,25 @@ export function PillsBar({
   errors,
   onReset,
   needed = [],
+  idColumn,
 }: PillsBarProps) {
   const [open, setOpen] = useState<{ name: string; anchor: HTMLElement } | null>(null);
   const pills = params.filter(hasPill);
-  const editing = pills.find((p) => p.name === open?.name);
+  const editingIdColumn = idColumn !== undefined && open?.name === ID_COLUMN.name;
+  const editing = editingIdColumn ? ID_COLUMN : pills.find((p) => p.name === open?.name);
+  // The Id column typed or picked in its editor; the ref has it for close, which can run before a
+  // render does.
+  const [idDraft, setIdDraft] = useState<string | null>(null);
+  const idDraftRef = useRef<string | null>(null);
+  const draftIdColumn = (column: string | null) => {
+    idDraftRef.current = column;
+    setIdDraft(column);
+  };
+  const close = () => {
+    const typed = idDraftRef.current?.trim() ? idDraftRef.current : null;
+    if (editingIdColumn && typed !== idColumn.current) idColumn.onChange(typed);
+    setOpen(null);
+  };
   const chips = useRef(new Map<string, HTMLElement>());
   // The editor's field, focused once the popover has opened.
   const field = useRef<Focusable | null>(null);
@@ -346,6 +390,18 @@ export function PillsBar({
           />
         );
       })}
+      {idColumn && (
+        <Chip
+          variant="outlined"
+          label={`${ID_COLUMN.title}: ${idColumn.current ?? 'not set'}`}
+          title={ID_COLUMN.help ?? undefined}
+          onClick={(e) => {
+            draftIdColumn(idColumn.current);
+            setOpen({ name: ID_COLUMN.name, anchor: e.currentTarget });
+          }}
+          sx={idColumn.current === null ? { color: 'text.secondary' } : undefined}
+        />
+      )}
       {pills.length === 0 && (
         <Typography variant="body2" color="text.secondary">
           No params
@@ -364,7 +420,7 @@ export function PillsBar({
       <Popover
         open={editing !== undefined}
         anchorEl={open?.anchor}
-        onClose={() => setOpen(null)}
+        onClose={close}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         slotProps={{
           paper: { role: 'dialog', 'aria-label': editing?.title, sx: { p: 1.5 } },
@@ -375,11 +431,19 @@ export function PillsBar({
           <Editor
             key={editing.name}
             param={editing}
-            value={values[editing.name]}
+            value={editingIdColumn ? idDraft : values[editing.name]}
             connections={connections}
-            suggestions={databaseSuggestions(editing, params, values, connections)}
-            onChange={(value) => onChange(editing.name, value)}
-            onDone={() => setOpen(null)}
+            suggestions={
+              editingIdColumn
+                ? idColumn.columns
+                : databaseSuggestions(editing, params, values, connections)
+            }
+            onChange={(value) =>
+              editingIdColumn
+                ? draftIdColumn(typeof value === 'string' ? value : null)
+                : onChange(editing.name, value)
+            }
+            onDone={close}
             focusRef={takeField}
           />
         )}

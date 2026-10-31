@@ -406,8 +406,7 @@ export interface paths {
         };
         /**
          * Get Rows
-         * @description The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them, and their
-         *     ids' annotations.
+         * @description The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them.
          */
         get: operations["getRunRows"];
         put?: never;
@@ -516,6 +515,8 @@ export interface components {
             connections: string[];
             /** Description */
             description?: string | null;
+            /** Idcolumn */
+            idColumn?: string | null;
             /** Key */
             key: string;
             /**
@@ -1017,6 +1018,8 @@ export interface components {
             createdAt: string;
             /** Hidden */
             hidden: boolean;
+            /** Idcolumn */
+            idColumn?: string | null;
             /** Inputs */
             inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"] | components["schemas"]["FixedQueryParameter"] | components["schemas"]["FromRowQueryParameter"])[];
             /** Menupath */
@@ -1052,6 +1055,8 @@ export interface components {
         PresetFields: {
             /** Action */
             action: string;
+            /** Idcolumn */
+            idColumn?: string | null;
             /** Inputs */
             inputs?: (components["schemas"]["FixedInput"] | components["schemas"]["FromRowInput"] | components["schemas"]["FixedQueryParameter"] | components["schemas"]["FromRowQueryParameter"])[];
             /** Menupath */
@@ -1101,16 +1106,9 @@ export interface components {
         };
         /**
          * RowsPage
-         * @description ``lastRow`` is the run's row count. ``annotations`` are those of the rows' ids that have
-         *     any, current as of ``annotationVersion``.
+         * @description ``lastRow`` is the run's row count.
          */
         RowsPage: {
-            /** Annotationversion */
-            annotationVersion: number;
-            /** Annotations */
-            annotations: {
-                [key: string]: components["schemas"]["Annotations"];
-            };
             /** Lastrow */
             lastRow: number;
             /** Rows */
@@ -1180,16 +1178,13 @@ export interface components {
         };
         /**
          * RunRow
-         * @description One result row. ``row`` is its row number, unique within the run; ``id`` is what it is
-         *     annotated by, and may repeat.
+         * @description One result row. ``row`` is its row number, unique within the run.
          */
         RunRow: {
             /** Data */
             data: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
-            /** Id */
-            id: string | null;
             /** Row */
             row: number;
         };

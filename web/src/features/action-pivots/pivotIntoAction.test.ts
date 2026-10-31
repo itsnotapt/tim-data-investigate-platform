@@ -55,7 +55,7 @@ const resolving = (body: PivotResolution) =>
     return HttpResponse.json(body);
   });
 
-function setup() {
+function setup(preset: Preset = FAILURES) {
   const store = newTestStore();
   const parent = store.getState().createTab({
     componentName: 'ActionResult',
@@ -83,7 +83,7 @@ function setup() {
     missing: Record<string, string | null>;
   }) =>
     pivotIntoPreset({
-      preset: FAILURES,
+      preset,
       action: SIGN_INS,
       resolved,
       parentUuid: parent,
@@ -216,6 +216,14 @@ describe('pivotIntoAction', () => {
     expect(notified.map((n) => n.message)).toEqual(['Running Failures of users']);
     notified[0]!.action!.onClick();
     expect(goTo).toHaveBeenCalledWith(uuid);
+  });
+
+  it('opens a preset pivot with the preset’s Id column', () => {
+    const { store, pivotPreset } = setup({ ...FAILURES, idColumn: 'Host' });
+
+    const uuid = pivotPreset({ params: { connection: 'kusto-dev' }, missing: {} });
+
+    expect(store.getState().tabs[uuid]?.state).toMatchObject({ idColumn: 'Host' });
   });
 
   it('opens a preset pivot that misses a value as a child tab waiting for it', () => {

@@ -42,9 +42,9 @@ describe('the annotation store', () => {
     const {
       tabs: [a],
     } = twoTabs();
-    await a.apply([annotated('c-1', 1)], 'rows');
+    await a.apply([annotated('c-1', 1)], 'feed');
     await a.apply([annotated('c-1', 2, null)], 'feed');
-    await a.apply([annotated('c-1', 1)], 'rows');
+    await a.apply([annotated('c-1', 1)], 'feed');
     expect([...(await a.get(['c-1'])).values()]).toEqual([annotated('c-1', 2, null)]);
   });
 

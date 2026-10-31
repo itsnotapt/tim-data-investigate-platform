@@ -60,7 +60,7 @@ async def env(
 
 
 async def test_run_kql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
-    started = await env.start(database="Samples", kql="StormEvents | take 2", idColumn="EventId")
+    started = await env.start(database="Samples", kql="StormEvents | take 2")
     assert started.status_code == 200
     run = started.json()
     assert run["status"] == "succeeded"
@@ -83,31 +83,25 @@ async def test_run_kql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
     }
 
     rows = (await env.client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-    assert [(r["id"], r["data"]) for r in rows] == [
-        (
-            "61032",
-            {
-                "EventId": 61032,
-                "State": "ATLANTIC SOUTH",
-                "StartTime": "2007-09-29T08:11:00Z",
-                "Duration": "00:30:00",
-                "Damage": 1.5,
-                "Fatal": False,
-                "Extra": {"a": 1},
-            },
-        ),
-        (
-            "60904",
-            {
-                "EventId": 60904,
-                "State": "FLORIDA",
-                "StartTime": "2007-09-18T20:00:00.1Z",
-                "Duration": "1.00:00:00",
-                "Damage": 0,
-                "Fatal": True,
-                "Extra": None,
-            },
-        ),
+    assert [r["data"] for r in rows] == [
+        {
+            "EventId": 61032,
+            "State": "ATLANTIC SOUTH",
+            "StartTime": "2007-09-29T08:11:00Z",
+            "Duration": "00:30:00",
+            "Damage": 1.5,
+            "Fatal": False,
+            "Extra": {"a": 1},
+        },
+        {
+            "EventId": 60904,
+            "State": "FLORIDA",
+            "StartTime": "2007-09-18T20:00:00.1Z",
+            "Duration": "1.00:00:00",
+            "Damage": 0,
+            "Fatal": True,
+            "Extra": None,
+        },
     ]
 
     scope = f"{CLUSTER}/.default"
@@ -117,12 +111,6 @@ async def test_run_kql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
     timeout: Any = properties.get_option(ClientRequestProperties.request_timeout_option_name, None)
     assert timedelta(seconds=50) < timeout <= timedelta(seconds=60)
     assert env.obo.calls[0] == (ALICE, scope)
-
-
-async def test_without_an_id_column_the_rows_have_no_id(env: Env) -> None:
-    run = (await env.start(database="Samples", kql="StormEvents | take 2")).json()
-    rows = (await env.client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-    assert [row.get("id") for row in rows] == [None, None]
 
 
 async def test_cancel_cancels_the_query_on_kusto(env: Env) -> None:
@@ -297,7 +285,6 @@ async def test_run_kql_on_a_real_cluster(
                 "connection": "security",
                 "database": database,
                 "kql": "print n = 1, s = 'x'",
-                "idColumn": "n",
             },
         }
         run = await live_run(client, body)
@@ -308,7 +295,7 @@ async def test_run_kql_on_a_real_cluster(
         ]
         assert "executionTime" in run["details"]
         rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-        assert [(r["id"], r["data"]) for r in rows] == [("1", {"n": 1, "s": "x"})]
+        assert [r["data"] for r in rows] == [{"n": 1, "s": "x"}]
 
 
 @pytest.mark.kusto
@@ -329,7 +316,6 @@ async def test_run_kql_with_query_parameters_on_a_real_cluster(
                 "database": database,
                 "kql": "print n = Limit + 1, s = Source, t = Since + Within, f = not(Fatal),"
                 " r = Ratio * 2, c = array_length(States)",
-                "idColumn": "n",
                 "parameters": [
                     {"name": "States", "type": "dynamic", "value": ["TEXAS", "FLORIDA"]},
                     {"name": "Since", "type": "datetime", "value": "2007-09-01T00:00:00Z"},

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
 import { load } from 'js-yaml';
 import { HttpResponse, http } from 'msw';
+import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Annotations, CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
 import { AuthProvider, createAuthClient, DEV_ACCOUNT } from '../../lib/auth';
@@ -51,8 +52,8 @@ const columns: RunColumn[] = [
 const rows: RunRow[] = [
   {
     row: 0,
-    id: 'c-1',
     data: {
+      CaseId: 'c-1',
       Timestamp: '2026-10-01T08:00:00Z',
       User: 'alice',
       Raw: {},
@@ -62,8 +63,8 @@ const rows: RunRow[] = [
   },
   {
     row: 1,
-    id: 'c-1',
     data: {
+      CaseId: 'c-1',
       Timestamp: '2026-10-01T08:05:00Z',
       User: 'bob',
       Raw: {},
@@ -72,6 +73,13 @@ const rows: RunRow[] = [
     },
   },
 ];
+
+/** The data column the grids below take their ids from; no run column shows it. */
+const ID_COLUMN = 'CaseId';
+const withId = (row: RunRow, id: string): RunRow => ({
+  ...row,
+  data: { ...row.data, [ID_COLUMN]: id },
+});
 
 function renderGrid(
   uuid: string,
@@ -82,10 +90,10 @@ function renderGrid(
   const grid = (r: readonly RunRow[]) => (
     <ActionResultsGrid
       uuid={uuid}
-      action="dev.sign_ins"
       rows={r}
       declaredColumns={declaredColumns}
       runColumns={columns}
+      idColumn={ID_COLUMN}
       height={400}
       onGridReady={(e) => (api = e.api)}
     />
@@ -269,7 +277,7 @@ describe('ActionResultsGrid', () => {
     grid.rerender(rows);
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
     expect(api.getCellValue({ rowNode: api.getRowNode('1')!, colKey: 'User' })).toBe('bob');
-    grid.rerender([{ row: 0, id: 'c-9', data: { User: 'dave' } }]);
+    grid.rerender([{ row: 0, data: { CaseId: 'c-9', User: 'dave' } }]);
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
     expect(api.getCellValue({ rowNode: api.getRowNode('0')!, colKey: 'User' })).toBe('dave');
   });
@@ -280,10 +288,10 @@ describe('ActionResultsGrid', () => {
     const grid = (r: readonly RunRow[]) => (
       <ActionResultsGrid
         uuid="linked"
-        action="dev.sign_ins"
         rows={r}
         declaredColumns={declared}
         runColumns={columns}
+        idColumn={ID_COLUMN}
         height={400}
         linkedRow={1}
         onLinkedRowShown={shown}
@@ -297,7 +305,8 @@ describe('ActionResultsGrid', () => {
 
     rerender(grid(rows));
     const detail = await screen.findByRole('complementary', { name: 'Row detail' });
-    expect(within(detail).getByText('c-1')).toBeInTheDocument();
+    // The id shows in the header and, being a data column, among the fields.
+    expect(within(detail).getAllByText('c-1').length).toBeGreaterThan(0);
     await waitFor(() => {
       const focused = api!.getFocusedCell();
       expect(focused).not.toBeNull();
@@ -313,7 +322,6 @@ describe('ActionResultsGrid', () => {
       <SnackbarHost>
         <ActionResultsGrid
           uuid="link"
-          action="dev.sign_ins"
           runId="r1"
           rows={rows}
           runColumns={columns}
@@ -345,8 +353,8 @@ describe('ActionResultsGrid', () => {
 
 describe('ActionResultsGrid Row detail', () => {
   const idless: RunRow[] = [
-    { row: 0, id: null, data: { User: 'alice', Host: 'h1' } },
-    { row: 1, id: null, data: { User: 'bob', Host: 'h2' } },
+    { row: 0, data: { User: 'alice', Host: 'h1' } },
+    { row: 1, data: { User: 'bob', Host: 'h2' } },
   ];
   const names = (items: Item[]) => items.map((i) => (typeof i === 'string' ? i : i.name));
   const menuOf = (api: GridApi, row: string) =>
@@ -408,19 +416,19 @@ describe('ActionResultsGrid Row detail', () => {
       within(panel()!)
         .getAllByRole('term')
         .map((t) => t.textContent);
-    expect(terms()).toEqual(['Timestamp', 'User', 'row', 'Raw Bytes']);
+    expect(terms()).toEqual(['Timestamp', 'User', 'row', 'Raw Bytes', ID_COLUMN]);
     expect(within(panel()!).getByText('alice')).toBeInTheDocument();
 
     act(() => api.moveColumns(['Raw Bytes'], 0));
     act(() => api.setFocusedCell(1, 'User'));
     expect(await within(panel()!).findByText('row 1', { exact: false })).toBeInTheDocument();
     expect(within(panel()!).getByText('bob')).toBeInTheDocument();
-    expect(terms()).toEqual(['Timestamp', 'User', 'row', 'Raw Bytes']);
+    expect(terms()).toEqual(['Timestamp', 'User', 'row', 'Raw Bytes', ID_COLUMN]);
   });
 
   it("keeps a row's comment draft while the focus moves, and drops it on close", async () => {
     const user = userEvent.setup();
-    const shown = [rows[0]!, { ...rows[1]!, id: 'c-2' }];
+    const shown = [rows[0]!, withId(rows[1]!, 'c-2')];
     const api = await renderGrid('drafts', shown, []).api();
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
     press(api, 'd');
@@ -443,10 +451,7 @@ describe('ActionResultsGrid Row detail', () => {
       [annotated('f-2', 1, 'malicious', 'labeller@example.com')],
       'feed',
     );
-    const shown = [
-      { ...rows[0]!, id: 'f-1' },
-      { ...rows[1]!, id: 'f-2' },
-    ];
+    const shown = [withId(rows[0]!, 'f-1'), withId(rows[1]!, 'f-2')];
     const api = await renderGrid('next-label', shown, []).api();
     await waitFor(() =>
       expect((api.getRowNode('1')?.data as LabelledRow | undefined)?.annotations).toBeDefined(),
@@ -476,13 +481,93 @@ describe('ActionResultsGrid Row detail', () => {
   });
 });
 
+describe('ActionResultsGrid Id column', () => {
+  const sessions: RunRow[] = [
+    { row: 0, data: { User: 'switch-alice', Host: 'switch-h1' } },
+    { row: 1, data: { User: 'switch-bob', Host: 'switch-h1' } },
+    { row: 2, data: { User: 'switch-alice', Host: 'switch-h2' } },
+  ];
+  const labelsOf = (api: GridApi) =>
+    ['0', '1', '2'].map(
+      (row) =>
+        (api.getRowNode(row)?.data as LabelledRow | undefined)?.annotations?.label?.key ?? null,
+    );
+  /** Picks `name` from the menu of row 1's `column` cell. */
+  const pick = (api: GridApi, column: string, name: string) => {
+    const items = (api.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+      api,
+      node: api.getRowNode('1'),
+      column: api.getColumn(column),
+    });
+    const item = find(items, name);
+    expect(item).toBeDefined();
+    act(() => (item!.action as () => void)());
+  };
+
+  let api: GridApi | undefined;
+  function Switchable() {
+    const [idColumn, setIdColumn] = useState<string | null>('User');
+    return (
+      <ActionResultsGrid
+        uuid="id-column"
+        rows={sessions}
+        idColumn={idColumn}
+        onIdColumnChange={setIdColumn}
+        runColumns={[
+          { name: 'User', type: 'string', declared: false },
+          { name: 'Host', type: 'string', declared: false },
+        ]}
+        height={400}
+        onGridReady={(e) => (api = e.api)}
+      />
+    );
+  }
+
+  it("switches from a cell's menu: the rows show their new ids' annotations, keep the selection, and get the old ones back on switching back", async () => {
+    await getAnnotationStore().apply(
+      [annotated('switch-alice', 1, 'malicious'), annotated('switch-h1', 1, 'benign')],
+      'feed',
+    );
+    render(<Switchable />);
+    await waitFor(() => expect(labelsOf(api!)).toEqual(['malicious', null, 'malicious']));
+    act(() => api!.getRowNode('1')!.setSelected(true));
+
+    pick(api!, 'Host', 'Use Host as Id column');
+    await waitFor(() => expect(labelsOf(api!)).toEqual(['benign', 'benign', null]));
+    expect(api!.getSelectedNodes().map((n) => n.id)).toEqual(['1']);
+
+    pick(api!, 'User', 'Use User as Id column');
+    await waitFor(() => expect(labelsOf(api!)).toEqual(['malicious', null, 'malicious']));
+    expect(api!.getSelectedNodes().map((n) => n.id)).toEqual(['1']);
+  });
+
+  it('shows the new id in an open Row detail', async () => {
+    render(<Switchable />);
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
+    const rowDetail = find(
+      (api!.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+        api,
+        node: api!.getRowNode('1'),
+        column: api!.getColumn('User'),
+      }),
+      'Row detail',
+    );
+    act(() => (rowDetail!.action as () => void)());
+    const detail = await screen.findByRole('complementary', { name: 'Row detail' });
+    const shownId = () => detail.querySelector('code')?.textContent;
+    expect(shownId()).toBe('switch-bob');
+
+    pick(api!, 'Host', 'Use Host as Id column');
+    await waitFor(() => expect(shownId()).toBe('switch-h1'));
+  });
+});
+
 describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
   async function bigGrid(uuid: string, shown: readonly RunRow[], runColumns: RunColumn[]) {
     let api: GridApi | undefined;
     render(
       <ActionResultsGrid
         uuid={uuid}
-        action="dev.hashes"
         rows={shown}
         runColumns={runColumns}
         height={400}
@@ -502,10 +587,10 @@ describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
 
   describe('in a bigint column', () => {
     const hashes: RunRow[] = [
-      { row: 0, id: 'h-0', data: { Hash: '12345678901234567890' } },
-      { row: 1, id: 'h-1', data: { Hash: '5' } },
-      { row: 2, id: 'h-2', data: { Hash: '-9007199254740993' } },
-      { row: 3, id: 'h-3', data: { Hash: null } },
+      { row: 0, data: { Hash: '12345678901234567890' } },
+      { row: 1, data: { Hash: '5' } },
+      { row: 2, data: { Hash: '-9007199254740993' } },
+      { row: 3, data: { Hash: null } },
     ];
     const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'bigint', declared: true }];
 
@@ -552,8 +637,8 @@ describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
     await bigGrid(
       'number-warning',
       [
-        { row: 0, id: 'n-0', data: { Hash: 2 ** 64, Count: 5 } },
-        { row: 1, id: 'n-1', data: { Hash: 7, Count: 2 ** 53 - 1 } },
+        { row: 0, data: { Hash: 2 ** 64, Count: 5 } },
+        { row: 1, data: { Hash: 7, Count: 2 ** 53 - 1 } },
       ],
       [
         { name: 'Hash', type: 'number', declared: false },
@@ -608,19 +693,19 @@ describe('ActionResultsGrid Comment cell', () => {
   async function commentGrid(id: string) {
     await getAnnotationStore().apply([commentedBy(id, 1, [BOB, 'beacons'])], 'feed');
     const shown = [
-      { ...rows[0]!, id },
-      { ...rows[1]!, id },
-      { ...rows[0]!, row: 2, id: `${id}-other` },
+      withId(rows[0]!, id),
+      withId(rows[1]!, id),
+      { ...withId(rows[0]!, `${id}-other`), row: 2 },
     ];
     render(
       <AuthProvider client={createAuthClient({ VITE_AUTH_STUB: 'true' })}>
         <SnackbarHost>
           <ActionResultsGrid
             uuid={`comment-${id}`}
-            action="dev.sign_ins"
             rows={shown}
             declaredColumns={[]}
             runColumns={columns}
+            idColumn={ID_COLUMN}
             height={400}
             onGridReady={(e) => (gridApi = e.api)}
           />

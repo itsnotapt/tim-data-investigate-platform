@@ -33,5 +33,5 @@ columns:
     type: string
     hidden: true
     width: 120
-id: [CorrelationId, RequestId]
+id: CorrelationId
 rows: []

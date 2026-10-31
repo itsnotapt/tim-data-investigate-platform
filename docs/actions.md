@@ -74,19 +74,21 @@ The fields every action file takes:
 | `description` | no | A longer description. |
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
-| `id` | no | The column that gives each row its `id`, or a list of alternative columns. |
+| `id` | no | The column whose value is a row's `id`: the action's Id column. |
 | `columns` | no | Declared result columns, below. |
 
 The action type adds fields of its own, such as a connection and a query.
 
 ### The `id` of a row
 
-Annotations are kept by `id`, so a row needs one to be annotated.
+Annotations are kept by `id`, so a row needs one to be annotated. The browser computes it from one column, the **Id column**.
 
-- `id: EventId` takes the `id` from one column.
-- `id: [CorrelationId, RequestId]` lists alternatives. The first non-empty value wins, and the coalesce skips `null` and `""`.
-- Without `id`, the rows have no `id` and cannot be annotated.
-- A type with a different scheme overrides `row_id` ([Writing action types](#writing-action-types)).
+- `id: EventId` makes `EventId` the action's Id column. A row's `id` is that column's value: a string as it is, anything else as JSON.
+- A row whose value is `null`, missing or `""`, or longer than 512 characters, has no `id` and cannot be annotated.
+- `id` is one column name, not a list. For an `id` made of several columns, build the column in the query, such as `extend SummaryId = strcat(State, "|", EventType)`.
+- Without `id`, the results start with no Id column.
+- A preset of Run KQL or Run SQL copied as an action file gets the preset's `idColumn` as its `id`.
+- The analyst can switch the Id column on any results without rerunning ([architecture.md](architecture.md#the-id-column)).
 
 ### Params
 
@@ -255,7 +257,7 @@ The example's [`labels.yaml`](../examples/instance/config/labels.yaml):
 
 - The file lists at least one label, and no other fields.
 - The first nine labels take the keys 1 to 9 in the grid.
-- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or `idColumn` of Run KQL or Run SQL).
+- A label is set on an `id`, so a row needs an `id` to be labelled (the `id` field of an action file, or the tab's Id column).
 - Keep a `key` for good. Annotations store it, so renaming it leaves the old key on every `id` that has it, shown grey. Change `name`, `colour` or `symbol` instead.
 
 ## Built-in actions
@@ -276,7 +278,6 @@ The built-in provider adds, for each extra of `tim-actions` that is installed, t
 | `connection` | A `kusto` connection. When there is exactly one, a new tab fills it in. |
 | `database` | The database to query. The tab suggests the chosen connection's `databases`. |
 | `kql` | The query, written in the tab's Query editor, scoped by the `connection` and `database` params. |
-| `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
 | `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-kql). |
 
 The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
@@ -335,7 +336,6 @@ An optional param without a value is not sent, so the default in `declare query_
 |---|---|
 | `connection` | A `snowflake` connection. |
 | `sql` | The query, written in the tab's Query editor. It completes databases, and the columns of the tables the query names in `FROM` and `JOIN` (`db.schema.table`, the path perhaps shortened, with an optional alias), from the connection. After `DB.` it offers schemas, after a table's alias or name its columns; `DB.SCHEMA.` gives tables and `DB.SCHEMA.TABLE.` gives columns. |
-| `idColumn` | Optional. The result column that gives each row its `id`; without it rows have no `id`. |
 | `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-sql). |
 
 - The query is sent as written, with its query parameters bound by position ([How Snowflake binds params](#how-snowflake-binds-params)).
@@ -524,19 +524,6 @@ def resolve(self, context: PivotContext) -> Resolved:
     return resolved
 ```
 
-### Row ids
-
-`Action.row_id(params)` returns the `RowId` that gives each row of a run its `id`, or `None` for no `id`.
-
-- The default is `tim_actions.IdColumns` over the action's `id` column or list of alternatives. It takes the first value that isn't `None` or `""`.
-- A `RowId` is called with a row, returns its `id` or `None`, and lists the result `columns` it reads. A missing column adds to the run's `warning` detail and never fails the run.
-- `StormSummary` ids each row by its state, event type and the run's window, so an annotation stays with the window it counted:
-
-  ```python
-  def row_id(self, params: Mapping[str, Any]) -> RowId:
-      return _SummaryId(params["since"], params["until"])
-  ```
-
 ### Checking params
 
 `Action.check_params(values, *, connections=None)` validates the values of a run when it starts and returns them converted, by param name. It raises `ParamsError`.
@@ -657,9 +644,8 @@ packages = ["src/example_provider"]
 - **`run_action(action, params, connections=, analyst=, timeout=)`** runs an action and returns a `RunResult`.
   - It validates `params` as wire values, like TIM, and raises `ParamsError` for ones TIM would refuse.
   - `RunResult.rows` are the rows as yielded.
-  - `RunResult.ids` are each row's `id` in the text form TIM stores, or `None` for none. An `id` over 512 characters is `None`.
   - `RunResult.columns` are the declared columns only. TIM adds the undeclared columns of the rows after them.
-  - `RunResult.details` are the run details. As in TIM, an `id` column missing from the results, or an `id` that is too long, adds to the `warning` detail.
+  - `RunResult.details` are the run details.
   - A connection the action didn't declare is refused.
   - A row that isn't a mapping, or a bad run detail, raises `TypeError`.
 - **`run_sink(sink, rows, columns=, connections=, analyst=, timeout=)`** runs a sink and returns a `SinkResult` with its `details`. Without `columns`, each key of the rows is a `string` column.
@@ -694,7 +680,7 @@ The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them
 - **A fake Kusto.** `tim_kusto` records the KQL and parameters sent, so a test of `StormSummary` checks that the params are bound by name:
 
   ```python
-  def test_a_run_binds_the_params_by_name_and_ids_each_row_by_its_window(
+  def test_a_run_binds_the_params_by_name(
       tim_connections: Connections, tim_kusto: FakeKusto
   ) -> None:
       tim_connections.add(KustoConnection(name="samples", title="Samples", type="kusto", auth="obo",
@@ -709,7 +695,7 @@ The tests in [`examples/instance/tests/`](../examples/instance/tests/) show them
 
       [call] = tim_kusto.calls
       assert call.parameters["states"] == 'dynamic(["TEXAS"])'
-      assert result.ids == ['["TEXAS","Hail","2007-05-04T21:00:00Z","2007-08-19T00:00:00Z"]']
+      assert result.rows == [{"State": "TEXAS", "EventType": "Hail", "Events": 3}]
   ```
 
 - **A hook as it is.** A hook with nothing behind it needs no fake. `Connections.add(connection, hook)` takes the `LookupHook` class itself:

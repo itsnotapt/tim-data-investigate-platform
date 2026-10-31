@@ -49,9 +49,9 @@ class Env:
                     return body
                 await asyncio.sleep(0.02)
 
-    async def rows(self, run_id: str) -> list[tuple[str | None, dict[str, Any]]]:
+    async def rows(self, run_id: str) -> list[dict[str, Any]]:
         rows = (await self.client.get(f"/api/runs/{run_id}/rows")).json()["rows"]
-        return [(r.get("id"), r["data"]) for r in rows]
+        return [r["data"] for r in rows]
 
 
 @pytest.fixture
@@ -75,7 +75,7 @@ async def env(
 
 
 async def test_run_sql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
-    started = await env.start(sql="SELECT * FROM SIGNINS", idColumn="ID")
+    started = await env.start(sql="SELECT * FROM SIGNINS")
     assert started.status_code == 200
     run = started.json()
     assert run["status"] == "succeeded", run.get("error")
@@ -85,7 +85,7 @@ async def test_run_sql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
         {"name": "AT", "type": "datetime", "declared": True},
     ]
     assert await env.rows(run["runId"]) == [
-        ("7", {"ID": 7, "UPN": "alice@contoso.com", "AT": "2026-01-02T03:04:05Z"})
+        {"ID": 7, "UPN": "alice@contoso.com", "AT": "2026-01-02T03:04:05Z"}
     ]
     [login] = env.sdk.logins
     assert (login["authenticator"], login["token"]) == ("oauth", f"obo:{ALICE}:{SCOPE}")
@@ -274,7 +274,6 @@ async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
         "params": {
             "connection": "warehouse",
             "sql": LIVE_SQL,
-            "idColumn": "N",
             "parameters": parameters,
         },
     }
@@ -291,9 +290,7 @@ async def run_sql_on_the_real_account(client: httpx.AsyncClient) -> None:
         ("K", "number"),
     ]
     rows = (await client.get(f"/api/runs/{run['runId']}/rows")).json()["rows"]
-    assert [(r["id"], r["data"]) for r in rows] == [
-        ("1", {"N": 1, "S": "x", "SAME_INSTANT": True, "K": 2})
-    ]
+    assert [r["data"] for r in rows] == [{"N": 1, "S": "x", "SAME_INSTANT": True, "K": 2}]
 
     schema = await client.post("/api/connections/warehouse/schema", json={"scope": {}})
     assert schema.status_code == 200

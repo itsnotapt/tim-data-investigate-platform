@@ -14,7 +14,6 @@ from tim_actions import (
     Param,
     PivotContext,
     Resolved,
-    RowId,
     RunContext,
     RunError,
 )
@@ -27,6 +26,7 @@ StormEvents
 | where State in (states) and StartTime between (since .. until)
 | summarize Events = count(), Deaths = sum(DeathsDirect + DeathsIndirect),
     Damage = sum(DamageProperty + DamageCrops) by State, EventType
+| extend SummaryId = strcat(State, "|", EventType, "|", since, "|", until)
 | order by State asc, Events desc
 """
 
@@ -39,21 +39,6 @@ PARAMS = (
 
 def _instant(value: str) -> datetime:
     return datetime.fromisoformat(value)
-
-
-class _SummaryId(RowId):
-    """A summary row's state and event type, with the run's window: an annotation on a row
-    stays with the window it counted."""
-
-    columns = ("State", "EventType")
-
-    def __init__(self, since: datetime, until: datetime) -> None:
-        self.window = (since, until)
-
-    def __call__(self, row: Mapping[str, Any]) -> Any:
-        if row.get("State") is None or row.get("EventType") is None:
-            return None
-        return (row["State"], row["EventType"], *self.window)
 
 
 class StormSummaryFile(ActionDocument):
@@ -109,9 +94,6 @@ class StormSummary(Action):
             resolved.params["until"] = max(ends, key=_instant)
             resolved.missing.pop("until", None)
         return resolved
-
-    def row_id(self, params: Mapping[str, Any]) -> RowId:
-        return _SummaryId(params["since"], params["until"])
 
     def run(self, params: Mapping[str, Any], ctx: RunContext) -> Iterator[Mapping[str, Any]]:
         hook = ctx.hook(self.connection)

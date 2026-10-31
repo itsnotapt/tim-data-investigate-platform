@@ -5,8 +5,6 @@ import { whyUnlabellable, setLabel, targetIds, type LabellingDeps } from './labe
 import { rowLabelKey, type LabelledRow } from './labelRows';
 
 export interface LabelMenuOptions extends LabellingDeps {
-  /** The action takes its rows' id from an Id column param. */
-  idParam: boolean;
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
 }
@@ -31,12 +29,12 @@ const swatch = (label: InstanceLabel) =>
  * with the reason as their tooltip.
  */
 export function buildLabelMenu(options: LabelMenuOptions): GetExtraContextMenuItems {
-  const { labels, max, idParam } = options;
+  const { labels, max } = options;
   return (params) => {
     const rows = targetRows(params.api as GridApi<GridRowWithId>, params.node);
     if (rows.length === 0) return [];
     const targets = targetIds(rows);
-    const reason = whyUnlabellable(targets, max, idParam);
+    const reason = whyUnlabellable(targets, max);
     const withId = rows.filter((r) => r.id);
     const state = { disabled: reason !== null, tooltip: reason ?? undefined };
     const items: ExtraMenuItems = labels.map((label, i): MenuItemDef => ({
@@ -64,7 +62,7 @@ const DIGIT = /^[0-9]$/;
  * row. When the rows can't be labelled, the reason shows in a toast.
  */
 export function makeLabelKeys(options: LabelMenuOptions) {
-  const { labels, max, idParam, notify } = options;
+  const { labels, max, notify } = options;
   return (e: CellKeyDownEvent<GridRowWithId>) => {
     const key = e.event as KeyboardEvent | null | undefined;
     if (!key || !DIGIT.test(key.key) || key.ctrlKey || key.metaKey || key.altKey) return;
@@ -76,7 +74,7 @@ export function makeLabelKeys(options: LabelMenuOptions) {
     if (rows.length === 0) return;
     key.preventDefault();
     const targets = targetIds(rows);
-    const reason = whyUnlabellable(targets, max, idParam);
+    const reason = whyUnlabellable(targets, max);
     if (reason !== null) return notify(reason);
     void setLabel(targets, label?.key ?? null, options);
   };

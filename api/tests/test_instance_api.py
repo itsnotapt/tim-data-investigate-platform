@@ -104,6 +104,14 @@ def test_an_action_that_does_not_pivot_has_a_null_pivot(auth: AuthKit) -> None:
     assert action["menuPath"] == []
     assert "description" not in action
     assert "columns" not in action
+    assert "idColumn" not in action
+
+
+def test_an_actions_id_column_is_in_the_catalogue(auth: AuthKit) -> None:
+    [action] = get_instance(
+        auth, [Provider(actions=[Rows(key="a", name="A", pivot="none", id="EventId")])]
+    )["actions"]
+    assert action["idColumn"] == "EventId"
 
 
 def test_an_actions_declared_columns_are_in_the_catalogue(auth: AuthKit) -> None:
@@ -189,7 +197,6 @@ def test_the_instance_lists_its_connections_without_their_endpoints(
         ("connection", "connection"),
         ("database", "string"),
         ("kql", "kql"),
-        ("idColumn", "string"),
         ("parameters", "json"),
     ]
     assert run_kql["actionFile"] is True

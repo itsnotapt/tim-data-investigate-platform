@@ -1,6 +1,6 @@
 """Building a run's stored rows, columns and row count while ``run`` yields rows.
 
-PostgreSQL JSONB and TEXT cannot store U+0000, so NUL characters in rows, ids, details and
+PostgreSQL JSONB and TEXT cannot store U+0000, so NUL characters in rows, details and
 error text are replaced with U+FFFD before storing (``sanitise_nul``).
 """
 
@@ -12,8 +12,7 @@ from datetime import datetime
 from typing import Any
 
 import pydantic_core
-from tim_actions import TIM_COLUMNS, Column, ColumnType, RowId
-from tim_actions.rows import MAX_ID_CHARS, canonical_id, id_warnings
+from tim_actions import TIM_COLUMNS, Column, ColumnType
 
 from tim_api.runs.models import RunColumn, RunRow
 
@@ -105,7 +104,6 @@ class ResultBuilder:
     def __init__(
         self,
         declared: Sequence[Column] | None,
-        row_id: RowId | None,
         *,
         max_rows: int,
         max_bytes: int,
@@ -113,12 +111,10 @@ class ResultBuilder:
         self._declared: dict[str, ColumnType] = {}
         self.declare(declared or ())
         self._inferred: dict[str, ColumnType | None] = {}
-        self._row_id = row_id
         self._max_rows = max_rows
         self._max_bytes = max_bytes
         self.row_count = 0
         self.byte_count = 0
-        self._long_ids = 0
 
     def declare(self, columns: Sequence[Column]) -> None:
         """Columns the run declares, after the action's own; a name already declared keeps
@@ -141,7 +137,7 @@ class ResultBuilder:
             if self._declared.get(name) == "bigint":
                 data[name] = _bigint_value(value)
             self._infer(name, value)
-        stored = RunRow(row=self.row_count, id=self._id(row), data=data)
+        stored = RunRow(row=self.row_count, data=data)
         self.row_count += 1
         return stored
 
@@ -157,15 +153,6 @@ class ResultBuilder:
         else:
             self._inferred[name] = _type_of(value)
 
-    def _id(self, row: Mapping[str, Any]) -> str | None:
-        if self._row_id is None:
-            return None
-        value = canonical_id(self._row_id(row))
-        if value is not None and len(value) > MAX_ID_CHARS:
-            self._long_ids += 1
-            return None
-        return sanitise_nul(value)  # type: ignore[no-any-return]
-
     def columns(self) -> list[RunColumn]:
         declared = [RunColumn(name=n, type=t, declared=True) for n, t in self._declared.items()]
         inferred = [
@@ -174,8 +161,3 @@ class ResultBuilder:
             if n not in self._declared
         ]
         return declared + inferred
-
-    def warnings(self) -> list[str]:
-        """Problems with the rows' ids, which never fail the run."""
-        # Every column some row carries, declared or not.
-        return id_warnings(self._row_id, list(self._inferred), self._long_ids)

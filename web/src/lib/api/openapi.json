@@ -212,6 +212,17 @@
             ],
             "title": "Description"
           },
+          "idColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idcolumn"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -1339,6 +1350,17 @@
             "title": "Hidden",
             "type": "boolean"
           },
+          "idColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idcolumn"
+          },
           "inputs": {
             "items": {
               "anyOf": [
@@ -1421,6 +1443,17 @@
           "action": {
             "title": "Action",
             "type": "string"
+          },
+          "idColumn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idcolumn"
           },
           "inputs": {
             "items": {
@@ -1541,19 +1574,8 @@
         "type": "object"
       },
       "RowsPage": {
-        "description": "``lastRow`` is the run's row count. ``annotations`` are those of the rows' ids that have\nany, current as of ``annotationVersion``.",
+        "description": "``lastRow`` is the run's row count.",
         "properties": {
-          "annotationVersion": {
-            "title": "Annotationversion",
-            "type": "integer"
-          },
-          "annotations": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Annotations"
-            },
-            "title": "Annotations",
-            "type": "object"
-          },
           "lastRow": {
             "title": "Lastrow",
             "type": "integer"
@@ -1568,9 +1590,7 @@
         },
         "required": [
           "rows",
-          "lastRow",
-          "annotations",
-          "annotationVersion"
+          "lastRow"
         ],
         "title": "RowsPage",
         "type": "object"
@@ -1740,7 +1760,7 @@
         "type": "object"
       },
       "RunRow": {
-        "description": "One result row. ``row`` is its row number, unique within the run; ``id`` is what it is\nannotated by, and may repeat.",
+        "description": "One result row. ``row`` is its row number, unique within the run.",
         "properties": {
           "data": {
             "additionalProperties": {
@@ -1749,17 +1769,6 @@
             "title": "Data",
             "type": "object"
           },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
           "row": {
             "title": "Row",
             "type": "integer"
@@ -1767,7 +1776,6 @@
         },
         "required": [
           "row",
-          "id",
           "data"
         ],
         "title": "RunRow",
@@ -4041,7 +4049,7 @@
     },
     "/api/runs/{runId}/rows": {
       "get": {
-        "description": "The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them, and their\nids' annotations.",
+        "description": "The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them.",
         "operationId": "getRunRows",
         "parameters": [
           {

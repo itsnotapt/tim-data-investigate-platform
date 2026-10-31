@@ -14,14 +14,14 @@ from tim_api.auth.dependencies import get_current_principal, get_obo_provider
 from tim_api.auth.obo import OboTokenProvider
 from tim_api.auth.principal import Principal
 from tim_api.config import Settings, get_settings
-from tim_api.deps import get_annotation_store, get_run_store
+from tim_api.deps import get_run_store
 from tim_api.errors import UnprocessableError, problem_exception
 from tim_api.observability import get_trace_id
 from tim_api.runs.connections import Connections, get_connections
 from tim_api.runs.models import RowsPage, Run, RunStatus, StartRun
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.runs.runner import RunInput, Runner
-from tim_api.storage import AnnotationStore, RunStore
+from tim_api.storage import RunStore
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -141,13 +141,11 @@ async def get_rows(
     run_id: RunId,
     principal: Caller,
     store: Annotated[RunStore, Depends(get_run_store)],
-    annotation_store: Annotated[AnnotationStore, Depends(get_annotation_store)],
     settings: Annotated[Settings, Depends(get_settings)],
     start_row: Annotated[int, Query(alias="startRow", ge=0)] = 0,
     end_row: Annotated[int | None, Query(alias="endRow", ge=0)] = None,
 ) -> RowsPage:
-    """The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them, and their
-    ids' annotations."""
+    """The rows with ``startRow <= row < endRow``, at most ``rowsPageSize`` of them."""
     run = await _known_run(store, run_id)
     if run.status is not RunStatus.SUCCEEDED:
         raise RunNotSucceededError
@@ -159,10 +157,4 @@ async def get_rows(
     row_count = run.row_count or 0
     if not rows and row_count > 0 and not await store.has_rows(run_id):
         raise ResultsGoneError
-    annotations = await annotation_store.of_ids({row.id for row in rows if row.id})
-    return RowsPage(
-        rows=rows,
-        last_row=row_count,
-        annotations=annotations.annotations,
-        annotation_version=annotations.version,
-    )
+    return RowsPage(rows=rows, last_row=row_count)

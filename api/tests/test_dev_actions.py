@@ -76,14 +76,6 @@ def test_the_catalogue_lists_the_dev_actions(auth: AuthKit, dev_env: Path) -> No
                 "many": False,
                 "help": "A JSON array of objects, one per row",
             },
-            {
-                "name": "idColumn",
-                "title": "Id column",
-                "kind": "string",
-                "required": False,
-                "many": False,
-                "help": "The column that gives each row its id",
-            },
         ],
         "pivot": {"rows": "rows", "columns": []},
         "actionFile": False,
@@ -129,19 +121,17 @@ def rows(client: TestClient, run_id: str) -> list[dict[str, Any]]:
     return page
 
 
-def test_dev_json_yields_the_pasted_rows_with_their_ids(auth: AuthKit, dev_env: Path) -> None:
+def test_dev_json_yields_the_pasted_rows(auth: AuthKit, dev_env: Path) -> None:
     pasted = [{"Host": "h-1", "Bytes": 10}, {"Host": "h-2", "Bytes": None}, {"Bytes": 3}]
     with started(auth) as client:
-        body = run(client, "tim.dev_json", {"rows": pasted, "idColumn": "Host"})
+        body = run(client, "tim.dev_json", {"rows": pasted})
         assert body["status"] == "succeeded"
         assert body["rowCount"] == 3
         assert rows(client, body["runId"]) == [
-            {"row": 0, "id": "h-1", "data": {"Host": "h-1", "Bytes": 10}},
-            {"row": 1, "id": "h-2", "data": {"Host": "h-2", "Bytes": None}},
-            {"row": 2, "id": None, "data": {"Bytes": 3}},
+            {"row": 0, "data": {"Host": "h-1", "Bytes": 10}},
+            {"row": 1, "data": {"Host": "h-2", "Bytes": None}},
+            {"row": 2, "data": {"Bytes": 3}},
         ]
-        without_ids = run(client, "tim.dev_json", {"rows": pasted})
-        assert {row["id"] for row in rows(client, without_ids["runId"])} == {None}
 
 
 @pytest.mark.parametrize("pasted", [{"Host": "h-1"}, [{"Host": "h-1"}, "h-2"], "[]"])
@@ -154,9 +144,7 @@ def test_dev_json_rows_must_be_an_array_of_objects(
     assert body["error"] == "Rows must be a JSON array of objects"
 
 
-def test_dev_rows_yields_its_rows_with_ids_columns_and_details(
-    auth: AuthKit, dev_env: Path
-) -> None:
+def test_dev_rows_yields_its_rows_columns_and_details(auth: AuthKit, dev_env: Path) -> None:
     (dev_env / "sign-ins.yaml").write_text(
         SIGN_INS
         + """\
@@ -182,10 +170,7 @@ details:
             {"name": "CorrelationId", "type": "string", "declared": False},
             {"name": "Count", "type": "number", "declared": False},
         ]
-        assert [(row["id"], row["data"]["User"]) for row in rows(client, body["runId"])] == [
-            ("c-1", "alice"),
-            ("c-2", "bob"),
-        ]
+        assert [row["data"]["User"] for row in rows(client, body["runId"])] == ["alice", "bob"]
 
 
 def test_dev_rows_generates_rows_from_its_columns(auth: AuthKit, dev_env: Path) -> None:
@@ -214,7 +199,6 @@ generate: 2
         generated = run(client, "dev-generated")
         assert rows(client, generated["runId"])[1] == {
             "row": 1,
-            "id": "Host-2",
             "data": {
                 "Host": "Host-2",
                 "Bytes": 2,
