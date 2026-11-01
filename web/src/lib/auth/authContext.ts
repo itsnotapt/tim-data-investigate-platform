@@ -9,6 +9,8 @@ export interface UseAuth {
   error: Error | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  /** Stub sign-in only, else `null`: signs in as the analyst `name`. */
+  signInAs: ((name: string) => Promise<void>) | null;
   /** Access token for `scopes` (defaults to the API scope). */
   getToken: (scopes?: string[]) => Promise<string>;
 }

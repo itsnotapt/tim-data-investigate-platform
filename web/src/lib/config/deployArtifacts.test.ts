@@ -84,6 +84,59 @@ describe.skipIf(!hasTools)('web container entrypoint', () => {
     }
   });
 
+  it('STUB_SIGN_IN=true in development renders stubSignIn without the Entra variables', () => {
+    const { status, stderr, config } = runEntrypoint({
+      TIM_ENVIRONMENT: 'development',
+      STUB_SIGN_IN: 'true',
+      REDIRECT_URI: '',
+      AUTH_CLIENT_ID: '',
+      AUTH_TENANT_ID: '',
+    });
+    expect(stderr).not.toContain('missing required');
+    expect(status).toBe(0);
+    const sandbox: { appConfig?: Record<string, unknown> } = {};
+    runInNewContext(config, { window: sandbox });
+    expect(sandbox.appConfig?.['stubSignIn']).toBe(true);
+    expect(sandbox.appConfig).not.toHaveProperty('auth');
+    expect(sandbox.appConfig).not.toHaveProperty('redirectUri');
+  });
+
+  it('without STUB_SIGN_IN, config.js has no stubSignIn and the Entra variables are required', () => {
+    for (const env of <Record<string, string>[]>[{}, { STUB_SIGN_IN: 'false' }]) {
+      const { status, config } = runEntrypoint(env);
+      expect(status).toBe(0);
+      const sandbox: { appConfig?: Record<string, unknown> } = {};
+      runInNewContext(config, { window: sandbox });
+      expect(sandbox.appConfig).not.toHaveProperty('stubSignIn');
+      expect(sandbox.appConfig).toHaveProperty('auth');
+    }
+    const { status, stderr } = runEntrypoint({ STUB_SIGN_IN: 'false', AUTH_CLIENT_ID: '' });
+    expect(status).not.toBe(0);
+    expect(stderr).toContain('missing required environment variable(s): AUTH_CLIENT_ID');
+  });
+
+  it('refuses STUB_SIGN_IN=true in production', () => {
+    for (const env of <Record<string, string>[]>[
+      { STUB_SIGN_IN: 'true' },
+      { STUB_SIGN_IN: 'true', TIM_ENVIRONMENT: 'production' },
+    ]) {
+      const { status, stderr } = runEntrypoint(env);
+      expect(status).not.toBe(0);
+      expect(stderr).toContain(
+        "tim-web: STUB_SIGN_IN=true is refused when TIM_ENVIRONMENT is 'production'; it is allowed only in 'development'",
+      );
+    }
+  });
+
+  it('refuses a STUB_SIGN_IN that is not true or false', () => {
+    const { status, stderr } = runEntrypoint({
+      TIM_ENVIRONMENT: 'development',
+      STUB_SIGN_IN: 'yes',
+    });
+    expect(status).not.toBe(0);
+    expect(stderr).toContain("STUB_SIGN_IN must be 'true' or 'false' (got 'yes')");
+  });
+
   it('renders a CSP without script unsafe-inline and with same-origin connect-src', () => {
     const { status, conf } = runEntrypoint({});
     expect(status).toBe(0);

@@ -69,6 +69,8 @@ services:
     environment:
       TIM_ENVIRONMENT: development
       BACKEND_URI: http://api:8080
+      # "Who are you?" sign-in while the api's auth is disabled; Entra (the next three) otherwise.
+      STUB_SIGN_IN: ${TIM_AUTH_DISABLED:-true}
       REDIRECT_URI: ${REDIRECT_URI:-http://localhost:8081/blank.html}
       AUTH_CLIENT_ID: ${TIM_AUTH_CLIENT_ID:-00000000-0000-0000-0000-000000000000}
       AUTH_TENANT_ID: ${TIM_AUTH_TENANT_ID:-00000000-0000-0000-0000-000000000000}

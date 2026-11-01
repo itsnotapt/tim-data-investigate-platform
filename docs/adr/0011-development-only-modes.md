@@ -11,6 +11,7 @@ Local work and tests need to run without Entra, Postgres or a Kusto cluster, but
 |---|---|---|---|
 | In-memory storage | `TIM_DATABASE_URL=memory://` | Data lives in the process and is lost on restart | Refuses to start |
 | Auth bypass | `TIM_AUTH_DISABLED=true` | Every request runs as the user named by the stub token (`dev:<upn>`), or a fixed dev user without one. OBO is unavailable (503). A warning is logged at startup | Refuses to start |
+| Stub sign-in in the web container | `STUB_SIGN_IN=true` | Shows a "Who are you?" screen instead of Entra sign-in. The browser sends the stub token (`dev:<upn>`) for the name chosen. The Entra variables are not required | The entrypoint exits |
 | Development actions | `TIM_DEV_ACTIONS=true` | Registers `tim.dev_json`, `tim.dev_run_kql`, the `dev_rows` and `dev_sink` action types and the `dev_kql` connection type. A warning is logged at startup | Refuses to start |
 | Kusto without a token | `auth: none` on a `kusto` connection in the connections file | Queries go to the cluster without a token, and its `cluster` may be `http`. | Refuses to start |
 

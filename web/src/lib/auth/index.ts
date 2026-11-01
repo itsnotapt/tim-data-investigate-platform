@@ -1,6 +1,6 @@
-import { createDevStubAuth } from './devStubAuth';
+import { createDevStubAuth, createStubSignIn } from './devStubAuth';
 import { getConfig } from '../config/runtimeConfig';
-import { createMsalAuthClient } from './msalAuth';
+import { apiScopes, createMsalAuthClient } from './msalAuth';
 import type { AuthClient } from './types';
 
 export type { AuthAccount, AuthClient } from './types';
@@ -16,8 +16,12 @@ export interface AuthEnv {
 }
 
 /**
- * Picks the auth implementation. The stub is used when `VITE_AUTH_STUB === 'true'`, and
- * requesting it in a production build throws.
+ * Picks the auth implementation:
+ * - `VITE_AUTH_STUB === 'true'`: the dev stub, signed in as `DEV_ACCOUNT` or the stored analyst.
+ *   Requesting it in a production build throws.
+ * - `stubSignIn` in the runtime config: stub sign-in, with no analyst until one is chosen. The web
+ *   container renders it only in development (ADR-0026).
+ * - Otherwise MSAL.
  */
 export function createAuthClient(env: AuthEnv = import.meta.env): AuthClient {
   if (env.VITE_AUTH_STUB === 'true') {
@@ -26,8 +30,9 @@ export function createAuthClient(env: AuthEnv = import.meta.env): AuthClient {
     }
     return createDevStubAuth();
   }
-  const { auth, redirectUri } = getConfig();
-  return createMsalAuthClient({ auth, redirectUri });
+  const config = getConfig();
+  if (config.stubSignIn) return createStubSignIn();
+  return createMsalAuthClient({ auth: config.auth, redirectUri: config.redirectUri });
 }
 
 let cached: AuthClient | undefined;
@@ -36,4 +41,10 @@ let cached: AuthClient | undefined;
 export function getAuthClient(): AuthClient {
   cached ??= createAuthClient();
   return cached;
+}
+
+/** A token for the api from the app-wide auth client, for the api scope under Entra. */
+export function getApiToken(): Promise<string> {
+  const config = getConfig();
+  return getAuthClient().acquireToken(config.stubSignIn ? [] : apiScopes(config.auth.clientId));
 }

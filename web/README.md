@@ -100,7 +100,7 @@ The source has four parts:
 
 ## Auth
 
-`src/lib/auth/` is the only auth module; see [architecture.md](../docs/architecture.md#authentication). `createAuthClient()` returns the dev stub or the MSAL client. All other code uses the `AuthClient` interface: `getAccount`, `acquireToken`, `login`, `logout`.
+`src/lib/auth/` is the only auth module; see [architecture.md](../docs/architecture.md#authentication). `createAuthClient()` returns a dev stub or the MSAL client. All other code uses the `AuthClient` interface: `getAccount`, `acquireToken`, `login`, `logout`. Only the stub sign-in (`stubSignIn`) has `signInAs`.
 
 - **MSAL client** (`createMsalAuthClient`): wraps `PublicClientApplication`.
   - It is configured from `auth.clientId`, `auth.authority` and `redirectUri`, with its cache in `localStorage`.
@@ -112,11 +112,17 @@ The source has four parts:
   - One interactive request runs at a time. Concurrent callers share it.
 - **Errors**: failures reject with `AuthClientError`, whose `code` is `interaction_in_progress`, `popup_blocked`, `cancelled`, `not_signed_in` or `unknown`. Nothing stays stuck, so sign-in can be retried.
 - **Popup redirect page**: MSAL popups return to `redirectUri`, which must serve `blank.html`, built from `web/blank.html` and `src/lib/auth/redirectBridge.ts`. Register `https://<host>/blank.html` in Entra.
-- **React**: `<AuthProvider client={getAuthClient()}>` wraps `MsalProvider` for MSAL clients. `useAuth()` returns `{ account, status, error, login, logout, getToken }`, where `status` is `'loading'`, `'signedOut'`, `'signedIn'` or `'error'`.
-- **Dev stub**: set `VITE_AUTH_STUB=true`, for example in `.env.local`, or in the environment for Playwright.
-  - It gives a fake account with no Entra sign-in: `dev.user@example.com`, or the upn in `localStorage['tim.devStubUpn']`.
-  - Its token is `dev:<upn>`.
-  - `createAuthClient()` throws if the stub is requested in a production build.
+- **React**: `<AuthProvider client={getAuthClient()}>` wraps `MsalProvider` for MSAL clients. `useAuth()` returns `{ account, status, error, login, logout, getToken, signInAs }`. `status` is `'loading'`, `'signedOut'`, `'signedIn'` or `'error'`. `signInAs` is `null` except with `stubSignIn`.
+- **Dev stubs**: `createAuthClient()` picks one in either of two cases.
+  - `VITE_AUTH_STUB=true` (`createDevStubAuth`), for example in `.env.local`, or in the environment for Playwright. It gives a fake account with no Entra sign-in: `dev.user@example.com`, or the upn in `localStorage['tim.devStubUpn']`.
+  - This stub has no `signInAs` and no "Who are you?" screen.
+  - Its Sign out shows the "You must sign-in first" gate, and does not clear the stored upn.
+  - `stubSignIn: true` in the runtime config (`createStubSignIn`, container variable `STUB_SIGN_IN`). No one is signed in until an analyst is chosen on the "Who are you?" screen.
+  - "Who are you?" has buttons for `alice@demo.example` and `bob@demo.example`, and a "Name or email" box.
+  - This stub has `signInAs`, which keeps the choice in `localStorage['tim.devStubUpn']`.
+  - Its Sign out forgets the stored upn and returns to the screen.
+  - Both stubs send the token `dev:<upn>`.
+  - `createAuthClient()` throws if `VITE_AUTH_STUB` is set in a production build. The web container renders `stubSignIn` only when `TIM_ENVIRONMENT=development`.
   - Pair it with the API's `TIM_AUTH_DISABLED=true` (see `api/README.md`).
 
 ## Docker image
@@ -149,16 +155,17 @@ The root filesystem can be read-only. Only `/tmp` must be writable.
 - CSP: it allows `'unsafe-eval'`, for the Kusto worker. A cross-origin `API_BASEPATH` origin is added to `connect-src` automatically.
 - `GET /healthz` returns 200.
 
-| Env var                            | Required | Maps to / notes                                                                  |
-| ---------------------------------- | -------- | -------------------------------------------------------------------------------- |
-| `BACKEND_URI`                      | yes      | nginx upstream, `http(s)://host[:port]`, no path (trailing `/` stripped)         |
-| `REDIRECT_URI`                     | yes      | `redirectUri`; must be registered in Entra                                       |
-| `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` | yes      | `auth.clientId`; `auth.authority` = `https://login.microsoftonline.com/<tenant>` |
-| `AGGRID_LICENSE`                   | no       | `agGridLicenseKey`; empty = trial                                                |
-| `TIM_ENVIRONMENT`                  | no       | `production` (default) or `development`; does not affect `AGGRID_LICENSE`        |
-| `API_BASEPATH`                     | no       | `apiEndpoint`, default empty (same origin; paths already start `/api`)           |
-| `HELP_WIKI_URI`, `HELP_ISSUE_URI`  | no       | omitted when empty (app defaults apply)                                          |
-| `NGINX_RESOLVER`                   | no       | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`   |
+| Env var                            | Required                        | Maps to / notes                                                                                                                      |
+| ---------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `BACKEND_URI`                      | yes                             | nginx upstream, `http(s)://host[:port]`, no path (trailing `/` stripped)                                                             |
+| `STUB_SIGN_IN`                     | no                              | `true` or `false` (default `false`); `stubSignIn`. `true` needs `TIM_ENVIRONMENT=development` and replaces the three variables below |
+| `REDIRECT_URI`                     | yes, unless `STUB_SIGN_IN=true` | `redirectUri`; must be registered in Entra                                                                                           |
+| `AUTH_CLIENT_ID`, `AUTH_TENANT_ID` | yes, unless `STUB_SIGN_IN=true` | `auth.clientId`; `auth.authority` = `https://login.microsoftonline.com/<tenant>`                                                     |
+| `AGGRID_LICENSE`                   | no                              | `agGridLicenseKey`; empty = trial                                                                                                    |
+| `TIM_ENVIRONMENT`                  | no                              | `production` (default) or `development`; gates `STUB_SIGN_IN`, not `AGGRID_LICENSE`                                                  |
+| `API_BASEPATH`                     | no                              | `apiEndpoint`, default empty (same origin; paths already start `/api`)                                                               |
+| `HELP_WIKI_URI`, `HELP_ISSUE_URI`  | no                              | omitted when empty (app defaults apply)                                                                                              |
+| `NGINX_RESOLVER`                   | no                              | DNS server for backend lookups; default first nameserver in `/etc/resolv.conf`                                                       |
 
 The entrypoint also honours three variables, for testing without Docker:
 
@@ -186,7 +193,7 @@ The entrypoint also honours three variables, for testing without Docker:
 `src/lib/api` re-exports everything from `index.ts`.
 
 - `createApiClient({baseUrl, getToken})`: the only fetch path.
-  - `getApiClient()` wires `config.apiEndpoint`, and a silent `acquireToken` per request.
+  - `getApiClient()` wires `config.apiEndpoint`, and `getApiToken()` for each request's token, a silent `acquireToken` that asks for the api scope under Entra.
   - An empty endpoint means same origin. Paths already start with `/api`.
 - Timeouts and aborts: the default timeout is 30 s. A `signal` aborts the call and rejects with the abort reason.
 - `ApiError`: thrown for non-2xx responses and transport failures.

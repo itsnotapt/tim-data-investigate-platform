@@ -8,12 +8,7 @@ const PLACEHOLDER = /^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$/;
 
 const httpUrl = z.url({ protocol: /^https?$/, error: 'must be an http(s) URL' });
 
-const configSchema = z.object({
-  auth: z.object({
-    clientId: z.string({ error: 'is required' }).min(1),
-    authority: httpUrl,
-  }),
-  redirectUri: httpUrl,
+const baseSchema = z.object({
   /** Same-origin API when empty. Trailing slashes are stripped. */
   apiEndpoint: z
     .string()
@@ -24,6 +19,19 @@ const configSchema = z.object({
   wikiUri: httpUrl.default(DEFAULT_WIKI_URI),
   issueUri: httpUrl.default(DEFAULT_ISSUE_URI),
 });
+
+/** Entra sign-in needs the app registration; stub sign-in (ADR-0026) needs none of it. */
+const configSchema = z.discriminatedUnion('stubSignIn', [
+  baseSchema.extend({
+    stubSignIn: z.literal(false),
+    auth: z.object({
+      clientId: z.string({ error: 'is required' }).min(1),
+      authority: httpUrl,
+    }),
+    redirectUri: httpUrl,
+  }),
+  baseSchema.extend({ stubSignIn: z.literal(true) }),
+]);
 
 export type RuntimeConfig = z.infer<typeof configSchema>;
 
@@ -64,6 +72,7 @@ export function loadRuntimeConfig(windowConfig: unknown, env: EnvSource): Runtim
   const problems: string[] = [];
 
   const merged = {
+    stubSignIn: w['stubSignIn'] ?? false,
     auth: {
       clientId: wAuth['clientId'] ?? e['VITE_AUTH_CLIENT_ID'],
       authority: wAuth['authority'] ?? e['VITE_AUTH_AUTHORITY'],

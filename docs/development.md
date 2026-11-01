@@ -43,11 +43,17 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
 
   With both set:
   - You are signed in as `dev.user@example.com`.
+  - There is no "Who are you?" screen, and Sign out does not forget the analyst.
   - To be another analyst, run `localStorage.setItem('tim.devStubUpn', 'bob@example.com')` in the browser console and reload.
   - The stub sends `Bearer dev:<upn>`. The api runs the request as that analyst.
   - Runs on `obo` connections answer 503. The on-behalf-of exchange needs a real token.
   - The [development actions](#development-actions) give you actions without a connection.
-- **The compose web container can't stub sign-in.** The UI at `:8081` needs a real Entra app registration (`REDIRECT_URI`). For UI work without one, use the main loop. The root `.env` (compose) and `api/.env` (main loop) are separate files.
+- **The compose web container stubs sign-in by default.** The UI at `:8081` shows "Who are you?" while `TIM_AUTH_DISABLED` is `true` (the default), and needs no app registration.
+  - Choose `alice@demo.example` or `bob@demo.example`, or type a name or email. The browser keeps the choice in `localStorage['tim.devStubUpn']`.
+  - Sign out forgets the choice and returns to the screen.
+  - For several analysts, use separate browsers or private windows.
+  - With `TIM_AUTH_DISABLED=false` the web container uses Entra, so it needs a real app registration (`REDIRECT_URI`).
+  - The root `.env` (compose) and `api/.env` (main loop) are separate files.
 - **Tests that don't run by default:** see [configuration.md](configuration.md#test-only-variables) for the variables.
   - **`slow` tests** are deselected. `uv run pytest -m slow` runs them. CI doesn't.
   - **`kusto` tests** skip unless `TIM_TEST_KUSTO_CLUSTER` is set. They run Run KQL and `kql_query` on a real cluster: locally against the shared test cluster (see [Live Kusto tests](#live-kusto-tests)), and in CI in the [`kusto-live` job](#ci-and-releases).
