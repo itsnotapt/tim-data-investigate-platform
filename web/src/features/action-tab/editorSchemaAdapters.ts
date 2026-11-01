@@ -23,24 +23,47 @@ const scalarParameters = (parameters: readonly QueryParameter[]) =>
  */
 let kustoHolder: CodeEditorInstance | null = null;
 
+/**
+ * The last call to the Kusto language service. A schema reaches its worker after a round trip,
+ * carrying the query parameters it was given, which replace the worker's: parameters given while
+ * it loads are given after it, so they aren't replaced by older ones.
+ */
+let kustoTurn: Promise<unknown> = Promise.resolve();
+
+/** Calls the Kusto language service once the calls before have finished, failed or not. */
+function inKustoTurn(call: () => Promise<void>): Promise<void> {
+  const next = kustoTurn.then(call);
+  kustoTurn = next.catch(() => undefined);
+  return next;
+}
+
 const adapters: Record<string, Adapter> = {
   // `.show schema as json` for the scope's database. Monaco wants a cluster: the connection name.
   // The schema replaces the language service's parameters, so they go with it.
-  kql: async (editor, { schema, connection, scope }, signal, parameters) => {
-    const worker = await getKustoWorkerFor(editor);
-    if (!worker || signal.aborted) return;
-    kustoHolder = editor;
-    const database = typeof scope.database === 'string' ? scope.database : '';
-    await worker.setSchemaFromShowSchema(
-      normalizeSchema(schema),
-      connection,
-      database,
-      scalarParameters(parameters),
-    );
-  },
+  kql: (editor, loaded, signal, parameters) =>
+    inKustoTurn(() => giveKustoSchema(editor, loaded, signal, parameters)),
   // A Snowflake account's databases, schemas, tables and columns.
   sql: (editor, { schema }, signal) => setSqlSchema(editor, schema as SqlSchema, signal),
 };
+
+/** Gives the Kusto language service `editor`'s schema, with the query parameters that go with it. */
+async function giveKustoSchema(
+  editor: CodeEditorInstance,
+  { schema, connection, scope }: LoadedEditorSchema,
+  signal: AbortSignal,
+  parameters: readonly QueryParameter[],
+): Promise<void> {
+  const worker = await getKustoWorkerFor(editor);
+  if (!worker || signal.aborted) return;
+  kustoHolder = editor;
+  const database = typeof scope.database === 'string' ? scope.database : '';
+  await worker.setSchemaFromShowSchema(
+    normalizeSchema(schema),
+    connection,
+    database,
+    scalarParameters(parameters),
+  );
+}
 
 /**
  * Gives `editor` a loaded schema, and the tab's query parameters, with the adapter of its kind,
@@ -64,9 +87,12 @@ export async function setEditorParameters(
   kind: string,
   parameters: readonly QueryParameter[],
 ): Promise<void> {
-  // Another editor's are left alone: this one's go with its schema when it's focused.
-  if (kind !== 'kql' || (kustoHolder !== null && kustoHolder !== editor)) return;
-  await giveKustoParameters(editor, parameters);
+  if (kind !== 'kql') return;
+  await inKustoTurn(async () => {
+    // Another editor's are left alone: this one's go with its schema when it's focused.
+    if (kustoHolder !== null && kustoHolder !== editor) return;
+    await giveKustoParameters(editor, parameters);
+  });
 }
 
 /** Gives the Kusto language service `editor`'s query parameters, keeping the schema it holds. */
@@ -91,7 +117,10 @@ export async function claimEditorSchema(
   loaded: LoadedEditorSchema | null,
   parameters: readonly QueryParameter[],
 ): Promise<void> {
-  if (kind !== 'kql' || kustoHolder === editor) return;
-  if (loaded) return applyEditorSchema(editor, loaded, new AbortController().signal, parameters);
-  await giveKustoParameters(editor, parameters);
+  if (kind !== 'kql') return;
+  await inKustoTurn(async () => {
+    if (kustoHolder === editor) return;
+    if (loaded) await giveKustoSchema(editor, loaded, new AbortController().signal, parameters);
+    else await giveKustoParameters(editor, parameters);
+  });
 }
