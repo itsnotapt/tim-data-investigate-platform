@@ -8,12 +8,13 @@ ARG DATASET=demo-data-v1
 FROM ${BASE} AS instance
 COPY config /etc/tim
 
-# The tests run against the tim-actions the image ships.
+# The tests run against the tim-actions and the Kusto client the image ships.
 FROM instance AS test
 RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt pytest
 COPY --chown=tim:tim tests /tmp/demo/tests
 COPY --chown=tim:tim config /tmp/demo/config
 COPY --chown=tim:tim data/SHA256SUMS /tmp/demo/data/
+COPY --chown=tim:tim kusto /tmp/demo/kusto
 WORKDIR /tmp/demo
 RUN python -m pytest -p no:cacheprovider
 

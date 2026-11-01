@@ -314,9 +314,10 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 
 `examples/demo/compose.yaml` reads `.env` from its own directory. Every variable has a default, so the file is optional.
 
-| Variable        | Default | Used for                                                                 |
-| --------------- | ------- | ------------------------------------------------------------------------ |
-| `TIM_DEMO_PORT` | `8081`  | Host port of `web`, bound to `127.0.0.1`. The demo's sign-in address uses it. |
+| Variable           | Default     | Used for                                                                                                                                           |
+| ------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TIM_DEMO_PORT`    | `8081`      | Host port of `web`. The demo's sign-in address uses it.                                                                                            |
+| `TIM_DEMO_ADDRESS` | `127.0.0.1` | Host address of `web`'s port. `0.0.0.0` listens on every interface. Anyone who can reach it can sign in as anyone. The loader then logs a warning. |
 
 ## Helm
 

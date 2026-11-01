@@ -1,5 +1,7 @@
-# The demo instance, built from this checkout: TIM in development mode with "Who are you?" sign-in,
-# against the demo dataset in a local Kusto emulator (docs/adr/0026-a-demo-instance-needs-no-accounts.md).
+# The demo instance: TIM in development mode with "Who are you?" sign-in, against the demo dataset
+# in a local Kusto emulator (docs/adr/0026-a-demo-instance-needs-no-accounts.md).
+# This file is the one each release publishes, so it pulls TIM's images at the release version.
+# compose.override.yaml builds them from this checkout instead:
 #   docker compose up --build
 # The first start loads the dataset; later starts attach it from the kusto-data volume.
 name: tim-demo
@@ -17,15 +19,9 @@ x-api-env: &api-env
   # uvicorn trusts X-Forwarded-* only from these addresses; the web container proxies here.
   FORWARDED_ALLOW_IPS: "*"
 
-# The demo image, from the api image the migrate service builds.
+# The demo image: TIM's api image with the demo's instance files, the dataset and its loader.
 x-demo-image: &demo-image
-  image: tim-demo:local
-  build:
-    context: .
-    args:
-      BASE: tim-api
-    additional_contexts:
-      tim-api: service:migrate
+  image: ghcr.io/itsnotapt/tim-data-investigate-platform/demo:2.0.0 # x-release-please-version
 
 services:
   kusto:
@@ -53,6 +49,7 @@ services:
     environment:
       DEMO_KUSTO_CLUSTER: http://kusto:8080
       DEMO_WEB_ADDRESS: http://localhost:${TIM_DEMO_PORT:-8081}
+      DEMO_WEB_HOST_IP: ${TIM_DEMO_ADDRESS:-127.0.0.1}
     volumes:
       - kusto-data:/kustodata:ro
       - ingest:/ingest
@@ -75,7 +72,7 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     restart: unless-stopped
     environment:
       POSTGRES_USER: tim
@@ -92,8 +89,7 @@ services:
 
   # One-shot: applies the Alembic migrations, then exits.
   migrate:
-    image: tim-api:demo
-    build: ../../api
+    image: ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.0.0 # x-release-please-version
     command: ["alembic", "upgrade", "head"]
     environment: *api-env
     depends_on:
@@ -118,7 +114,7 @@ services:
       start_interval: 1s
 
   web:
-    build: ../../web
+    image: ghcr.io/itsnotapt/tim-data-investigate-platform/web:2.0.0 # x-release-please-version
     restart: unless-stopped
     environment:
       TIM_ENVIRONMENT: development
@@ -127,9 +123,13 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    # This machine only, unless TIM_DEMO_ADDRESS is another address, such as 0.0.0.0 for every
+    # interface. nginx-unprivileged listens on 8080 inside the container. docker compose publish
+    # needs the long syntax when the port has variables.
     ports:
-      # This machine only. nginx-unprivileged listens on 8080 inside the container.
-      - "127.0.0.1:${TIM_DEMO_PORT:-8081}:8080"
+      - target: 8080
+        host_ip: ${TIM_DEMO_ADDRESS:-127.0.0.1}
+        published: ${TIM_DEMO_PORT:-8081}
     read_only: true
     tmpfs:
       - /tmp:uid=101,gid=101,mode=1777

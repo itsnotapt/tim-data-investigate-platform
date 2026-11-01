@@ -45,6 +45,14 @@
                 {
                     "type": "generic",
                     "path": "deploy/helm/tim/Chart.yaml"
+                },
+                {
+                    "type": "generic",
+                    "path": "examples/demo/compose.yaml"
+                },
+                {
+                    "type": "generic",
+                    "path": "examples/demo/README.md"
                 }
             ]
         },

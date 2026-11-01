@@ -20,8 +20,8 @@ jobs:
       issues: write
       pull-requests: write
     outputs:
-      # The root package is TIM: both images and the chart share its version. tim-actions releases
-      # on its own and publishes nothing here. See docs/adr/0024-one-release-version.md.
+      # The root package is TIM: the images, the chart and the demo share its version. tim-actions
+      # releases on its own and publishes nothing here. See docs/adr/0024-one-release-version.md.
       release: ${{ steps.release.outputs.release_created }}
       version: ${{ steps.release.outputs.version }}
     steps:
@@ -127,3 +127,71 @@ jobs:
         run: |
           repo="$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
           helm push "$RUNNER_TEMP/chart/tim-${CHART_VERSION}.tgz" "oci://${REGISTRY}/${repo}/charts"
+
+  # The demo image, built on the release's api image, then the demo's Compose file as an OCI
+  # artifact, which pins TIM's images at the release version and every image by digest.
+  publish-demo:
+    runs-on: ubuntu-latest
+    needs: [release-please, build-images]
+    permissions:
+      contents: read
+      packages: write
+    if: ${{ needs.release-please.outputs.release }}
+    env:
+      VERSION: ${{ needs.release-please.outputs.version }}
+      COMPOSE: examples/demo/compose.yaml
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log into github docker
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Name the images and check the Compose file pulls them
+        id: names
+        run: |
+          repo="$(echo "${REGISTRY}/${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+          echo "api=${repo}/api:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "compose=${repo}/compose/demo:${VERSION}" >> "$GITHUB_OUTPUT"
+          # The Compose file must pull TIM's images at this release.
+          tags="$(sed -n "s|.*${repo}/[a-z]*:\([^ ]*\).*|\1|p" "$COMPOSE" | sort -u)"
+          if [ "$tags" != "$VERSION" ]; then
+            echo "$COMPOSE must pull TIM's images at the release $VERSION, not $tags" >&2
+            exit 1
+          fi
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/demo
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }}
+            type=sha
+
+      - uses: docker/setup-buildx-action@v4
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+
+      - name: Build and push the demo image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./examples/demo
+          build-args: BASE=${{ steps.names.outputs.api }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Publish the demo's Compose file
+        env:
+          ARTIFACT: ${{ steps.names.outputs.compose }}
+        run: |
+          # The runner's Compose publishes the artifact; its version is in the log.
+          docker compose version
+          docker compose -f "$COMPOSE" publish --resolve-image-digests --yes "$ARTIFACT"
+          docker compose -f "oci://${ARTIFACT}" config --quiet

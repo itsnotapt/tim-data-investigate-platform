@@ -6,6 +6,9 @@ on:
       - deploy/**
       - examples/deployment/config/**
       - examples/deployment/deploy/**
+      - examples/demo/compose.yaml
+      - examples/demo/compose.override.yaml
+      - examples/demo/README.md
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -22,6 +25,9 @@ on:
       - deploy/**
       - examples/deployment/config/**
       - examples/deployment/deploy/**
+      - examples/demo/compose.yaml
+      - examples/demo/compose.override.yaml
+      - examples/demo/README.md
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -369,3 +375,31 @@ jobs:
             echo "the deployment example must run its derived image, got $image" >&2
             exit 1
           fi
+
+      # The demo's Compose file is the one each release publishes (docs/adr/0024-one-release-version.md).
+      - name: Check the demo instance
+        run: |
+          demo=(docker compose -f examples/demo/compose.yaml)
+          version="$(yq '.appVersion' "$CHART/Chart.yaml")"
+          # The published file: TIM's images at the release version, every other image by digest,
+          # and nothing to build.
+          "${demo[@]}" config --format json | jq -e --arg tim "ghcr.io/itsnotapt/tim-data-investigate-platform/" --arg version "$version" '
+            [.services[] | select(has("build") or (
+              if (.image | startswith($tim)) then (.image | test(":" + $version + "$") | not)
+              else (.image | contains("@sha256:") | not) end))] == []' > /dev/null \
+            || { echo "examples/demo/compose.yaml must pin TIM's images at $version and the others by digest, and build nothing" >&2; exit 1; }
+          if ! grep -qF "oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:${version} up" examples/demo/README.md; then
+            echo "examples/demo/README.md must start the demo's Compose file at $version" >&2
+            exit 1
+          fi
+          # assert_web_host_ip <address> [<TIM_DEMO_ADDRESS>]: the web port and the loader's warning.
+          assert_web_host_ip() {
+            TIM_DEMO_ADDRESS="${2-}" "${demo[@]}" config --format json | jq -e --arg ip "$1" '
+              [.services.web.ports[].host_ip] == [$ip]
+              and .services["kusto-init"].environment.DEMO_WEB_HOST_IP == $ip' > /dev/null \
+              || { echo "the demo's web port must listen on $1 with TIM_DEMO_ADDRESS=${2-}" >&2; exit 1; }
+          }
+          assert_web_host_ip 127.0.0.1
+          assert_web_host_ip 0.0.0.0 0.0.0.0
+          # From source: the override builds TIM's images from this checkout.
+          (cd examples/demo && docker compose config --quiet)

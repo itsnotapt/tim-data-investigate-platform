@@ -94,6 +94,29 @@ updates:
         update-types:
           - version-update:semver-major
 
+  # The demo instance's images: the Kusto emulator and PostgreSQL, by tag and digest. TIM's own
+  # images there are at TIM's version, which release-please sets.
+  - package-ecosystem: docker-compose
+    directory: /examples/demo
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: build(deps)
+    groups:
+      demo-compose:
+        update-types: [major, minor, patch]
+    ignore:
+      - dependency-name: ghcr.io/itsnotapt/tim-data-investigate-platform/*
+      # The images compose.override.yaml builds from the checkout.
+      - dependency-name: tim-api
+      - dependency-name: tim-web
+      - dependency-name: tim-demo
+      # PostgreSQL majors need a dump and restore; upgrade by hand.
+      - dependency-name: postgres
+        update-types:
+          - version-update:semver-major
+
   # Image tags in values.yaml (the optional evaluation PostgreSQL). The api and web tags are
   # empty there; they default to the chart's appVersion.
   - package-ecosystem: helm
