@@ -1,0 +1,140 @@
+# The demo instance, built from this checkout: TIM in development mode with "Who are you?" sign-in,
+# against the demo dataset in a local Kusto emulator (docs/adr/0026-a-demo-instance-needs-no-accounts.md).
+#   docker compose up --build
+# The first start loads the dataset; later starts attach it from the kusto-data volume.
+name: tim-demo
+
+x-api-env: &api-env
+  TIM_ENVIRONMENT: development
+  TIM_DATABASE_URL: postgresql+asyncpg://tim:tim@postgres:5432/tim
+  TIM_AUTH_DISABLED: "true"
+  # Required, but unused while auth is disabled.
+  TIM_AUTH_TENANT_ID: 00000000-0000-0000-0000-000000000000
+  TIM_AUTH_CLIENT_ID: 00000000-0000-0000-0000-000000000000
+  TIM_ACTIONS_DIR: /etc/tim/actions
+  TIM_CONNECTIONS_FILE: /etc/tim/connections.yaml
+  TIM_LABELS_FILE: /etc/tim/labels.yaml
+  # uvicorn trusts X-Forwarded-* only from these addresses; the web container proxies here.
+  FORWARDED_ALLOW_IPS: "*"
+
+# The demo image, from the api image the migrate service builds.
+x-demo-image: &demo-image
+  image: tim-demo:local
+  build:
+    context: .
+    args:
+      BASE: tim-api
+    additional_contexts:
+      tim-api: service:migrate
+
+services:
+  kusto:
+    image: mcr.microsoft.com/azuredataexplorer/kustainer-linux:2026.10.29.1806-2643-0ef1614-master@sha256:715fd9ebac58b1f56355633d1e68236e879f31f540ca06336479a44e053b6a81
+    restart: unless-stopped
+    environment:
+      # Accepts Microsoft's licence for the emulator, in the image at /EULA-Container.txt.
+      ACCEPT_EULA: "Y"
+    volumes:
+      - kusto-data:/kustodata
+      - ingest:/ingest:ro
+    healthcheck:
+      test: >-
+        curl -sf -X POST http://127.0.0.1:8080/v1/rest/mgmt -H 'Content-Type: application/json'
+        -d '{"csl": ".show version"}' -o /dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # One-shot: loads the dataset into the emulator, or attaches it, then exits.
+  kusto-init:
+    <<: *demo-image
+    command: ["python", "/demo/kusto/load.py"]
+    environment:
+      DEMO_KUSTO_CLUSTER: http://kusto:8080
+      DEMO_WEB_ADDRESS: http://localhost:${TIM_DEMO_PORT:-8081}
+    volumes:
+      - kusto-data:/kustodata:ro
+      - ingest:/ingest
+    depends_on:
+      kusto:
+        condition: service_healthy
+    restart: "no"
+
+  # One-shot: checks the instance files.
+  check:
+    <<: *demo-image
+    command:
+      - tim-api
+      - check
+      - --actions=/etc/tim/actions
+      - --connections=/etc/tim/connections.yaml
+      - --labels=/etc/tim/labels.yaml
+    environment:
+      TIM_ENVIRONMENT: development
+    restart: "no"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tim
+      POSTGRES_PASSWORD: tim
+      POSTGRES_DB: tim
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tim -d tim"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: applies the Alembic migrations, then exits.
+  migrate:
+    image: tim-api:demo
+    build: ../../api
+    command: ["alembic", "upgrade", "head"]
+    environment: *api-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *demo-image
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      check:
+        condition: service_completed_successfully
+      kusto-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    # The image's health check, polled often while the api starts, so the web container starts soon.
+    healthcheck:
+      start_period: 30s
+      start_interval: 1s
+
+  web:
+    build: ../../web
+    restart: unless-stopped
+    environment:
+      TIM_ENVIRONMENT: development
+      BACKEND_URI: http://api:8080
+      STUB_SIGN_IN: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # This machine only. nginx-unprivileged listens on 8080 inside the container.
+      - "127.0.0.1:${TIM_DEMO_PORT:-8081}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101,mode=1777
+
+volumes:
+  kusto-data:
+  ingest:
+  postgres-data:

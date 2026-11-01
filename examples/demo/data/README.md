@@ -2,6 +2,8 @@
 
 The demo instance's data: the BOTSv3 security dataset, converted to one gzipped JSONL file per sourcetype. The files and their `SHA256SUMS` are on the GitHub release [`demo-data-v1`](https://github.com/itsnotapt/tim-data-investigate-platform/releases/tag/demo-data-v1). `sha256sum -c SHA256SUMS` checks a download.
 
+`SHA256SUMS` in this folder is the release's checksum file. The demo image's build downloads every file it lists and fails when one doesn't match. `LICENSE` and `NOTICE` ship in the image.
+
 ## The data
 
 Version 1 has 1,944,092 events across 107 sourcetypes. Each line of a file is one event, with these fields:

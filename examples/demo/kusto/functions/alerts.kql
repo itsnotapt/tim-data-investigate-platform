@@ -1,0 +1,28 @@
+.create-or-alter function with (folder = "Alerts", docstring = "Vendor alerts, with the same columns for every product") Alerts() {
+    let risks = Events
+        | where SourceType == "symantec:ep:risk:file"
+        | project Timestamp, EventId,
+            Host = extract(@"Computer name: ([^,]*)", 1, Raw),
+            Severity = "High",
+            Alert = extract(@"Risk name: ([^,]*)", 1, Raw),
+            Product = "Symantec Endpoint Protection";
+    let intrusions = Events
+        | where SourceType == "symantec:ep:security:file"
+        | extend Fields = split(Raw, ",")
+        | extend Level = tostring(Fields[1])
+        | project Timestamp, EventId,
+            Host = tostring(Fields[2]),
+            Severity = case(Level in ("Critical", "Major"), "High", Level == "Minor", "Medium", "Low"),
+            Alert = extract(@"CIDS Signature string: ([^,]*)", 1, Raw),
+            Product = "Symantec Intrusion Prevention";
+    let findings = Events
+        | where SourceType == "aws:cloudwatch:guardduty"
+        | extend Detail = parse_json(Raw)["detail"]
+        | extend Score = todouble(Detail["severity"])
+        | project Timestamp, EventId,
+            Host = tostring(Detail["resource"]["instanceDetails"]["instanceId"]),
+            Severity = case(Score >= 7, "High", Score >= 4, "Medium", "Low"),
+            Alert = tostring(Detail["type"]),
+            Product = "AWS GuardDuty";
+    union risks, intrusions, findings
+}

@@ -1,0 +1,27 @@
+# The Alerts action: the vendor alerts in the security logs, with the same columns for every product.
+type: kql_query
+key: demo.alerts
+name: Alerts
+menu: Alerts
+description: Alerts from the endpoint protection, intrusion prevention and cloud threat detection products
+pivot: none
+connection: security
+database: Security
+kql_file: alerts.kql
+params:
+  - name: since
+    kind: datetime
+    title: Since
+    required: false       # left out, the KQL's declared default applies
+  - name: until
+    kind: datetime
+    title: Until
+    required: false
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: desc}
+  - {name: Host, type: string, width: 160}
+  - {name: Severity, type: string, width: 110}
+  - {name: Alert, type: string, width: 360}
+  - {name: Product, type: string}
+  - {name: EventId, type: string, title: Id}

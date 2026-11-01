@@ -310,6 +310,14 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 - Compose provides no token file, so under compose the credential is the client secret.
 - An instance with no `obo` connection leaves it empty.
 
+### Demo instance
+
+`examples/demo/compose.yaml` reads `.env` from its own directory. Every variable has a default, so the file is optional.
+
+| Variable        | Default | Used for                                                                 |
+| --------------- | ------- | ------------------------------------------------------------------------ |
+| `TIM_DEMO_PORT` | `8081`  | Host port of `web`, bound to `127.0.0.1`. The demo's sign-in address uses it. |
+
 ## Helm
 
 The chart in `deploy/helm/tim` sets the same variable names; the install procedure, the full values reference and workload identity are in [deployment.md](deployment.md#kubernetes-helm).

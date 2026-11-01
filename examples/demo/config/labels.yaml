@@ -1,0 +1,7 @@
+# Triage labels: the first nine take the keys 1 to 9 in the grid.
+- {key: malicious, name: Malicious, colour: red, symbol: skull}
+- {key: suspicious, name: Suspicious, colour: amber, symbol: warning}
+- {key: escalated, name: Escalated, colour: blue, symbol: flag}
+- {key: needs-review, name: Needs review, colour: purple, symbol: question}
+- {key: benign, name: Benign, colour: green, symbol: check}
+- {key: false-positive, name: False positive, colour: grey, symbol: block}

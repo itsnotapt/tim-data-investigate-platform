@@ -3,7 +3,7 @@ name: Build api
 # Pull requests always run this workflow, so the required build-api-gate check always reports;
 # the changes job skips the build jobs when the PR does not touch api/, this file, a file the
 # api tests read from outside api/ (docs/architecture.md, web/src/lib/api/openapi.json,
-# deploy/config/), or the deployment example built on the api image (examples/deployment/).
+# deploy/config/), or the examples built on the api image (examples/deployment/, examples/demo/).
 on:
   pull_request:
   push:
@@ -15,6 +15,7 @@ on:
       - web/src/lib/api/openapi.json
       - deploy/config/**
       - examples/deployment/**
+      - examples/demo/**
       - .github/workflows/build-api.yml
 
 concurrency:
@@ -56,7 +57,7 @@ jobs:
             # Diff on its own line, so a failed diff fails this job and the gate instead of reading
             # as "no changes".
             files=$(git diff --name-only "$BASE...$HEAD")
-            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|deploy/config/|examples/deployment/|\.github/workflows/build-api\.yml$)' <<<"$files"; then
+            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|deploy/config/|examples/deployment/|examples/demo/|\.github/workflows/build-api\.yml$)' <<<"$files"; then
               changed=true
             else
               changed=false
@@ -221,6 +222,11 @@ jobs:
       # deployment fails here.
       - name: Check the deployment example
         run: ../examples/deployment/ci.sh tim-api:ci
+
+      # The demo instance's own CI, on this PR's image: the action tests, the demo image with its
+      # dataset, and its instance files.
+      - name: Check the demo instance
+        run: ../examples/demo/ci.sh tim-api:ci
 
   # The required status check on main. It always runs and fails when a needed job failed or was
   # cancelled; build jobs skipped because api/ is unchanged count as passed.
