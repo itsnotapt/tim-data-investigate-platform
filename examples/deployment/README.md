@@ -8,6 +8,6 @@ The example for deploying TIM: the repository behind a deployment, with a provid
 - **`schema/`**: the files' JSON Schemas with the provider's types, written by `./schema.sh <api image>`.
 - **`Dockerfile`**: the derived image, TIM's api image with the provider installed.
 - **`deploy/`**: the Compose variables and the Helm values.
-- **`ci.sh`**: the checks that `.github/workflows/ci.yaml` runs, `./ci.sh <api image>`. They need Docker and uv.
+- **`ci.sh`**: the checks that `.github/workflows/build-api.yml` runs, `./ci.sh <api image>`. They need Docker and uv.
 
 TIM's own CI runs `ci.sh` against each pull request's api image.
