@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
 import { PillsBar } from './PillsBar';
 
@@ -57,6 +57,10 @@ const openPill = (name: RegExp) => userEvent.click(screen.getByRole('button', { 
 const popover = () => screen.getByRole('dialog');
 
 describe('PillsBar', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('shows one pill per param except the editor params, with its value', () => {
     render(
       <Harness
@@ -230,6 +234,8 @@ describe('PillsBar', () => {
   });
 
   it('sets a datetime in UTC by pasting an ISO datetime, picking a day and an hour', async () => {
+    // Today is in the pasted month, so the calendar opens on it.
+    vi.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z'), toFake: ['Date'] });
     render(<Harness params={[param({ name: 'since', kind: 'datetime', title: 'Since' })]} />);
     await openPill(/Since/);
     const field = within(popover()).getByRole('group', { name: 'Since (UTC)' });
