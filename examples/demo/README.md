@@ -47,7 +47,7 @@ The demo has the Alerts menu and the Endpoint menu.
 | Hash seen anywhere | Endpoint | `SHA256` or `MD5`, `Timestamp` | ±1 day |
 
 - **Window:** every action is bounded by a time window. The analyst can change it.
-- **Row limit:** every Endpoint action ends with `take 10000`. Alerts ends with `take 1000`.
+- **Row limit:** every action ends with `take 10000`.
 
 ## Credit
 

@@ -11,4 +11,4 @@ def test_every_action_is_bounded_by_a_time_window_and_a_row_limit() -> None:
     for action in load_actions(CONFIG / "actions", [KqlQuery]).values():
         assert isinstance(action, KqlQuery)
         assert "Timestamp between (" in action.kql, action.key
-        assert re.search(r"^\| take \d+$", action.kql, re.MULTILINE), action.key
+        assert re.search(r"^\| take 10000$", action.kql, re.MULTILINE), action.key
