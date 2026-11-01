@@ -3,7 +3,7 @@ type: kql_query
 key: demo.host-timeline
 name: Host timeline
 menu: Host
-description: Every event on the host, from every sourcetype, in a window around the row's time
+description: The sequence of events on the host, from every sourcetype, in a window around the row's time
 pivot: row
 connection: security
 database: Security

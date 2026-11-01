@@ -3,7 +3,7 @@ type: kql_query
 key: demo.host-logs
 name: Host's other logs
 menu: Host
-description: The raw events the host logged nearest the row's time, within an hour, from every sourcetype
+description: The raw text of the events the host logged nearest the row's time, within an hour, from every sourcetype
 pivot: row
 connection: security
 database: Security

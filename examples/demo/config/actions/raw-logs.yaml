@@ -125,10 +125,12 @@ params:
     kind: datetime
     title: Since
     required: false       # left out, the KQL's declared default applies
+    help: When not set, from 2018-08-01
   - name: until
     kind: datetime
     title: Until
     required: false
+    help: When not set, until 2018-09-01
 id: EventId
 columns:
   - {name: Timestamp, type: datetime, pinned: left, sort: desc}
