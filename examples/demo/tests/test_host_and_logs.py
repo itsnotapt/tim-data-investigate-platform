@@ -42,7 +42,7 @@ def test_the_host_timeline_is_in_the_host_menu_and_pivots_from_an_alert(
     )
     assert resolve_pivot(timeline, [ALERT]).params == {
         "host": "BGIST-L",
-        "at": "2018-08-20T10:00:00Z",
+        "around": "2018-08-20T10:00:00Z",
     }
 
 
@@ -59,11 +59,11 @@ def test_a_host_timeline_from_a_process_runs_on_its_short_host_around_its_timest
     assert (call.connection, call.database) == ("security", "Security")
     assert call.parameters == {
         "host": "BGIST-L",
-        "at": "datetime(2018-08-20T10:02:13.0000000Z)",
+        "around": "datetime(2018-08-20T10:02:13.0000000Z)",
         "window": "timespan(00:15:00)",
     }
-    assert "Timestamp between ((at - window) .. (at + window))" in call.kql
-    assert "top 5000 by abs(Timestamp - at) asc" in call.kql
+    assert "Timestamp between ((around - window) .. (around + window))" in call.kql
+    assert "order by abs(Timestamp - around) asc" in call.kql
     assert "order by Timestamp asc" in call.kql
 
 
@@ -81,7 +81,7 @@ def test_hosts_other_logs_is_in_the_host_menu_and_pivots_from_an_alert(
     )
     assert resolve_pivot(host_logs, [ALERT]).params == {
         "host": "BGIST-L",
-        "at": "2018-08-20T10:00:00Z",
+        "around": "2018-08-20T10:00:00Z",
     }
 
 
@@ -95,17 +95,14 @@ def test_hosts_other_logs_from_a_process_runs_on_the_events_nearest_its_timestam
 
     [call] = tim_kusto.calls
     assert (call.connection, call.database) == ("security", "Security")
-    assert call.parameters == {"host": "BGIST-L", "at": "datetime(2018-08-20T10:02:13.0000000Z)"}
-    assert "Timestamp between ((at - 1h) .. (at + 1h))" in call.kql
-    assert "top 1000 by abs(Timestamp - at) asc" in call.kql
+    assert call.parameters == {
+        "host": "BGIST-L",
+        "around": "datetime(2018-08-20T10:02:13.0000000Z)",
+        "window": "timespan(01:00:00)",
+    }
+    assert "Timestamp between ((around - window) .. (around + window))" in call.kql
+    assert "order by abs(Timestamp - around) asc" in call.kql
     assert "order by Timestamp asc" in call.kql
-
-
-def test_every_action_keys_its_rows_by_eventid_so_an_annotation_follows_the_event(
-    actions: dict[str, Action],
-) -> None:
-    assert {"demo.alerts", "demo.host-timeline", "demo.host-logs", "demo.raw-logs"} <= set(actions)
-    assert {key: action.id for key, action in actions.items() if action.id != "EventId"} == {}
 
 
 def file_name(sourcetype: str) -> str:
@@ -127,7 +124,7 @@ def test_raw_logs_by_sourcetype_is_a_starting_point_that_can_pick_every_sourcety
     assert sorted(file_name(choice) for choice in sourcetype.choices or ()) == sorted(files)
 
 
-def test_raw_logs_run_on_one_sourcetype_in_a_time_window_with_a_row_limit(
+def test_raw_logs_run_on_one_sourcetype_in_a_time_window(
     actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
     raw = actions["demo.raw-logs"]
@@ -151,7 +148,6 @@ def test_raw_logs_run_on_one_sourcetype_in_a_time_window_with_a_row_limit(
         "until": "datetime(2018-08-21T00:00:00.0000000Z)",
     }
     assert "SourceType == sourcetype and Timestamp between (since .. until)" in call.kql
-    assert call.kql.rstrip().endswith("| take 1000")
 
 
 def test_raw_logs_without_a_time_window_use_the_kqls_window_over_the_whole_data(

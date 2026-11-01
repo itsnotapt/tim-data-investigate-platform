@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+from tim_actions import Action
 from tim_actions.kusto import KqlQuery
 from tim_actions.testing import load_actions
 
@@ -12,3 +13,9 @@ def test_every_action_is_bounded_by_a_time_window_and_a_row_limit() -> None:
         assert isinstance(action, KqlQuery)
         assert "Timestamp between (" in action.kql, action.key
         assert re.search(r"^\| take 10000$", action.kql, re.MULTILINE), action.key
+
+
+def test_every_action_keys_its_rows_by_eventid_so_an_annotation_follows_the_event(
+    actions: dict[str, Action],
+) -> None:
+    assert {key: action.id for key, action in actions.items() if action.id != "EventId"} == {}

@@ -1,9 +1,9 @@
-# Host timeline: every sourcetype on a row's host, in a window around the row's time.
+# Host timeline: the sequence of events on a host, from every sourcetype, nearest a time such as a row's.
 type: kql_query
 key: demo.host-timeline
 name: Host timeline
 menu: Host
-description: The sequence of events on the host, from every sourcetype, in a window around the row's time
+description: The sequence of events on the host, from every sourcetype, nearest a time
 pivot: row
 connection: security
 database: Security
@@ -13,15 +13,14 @@ params:
     kind: string
     title: Host
     from_columns: [Host]
-  - name: at
+  - name: around
     kind: datetime
     title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window
+    title: Window (±)
     default: PT15M
-    help: How far before and after the time to look
 id: EventId
 columns:
   - {name: Timestamp, type: datetime, pinned: left, sort: asc}

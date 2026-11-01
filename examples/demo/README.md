@@ -8,7 +8,7 @@ The demo instance: TIM with sample security data in a local Kusto emulator, to t
   - **`functions/*.kql`**: define the functions the actions call. `Alerts` is in `alerts.kql`. The Endpoint functions are `SysmonEvents`, `ProcessCreations`, `NetworkConnections`, `FileCreations` and `RegistryEvents`.
   - **Order:** the loader runs the `functions/` files in name order. `1-sysmon-events.kql` comes before the `2-` files, which are built on it.
   - **Columns:** the Endpoint functions parse the Sysmon events. They expose the short `Host` beside Sysmon's FQDN `Computer`, and `EventId`. `Timestamp` is the time column. Sysmon's `UtcTime` is an ordinary column.
-- **`tests/`**: the action tests, run in the image.
+- **`tests/`**: the action tests, run in the image. They check Raw logs by sourcetype's list of sourcetypes against `data/SHA256SUMS`.
 - **`data/`**: `SHA256SUMS` for the dataset's files, with its `LICENSE` and `NOTICE`. See [data/README.md](data/README.md).
 - **`Dockerfile`**: the demo image, TIM's api image with the instance files, the dataset and the loader.
 - **`compose.yaml`**: the emulator, the loader, PostgreSQL, the api and the web container.
@@ -32,7 +32,7 @@ Sign in on the "Who are you?" screen, for example as `alice@demo.example`, and o
 
 ## Actions
 
-The demo has the Alerts menu and the Endpoint menu.
+The demo has the Alerts, Endpoint, Host and Logs menus.
 
 | Action | Menu | Pivots from | Default window |
 |---|---|---|---|
@@ -45,9 +45,14 @@ The demo has the Alerts menu and the Endpoint menu.
 | Connections to IP | Endpoint | `DestinationIp`, `Timestamp` | ±1 day |
 | File created, then run? | Endpoint | `Host`, `TargetFilename`, `Timestamp` | 1 day after the file was created |
 | Hash seen anywhere | Endpoint | `SHA256` or `MD5`, `Timestamp` | ±1 day |
+| Host timeline | Host | `Host`, `Timestamp` | ±15 minutes |
+| Host's other logs | Host | `Host`, `Timestamp` | ±1 hour |
+| Raw logs by sourcetype | Logs | Nothing; it is a starting point, with a list of every sourcetype | `since` 2018-08-01 to `until` 2018-09-01 |
 
 - **Window:** every action is bounded by a time window. The analyst can change it.
-- **Row limit:** every action ends with `take 10000`.
+- **Row limit:** every action keeps at most 10,000 rows, with `take 10000`.
+  - Host timeline and Host's other logs keep the events nearest the time, then sort them by `Timestamp`.
+- **Id:** every action uses `EventId` as the row's `id`, so an annotation follows an event across actions.
 
 ## Credit
 
