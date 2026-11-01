@@ -1,0 +1,41 @@
+# The processes that started on a host around a time, such as an alert's.
+type: kql_query
+key: demo.process-creations
+name: Process creations
+menu: Endpoint
+description: The processes that started on a host in the window around a time
+pivot: row
+connection: security
+database: Security
+kql_file: process-creations.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: PT1H
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 120}
+  - {name: User, type: string, width: 200}
+  - {name: Image, type: string, width: 320}
+  - {name: CommandLine, type: string, width: 480}
+  - {name: ParentImage, type: string, width: 320}
+  - {name: ParentCommandLine, type: string, width: 360}
+  - {name: ProcessId, type: number}
+  - {name: ParentProcessId, type: number}
+  - {name: ProcessGuid, type: string}
+  - {name: ParentProcessGuid, type: string}
+  - {name: SHA256, type: string}
+  - {name: MD5, type: string}
+  - {name: Computer, type: string}
+  - {name: UtcTime, type: datetime}
+  - {name: EventId, type: string, title: Id}

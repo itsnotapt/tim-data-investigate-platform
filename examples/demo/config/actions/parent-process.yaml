@@ -1,0 +1,45 @@
+# The process that started a process, from the process's row.
+type: kql_query
+key: demo.parent-process
+name: Parent process
+menu: Endpoint
+description: The process that started a process
+pivot: row
+connection: security
+database: Security
+kql_file: parent-process.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: parent
+    kind: string
+    title: Parent process GUID
+    from_columns: [ParentProcessGuid]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 120}
+  - {name: User, type: string, width: 200}
+  - {name: Image, type: string, width: 320}
+  - {name: CommandLine, type: string, width: 480}
+  - {name: ParentImage, type: string, width: 320}
+  - {name: ParentCommandLine, type: string, width: 360}
+  - {name: ProcessId, type: number}
+  - {name: ParentProcessId, type: number}
+  - {name: ProcessGuid, type: string}
+  - {name: ParentProcessGuid, type: string}
+  - {name: SHA256, type: string}
+  - {name: MD5, type: string}
+  - {name: Computer, type: string}
+  - {name: UtcTime, type: datetime}
+  - {name: EventId, type: string, title: Id}

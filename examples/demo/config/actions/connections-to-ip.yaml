@@ -1,0 +1,40 @@
+# Every connection to a destination IP, from any host, to find the other hosts that talked to it.
+type: kql_query
+key: demo.connections-to-ip
+name: Connections to IP
+menu: Endpoint
+description: The network connections to an IP from every host, in the window around a time
+pivot: row
+connection: security
+database: Security
+kql_file: connections-to-ip.kql
+params:
+  - name: ip
+    kind: string
+    title: Destination IP
+    from_columns: [DestinationIp]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 120}
+  - {name: User, type: string, width: 200}
+  - {name: Image, type: string, width: 320}
+  - {name: Protocol, type: string}
+  - {name: SourceIp, type: string}
+  - {name: SourcePort, type: number}
+  - {name: DestinationIp, type: string}
+  - {name: DestinationPort, type: number}
+  - {name: DestinationHostname, type: string}
+  - {name: ProcessGuid, type: string}
+  - {name: ProcessId, type: number}
+  - {name: Computer, type: string}
+  - {name: UtcTime, type: datetime}
+  - {name: EventId, type: string, title: Id}

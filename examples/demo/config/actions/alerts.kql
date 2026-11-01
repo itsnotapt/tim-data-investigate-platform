@@ -3,4 +3,4 @@ Alerts()
 | where Timestamp between (since .. until)
 | project Timestamp, Host, Severity, Alert, Product, EventId
 | order by Timestamp desc
-| take 1000
+| take 10000

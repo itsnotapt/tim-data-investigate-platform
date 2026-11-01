@@ -1,0 +1,11 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The endpoint events Sysmon logged, with their event code, computer and fields") SysmonEvents() {
+    Events
+    | where SourceType == "XmlWinEventLog:Microsoft-Windows-Sysmon/Operational"
+    | extend Xml = parse_xml(Raw)
+    | mv-apply Item = Xml.Event.EventData.Data on (
+        summarize Data = make_bag(bag_pack(tostring(Item["@Name"]), tostring(Item["#text"]))))
+    | project Timestamp, EventId, Host,
+        Computer = tostring(Xml.Event.System.Computer),
+        EventCode = toint(Xml.Event.System.EventID),
+        Data
+}

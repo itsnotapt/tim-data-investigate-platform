@@ -6,7 +6,7 @@ Run once per start, before the api. Each step is idempotent:
 - **Tables:** ``tables/*.kql``, in name order, run on every start.
 - **Events:** each dataset file is ingested once, tagged ``ingest-by:<dataset>/<file>``. Events from
   another dataset version are dropped first, so a new version replaces the old.
-- **Functions:** ``functions/*.kql``, run on every start, so a new release updates them.
+- **Functions:** ``functions/*.kql``, in name order, run on every start, so a new release updates them.
 
 The emulator reads the files from the ``ingest`` volume, which this container shares with it.
 """
