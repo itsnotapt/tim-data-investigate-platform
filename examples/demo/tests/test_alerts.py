@@ -1,9 +1,8 @@
 from pathlib import Path
 
 import pytest
-import yaml
 from tim_actions import Action
-from tim_actions.kusto import KqlQuery, KustoConnection
+from tim_actions.kusto import KqlQuery
 from tim_actions.testing import Connections, load_actions, run_action
 from tim_actions.testing.kusto import FakeKusto
 
@@ -11,10 +10,8 @@ CONFIG = Path(__file__).parents[1] / "config"
 
 
 @pytest.fixture
-def alerts(tim_connections: Connections) -> Action:
-    [security] = yaml.safe_load((CONFIG / "connections.yaml").read_text())
-    tim_connections.add(KustoConnection.model_validate(security))
-    return load_actions(CONFIG / "actions", [KqlQuery])["demo.alerts"]
+def alerts(actions: dict[str, Action]) -> Action:
+    return actions["demo.alerts"]
 
 
 def test_the_alerts_action_lists_the_alerts_in_the_security_logs() -> None:

@@ -1,0 +1,31 @@
+# Host timeline: the sequence of events on a host, from every sourcetype, nearest a time such as a row's.
+type: kql_query
+key: demo.host-timeline
+name: Host timeline
+menu: Host
+description: The sequence of events on the host, from every sourcetype, nearest a time
+pivot: row
+connection: security
+database: Security
+kql_file: host-timeline.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: PT15M
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 140}
+  - {name: SourceType, type: string, title: Sourcetype, width: 300}
+  - {name: Source, type: string, width: 300}
+  - {name: Raw, type: string, hidden: true}
+  - {name: EventId, type: string, title: Id}

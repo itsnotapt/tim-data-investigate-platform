@@ -1,0 +1,141 @@
+# Raw logs by sourcetype: a starting point that reaches every sourcetype's raw events, newest first.
+type: kql_query
+key: demo.raw-logs
+name: Raw logs by sourcetype
+menu: Logs
+description: One sourcetype's raw events in a time window, newest first
+pivot: none
+connection: security
+database: Security
+kql_file: raw-logs.kql
+params:
+  - name: sourcetype
+    kind: string
+    title: Sourcetype
+    # Every sourcetype in the dataset.
+    choices:
+      - access_combined
+      - alternatives
+      - amazon-ssm-agent
+      - amazon-ssm-agent-too_small
+      - apache_error
+      - aws:cloudtrail
+      - aws:cloudwatch
+      - aws:cloudwatch:guardduty
+      - aws:cloudwatchlogs
+      - aws:cloudwatchlogs:vpcflow
+      - aws:config:rule
+      - aws:description
+      - aws:elb:accesslogs
+      - aws:rds:audit
+      - aws:rds:error
+      - aws:s3:accesslogs
+      - bandwidth
+      - bash_history
+      - bootstrap
+      - cisco:asa
+      - cloud-init
+      - cloud-init-output
+      - code42:api
+      - code42:computer
+      - code42:org
+      - code42:security
+      - code42:user
+      - config_file
+      - cpu
+      - cron-too_small
+      - df
+      - dmesg
+      - dpkg
+      - error-too_small
+      - errors
+      - errors-too_small
+      - ess_content_importer
+      - hardware
+      - history-2
+      - interfaces
+      - iostat
+      - lastlog
+      - linux_audit
+      - linux_secure
+      - localhost-5
+      - lsof
+      - maillog-too_small
+      - ms:aad:audit
+      - ms:aad:signin
+      - ms:o365:management
+      - ms:o365:reporting:messagetrace
+      - netstat
+      - o365:management:activity
+      - openPorts
+      - osquery:info
+      - osquery:results
+      - osquery:warning
+      - out-3
+      - package
+      - PerfmonMk:Process
+      - protocol
+      - ps
+      - Script:GetEndpointInfo
+      - Script:InstalledApps
+      - Script:ListeningPorts
+      - stream:arp
+      - stream:dhcp
+      - stream:dns
+      - stream:http
+      - stream:icmp
+      - stream:igmp
+      - stream:ip
+      - stream:mysql
+      - stream:smb
+      - stream:smtp
+      - stream:tcp
+      - stream:udp
+      - symantec:ep:agent:file
+      - symantec:ep:agt_system:file
+      - symantec:ep:behavior:file
+      - symantec:ep:packet:file
+      - symantec:ep:risk:file
+      - symantec:ep:scm_system:file
+      - symantec:ep:security:file
+      - symantec:ep:traffic:file
+      - syslog
+      - time
+      - top
+      - Unix:ListeningPorts
+      - Unix:Service
+      - Unix:SSHDConfig
+      - Unix:Update
+      - Unix:Uptime
+      - Unix:UserAccounts
+      - Unix:Version
+      - usersWithLoginPrivs
+      - vmstat
+      - who
+      - WinEventLog:Application
+      - WinEventLog:Microsoft-Windows-AppLocker/EXE and DLL
+      - WinEventLog:Microsoft-Windows-AppLocker/Packaged app-Execution
+      - WinEventLog:Microsoft-Windows-PowerShell/Operational
+      - WinEventLog:Security
+      - WinEventLog:System
+      - WinHostMon
+      - XmlWinEventLog:Microsoft-Windows-Sysmon/Operational
+      - yum-too_small
+  - name: since
+    kind: datetime
+    title: Since
+    required: false       # left out, the KQL's declared default applies
+    help: When not set, from 2018-08-01
+  - name: until
+    kind: datetime
+    title: Until
+    required: false
+    help: When not set, until 2018-09-01
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: desc}
+  - {name: Host, type: string, width: 160}
+  - {name: Raw, type: string, width: 640}
+  - {name: Source, type: string}
+  - {name: SourceType, type: string, title: Sourcetype}
+  - {name: EventId, type: string, title: Id}

@@ -1,11 +1,9 @@
 import re
 from pathlib import Path
 
-import pytest
-import yaml
 from tim_actions import Action
-from tim_actions.kusto import KqlQuery, KustoConnection
-from tim_actions.testing import Connections, load_actions, resolve_pivot, run_action
+from tim_actions.kusto import KqlQuery
+from tim_actions.testing import Connections, resolve_pivot, run_action
 from tim_actions.testing.kusto import FakeKusto
 
 CONFIG = Path(__file__).parents[1] / "config"
@@ -74,13 +72,6 @@ FILE_CREATION = {
     "MD5": "",
     "EventId": "4b4d3ab4-522b-425e-97b3-825e786a0d5e",
 }
-
-
-@pytest.fixture
-def actions(tim_connections: Connections) -> dict[str, Action]:
-    [security] = yaml.safe_load((CONFIG / "connections.yaml").read_text())
-    tim_connections.add(KustoConnection.model_validate(security))
-    return load_actions(CONFIG / "actions", [KqlQuery])
 
 
 def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoint(

@@ -15,14 +15,23 @@
             Severity = case(Level in ("Critical", "Major"), "High", Level == "Minor", "Medium", "Low"),
             Alert = extract(@"CIDS Signature string: ([^,]*)", 1, Raw),
             Product = "Symantec Intrusion Prevention";
+    // An EC2 instance logs under the Host <name>.<instance id>; a finding names only the instance id.
+    let instances = Events
+        | where Host matches regex @"\.i-[0-9a-f]+$"
+        | summarize by Host
+        | extend InstanceId = extract(@"\.(i-[0-9a-f]+)$", 1, Host);
     let findings = Events
         | where SourceType == "aws:cloudwatch:guardduty"
         | extend Detail = parse_json(Raw)["detail"]
         | extend Score = todouble(Detail["severity"])
         | project Timestamp, EventId,
-            Host = tostring(Detail["resource"]["instanceDetails"]["instanceId"]),
+            InstanceId = tostring(Detail["resource"]["instanceDetails"]["instanceId"]),
             Severity = case(Score >= 7, "High", Score >= 4, "Medium", "Low"),
             Alert = tostring(Detail["type"]),
-            Product = "AWS GuardDuty";
+            Product = "AWS GuardDuty"
+        | lookup kind=leftouter instances on InstanceId
+        | project Timestamp, EventId,
+            Host = iff(isempty(Host), InstanceId, Host),
+            Severity, Alert, Product;
     union risks, intrusions, findings
 }
