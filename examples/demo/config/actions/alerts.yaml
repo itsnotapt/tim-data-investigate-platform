@@ -24,4 +24,5 @@ columns:
   - {name: Severity, type: string, width: 110}
   - {name: Alert, type: string, width: 360}
   - {name: Product, type: string}
+  - {name: SHA256, type: string, width: 200}
   - {name: EventId, type: string, title: Id}

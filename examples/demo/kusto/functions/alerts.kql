@@ -1,11 +1,12 @@
-.create-or-alter function with (folder = "Alerts", docstring = "Vendor alerts, with the same columns for every product") Alerts() {
+.create-or-alter function with (folder = "Alerts", docstring = "Vendor alerts, with the same columns for every product, and the file's hash where the product names one") Alerts() {
     let risks = Events
         | where SourceType == "symantec:ep:risk:file"
         | project Timestamp, EventId,
             Host = extract(@"Computer name: ([^,]*)", 1, Raw),
             Severity = "High",
             Alert = extract(@"Risk name: ([^,]*)", 1, Raw),
-            Product = "Symantec Endpoint Protection";
+            Product = "Symantec Endpoint Protection",
+            SHA256 = extract(@"Application hash: ([0-9A-F]{64}),Hash type: SHA2", 1, Raw);
     let intrusions = Events
         | where SourceType == "symantec:ep:security:file"
         | extend Fields = split(Raw, ",")
@@ -14,7 +15,8 @@
             Host = tostring(Fields[2]),
             Severity = case(Level in ("Critical", "Major"), "High", Level == "Minor", "Medium", "Low"),
             Alert = extract(@"CIDS Signature string: ([^,]*)", 1, Raw),
-            Product = "Symantec Intrusion Prevention";
+            Product = "Symantec Intrusion Prevention",
+            SHA256 = "";
     // An EC2 instance logs under the Host <name>.<instance id>; a finding names only the instance id.
     let instances = Events
         | where Host matches regex @"\.i-[0-9a-f]+$"
@@ -32,6 +34,6 @@
         | lookup kind=leftouter instances on InstanceId
         | project Timestamp, EventId,
             Host = iff(isempty(Host), InstanceId, Host),
-            Severity, Alert, Product;
+            Severity, Alert, Product, SHA256 = "";
     union risks, intrusions, findings
 }

@@ -15,6 +15,7 @@ ALERT = {
     "Severity": "High",
     "Alert": "Backdoor.PsEmpire",
     "Product": "Symantec Endpoint Protection",
+    "SHA256": "7A1367EFBA05B09E317909B040C3CDA972544212B4F9DB639237492351A3A405",
     "EventId": "986c2f0e-9c88-45e1-af60-e4c2545dff54",
 }
 # The encoded PowerShell that browser_broker.exe launched on FYODOR-L, from Process creations.
@@ -286,6 +287,17 @@ def test_a_process_pivots_to_every_event_holding_its_hash(
         "| where Raw has hash\n"
     )
     assert call.kql.endswith("| take 10000\n")
+
+
+def test_an_alert_pivots_to_every_event_holding_its_files_hash(actions: dict[str, Action]) -> None:
+    resolved = resolve_pivot(actions["demo.hash-seen-anywhere"], [ALERT])
+    assert (resolved.params, resolved.missing) == (
+        {
+            "hash": "7A1367EFBA05B09E317909B040C3CDA972544212B4F9DB639237492351A3A405",
+            "around": "2018-08-20T10:00:00Z",
+        },
+        {},
+    )
 
 
 def test_a_row_with_only_an_md5_pivots_on_its_md5(
