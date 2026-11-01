@@ -130,6 +130,7 @@ The workflows are in `.github/workflows/`. Where CI differs from a local run:
 | `npx playwright install --with-deps chromium`                                                    | `--with-deps` installs OS packages and needs root; usually only `chromium` is needed           |
 | `build-api.yml` `docker-build-api`: builds the api image and runs the derived-image and `deploy/config` checks, then `examples/deployment/ci.sh` and `examples/demo/ci.sh` on that image | Needs Docker; read the workflow for the exact commands |
 | `deploy-check.yml`: Helm, kubeconform and `yq` checks of the chart and release versions, the rendered `/etc/tim` mount and variables of both compose files, and that the deployment example's Helm values and Compose variables render its `config/` | Needs those tools installed; read the workflow for the exact commands |
+| `demo-smoke.yml`: builds the demo's images, starts the demo and checks it over HTTP, then restarts it and checks that the loader attaches the dataset | `examples/demo/smoke.sh`. It needs Docker and Python 3, and pulls the 4.6 GB emulator image. It runs as its own Compose project, `tim-demo-smoke`, with `TIM_DEMO_PORT` as the web container's port. It builds the same image names as `docker compose up --build` in `examples/demo` |
 | `lint-workflows.yml`: actionlint and shellcheck on workflows, plus the `.github/scripts` tests     | `python3 -B -m unittest discover -s .github/scripts` (`-B` keeps `__pycache__` out of the tree) |
 
 ## Live Kusto tests
@@ -336,6 +337,16 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
 - The `e2e` job in `build-web.yml` runs `npm run e2e:smoke` on a PR, and `npm run e2e` on a push to `main` and on a `release-please--*` PR.
   - An api-only PR also runs only the smoke flows.
 - Runs on release-please PRs wait for approval (**Approve and run** on the PR) before they report.
+- `demo-smoke.yml` is not a required check. It runs on a PR that is one of these:
+  - a `release-please--*` PR;
+  - a PR that changes the emulator's image in `examples/demo/compose.yaml`, compared with the PR's branch point;
+  - a PR that changes the smoke test's files: the workflow, `.github/scripts/demo_smoke.py`, `examples/demo/smoke.sh` and `examples/demo/smoke.py`.
+- Its `smoke` job runs `examples/demo/smoke.sh`, which checks that:
+  - the first start loads the dataset;
+  - an analyst can run Alerts, pivot to the alert's host's process creations, and label the alert;
+  - a second analyst sees that label;
+  - a restart attaches the dataset instead of loading it again.
+- The job's step summary lists how long each step took.
 
 Things the workflows don't tell you:
 
@@ -359,6 +370,7 @@ Things the workflows don't tell you:
 - **Every release restarts both Deployments.** An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 - **Images come from mirrors, not Docker Hub.** Docker Hub's anonymous pull limit stalls CI.
   - Docker Hub images are pulled through `mirror.gcr.io`: the Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action` and the `postgres` service.
+  - `demo-smoke.yml` pulls the demo's PostgreSQL by the Compose file's own name, so it sets `mirror.gcr.io` as the runner's Docker registry mirror. Docker falls back to Docker Hub when the mirror lacks an image.
   - `nginx-unprivileged` comes from its publisher's `ghcr.io/nginx`.
   - When you change one, keep the same image and tag.
   - Check the tag exists on the mirror: `docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`.

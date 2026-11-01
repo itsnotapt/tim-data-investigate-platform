@@ -1,0 +1,67 @@
+# The demo instance's smoke test, examples/demo/smoke.sh: it builds this PR's images, starts the
+# demo, drives it over HTTP as two analysts, and checks a restart attaches the dataset. The
+# emulator image is 4.6 GB, so the changes job runs it only on release-please's release PRs, on
+# PRs that change the emulator's image, and on PRs that change the smoke test
+# (.github/scripts/demo_smoke.py). It is not a required check.
+name: Demo smoke test
+
+# A release PR and an emulator bump both change the demo's Compose file.
+on:
+  pull_request:
+    paths:
+      - examples/demo/compose.yaml
+      - examples/demo/smoke.sh
+      - examples/demo/smoke.py
+      - .github/scripts/demo_smoke.py
+      - .github/workflows/demo-smoke.yml
+
+concurrency:
+  group: demo-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+
+    steps:
+      # fetch-depth 0 makes the branch point and its Compose file available.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether the PR starts the demo
+        id: decide
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: python3 .github/scripts/demo_smoke.py should-run "$BASE" "$HEAD" --head-ref "$HEAD_REF" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Docker Hub's anonymous pull limit stalls CI, so the runner's Docker pulls the demo's
+      # PostgreSQL through mirror.gcr.io.
+      - name: Pull Docker Hub images through mirror.gcr.io
+        run: |
+          config=/etc/docker/daemon.json
+          { sudo cat "$config" 2>/dev/null || echo '{}'; } \
+            | jq '. + {"registry-mirrors": ["https://mirror.gcr.io"]}' > "$RUNNER_TEMP/daemon.json"
+          sudo cp "$RUNNER_TEMP/daemon.json" "$config"
+          sudo systemctl restart docker
+          docker compose version
+
+      # The step summary lists how long each part took.
+      - name: Smoke test the demo instance
+        run: examples/demo/smoke.sh

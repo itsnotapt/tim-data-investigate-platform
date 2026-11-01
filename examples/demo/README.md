@@ -164,6 +164,8 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 - **`compose.yaml`**: the emulator, the loader, PostgreSQL, the api and the web container. Each release publishes it.
 - **`compose.override.yaml`**: builds TIM's images from this checkout, for `docker compose up --build`.
 - **`ci.sh`**: the checks that `.github/workflows/build-api.yml` runs, `./ci.sh <api image>`. They need Docker.
+- **`smoke.sh`**: the smoke test that `.github/workflows/demo-smoke.yml` runs, `./smoke.sh`. It builds the images, starts the demo, checks it and restarts it. It needs Docker and Python 3, and pulls the 4.6 GB emulator image. It runs as the Compose project `tim-demo-smoke`.
+- **`smoke.py`**: the checks over HTTP that `smoke.sh` runs. `TIM_DEMO_PORT` sets the port.
 
 ### From this checkout
 
