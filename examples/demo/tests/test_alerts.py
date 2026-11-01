@@ -27,6 +27,7 @@ def test_the_alerts_action_lists_the_alerts_in_the_security_logs() -> None:
         "Severity",
         "Alert",
         "Product",
+        "SHA256",
         "EventId",
     ]
 
@@ -40,6 +41,7 @@ def test_a_run_of_the_alerts_queries_its_time_window_in_the_security_logs(
         "Severity": "High",
         "Alert": "Backdoor.PsEmpire",
         "Product": "Symantec Endpoint Protection",
+        "SHA256": "7A1367EFBA05B09E317909B040C3CDA972544212B4F9DB639237492351A3A405",
         "EventId": "986c2f0e-9c88-45e1-af60-e4c2545dff54",
     }
     tim_kusto.respond([alert])
@@ -57,6 +59,7 @@ def test_a_run_of_the_alerts_queries_its_time_window_in_the_security_logs(
         "until": "datetime(2018-08-21T00:00:00.0000000Z)",
     }
     assert "Timestamp between (since .. until)" in call.kql
+    assert "| project Timestamp, Host, Severity, Alert, Product, SHA256, EventId\n" in call.kql
     assert result.rows == [alert]
 
 

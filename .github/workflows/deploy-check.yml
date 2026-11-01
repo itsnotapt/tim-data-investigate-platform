@@ -9,6 +9,7 @@ on:
       - examples/demo/compose.yaml
       - examples/demo/compose.override.yaml
       - examples/demo/README.md
+      - README.md
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -28,6 +29,7 @@ on:
       - examples/demo/compose.yaml
       - examples/demo/compose.override.yaml
       - examples/demo/README.md
+      - README.md
       - .release-please-manifest.json
       - release-please-config.json
       - compose.yaml
@@ -388,10 +390,12 @@ jobs:
               if (.image | startswith($tim)) then (.image | test(":" + $version + "$") | not)
               else (.image | contains("@sha256:") | not) end))] == []' > /dev/null \
             || { echo "examples/demo/compose.yaml must pin TIM's images at $version and the others by digest, and build nothing" >&2; exit 1; }
-          if ! grep -qF "oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:${version} up" examples/demo/README.md; then
-            echo "examples/demo/README.md must start the demo's Compose file at $version" >&2
-            exit 1
-          fi
+          for readme in README.md examples/demo/README.md; do
+            if ! grep -qF "oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:${version} up" "$readme"; then
+              echo "$readme must start the demo's Compose file at $version" >&2
+              exit 1
+            fi
+          done
           # assert_web_host_ip <address> [<TIM_DEMO_ADDRESS>]: the web port and the loader's warning.
           assert_web_host_ip() {
             TIM_DEMO_ADDRESS="${2-}" "${demo[@]}" config --format json | jq -e --arg ip "$1" '

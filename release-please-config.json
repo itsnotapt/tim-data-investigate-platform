@@ -53,6 +53,10 @@
                 {
                     "type": "generic",
                     "path": "examples/demo/README.md"
+                },
+                {
+                    "type": "generic",
+                    "path": "README.md"
                 }
             ]
         },

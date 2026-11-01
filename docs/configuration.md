@@ -318,6 +318,7 @@ Compose sets `TIM_ENVIRONMENT=development` for all services, `BACKEND_URI=http:/
 | ------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TIM_DEMO_PORT`    | `8081`      | Host port of `web`. The demo's sign-in address uses it.                                                                                            |
 | `TIM_DEMO_ADDRESS` | `127.0.0.1` | Host address of `web`'s port. `0.0.0.0` listens on every interface. Anyone who can reach it can sign in as anyone. The loader then logs a warning. |
+| `AGGRID_LICENSE`   | empty       | `web`'s AG Grid Enterprise licence key. Empty runs the grid in trial mode. See [AG Grid Enterprise licence](#ag-grid-enterprise-licence).          |
 
 ## Helm
 

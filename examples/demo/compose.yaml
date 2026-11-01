@@ -120,6 +120,7 @@ services:
       TIM_ENVIRONMENT: development
       BACKEND_URI: http://api:8080
       STUB_SIGN_IN: "true"
+      AGGRID_LICENSE: ${AGGRID_LICENSE:-}
     depends_on:
       api:
         condition: service_healthy

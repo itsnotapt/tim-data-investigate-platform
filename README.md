@@ -6,9 +6,23 @@ TIM is an investigation platform. Analysts run actions against an instance's con
 - **`api/`**: FastAPI service (Python 3.12) that runs actions against connections on behalf of the signed-in user, stores presets, runs and annotations in PostgreSQL.
 - Sign-in is Microsoft Entra ID.
 
+## Try TIM
+
+Try TIM on your own machine, with sample security data and no accounts. With Docker Desktop 4.40 or later, run:
+
+<!-- x-release-please-start-version -->
+
+```bash
+docker compose -f oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:2.0.0 up
+```
+
+<!-- x-release-please-end -->
+
+Then open http://localhost:8081. [The demo's README](examples/demo/README.md) covers what it needs and walks through an investigation.
+
 ## Quickstart
 
-Run the whole stack (PostgreSQL, api, web) in containers:
+Run the development stack (PostgreSQL, api, web) in containers:
 
 ```bash
 cp .env.example .env        # optional; every variable has a development default
