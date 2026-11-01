@@ -1,0 +1,7 @@
+declare query_parameters(ip: string, around: datetime, window: timespan);
+NetworkConnections()
+| where DestinationIp == ip and Timestamp between ((around - window) .. (around + window))
+| project Timestamp, Host, User, Image, Protocol, SourceIp, SourcePort, DestinationIp, DestinationPort,
+    DestinationHostname, ProcessGuid, ProcessId, Computer, UtcTime, EventId
+| order by Timestamp asc
+| take 10000

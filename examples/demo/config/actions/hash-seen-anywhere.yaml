@@ -1,0 +1,31 @@
+# Every event that holds a file hash, in any log, to scope an indicator.
+type: kql_query
+key: demo.hash-seen-anywhere
+name: Hash seen anywhere
+menu: Endpoint
+description: The events in every log that hold a SHA256 or MD5 hash, in the window around a time
+pivot: row
+connection: security
+database: Security
+kql_file: hash-seen-anywhere.kql
+params:
+  - name: hash
+    kind: string
+    title: Hash
+    from_columns: [SHA256, MD5]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 120}
+  - {name: SourceType, type: string, width: 280}
+  - {name: Raw, type: string, width: 800}
+  - {name: Source, type: string}
+  - {name: EventId, type: string, title: Id}

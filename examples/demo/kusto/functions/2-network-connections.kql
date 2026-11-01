@@ -1,0 +1,19 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The network connections processes made") NetworkConnections() {
+    SysmonEvents()
+    | where EventCode == 3
+    | project Timestamp, EventId, Host, Computer,
+        UtcTime = todatetime(Data.UtcTime),
+        User = tostring(Data.User),
+        Image = tostring(Data.Image),
+        ProcessId = tolong(Data.ProcessId),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        Protocol = tostring(Data.Protocol),
+        Initiated = tobool(Data.Initiated),
+        SourceIp = tostring(Data.SourceIp),
+        SourceHostname = tostring(Data.SourceHostname),
+        SourcePort = toint(Data.SourcePort),
+        DestinationIp = tostring(Data.DestinationIp),
+        DestinationHostname = tostring(Data.DestinationHostname),
+        DestinationPort = toint(Data.DestinationPort),
+        DestinationPortName = tostring(Data.DestinationPortName)
+}

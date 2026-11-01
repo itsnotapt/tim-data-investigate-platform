@@ -1,0 +1,44 @@
+# What a process did: its network connections, the files it created, its registry changes and the
+# processes it started.
+type: kql_query
+key: demo.process-activity
+name: Process activity
+menu: Endpoint
+description: The network connections, files, registry changes and child processes of a process
+pivot: row
+connection: security
+database: Security
+kql_file: process-activity.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: process
+    kind: string
+    title: Process GUID
+    from_columns: [ProcessGuid]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 120}
+  - {name: Activity, type: string, width: 170}
+  - {name: Image, type: string, width: 320}
+  - {name: Detail, type: string, width: 480}
+  - {name: User, type: string, width: 200}
+  - {name: ProcessGuid, type: string}
+  - {name: DestinationIp, type: string}
+  - {name: DestinationPort, type: number}
+  - {name: TargetFilename, type: string}
+  - {name: TargetObject, type: string}
+  - {name: SHA256, type: string}
+  - {name: MD5, type: string}
+  - {name: EventId, type: string, title: Id}

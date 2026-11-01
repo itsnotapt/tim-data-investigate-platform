@@ -1,0 +1,8 @@
+declare query_parameters(host: string, parent: string, around: datetime, window: timespan);
+ProcessCreations()
+| where Host == host and Timestamp between ((around - window) .. (around + window))
+| where ProcessGuid == parent
+| project Timestamp, Host, User, Image, CommandLine, ParentImage, ParentCommandLine, ProcessId, ParentProcessId,
+    ProcessGuid, ParentProcessGuid, SHA256, MD5, Computer, UtcTime, EventId
+| order by Timestamp asc
+| take 10000

@@ -1,0 +1,7 @@
+declare query_parameters(hash: string, around: datetime, window: timespan);
+Events
+| where Timestamp between ((around - window) .. (around + window))
+| where Raw has hash
+| project Timestamp, Host, SourceType, Raw, Source, EventId
+| order by Timestamp asc
+| take 10000

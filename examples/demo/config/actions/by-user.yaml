@@ -1,0 +1,39 @@
+# What a user did on every host around a time: the processes they started and the connections
+# those made.
+type: kql_query
+key: demo.by-user
+name: By user
+menu: Endpoint
+description: The processes a user started and the network connections they made, on every host, in the window around a time
+pivot: row
+connection: security
+database: Security
+kql_file: by-user.kql
+params:
+  - name: user
+    kind: string
+    title: User
+    from_columns: [User]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: PT1H
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: Host, type: string, width: 120}
+  - {name: Activity, type: string, width: 170}
+  - {name: Image, type: string, width: 320}
+  - {name: Detail, type: string, width: 480}
+  - {name: User, type: string, width: 200}
+  - {name: ProcessGuid, type: string}
+  - {name: ParentProcessGuid, type: string}
+  - {name: DestinationIp, type: string}
+  - {name: DestinationPort, type: number}
+  - {name: SHA256, type: string}
+  - {name: MD5, type: string}
+  - {name: EventId, type: string, title: Id}

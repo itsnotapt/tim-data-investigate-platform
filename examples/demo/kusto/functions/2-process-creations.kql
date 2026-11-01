@@ -1,0 +1,19 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The processes that started, with their parents and hashes") ProcessCreations() {
+    SysmonEvents()
+    | where EventCode == 1
+    | project Timestamp, EventId, Host, Computer,
+        UtcTime = todatetime(Data.UtcTime),
+        User = tostring(Data.User),
+        Image = tostring(Data.Image),
+        CommandLine = tostring(Data.CommandLine),
+        CurrentDirectory = tostring(Data.CurrentDirectory),
+        IntegrityLevel = tostring(Data.IntegrityLevel),
+        ProcessId = tolong(Data.ProcessId),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        ParentImage = tostring(Data.ParentImage),
+        ParentCommandLine = tostring(Data.ParentCommandLine),
+        ParentProcessId = tolong(Data.ParentProcessId),
+        ParentProcessGuid = tostring(Data.ParentProcessGuid),
+        MD5 = extract(@"MD5=([0-9A-F]+)", 1, tostring(Data.Hashes)),
+        SHA256 = extract(@"SHA256=([0-9A-F]+)", 1, tostring(Data.Hashes))
+}

@@ -1,0 +1,12 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The registry keys and values processes created, set or deleted") RegistryEvents() {
+    SysmonEvents()
+    | where EventCode in (12, 13, 14)
+    | project Timestamp, EventId, Host, Computer,
+        UtcTime = todatetime(Data.UtcTime),
+        EventType = tostring(Data.EventType),
+        Image = tostring(Data.Image),
+        ProcessId = tolong(Data.ProcessId),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        TargetObject = tostring(Data.TargetObject),
+        Details = tostring(Data.Details)
+}
