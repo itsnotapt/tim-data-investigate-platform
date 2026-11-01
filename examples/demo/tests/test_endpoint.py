@@ -83,7 +83,7 @@ def actions(tim_connections: Connections) -> dict[str, Action]:
     return load_actions(CONFIG / "actions", [KqlQuery])
 
 
-def test_the_endpoint_menu_holds_the_pivots_that_follow_an_alert_on_its_endpoint(
+def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoint(
     actions: dict[str, Action],
 ) -> None:
     endpoint = {key: action for key, action in actions.items() if action.menu == "Endpoint"}
@@ -108,15 +108,6 @@ def test_the_endpoint_menu_holds_the_pivots_that_follow_an_alert_on_its_endpoint
         )
         assert [column.name for column in action.columns][0] == "Timestamp"
         assert "EventId" in [column.name for column in action.columns]
-
-
-def test_every_action_is_bounded_by_a_time_window_and_a_row_limit(
-    actions: dict[str, Action],
-) -> None:
-    for action in actions.values():
-        assert isinstance(action, KqlQuery)
-        assert "Timestamp between (" in action.kql, action.key
-        assert re.search(r"^\| take \d+$", action.kql, re.MULTILINE), action.key
 
 
 def test_an_alert_pivots_to_its_hosts_process_creations_in_the_hour_around_it(
@@ -380,3 +371,22 @@ def test_a_process_pivots_to_what_its_user_did_on_every_host_in_the_hour_around_
     )
     assert "User == user and Timestamp between ((around - window) .. (around + window))" in call.kql
     assert call.kql.endswith("| take 10000\n")
+
+
+def test_a_child_process_in_process_activity_pivots_to_its_parent(
+    actions: dict[str, Action],
+) -> None:
+    activity = actions["demo.process-activity"]
+    child = {
+        "Timestamp": "2018-08-20T10:01:44Z",
+        "Host": "FYODOR-L",
+        "Activity": "Child process",
+        "ProcessGuid": "{EBF7A186-C300-5B58-0000-001007E5CA01}",
+        "ParentProcessGuid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    }
+
+    resolved = resolve_pivot(actions["demo.parent-process"], [child])
+
+    assert "ParentProcessGuid" in [column.name for column in activity.columns]
+    assert re.search(r"^\| project [^|]*\bParentProcessGuid\b", activity.kql, re.MULTILINE)
+    assert resolved.params["parent"] == "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}"

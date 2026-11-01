@@ -1,11 +1,11 @@
 declare query_parameters(user: string, around: datetime, window: timespan);
-let byUser = (T: (Timestamp: datetime, User: string)) {
+let byUserInWindow = (T: (Timestamp: datetime, User: string)) {
     T | where User == user and Timestamp between ((around - window) .. (around + window))
 };
 union
-    (byUser(ProcessCreations())
+    (byUserInWindow(ProcessCreations())
         | extend Activity = "Process started", Detail = CommandLine),
-    (byUser(NetworkConnections())
+    (byUserInWindow(NetworkConnections())
         | extend Activity = "Network connection",
             Detail = trim(@"\s+", strcat(Protocol, " ", DestinationIp, ":", DestinationPort, " ", DestinationHostname)))
 | project Timestamp, Host, Activity, Image, Detail, User, ProcessGuid, ParentProcessGuid, DestinationIp,

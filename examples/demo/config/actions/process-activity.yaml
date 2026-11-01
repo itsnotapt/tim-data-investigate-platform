@@ -35,6 +35,7 @@ columns:
   - {name: Detail, type: string, width: 480}
   - {name: User, type: string, width: 200}
   - {name: ProcessGuid, type: string}
+  - {name: ParentProcessGuid, type: string}
   - {name: DestinationIp, type: string}
   - {name: DestinationPort, type: number}
   - {name: TargetFilename, type: string}
