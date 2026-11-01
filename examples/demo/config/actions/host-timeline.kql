@@ -1,0 +1,6 @@
+declare query_parameters(host: string, at: datetime, window: timespan = 15m);
+Events
+| where Timestamp between ((at - window) .. (at + window)) and Host =~ host
+| top 5000 by abs(Timestamp - at) asc
+| project Timestamp, Host, SourceType, Source, Raw, EventId
+| order by Timestamp asc

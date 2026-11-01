@@ -13,6 +13,7 @@ FROM instance AS test
 RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt pytest
 COPY --chown=tim:tim tests /tmp/demo/tests
 COPY --chown=tim:tim config /tmp/demo/config
+COPY --chown=tim:tim data/SHA256SUMS /tmp/demo/data/
 WORKDIR /tmp/demo
 RUN python -m pytest -p no:cacheprovider
 

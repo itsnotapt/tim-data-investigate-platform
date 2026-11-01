@@ -1,0 +1,27 @@
+# Host's other logs: the raw events a row's host logged around the row's time, from every sourcetype.
+type: kql_query
+key: demo.host-logs
+name: Host's other logs
+menu: Host
+description: The raw events the host logged nearest the row's time, within an hour, from every sourcetype
+pivot: row
+connection: security
+database: Security
+kql_file: host-logs.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: at
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: SourceType, type: string, title: Sourcetype, width: 260}
+  - {name: Raw, type: string, width: 640}
+  - {name: Source, type: string}
+  - {name: Host, type: string, width: 140}
+  - {name: EventId, type: string, title: Id}

@@ -1,0 +1,6 @@
+declare query_parameters(sourcetype: string, since: datetime = datetime(2018-08-01), until: datetime = datetime(2018-09-01));
+Events
+| where SourceType == sourcetype and Timestamp between (since .. until)
+| project Timestamp, Host, Raw, Source, SourceType, EventId
+| order by Timestamp desc
+| take 1000
