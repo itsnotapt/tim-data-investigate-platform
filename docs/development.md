@@ -343,7 +343,8 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
   - a PR that changes the smoke test's files: the workflow, `.github/scripts/demo_smoke.py`, `examples/demo/smoke.sh` and `examples/demo/smoke.py`.
 - Its `smoke` job runs `examples/demo/smoke.sh`, which checks that:
   - the first start loads the dataset;
-  - two analysts can run Alerts, pivot to the host's process creations, and see each other's labels;
+  - an analyst can run Alerts, pivot to the alert's host's process creations, and label the alert;
+  - a second analyst sees that label;
   - a restart attaches the dataset instead of loading it again.
 - The job's step summary lists how long each step took.
 
@@ -369,6 +370,7 @@ Things the workflows don't tell you:
 - **Every release restarts both Deployments.** An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 - **Images come from mirrors, not Docker Hub.** Docker Hub's anonymous pull limit stalls CI.
   - Docker Hub images are pulled through `mirror.gcr.io`: the Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action` and the `postgres` service.
+  - `demo-smoke.yml` pulls the demo's PostgreSQL by the Compose file's own name, so it sets `mirror.gcr.io` as the runner's Docker registry mirror. Docker falls back to Docker Hub when the mirror lacks an image.
   - `nginx-unprivileged` comes from its publisher's `ghcr.io/nginx`.
   - When you change one, keep the same image and tag.
   - Check the tag exists on the mirror: `docker buildx imagetools inspect mirror.gcr.io/library/<image>:<tag>`.

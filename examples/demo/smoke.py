@@ -56,12 +56,12 @@ def run(analyst: str, action: str, params: dict[str, object]) -> list[dict[str, 
     return rows
 
 
-def label_of(analyst: str, event_id: str) -> dict[str, Any] | None:
-    """The label the analyst sees on an id, from the annotation change feed."""
+def label_of(analyst: str, id_: str) -> dict[str, Any] | None:
+    """The label the analyst sees on an ``id``, from the annotation change feed."""
     since, label = 0, None
     while True:
         page = call(analyst, "GET", f"/annotations/changes?since={since}")
-        label = next((c["label"] for c in page["changes"] if c["id"] == event_id), label)
+        label = next((c["label"] for c in page["changes"] if c["id"] == id_), label)
         if not page["hasMore"]:
             return label
         since = page["next"]

@@ -6,7 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import demo_smoke
+
 SCRIPT = Path(__file__).resolve().parent / "demo_smoke.py"
+WORKFLOW = Path(__file__).resolve().parents[1] / "workflows" / "demo-smoke.yml"
 COMPOSE = "examples/demo/compose.yaml"
 EMULATOR = "mcr.microsoft.com/azuredataexplorer/kustainer-linux"
 TIM = "ghcr.io/itsnotapt/tim-data-investigate-platform"
@@ -22,6 +25,17 @@ services:
   migrate:
     image: {TIM}/api:{tim_version} # x-release-please-version
 """
+
+
+class Workflow(unittest.TestCase):
+    def test_its_paths_filter_lets_through_every_file_that_runs_it(self):
+        paths = {
+            line.strip().removeprefix("- ")
+            for line in WORKFLOW.read_text().splitlines()
+            if line.startswith("      - ")
+        }
+        for name in [demo_smoke.COMPOSE, *demo_smoke.SMOKE_TEST]:
+            self.assertIn(name, paths)
 
 
 class ShouldRun(unittest.TestCase):

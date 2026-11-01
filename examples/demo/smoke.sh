@@ -37,6 +37,7 @@ finish() {
     echo "| Step | Took |"
     echo "|---|---|"
     printf '%s\n' "${timings[@]}"
+    echo "| Total | $SECONDS s |"
   } | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
   exit "$status"
 }
@@ -48,6 +49,11 @@ start() {
   "${compose[@]}" up --detach --wait --wait-timeout 900
 }
 
+fail() {
+  echo "FAILED: $*" >&2
+  exit 1
+}
+
 loader_log() {
   "${compose[@]}" logs --no-color --no-log-prefix kusto-init
 }
@@ -57,30 +63,30 @@ events() {
   sed -nE 's/^([0-9,]+) events in the Security database\.$/\1/p' <<<"$1"
 }
 
+# check_loaded: the first start created the database and loaded the dataset. Sets first_events.
 check_loaded() {
   local log
   log=$(loader_log)
   echo "$log"
   grep -qx "Created the Security database." <<<"$log" \
-    || { echo "FAILED: the first start did not create the Security database." >&2; return 1; }
-  grep -q "^Loading " <<<"$log" \
-    || { echo "FAILED: the first start did not load the dataset." >&2; return 1; }
-  loaded=$(events "$log")
-  [ -n "$loaded" ] || { echo "FAILED: the loader did not count the events." >&2; return 1; }
+    || fail "the first start did not create the Security database."
+  grep -q "^Loading " <<<"$log" || fail "the first start did not load the dataset."
+  first_events=$(events "$log")
+  [ -n "$first_events" ] || fail "the loader did not count the events."
 }
 
+# check_attached: the restart attached the database, loaded nothing, and counts first_events.
 check_attached() {
   local log
   log=$(loader_log)
   echo "$log"
   grep -qxE "Attached the Security database from the emulator's volume\.|The Security database is already attached\." <<<"$log" \
-    || { echo "FAILED: the restart did not attach the Security database." >&2; return 1; }
+    || fail "the restart did not attach the Security database."
   if grep -qE "^(Created the Security database|Loading |Loaded |Dropped )" <<<"$log"; then
-    echo "FAILED: the restart loaded the dataset again." >&2
-    return 1
+    fail "the restart loaded the dataset again."
   fi
-  [ "$(events "$log")" = "$loaded" ] \
-    || { echo "FAILED: the restart counts $(events "$log") events, not $loaded." >&2; return 1; }
+  [ "$(events "$log")" = "$first_events" ] \
+    || fail "the restart counts $(events "$log") events, not $first_events."
 }
 
 "${compose[@]}" down --volumes --remove-orphans
