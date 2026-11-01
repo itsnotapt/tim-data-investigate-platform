@@ -40,7 +40,7 @@ Process rules for everyone working on TIM, human or agent.
 - While `tim-actions` is 0.x, its breaking release bumps the minor (0.1 → 0.2), and `feat` or `fix` the patch.
 - Other scopes are optional and free-form. By convention they name `web`, `api`, `chart` or `tim-actions`.
 - Versions come from the commit types. Never edit versions by hand; release-please owns them.
-- Releasing is merging the release PR. It publishes both images and the chart.
+- Releasing is merging the release PR. It publishes the api and web images, the chart, and the demo instance's image and Compose file.
 - A GitHub release tagged `demo-data-vN` carries the demo dataset (`examples/demo/data/`). It is not a TIM release, and release-please doesn't make it.
 
 [ADR-0024](adr/0024-one-release-version.md) describes the packages and which commits bump them.

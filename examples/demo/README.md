@@ -12,10 +12,32 @@ The demo instance: TIM with sample security data in a local Kusto emulator, to t
 - **`tests/`**: the action tests, run in the image. They check Raw logs by sourcetype's list of sourcetypes against `data/SHA256SUMS`.
 - **`data/`**: `SHA256SUMS` for the dataset's files, with its `LICENSE` and `NOTICE`. See [data/README.md](data/README.md).
 - **`Dockerfile`**: the demo image, TIM's api image with the instance files, the dataset and the loader.
-- **`compose.yaml`**: the emulator, the loader, PostgreSQL, the api and the web container.
+- **`compose.yaml`**: the emulator, the loader, PostgreSQL, the api and the web container. Each release publishes it.
+- **`compose.override.yaml`**: builds TIM's images from this checkout, for `docker compose up --build`.
 - **`ci.sh`**: the checks that `.github/workflows/build-api.yml` runs, `./ci.sh <api image>`. They need Docker.
 
 ## Start it
+
+With Docker Desktop 4.40 or later, or Docker Compose 2.34.0 or later, run:
+
+<!-- x-release-please-start-version -->
+
+```bash
+docker compose -f oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:2.0.0 up
+```
+
+<!-- x-release-please-end -->
+
+- **What it runs:** the Compose file each TIM release publishes. It pulls that release's images, so it needs no checkout.
+- **Variables:** Compose can list the file's variables and their values, and ask before it starts. Press Enter to go on.
+- **First start:** the loader loads the data into the emulator, then logs "Ready" with the address to open.
+- **Later starts:** the loader attaches the data from the `kusto-data` volume.
+- **Address:** it listens on `127.0.0.1:8081`, this machine only. `TIM_DEMO_PORT` changes the port.
+- **On the network:** `TIM_DEMO_ADDRESS=0.0.0.0` listens on every interface. Anyone who can reach it can sign in as anyone, and the loader logs a warning that says so.
+- **Reset:** `docker compose -f oci://… down -v` deletes the data, the database and the volumes.
+- **Licence:** starting it accepts Microsoft's [licence for the Kusto emulator](https://aka.ms/adx.emulator.license). The loader says so on the first start.
+
+### From this checkout
 
 From this folder, run:
 
@@ -23,11 +45,7 @@ From this folder, run:
 docker compose up --build
 ```
 
-- **First start:** the loader loads the data into the emulator, then logs "Ready" with the address to open.
-- **Later starts:** the loader attaches the data from the `kusto-data` volume.
-- **Address:** it listens on `127.0.0.1:8081`, this machine only. `TIM_DEMO_PORT` changes the port.
-- **Reset:** `docker compose down -v` deletes the data, the database and the volumes.
-- **Licence:** starting it accepts Microsoft's licence for the Kusto emulator. Its text is `/EULA-Container.txt` in the emulator image.
+`compose.override.yaml` builds the api, web and demo images from the checkout, in place of the released ones.
 
 Sign in on the "Who are you?" screen, for example as `alice@demo.example`, and open Alerts.
 

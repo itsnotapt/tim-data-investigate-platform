@@ -13,7 +13,7 @@ TIM ships as two container images. It runs on Docker Compose or Kubernetes (Helm
 Images are built and pushed by `.github/workflows/release-please.yml` when release-please cuts a release.
 
 - The api image, the web image and the Helm chart share one TIM version ([ADR-0024](adr/0024-one-release-version.md)).
-- One release publishes both images and the chart.
+- One release publishes the api and web images, the chart, and the demo instance's image and Compose file ([development.md](development.md#ci-and-releases)).
 - Every release restarts both Deployments. An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 
 ## Topology

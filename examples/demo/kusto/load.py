@@ -11,6 +11,7 @@ Run once per start, before the api. Each step is idempotent:
 The emulator reads the files from the ``ingest`` volume, which this container shares with it.
 """
 
+import ipaddress
 import logging
 import os
 import shutil
@@ -23,6 +24,10 @@ from azure.kusto.data.response import KustoResponseDataSet
 CLUSTER = os.environ["DEMO_KUSTO_CLUSTER"]
 DATASET = os.environ["DEMO_DATASET"]
 WEB_ADDRESS = os.environ["DEMO_WEB_ADDRESS"]
+# The host address the web container's port is published on.
+WEB_HOST_IP = os.environ["DEMO_WEB_HOST_IP"]
+# The Kusto emulator's licence, which the emulator's ACCEPT_EULA setting accepts.
+LICENCE = "https://aka.ms/adx.emulator.license"
 # The emulator's built-in database, where database commands run.
 DEFAULT_DATABASE = "NetDefaultDB"
 DATABASE = "Security"
@@ -50,6 +55,11 @@ def main() -> None:
     [events] = rows(client.execute_query(DATABASE, f"{TABLE} | count"))
     log.info("%s events in the %s database.", f"{events[0]:,}", DATABASE)
     log.info("Ready: TIM opens at %s once its api and web containers have started.", WEB_ADDRESS)
+    if not ipaddress.ip_address(WEB_HOST_IP).is_loopback:
+        log.warning(
+            "Warning: TIM listens on %s, so anyone who can reach it can sign in as anyone.",
+            WEB_HOST_IP,
+        )
 
 
 def open_database(client: KustoClient) -> None:
@@ -70,6 +80,9 @@ def open_database(client: KustoClient) -> None:
             f'(@"{DATABASE_FOLDER}/md", @"{DATABASE_FOLDER}/data")',
         )
         log.info("Created the %s database.", DATABASE)
+        log.info(
+            "Starting the demo accepts Microsoft's licence for the Kusto emulator: %s", LICENCE
+        )
 
 
 def run_files(client: KustoClient, files: list[Path]) -> None:

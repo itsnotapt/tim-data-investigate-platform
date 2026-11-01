@@ -1,0 +1,23 @@
+# Builds TIM's images from this checkout, on top of compose.yaml, which pulls the released ones.
+# docker compose loads this file with compose.yaml when run in this folder without -f.
+x-demo-image: &demo-image
+  image: tim-demo:local
+  build:
+    context: .
+    args:
+      BASE: tim-api
+    additional_contexts:
+      tim-api: service:migrate
+
+services:
+  kusto-init: *demo-image
+  check: *demo-image
+  api: *demo-image
+
+  migrate:
+    image: tim-api:demo
+    build: ../../api
+
+  web:
+    image: tim-web:demo
+    build: ../../web

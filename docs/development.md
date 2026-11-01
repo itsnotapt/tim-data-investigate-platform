@@ -340,8 +340,22 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
 Things the workflows don't tell you:
 
 - **Renaming a package means updating its jsonpath.** A TIM release bumps the `tim-api` entry in `api/uv.lock` through a jsonpath on the root package in `release-please-config.json`. A `tim-actions` release bumps the `tim-actions` entry through a jsonpath on its own package. If you rename either package in its `pyproject.toml`, update its jsonpath too. Otherwise `uv sync --locked` fails on the release PR.
-- **Release versions must agree.** TIM's version sits in `web/package.json`, `web/package-lock.json` (two places), `api/pyproject.toml`, the `tim-api` entry of `api/uv.lock`, and `Chart.yaml` `version` and `appVersion`. The `deploy-check.yml` step "Release versions are consistent" compares them, and the manifest's `.` once it exists. The step "Image tags default to the appVersion" renders the chart and checks that both images default to `.../api:<appVersion>` and `.../web:<appVersion>`.
+- **Release versions must agree.** TIM's version sits in `web/package.json`, `web/package-lock.json` (two places), `api/pyproject.toml`, the `tim-api` entry of `api/uv.lock`, and `Chart.yaml` `version` and `appVersion`. The `deploy-check.yml` step "Release versions are consistent" compares them, and the manifest's `.` once it exists. The step "Image tags default to the appVersion" renders the chart and checks that both images default to `.../api:<appVersion>` and `.../web:<appVersion>`. The step "Check the demo instance" checks that `examples/demo/compose.yaml` and `examples/demo/README.md` are at the `appVersion`.
 - **A release publishes everything.** `release-please.yml` builds and pushes the api and web images tagged `X.Y.Z`, `X.Y`, `X` and the sha. Then it packages and pushes the chart `X.Y.Z`, after checking that `Chart.yaml` and both images match the release.
+  - The `publish-demo` job runs after `build-images`. It builds the demo image `ghcr.io/<owner>/<repo>/demo` on the release's api image, tagged `X.Y.Z`, `X.Y`, `X` and the sha.
+  - It also publishes `examples/demo/compose.yaml` as the OCI artifact `oci://ghcr.io/<owner>/<repo>/compose/demo:X.Y.Z`, with `docker compose publish --resolve-image-digests`. That adds a layer that pins every image by digest.
+  - Running the artifact needs Docker Desktop 4.40 or later, or Docker Compose 2.34.0 or later.
+- **The demo's Compose file follows TIM's version.** `examples/demo/compose.yaml` pulls TIM's api, web and demo images at TIM's version, through `x-release-please-version` markers in the `extra-files` of `release-please-config.json`. `examples/demo/README.md` carries the version in a release-please block. `compose.override.yaml` builds the three images from the checkout for `docker compose up --build`.
+- **The demo's other images are pinned by digest.** Dependabot has a separate monthly `docker-compose` block for `/examples/demo` that ignores TIM's own images.
+- **`deploy-check.yml` checks the demo.** Its compose job step "Check the demo instance" renders `examples/demo/compose.yaml` and checks that:
+  - TIM's images are at the chart's `appVersion`;
+  - the README's start command is at the chart's `appVersion`;
+  - every other image is pinned by digest;
+  - nothing builds;
+  - the web port's host IP is `127.0.0.1` by default;
+  - the web port's host IP is `0.0.0.0` with `TIM_DEMO_ADDRESS=0.0.0.0`;
+  - the config with `compose.override.yaml` validates.
+- **New GHCR packages may be private.** After the first release that publishes them, check in the package settings on GitHub that the `demo` and `compose/demo` packages are public, so `docker compose -f oci://…` works without signing in. Do the same for every package a release creates for the first time, such as `api` and `web`.
 - **Every release restarts both Deployments.** An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 - **Images come from mirrors, not Docker Hub.** Docker Hub's anonymous pull limit stalls CI.
   - Docker Hub images are pulled through `mirror.gcr.io`: the Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action` and the `postgres` service.
