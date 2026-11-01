@@ -11,7 +11,7 @@ TIM is an investigation platform: analysts run actions against an instance's con
 | [GLOSSARY.md](../GLOSSARY.md) | Domain vocabulary: instances, investigations, tabs, actions, pivots, runs, annotations |
 | [architecture.md](architecture.md) | Parts of the system, data flow, web and api internals, annotations and the change feed, persistence and the security model |
 | [api.md](api.md) | HTTP API reference: endpoints, schemas, errors |
-| [examples/](../examples/README.md) | The demo instance, to try TIM, and the deployment example, to deploy it |
+| [examples/](../examples/README.md) | The demo instance ([demo/](../examples/demo/README.md)), to try TIM, and the deployment example ([deployment/](../examples/deployment/README.md)), to deploy it |
 | [actions.md](actions.md) | The guide for operators and action authors, walking through the deployment example (`examples/deployment/`): action files, connections and labels, checking them, writing action types, connection types and providers, testing, and building and deploying |
 | [development.md](development.md) | Local setup, running the stack, tests, linting, migrations, CI |
 | [configuration.md](configuration.md) | Environment variables for api, web and the local stack, incl. the AG Grid licence key |

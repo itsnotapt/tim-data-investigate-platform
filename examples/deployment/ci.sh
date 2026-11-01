@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 
 base=${1:?give the api image, such as ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.0.0}
 image=${2:-tim-instance:ci}
-# The default builder sees images loaded into the local Docker, such as a api image built
+# The default builder sees images loaded into the local Docker, such as an api image built
 # just before.
 build=(docker buildx build --builder default --build-arg "BASE=$base")
 

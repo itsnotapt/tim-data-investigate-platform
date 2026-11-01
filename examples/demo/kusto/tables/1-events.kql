@@ -1,0 +1,1 @@
+.create-merge table Events (EventId: string, Timestamp: datetime, Host: string, Source: string, SourceType: string, Raw: string) with (docstring = "Every event, as it was logged")

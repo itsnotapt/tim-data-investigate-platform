@@ -1,0 +1,1 @@
+.create-or-alter table Events ingestion json mapping "Events" '[{"column": "EventId", "path": "$.EventId"}, {"column": "Timestamp", "path": "$.Timestamp"}, {"column": "Host", "path": "$.Host"}, {"column": "Source", "path": "$.Source"}, {"column": "SourceType", "path": "$.SourceType"}, {"column": "Raw", "path": "$.Raw"}]'

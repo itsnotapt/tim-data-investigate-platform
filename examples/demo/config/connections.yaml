@@ -1,0 +1,8 @@
+# The demo instance's one connection: the Kusto emulator in the same Compose project, which needs
+# no credentials (docs/adr/0026-a-demo-instance-needs-no-accounts.md).
+- name: security
+  title: Security logs
+  type: kusto
+  auth: none
+  cluster: http://kusto:8080
+  databases: [Security]
