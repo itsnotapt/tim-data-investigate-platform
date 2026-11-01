@@ -65,6 +65,36 @@ describe('applyEditorSchema', () => {
       [{ name: 'since', type: 'datetime' }],
     );
   });
+
+  it('keeps query parameters given while a schema loads, which carries the ones before them', async () => {
+    // As in monaco-kusto: the schema goes to the worker after a round trip, replacing its parameters.
+    let held: unknown[] = [];
+    let arrive!: () => void;
+    h.worker.setSchemaFromShowSchema.mockImplementationOnce(
+      (_schema: unknown, _connection: string, _database: string, parameters: unknown[]) =>
+        new Promise<void>((resolve) => {
+          arrive = () => {
+            held = parameters;
+            resolve();
+          };
+        }),
+    );
+    h.worker.setParameters.mockImplementationOnce((parameters: unknown[]) => {
+      held = parameters;
+      return Promise.resolve();
+    });
+    const editor = newEditor();
+
+    const loading = adapters.applyEditorSchema(editor, loadedFrom('logs'), signal, []);
+    await vi.waitFor(() => expect(h.worker.setSchemaFromShowSchema).toHaveBeenCalled());
+    const giving = adapters.setEditorParameters(editor, 'kql', [since]);
+    // The parameters are given before the schema arrives, if nothing holds them back.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    arrive();
+    await Promise.all([loading, giving]);
+
+    expect(held).toEqual([{ name: 'since', type: 'datetime' }]);
+  });
 });
 
 describe('claimEditorSchema', () => {
