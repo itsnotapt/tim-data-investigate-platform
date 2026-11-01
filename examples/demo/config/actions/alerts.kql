@@ -1,6 +1,6 @@
 declare query_parameters(since: datetime = datetime(2018-08-01), until: datetime = datetime(2018-09-01));
 Alerts()
 | where Timestamp between (since .. until)
-| project Timestamp, Host, Severity, Alert, Product, EventId
+| project Timestamp, Host, Severity, Alert, Product, SHA256, EventId
 | order by Timestamp desc
 | take 10000
