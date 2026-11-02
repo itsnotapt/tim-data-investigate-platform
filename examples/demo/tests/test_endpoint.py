@@ -43,9 +43,9 @@ PROCESS = {
 CONNECTION = {
     "Timestamp": "2018-08-20T10:01:46Z",
     "Host": "FYODOR-L",
-    "Activity": "Network connection",
+    "EventType": "NetworkConnect",
+    "Summary": "powershell.exe created a network connection [tcp] from 192.168.70.186:60018 to 45.77.53.176:443",
     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    "Detail": "tcp 45.77.53.176:443",
     "User": "AzureAD\\FyodorMalteskesko",
     "ProcessGuid": "{EBF7A186-C300-5B58-0000-001007E5CA01}",
     "DestinationIp": "45.77.53.176",
@@ -60,9 +60,9 @@ CONNECTION = {
 FILE_CREATION = {
     "Timestamp": "2018-08-20T10:42:49Z",
     "Host": "FYODOR-L",
-    "Activity": "File created",
+    "EventType": "FileCreate",
+    "Summary": "powershell.exe created file: C:\\Windows\\Temp\\hdoor.exe",
     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    "Detail": "C:\\Windows\\Temp\\hdoor.exe",
     "User": "",
     "ProcessGuid": "{EBF7A186-C442-5B58-0000-00109914D901}",
     "DestinationIp": "",
@@ -81,10 +81,10 @@ def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoin
     endpoint = {key: action for key, action in actions.items() if action.menu == "Endpoint"}
 
     assert sorted(action.name for action in endpoint.values()) == [
-        "By user",
+        "Activity by user",
         "Child processes",
         "Connections to IP",
-        "File created, then run?",
+        "Filename seen on this host",
         "Hash seen anywhere",
         "Parent process",
         "Process activity",
@@ -99,7 +99,6 @@ def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoin
             "EventId",
         )
         assert [column.name for column in action.columns][0] == "Timestamp"
-        assert "EventId" in [column.name for column in action.columns]
 
 
 def test_an_alert_pivots_to_its_hosts_process_creations_in_the_hour_around_it(
@@ -160,6 +159,23 @@ def test_a_process_pivots_to_its_activity_on_its_host(
     )
     assert "Timestamp between ((around - window) .. (around + window))" in call.kql
     assert call.kql.endswith("| take 10000\n")
+
+
+def test_process_activity_holds_every_event_of_the_process(actions: dict[str, Action]) -> None:
+    kql = actions["demo.process-activity"].kql
+
+    legs = set(re.findall(r"(\w+)\(\)\)\s*\| where (\w+) == process", kql))
+
+    assert legs == {
+        ("ProcessCreations", "ParentProcessGuid"),
+        ("FileCreateTimeChanges", "ProcessGuid"),
+        ("NetworkConnections", "ProcessGuid"),
+        ("ProcessTerminations", "ProcessGuid"),
+        ("RemoteThreads", "SourceProcessGuid"),
+        ("FileCreations", "ProcessGuid"),
+        ("RegistryEvents", "ProcessGuid"),
+        ("FileStreamCreations", "ProcessGuid"),
+    }
 
 
 def test_a_process_pivots_to_its_child_processes(
@@ -310,50 +326,45 @@ def test_a_row_with_only_an_md5_pivots_on_its_md5(
     assert resolved.params["hash"] == "95000560239032BC68B4C2FDFCDEF913"
 
 
-def test_a_file_creation_pivots_to_the_runs_of_the_file_after_it(
+def test_a_file_creation_pivots_to_every_event_on_its_host_that_names_the_file(
     actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
-    file_created_then_run = actions["demo.file-created-then-run"]
-    resolved = resolve_pivot(file_created_then_run, [FILE_CREATION])
+    filename_seen_on_host = actions["demo.filename-seen-on-host"]
+    resolved = resolve_pivot(filename_seen_on_host, [FILE_CREATION])
     assert (resolved.params, resolved.missing) == (
         {
             "host": "FYODOR-L",
             "file": "C:\\Windows\\Temp\\hdoor.exe",
-            "created": "2018-08-20T10:42:49Z",
+            "around": "2018-08-20T10:42:49Z",
         },
         {},
     )
     tim_kusto.respond([])
 
-    run_action(file_created_then_run, resolved.params, connections=tim_connections)
+    run_action(filename_seen_on_host, resolved.params, connections=tim_connections)
 
     [call] = tim_kusto.calls
     assert call.parameters == {
         "host": "FYODOR-L",
         "file": "C:\\Windows\\Temp\\hdoor.exe",
-        "created": "datetime(2018-08-20T10:42:49.0000000Z)",
+        "around": "datetime(2018-08-20T10:42:49.0000000Z)",
         "window": "timespan(1.00:00:00)",
     }
-    assert call.kql.startswith(
-        "declare query_parameters(host: string, file: string, "
-        "created: datetime, window: timespan);\n"
-        "ProcessCreations()\n"
-        "| where Host == host and Timestamp between (created .. (created + window))\n"
-        "| where Image =~ file\n"
-    )
-    assert call.kql.endswith("| take 10000\n")
+    # The file's name, not its path, so a copy elsewhere or a script given to an interpreter counts.
+    assert 'let name = tostring(split(file, "\\\\")[-1]);' in call.kql
+    assert "CommandLine has name or ParentCommandLine has name" in call.kql
 
 
-def test_a_row_of_other_activity_leaves_the_file_to_fill_in(actions: dict[str, Action]) -> None:
-    resolved = resolve_pivot(actions["demo.file-created-then-run"], [CONNECTION])
+def test_a_row_of_other_activity_pivots_on_the_file_of_its_process(actions: dict[str, Action]) -> None:
+    resolved = resolve_pivot(actions["demo.filename-seen-on-host"], [CONNECTION])
 
-    assert resolved.missing == {"file": None}
+    assert resolved.params["file"] == "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
 
 
 def test_a_process_pivots_to_what_its_user_did_on_every_host_in_the_hour_around_it(
     actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
-    by_user = actions["demo.by-user"]
+    by_user = actions["demo.activity-by-user"]
     resolved = resolve_pivot(by_user, [PROCESS])
     assert (resolved.params, resolved.missing) == (
         {"user": "AzureAD\\FyodorMalteskesko", "around": "2018-08-20T10:01:41Z"},
@@ -373,6 +384,7 @@ def test_a_process_pivots_to_what_its_user_did_on_every_host_in_the_hour_around_
         "declare query_parameters(user: string, around: datetime, window: timespan);\n"
     )
     assert "User == user and Timestamp between ((around - window) .. (around + window))" in call.kql
+    assert set(re.findall(r"\b(\w+)\(\)", call.kql)) == {"ProcessCreations", "NetworkConnections"}
     assert call.kql.endswith("| take 10000\n")
 
 
@@ -383,13 +395,12 @@ def test_a_child_process_in_process_activity_pivots_to_its_parent(
     child = {
         "Timestamp": "2018-08-20T10:01:44Z",
         "Host": "FYODOR-L",
-        "Activity": "Child process",
+        "EventType": "ProcessCreate",
         "ProcessGuid": "{EBF7A186-C300-5B58-0000-001007E5CA01}",
         "ParentProcessGuid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
     }
 
     resolved = resolve_pivot(actions["demo.parent-process"], [child])
 
-    assert "ParentProcessGuid" in [column.name for column in activity.columns]
-    assert re.search(r"^\| project [^|]*\bParentProcessGuid\b", activity.kql, re.MULTILINE)
+    assert "ProcessCreations()" in activity.kql
     assert resolved.params["parent"] == "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}"

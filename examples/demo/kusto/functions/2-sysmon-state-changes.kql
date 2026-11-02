@@ -1,0 +1,12 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The times Sysmon started or stopped") SysmonStateChanges() {
+    SysmonEvents()
+    | where EventCode == 4
+    | extend UtcTime = todatetime(Data.UtcTime),
+        State = tostring(Data.State),
+        Version = tostring(Data.Version),
+        SchemaVersion = tostring(Data.SchemaVersion)
+    | extend EventType = "SysmonStateChange",
+        Summary = strcat("Sysmon changed state: ", State)
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, State, Version, UtcTime, SchemaVersion
+}

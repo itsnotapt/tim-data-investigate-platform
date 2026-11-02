@@ -1,11 +1,15 @@
 .create-or-alter function with (folder = "Endpoint", docstring = "The files processes created") FileCreations() {
     SysmonEvents()
     | where EventCode == 11
-    | project Timestamp, EventId, Host, Computer,
-        UtcTime = todatetime(Data.UtcTime),
-        Image = tostring(Data.Image),
-        ProcessId = tolong(Data.ProcessId),
+    | extend UtcTime = todatetime(Data.UtcTime),
         ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
+        Image = tostring(Data.Image),
         TargetFilename = tostring(Data.TargetFilename),
         CreationUtcTime = todatetime(Data.CreationUtcTime)
+    | extend EventType = "FileCreate",
+        Summary = strcat(ImageName(Image), " created file: ", TargetFilename)
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, Image, TargetFilename, UtcTime, ProcessGuid, ProcessId,
+        CreationUtcTime
 }

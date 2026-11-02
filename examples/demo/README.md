@@ -54,7 +54,7 @@ The data is from a staged attack on a company called Frothly, in August 2018. Si
 3. Right-click the alert's **Host** cell. Choose **Pivot** ▸ **Endpoint** ▸ **Process creations**.
 4. TIM shows "Running Process creations". Choose **Go to**.
 5. BGIST-L started only Edge and a Dropbox install. Symantec deleted the file before it ran.
-6. Go back to the Alerts tab. Right-click the alert's **Host** cell again. Choose **Pivot** ▸ **Host** ▸ **Host timeline**. TIM shows "Running Host timeline". Choose **Go to**, then **Go to pivot row**. The timeline scrolls to the alert's event, logged by `SEPM`, and flashes it.
+6. Go back to the Alerts tab. Right-click the alert's **Host** cell again. Choose **Pivot** ▸ **Host** ▸ **Host timeline**. TIM shows "Running Host timeline". Choose **Go to**, then **Go to pivot row**. The timeline scrolls to the alert's row, `Alert created [Symantec Endpoint Protection]: Backdoor.PsEmpire`, and flashes it.
 
 ### Follow the file to other hosts
 
@@ -132,12 +132,12 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 |---|---|---|---|
 | Alerts | Alerts | Nothing; it is a starting point | `since` 2018-08-01 to `until` 2018-09-01 |
 | Process creations | Endpoint | `Host`, `Timestamp` | ±1 hour |
-| By user | Endpoint | `User`, `Timestamp` | ±1 hour |
+| Activity by user | Endpoint | `User`, `Timestamp` | ±1 hour |
 | Parent process | Endpoint | `Host`, `ParentProcessGuid`, `Timestamp` | ±1 day |
 | Child processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Process activity | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Connections to IP | Endpoint | `DestinationIp`, `Timestamp` | ±1 day |
-| File created, then run? | Endpoint | `Host`, `TargetFilename`, `Timestamp` | 1 day after the file was created |
+| Filename seen on this host | Endpoint | `Host`, `TargetFilename` or else `ImageLoaded` or `Image`, `Timestamp` | ±1 day |
 | Hash seen anywhere | Endpoint | `SHA256` or `MD5`, `Timestamp` | ±1 day |
 | Host timeline | Host | `Host`, `Timestamp` | ±15 minutes |
 | Host's other logs | Host | `Host`, `Timestamp` | ±1 hour |
@@ -146,29 +146,63 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 - **Window:** every action is bounded by a time window. The analyst can change it.
 - **Row limit:** every action keeps at most 10,000 rows, with `take 10000`.
   - Host timeline and Host's other logs keep the events nearest the time, then sort them by `Timestamp`.
-- **Alert events:** Host timeline also takes in the events of the host's alerts, matched by `EventId`. An alert's event is logged under its product's host: the PsEmpire alert's event is logged by `SEPM`. Those rows keep the `Host` they were logged under.
-- **Go to pivot row:** Host timeline offers it, because it declares `find_pivot_rows: true`.
-- **Id:** every action uses `EventId` as the row's `id`, so an annotation follows an event across actions.
+- **Id:** every action uses `EventId` as the row's `id`, so an annotation follows an event across actions. No action declares `EventId`, and it comes after the fields.
+- **Process activity:** one row per Sysmon event of the process:
+  - the processes it started
+  - its file time changes
+  - its network connections
+  - its exit
+  - the threads it started in other processes
+  - the files it created
+  - its registry changes
+  - its file streams
+- **Activity by user:** the user's process creations and network connections.
+- **Filename seen on this host:** every Sysmon event on the host with a file path that ends in the file's name, or a `CommandLine` or `ParentCommandLine` that holds it. A file another process created shows its creation, then its runs.
+- **Host timeline:** one row per Sysmon event on the host, and one per alert on it. An alert's `EventType` is `Alert`, and its `Summary` is `Alert created [<Product>]: <Alert>`.
+- **Go to pivot row:** Host timeline offers it, because it declares `find_pivot_rows: true`. An alert's row has the alert's `EventId`, so it is found from the Alerts tab.
+- **Columns:** the Endpoint actions and Host timeline show every field of the events, with `EventType` and `Summary` beside `Timestamp` and `Host`. Their `columns:` declare only the first columns, because TIM shows the declared columns first.
 
 ## In this folder
 
 - **`config/`**: the action files, the connections file and the labels file, mounted at `/etc/tim`. The connection uses `auth: none`.
 - **`kusto/`**: the loader, `load.py`, and the Kusto scripts it runs.
   - **`tables/*.kql`**: create the `Events` table and its ingestion mapping.
-  - **`functions/*.kql`**: define the functions the actions call. `Alerts` is in `alerts.kql`. The Endpoint functions are `SysmonEvents`, `ProcessCreations`, `NetworkConnections`, `FileCreations` and `RegistryEvents`.
-  - **Order:** the loader runs the `functions/` files in name order. `1-sysmon-events.kql` comes before the `2-` files, which are built on it.
+  - **`functions/*.kql`**: define the functions the actions call. `Alerts` is in `alerts.kql`. `ImageName` is a helper: the file name of an image's path, or `An unknown process`. The Sysmon functions are in [The Sysmon functions](#the-sysmon-functions).
+  - **Order:** the loader runs the `functions/` files in name order. The `1-` files, `ImageName` and `SysmonEvents`, come before the `2-` files, which are built on them.
   - **Runs:** the loader runs the `functions/` files on every start, so a newer release's functions apply to the loaded data.
   - **Hosts:** every alert's `Host` is the host its events are logged under. A GuardDuty finding names an EC2 instance id, so `Alerts` gives it the host ending in that id, such as `gacrux.i-0cc93bade2b3cba63`.
   - **Hashes:** an alert's `SHA256` is the hash of the file a Symantec risk event names. Other products' alerts leave it empty.
-  - **Columns:** the Endpoint functions parse the Sysmon events. They expose the short `Host` beside Sysmon's FQDN `Computer`, and `EventId`. `Timestamp` is the time column. Sysmon's `UtcTime` is an ordinary column.
-- **`tests/`**: the action tests, run in the image. They check Raw logs by sourcetype's list of sourcetypes against `data/SHA256SUMS`.
+  - **Columns:** the Endpoint functions parse the Sysmon events. `SysmonEvents` parses every `System` field. Each typed function exposes every `EventData` field under Sysmon's name, typed, with `Hashes` split into `MD5` and `SHA256`.
+    - **Order:** `Timestamp`, `EventType`, `Host`, `Summary`, the key fields, the other `EventData` fields, then the `System` fields, `Computer` and `EventId`.
+    - **`EventType`:** Sysmon's event name, such as `ProcessCreate`. Registry events are `Registry` and Sysmon's event type, such as `RegistrySetValue`.
+    - **`Summary`:** one line, such as `notepad.exe created process: powershell.exe -enc …`.
+    - **Time and host:** `Timestamp` is the time column. `Host` is the short name beside Sysmon's FQDN `Computer`. Sysmon's `UtcTime` is an ordinary column.
+- **`tests/`**: the action tests, run in the image. They check Raw logs by sourcetype's list of sourcetypes against `data/SHA256SUMS`, that no action over the Endpoint functions drops fields with `project`, and that its declared columns are the first columns of its rows.
 - **`data/`**: `SHA256SUMS` for the dataset's files, with its `LICENSE` and `NOTICE`. See [data/README.md](data/README.md).
 - **`Dockerfile`**: the demo image, TIM's api image with the instance files, the dataset and the loader.
 - **`compose.yaml`**: the emulator, the loader, PostgreSQL, the api and the web container. Each release publishes it.
 - **`compose.override.yaml`**: builds TIM's images from this checkout, for `docker compose up --build`.
 - **`ci.sh`**: the checks that `.github/workflows/build-api.yml` runs, `./ci.sh <api image>`. They need Docker.
 - **`smoke.sh`**: the smoke test that `.github/workflows/demo-smoke.yml` runs, `./smoke.sh`. It builds the images, starts the demo, checks it and restarts it. It needs Docker and Python 3, and pulls the 4.6 GB emulator image. It runs as the Compose project `tim-demo-smoke`.
-- **`smoke.py`**: the checks over HTTP that `smoke.sh` runs. `TIM_DEMO_PORT` sets the port.
+- **`smoke.py`**: the checks over HTTP that `smoke.sh` runs. They run Alerts, Process creations (rows carry the full fields) and Host timeline from an alert, then label the alert. `TIM_DEMO_PORT` sets the port.
+
+### The Sysmon functions
+
+`SysmonEvents` parses every Sysmon event. Each other function reads it and keeps one kind of event.
+
+| Function | Sysmon events | `EventType` |
+| --- | --- | --- |
+| `SysmonEvents` | every | None; it is the base the others read |
+| `ProcessCreations` | 1 | `ProcessCreate` |
+| `FileCreateTimeChanges` | 2 | `FileCreateTime` |
+| `NetworkConnections` | 3 | `NetworkConnect` |
+| `SysmonStateChanges` | 4 | `SysmonStateChange` |
+| `ProcessTerminations` | 5 | `ProcessTerminate` |
+| `DriverLoads` | 6 | `DriverLoad` |
+| `RemoteThreads` | 8 | `CreateRemoteThread` |
+| `FileCreations` | 11 | `FileCreate` |
+| `RegistryEvents` | 12–14 | `Registry` and Sysmon's event type, such as `RegistrySetValue` |
+| `FileStreamCreations` | 15 | `FileCreateStreamHash` |
 
 ### From this checkout
 

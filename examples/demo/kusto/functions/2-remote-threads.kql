@@ -1,0 +1,20 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The threads processes started in other processes") RemoteThreads() {
+    SysmonEvents()
+    | where EventCode == 8
+    | extend UtcTime = todatetime(Data.UtcTime),
+        SourceProcessGuid = tostring(Data.SourceProcessGuid),
+        SourceProcessId = tolong(Data.SourceProcessId),
+        SourceImage = tostring(Data.SourceImage),
+        TargetProcessGuid = tostring(Data.TargetProcessGuid),
+        TargetProcessId = tolong(Data.TargetProcessId),
+        TargetImage = tostring(Data.TargetImage),
+        NewThreadId = tolong(Data.NewThreadId),
+        StartAddress = tostring(Data.StartAddress),
+        StartModule = tostring(Data.StartModule),
+        StartFunction = tostring(Data.StartFunction)
+    | extend EventType = "CreateRemoteThread",
+        Summary = strcat(ImageName(SourceImage), " targeted process ", ImageName(TargetImage), " using CreateRemoteThread")
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, SourceImage, TargetImage, StartModule, StartFunction,
+        UtcTime, SourceProcessGuid, SourceProcessId, TargetProcessGuid, TargetProcessId, NewThreadId, StartAddress
+}

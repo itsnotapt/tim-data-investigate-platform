@@ -1,0 +1,12 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The processes that exited") ProcessTerminations() {
+    SysmonEvents()
+    | where EventCode == 5
+    | extend UtcTime = todatetime(Data.UtcTime),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
+        Image = tostring(Data.Image)
+    | extend EventType = "ProcessTerminate",
+        Summary = strcat(ImageName(Image), " exited")
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, Image, UtcTime, ProcessGuid, ProcessId
+}

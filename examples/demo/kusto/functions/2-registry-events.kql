@@ -1,12 +1,22 @@
 .create-or-alter function with (folder = "Endpoint", docstring = "The registry keys and values processes created, set or deleted") RegistryEvents() {
     SysmonEvents()
     | where EventCode in (12, 13, 14)
-    | project Timestamp, EventId, Host, Computer,
+    | extend Change = tostring(Data.EventType),
         UtcTime = todatetime(Data.UtcTime),
-        EventType = tostring(Data.EventType),
-        Image = tostring(Data.Image),
-        ProcessId = tolong(Data.ProcessId),
         ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
+        Image = tostring(Data.Image),
         TargetObject = tostring(Data.TargetObject),
         Details = tostring(Data.Details)
+    // Sysmon's own EventType, such as SetValue, becomes the row's EventType, such as RegistrySetValue.
+    | extend EventType = strcat("Registry", Change),
+        Summary = strcat(ImageName(Image), case(
+            Change == "CreateKey", strcat(" created registry key: ", TargetObject),
+            Change == "DeleteKey", strcat(" deleted registry key: ", TargetObject),
+            Change == "SetValue", strcat(" set registry value: ", TargetObject, ", ", Details),
+            Change == "DeleteValue", strcat(" deleted registry value: ", TargetObject),
+            strcat(" changed registry key [", Change, "]: ", TargetObject)))
+    | project-away EventCode, Data, Change
+    | project-reorder Timestamp, EventType, Host, Summary, Image, TargetObject, Details, UtcTime, ProcessGuid,
+        ProcessId
 }

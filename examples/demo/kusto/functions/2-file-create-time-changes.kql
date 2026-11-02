@@ -1,0 +1,16 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The creation times processes changed on files") FileCreateTimeChanges() {
+    SysmonEvents()
+    | where EventCode == 2
+    | extend UtcTime = todatetime(Data.UtcTime),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
+        Image = tostring(Data.Image),
+        TargetFilename = tostring(Data.TargetFilename),
+        CreationUtcTime = todatetime(Data.CreationUtcTime),
+        PreviousCreationUtcTime = todatetime(Data.PreviousCreationUtcTime)
+    | extend EventType = "FileCreateTime",
+        Summary = strcat(ImageName(Image), " modified the timestamp for the file: ", TargetFilename)
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, Image, TargetFilename, CreationUtcTime,
+        PreviousCreationUtcTime, UtcTime, ProcessGuid, ProcessId
+}

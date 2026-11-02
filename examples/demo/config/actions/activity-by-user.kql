@@ -1,0 +1,10 @@
+declare query_parameters(user: string, around: datetime, window: timespan);
+let byUserInWindow = (T: (Timestamp: datetime, User: string)) {
+    T | where User == user and Timestamp between ((around - window) .. (around + window))
+};
+union
+    byUserInWindow(ProcessCreations()),
+    byUserInWindow(NetworkConnections())
+| project-reorder Timestamp, EventType, Host, Summary
+| order by Timestamp asc
+| take 10000

@@ -6,6 +6,15 @@ from tim_actions.kusto import KqlQuery
 from tim_actions.testing import load_actions
 
 CONFIG = Path(__file__).parents[1] / "config"
+FUNCTIONS = Path(__file__).parents[1] / "kusto" / "functions"
+SHA256 = "7A1367EFBA05B09E317909B040C3CDA972544212B4F9DB639237492351A3A405"
+MD5 = "95000560239032BC68B4C2FDFCDEF913"
+# The functions that parse the Sysmon events, such as ProcessCreations.
+ENDPOINT_FUNCTIONS = {
+    match[1]
+    for path in FUNCTIONS.glob("*.kql")
+    if (match := re.match(r'\.create-or-alter function with \(folder = "Endpoint".*?\) (\w+)\(\)', path.read_text()))
+}
 
 
 def test_every_action_is_bounded_by_a_time_window_and_a_row_limit() -> None:
@@ -21,30 +30,94 @@ def test_every_action_keys_its_rows_by_eventid_so_an_annotation_follows_the_even
     assert {key: action.id for key, action in actions.items() if action.id != "EventId"} == {}
 
 
-def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -> None:
-    row = {
-        "host": "BGIST-L",
-        "process": "{a1}",
-        "parent": "{a0}",
-        "file": r"C:\Users\Public\update.exe",
-        "user": "alice",
-        "ip": "203.0.113.7",
-        "hash": "9f86d081",
-    }
-    titles = {
-        key: action.title_for({p.name: row.get(p.name) for p in action.params}, [])
+# The values of a row each pivot takes its params from, and the row's process.
+PARAMS = {
+    "host": "BGIST-L",
+    "process": "{a1}",
+    "parent": "{a0}",
+    "file": r"C:\Users\Public\update.exe",
+    "user": "alice",
+    "ip": "203.0.113.7",
+    "hash": SHA256,
+}
+PIVOT_ROW = {
+    "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+    "ParentImage": r"C:\Windows\System32\browser_broker.exe",
+}
+
+
+def titles(actions: dict[str, Action], pivot_rows: list[dict[str, str]]) -> dict[str, str]:
+    return {
+        key: action.title_for({p.name: PARAMS.get(p.name) for p in action.params}, pivot_rows)
         for key, action in actions.items()
         if action.pivot != "none"
     }
-    assert titles == {
-        "demo.by-user": "By user alice",
-        "demo.child-processes": "Child processes BGIST-L {a1}",
+
+
+def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -> None:
+    assert titles(actions, [PIVOT_ROW]) == {
+        "demo.activity-by-user": "Activity by user alice",
+        "demo.child-processes": "Child processes of powershell.exe on BGIST-L",
         "demo.connections-to-ip": "Connections to IP 203.0.113.7",
-        "demo.file-created-then-run": r"File created, then run? BGIST-L C:\Users\Public\update.exe",
-        "demo.hash-seen-anywhere": "Hash seen anywhere 9f86d081",
-        "demo.host-logs": "Host's other logs BGIST-L",
-        "demo.host-timeline": "Host timeline BGIST-L",
-        "demo.parent-process": "Parent process BGIST-L {a0}",
-        "demo.process-activity": "Process activity BGIST-L {a1}",
-        "demo.process-creations": "Process creations BGIST-L",
+        "demo.filename-seen-on-host": "Filename update.exe seen on BGIST-L",
+        "demo.hash-seen-anywhere": f"Events related to SHA256 {SHA256}",
+        "demo.host-logs": "Other logs for host BGIST-L",
+        "demo.host-timeline": "Host timeline for BGIST-L",
+        "demo.parent-process": "Parent process browser_broker.exe on BGIST-L",
+        "demo.process-activity": "Process activity for powershell.exe on BGIST-L",
+        "demo.process-creations": "Process creations on BGIST-L",
     }
+
+
+def test_a_run_without_pivot_rows_names_its_process_by_its_guid(actions: dict[str, Action]) -> None:
+    by_guid = {key: title for key, title in titles(actions, []).items() if "{a" in title}
+
+    assert by_guid == {
+        "demo.child-processes": "Child processes of {a1} on BGIST-L",
+        "demo.parent-process": "Parent process {a0} on BGIST-L",
+        "demo.process-activity": "Process activity for {a1} on BGIST-L",
+    }
+
+
+def test_a_hash_titles_its_run_with_its_kind(actions: dict[str, Action]) -> None:
+    hash_seen_anywhere = actions["demo.hash-seen-anywhere"]
+
+    assert hash_seen_anywhere.title_for({"hash": MD5}, []) == f"Events related to MD5 {MD5}"
+
+
+def over_endpoint_functions(actions: dict[str, Action]) -> dict[str, KqlQuery]:
+    return {
+        key: action
+        for key, action in actions.items()
+        if isinstance(action, KqlQuery) and re.search(rf"\b({'|'.join(ENDPOINT_FUNCTIONS)})\(\)", action.kql)
+    }
+
+
+def leading_columns(kql: str) -> list[str]:
+    """The columns a query's rows start with: those of its last project-reorder, or else of the function it reads."""
+    reorders = re.findall(r"\| project-reorder ([^|}]*)", kql)
+    if not reorders:
+        [function] = re.findall(rf"\b({'|'.join(ENDPOINT_FUNCTIONS)})\(\)", kql)
+        [path] = [path for path in FUNCTIONS.glob("*.kql") if f") {function}()" in path.read_text()]
+        reorders = re.findall(r"\| project-reorder ([^|}]*)", path.read_text())
+    return [column.strip() for column in reorders[-1].split(",")]
+
+
+def test_an_action_over_the_endpoint_functions_shows_every_field_they_return(
+    actions: dict[str, Action],
+) -> None:
+    over_endpoint = over_endpoint_functions(actions)
+
+    assert "ProcessCreations" in ENDPOINT_FUNCTIONS
+    assert "demo.process-activity" in over_endpoint
+    assert [key for key, action in over_endpoint.items() if re.search(r"\| project\s", action.kql)] == []
+
+
+def test_an_action_over_the_endpoint_functions_declares_only_the_columns_its_rows_start_with(
+    actions: dict[str, Action],
+) -> None:
+    # TIM shows the declared columns first, so declaring a later column would move it forward.
+    for key, action in over_endpoint_functions(actions).items():
+        declared = [column.name for column in action.columns]
+        assert declared[:4] == ["Timestamp", "EventType", "Host", "Summary"], key
+        assert declared == leading_columns(action.kql)[: len(declared)], key

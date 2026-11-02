@@ -1,0 +1,23 @@
+declare query_parameters(host: string, file: string, around: datetime, window: timespan);
+// The file's name, without its folder.
+let name = tostring(split(file, "\\")[-1]);
+let onHostInWindow = (T: (Timestamp: datetime, Host: string)) {
+    T | where Host =~ host and Timestamp between ((around - window) .. (around + window))
+};
+let isFile = (path: string) { path =~ name or path endswith strcat("\\", name) };
+union
+    onHostInWindow(ProcessCreations()),
+    onHostInWindow(FileCreateTimeChanges()),
+    onHostInWindow(NetworkConnections()),
+    onHostInWindow(ProcessTerminations()),
+    onHostInWindow(DriverLoads()),
+    onHostInWindow(RemoteThreads()),
+    onHostInWindow(FileCreations()),
+    onHostInWindow(RegistryEvents()),
+    onHostInWindow(FileStreamCreations())
+| where isFile(Image) or isFile(ParentImage) or isFile(TargetFilename) or isFile(ImageLoaded)
+    or isFile(SourceImage) or isFile(TargetImage)
+    or CommandLine has name or ParentCommandLine has name
+| project-reorder Timestamp, EventType, Host, Summary
+| order by Timestamp asc
+| take 10000

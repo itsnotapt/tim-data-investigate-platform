@@ -1,0 +1,3 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The file name at the end of an image's path, or 'An unknown process' when there is none") ImageName(image: string) {
+    coalesce(extract(@"[^\\]+$", 0, image), "An unknown process")
+}

@@ -3,7 +3,9 @@
 Two analysts drive the api through the web container, with stub tokens:
 
 - **Alerts:** Alice runs Alerts and finds the Backdoor.PsEmpire alert.
-- **Pivot:** she pivots from it to its host's process creations, which have rows.
+- **Pivot:** she pivots from it to its host's process creations, which have rows with every Sysmon field.
+- **Host timeline:** she pivots from it to its host's timeline, which holds the alert and Sysmon events,
+  each with a Summary.
 - **Annotations:** she labels the alert, and Bob reads her label.
 
 Runs on the standard library. ``TIM_DEMO_PORT`` is the web container's port, 8081 by default.
@@ -88,7 +90,19 @@ def main() -> None:
     processes = run(ALICE, "demo.process-creations", resolved["params"])
     if not processes:
         fail(f"Process creations on {alert['Host']} around {alert['Timestamp']} has no rows.")
+    missing = {"Summary", "LogonGuid", "EventRecordId"} - processes[0].keys()
+    if missing:
+        fail(f"Process creations' rows have no {sorted(missing)}.")
     print(f"Process creations: {len(processes)} rows on {alert['Host']}.")
+
+    resolved = call(ALICE, "POST", "/actions/demo.host-timeline/resolve", {"pivot": {"rows": [pivot]}})
+    timeline = run(ALICE, "demo.host-timeline", resolved["params"])
+    types = {row["EventType"] for row in timeline}
+    if "Alert" not in types or types == {"Alert"}:
+        fail(f"Host timeline on {alert['Host']} holds {sorted(types)}, not the alert and Sysmon events.")
+    if any(not row["Summary"] for row in timeline):
+        fail("Host timeline has a row without a Summary.")
+    print(f"Host timeline: {len(timeline)} rows on {alert['Host']}, of {', '.join(sorted(types))}.")
 
     call(ALICE, "PATCH", "/annotations", {"ids": [alert["EventId"]], "label": LABEL})
     label = label_of(BOB, alert["EventId"])
