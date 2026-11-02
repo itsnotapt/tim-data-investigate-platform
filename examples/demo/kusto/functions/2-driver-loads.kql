@@ -1,0 +1,16 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The drivers that loaded, with their hashes and signatures") DriverLoads() {
+    SysmonEvents()
+    | where EventCode == 6
+    | extend UtcTime = todatetime(Data.UtcTime),
+        ImageLoaded = tostring(Data.ImageLoaded),
+        MD5 = extract(@"MD5=([0-9A-F]+)", 1, tostring(Data.Hashes)),
+        SHA256 = extract(@"SHA256=([0-9A-F]+)", 1, tostring(Data.Hashes)),
+        Signed = tobool(Data.Signed),
+        Signature = tostring(Data.Signature),
+        SignatureStatus = tostring(Data.SignatureStatus)
+    | extend EventType = "DriverLoad",
+        Summary = strcat("Driver loaded: ", ImageLoaded)
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, ImageLoaded, Signed, Signature, SHA256, UtcTime, MD5,
+        SignatureStatus
+}

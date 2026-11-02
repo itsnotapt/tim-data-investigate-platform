@@ -3,20 +3,14 @@ let onHostInWindow = (T: (Timestamp: datetime, Host: string)) {
     T | where Host == host and Timestamp between ((around - window) .. (around + window))
 };
 union
-    (onHostInWindow(NetworkConnections())
-        | where ProcessGuid == process
-        | extend Activity = "Network connection",
-            Detail = trim(@"\s+", strcat(Protocol, " ", DestinationIp, ":", DestinationPort, " ", DestinationHostname))),
-    (onHostInWindow(FileCreations())
-        | where ProcessGuid == process
-        | extend Activity = "File created", Detail = TargetFilename),
-    (onHostInWindow(RegistryEvents())
-        | where ProcessGuid == process
-        | extend Activity = strcat("Registry ", EventType), Detail = trim(@"\s+", strcat(TargetObject, " ", Details))),
-    (onHostInWindow(ProcessCreations())
-        | where ParentProcessGuid == process
-        | extend Activity = "Child process", Detail = CommandLine)
-| project Timestamp, Host, Activity, Image, Detail, User, ProcessGuid, ParentProcessGuid, DestinationIp,
-    DestinationPort, TargetFilename, TargetObject, SHA256, MD5, EventId
+    (onHostInWindow(ProcessCreations()) | where ParentProcessGuid == process),
+    (onHostInWindow(FileCreateTimeChanges()) | where ProcessGuid == process),
+    (onHostInWindow(NetworkConnections()) | where ProcessGuid == process),
+    (onHostInWindow(ProcessTerminations()) | where ProcessGuid == process),
+    (onHostInWindow(RemoteThreads()) | where SourceProcessGuid == process),
+    (onHostInWindow(FileCreations()) | where ProcessGuid == process),
+    (onHostInWindow(RegistryEvents()) | where ProcessGuid == process),
+    (onHostInWindow(FileStreamCreations()) | where ProcessGuid == process)
+| project-reorder Timestamp, EventType, Host, Summary
 | order by Timestamp asc
 | take 10000

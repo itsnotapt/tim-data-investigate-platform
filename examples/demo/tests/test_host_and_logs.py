@@ -64,12 +64,30 @@ def test_a_host_timeline_from_a_process_runs_on_its_short_host_around_its_timest
         "window": "timespan(00:15:00)",
     }
     assert "Timestamp between ((around - window) .. (around + window))" in call.kql
-    # An alert's event is logged under its product's host, and is on the timeline of the host the
-    # alert names.
-    assert "let alerted = Alerts() | where Host =~ host | project EventId;" in call.kql
-    assert "where Host =~ host or EventId in (alerted)" in call.kql
     assert "order by abs(Timestamp - around) asc" in call.kql
     assert "order by Timestamp asc" in call.kql
+
+
+def test_a_host_timeline_holds_every_sysmon_event_on_the_host_and_its_alerts(
+    actions: dict[str, Action],
+) -> None:
+    timeline = actions["demo.host-timeline"]
+
+    assert isinstance(timeline, KqlQuery)
+    assert set(re.findall(r"\b(\w+)\(\)", timeline.kql)) == {
+        "ProcessCreations",
+        "FileCreateTimeChanges",
+        "NetworkConnections",
+        "SysmonStateChanges",
+        "ProcessTerminations",
+        "DriverLoads",
+        "RemoteThreads",
+        "FileCreations",
+        "RegistryEvents",
+        "FileStreamCreations",
+        "Alerts",
+    }
+    assert 'EventType = "Alert", Summary = strcat("Alert created [", Product, "]: ", Alert)' in timeline.kql
 
 
 def test_hosts_other_logs_is_in_the_host_menu_and_pivots_from_an_alert(

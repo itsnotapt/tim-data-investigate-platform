@@ -1,0 +1,17 @@
+.create-or-alter function with (folder = "Endpoint", docstring = "The alternate data streams processes created, such as a download's Zone.Identifier, with their hashes") FileStreamCreations() {
+    SysmonEvents()
+    | where EventCode == 15
+    | extend UtcTime = todatetime(Data.UtcTime),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
+        Image = tostring(Data.Image),
+        TargetFilename = tostring(Data.TargetFilename),
+        CreationUtcTime = todatetime(Data.CreationUtcTime),
+        MD5 = extract(@"MD5=([0-9A-F]+)", 1, tostring(Data.Hash)),
+        SHA256 = extract(@"SHA256=([0-9A-F]+)", 1, tostring(Data.Hash))
+    | extend EventType = "FileCreateStreamHash",
+        Summary = strcat(ImageName(Image), " created file stream: ", TargetFilename)
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, Image, TargetFilename, SHA256, UtcTime, ProcessGuid,
+        ProcessId, CreationUtcTime, MD5
+}

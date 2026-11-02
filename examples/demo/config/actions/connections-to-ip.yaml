@@ -25,7 +25,9 @@ params:
 id: EventId
 columns:
   - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: EventType, type: string, title: Event type, width: 170}
   - {name: Host, type: string, width: 120}
+  - {name: Summary, type: string, width: 640}
   - {name: User, type: string, width: 200}
   - {name: Image, type: string, width: 320}
   - {name: Protocol, type: string}
@@ -34,8 +36,3 @@ columns:
   - {name: DestinationIp, type: string}
   - {name: DestinationPort, type: number}
   - {name: DestinationHostname, type: string}
-  - {name: ProcessGuid, type: string}
-  - {name: ProcessId, type: number}
-  - {name: Computer, type: string}
-  - {name: UtcTime, type: datetime}
-  - {name: EventId, type: string, title: Id}

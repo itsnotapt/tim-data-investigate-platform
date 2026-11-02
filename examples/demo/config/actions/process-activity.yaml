@@ -1,11 +1,12 @@
-# What a process did: its network connections, the files it created, its registry changes and the
-# processes it started.
+# What a process did, one line per Sysmon event: the processes it started, its network connections,
+# files, file streams and file times, its registry changes, the threads it started in other processes
+# and its exit.
 type: kql_query
 key: demo.process-activity
 name: Process activity
 title: "{{ action_name }} {{ host }} {{ process }}"
 menu: Endpoint
-description: The network connections, files, registry changes and child processes of a process
+description: Every Sysmon event of a process on its host, one line each
 pivot: row
 connection: security
 database: Security
@@ -30,17 +31,6 @@ params:
 id: EventId
 columns:
   - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: EventType, type: string, title: Event type, width: 170}
   - {name: Host, type: string, width: 120}
-  - {name: Activity, type: string, width: 170}
-  - {name: Image, type: string, width: 320}
-  - {name: Detail, type: string, width: 480}
-  - {name: User, type: string, width: 200}
-  - {name: ProcessGuid, type: string}
-  - {name: ParentProcessGuid, type: string}
-  - {name: DestinationIp, type: string}
-  - {name: DestinationPort, type: number}
-  - {name: TargetFilename, type: string}
-  - {name: TargetObject, type: string}
-  - {name: SHA256, type: string}
-  - {name: MD5, type: string}
-  - {name: EventId, type: string, title: Id}
+  - {name: Summary, type: string, width: 640}

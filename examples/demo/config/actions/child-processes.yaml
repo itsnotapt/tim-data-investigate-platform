@@ -29,18 +29,12 @@ params:
 id: EventId
 columns:
   - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: EventType, type: string, title: Event type, width: 170}
   - {name: Host, type: string, width: 120}
+  - {name: Summary, type: string, width: 640}
   - {name: User, type: string, width: 200}
-  - {name: Image, type: string, width: 320}
-  - {name: CommandLine, type: string, width: 480}
   - {name: ParentImage, type: string, width: 320}
+  - {name: CommandLine, type: string, width: 480}
+  - {name: Image, type: string, width: 320}
   - {name: ParentCommandLine, type: string, width: 360}
-  - {name: ProcessId, type: number}
-  - {name: ParentProcessId, type: number}
-  - {name: ProcessGuid, type: string}
-  - {name: ParentProcessGuid, type: string}
   - {name: SHA256, type: string}
-  - {name: MD5, type: string}
-  - {name: Computer, type: string}
-  - {name: UtcTime, type: datetime}
-  - {name: EventId, type: string, title: Id}

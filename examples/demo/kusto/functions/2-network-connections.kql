@@ -1,19 +1,29 @@
 .create-or-alter function with (folder = "Endpoint", docstring = "The network connections processes made") NetworkConnections() {
     SysmonEvents()
     | where EventCode == 3
-    | project Timestamp, EventId, Host, Computer,
-        UtcTime = todatetime(Data.UtcTime),
-        User = tostring(Data.User),
-        Image = tostring(Data.Image),
-        ProcessId = tolong(Data.ProcessId),
+    | extend UtcTime = todatetime(Data.UtcTime),
         ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
+        Image = tostring(Data.Image),
+        User = tostring(Data.User),
         Protocol = tostring(Data.Protocol),
         Initiated = tobool(Data.Initiated),
+        SourceIsIpv6 = tobool(Data.SourceIsIpv6),
         SourceIp = tostring(Data.SourceIp),
         SourceHostname = tostring(Data.SourceHostname),
-        SourcePort = toint(Data.SourcePort),
+        SourcePort = tolong(Data.SourcePort),
+        SourcePortName = tostring(Data.SourcePortName),
+        DestinationIsIpv6 = tobool(Data.DestinationIsIpv6),
         DestinationIp = tostring(Data.DestinationIp),
         DestinationHostname = tostring(Data.DestinationHostname),
-        DestinationPort = toint(Data.DestinationPort),
+        DestinationPort = tolong(Data.DestinationPort),
         DestinationPortName = tostring(Data.DestinationPortName)
+    | extend EventType = "NetworkConnect",
+        Summary = strcat(ImageName(Image), " created a network connection [", Protocol, "] from ", SourceIp, ":",
+            SourcePort, " to ", DestinationIp, ":", DestinationPort,
+            iff(isnotempty(DestinationHostname), strcat(" (", DestinationHostname, ")"), ""))
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, User, Image, Protocol, SourceIp, SourcePort, DestinationIp,
+        DestinationPort, DestinationHostname, UtcTime, ProcessGuid, ProcessId, Initiated, SourceIsIpv6,
+        SourceHostname, SourcePortName, DestinationIsIpv6, DestinationPortName
 }

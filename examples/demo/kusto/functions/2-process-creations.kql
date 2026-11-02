@@ -1,19 +1,31 @@
 .create-or-alter function with (folder = "Endpoint", docstring = "The processes that started, with their parents and hashes") ProcessCreations() {
     SysmonEvents()
     | where EventCode == 1
-    | project Timestamp, EventId, Host, Computer,
-        UtcTime = todatetime(Data.UtcTime),
-        User = tostring(Data.User),
+    | extend UtcTime = todatetime(Data.UtcTime),
+        ProcessGuid = tostring(Data.ProcessGuid),
+        ProcessId = tolong(Data.ProcessId),
         Image = tostring(Data.Image),
+        FileVersion = tostring(Data.FileVersion),
+        Description = tostring(Data.Description),
+        Product = tostring(Data.Product),
+        Company = tostring(Data.Company),
         CommandLine = tostring(Data.CommandLine),
         CurrentDirectory = tostring(Data.CurrentDirectory),
+        User = tostring(Data.User),
+        LogonGuid = tostring(Data.LogonGuid),
+        LogonId = tostring(Data.LogonId),
+        TerminalSessionId = tolong(Data.TerminalSessionId),
         IntegrityLevel = tostring(Data.IntegrityLevel),
-        ProcessId = tolong(Data.ProcessId),
-        ProcessGuid = tostring(Data.ProcessGuid),
-        ParentImage = tostring(Data.ParentImage),
-        ParentCommandLine = tostring(Data.ParentCommandLine),
-        ParentProcessId = tolong(Data.ParentProcessId),
-        ParentProcessGuid = tostring(Data.ParentProcessGuid),
         MD5 = extract(@"MD5=([0-9A-F]+)", 1, tostring(Data.Hashes)),
-        SHA256 = extract(@"SHA256=([0-9A-F]+)", 1, tostring(Data.Hashes))
+        SHA256 = extract(@"SHA256=([0-9A-F]+)", 1, tostring(Data.Hashes)),
+        ParentProcessGuid = tostring(Data.ParentProcessGuid),
+        ParentProcessId = tolong(Data.ParentProcessId),
+        ParentImage = tostring(Data.ParentImage),
+        ParentCommandLine = tostring(Data.ParentCommandLine)
+    | extend EventType = "ProcessCreate",
+        Summary = strcat(ImageName(ParentImage), " created process: ", coalesce(CommandLine, Image))
+    | project-away EventCode, Data
+    | project-reorder Timestamp, EventType, Host, Summary, User, ParentImage, CommandLine, Image, ParentCommandLine,
+        SHA256, UtcTime, ProcessGuid, ProcessId, FileVersion, Description, Product, Company, CurrentDirectory,
+        LogonGuid, LogonId, TerminalSessionId, IntegrityLevel, MD5, ParentProcessGuid, ParentProcessId
 }

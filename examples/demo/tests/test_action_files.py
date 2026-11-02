@@ -6,6 +6,13 @@ from tim_actions.kusto import KqlQuery
 from tim_actions.testing import load_actions
 
 CONFIG = Path(__file__).parents[1] / "config"
+FUNCTIONS = Path(__file__).parents[1] / "kusto" / "functions"
+# The functions that parse the Sysmon events, such as ProcessCreations.
+ENDPOINT_FUNCTIONS = {
+    match[1]
+    for path in FUNCTIONS.glob("*.kql")
+    if (match := re.match(r'\.create-or-alter function with \(folder = "Endpoint".*?\) (\w+)\(\)', path.read_text()))
+}
 
 
 def test_every_action_is_bounded_by_a_time_window_and_a_row_limit() -> None:
@@ -48,3 +55,41 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         "demo.process-activity": "Process activity BGIST-L {a1}",
         "demo.process-creations": "Process creations BGIST-L",
     }
+
+
+def over_endpoint_functions(actions: dict[str, Action]) -> dict[str, KqlQuery]:
+    return {
+        key: action
+        for key, action in actions.items()
+        if isinstance(action, KqlQuery) and re.search(rf"\b({'|'.join(ENDPOINT_FUNCTIONS)})\(\)", action.kql)
+    }
+
+
+def leading_columns(kql: str) -> list[str]:
+    """The columns a query's rows start with: those of its last project-reorder, or else of the function it reads."""
+    reorders = re.findall(r"\| project-reorder ([^|}]*)", kql)
+    if not reorders:
+        [function] = re.findall(rf"\b({'|'.join(ENDPOINT_FUNCTIONS)})\(\)", kql)
+        [path] = [path for path in FUNCTIONS.glob("*.kql") if f") {function}()" in path.read_text()]
+        reorders = re.findall(r"\| project-reorder ([^|}]*)", path.read_text())
+    return [column.strip() for column in reorders[-1].split(",")]
+
+
+def test_an_action_over_the_endpoint_functions_shows_every_field_they_return(
+    actions: dict[str, Action],
+) -> None:
+    over_endpoint = over_endpoint_functions(actions)
+
+    assert "ProcessCreations" in ENDPOINT_FUNCTIONS
+    assert "demo.process-activity" in over_endpoint
+    assert [key for key, action in over_endpoint.items() if re.search(r"\| project\s", action.kql)] == []
+
+
+def test_an_action_over_the_endpoint_functions_declares_only_the_columns_its_rows_start_with(
+    actions: dict[str, Action],
+) -> None:
+    # TIM shows the declared columns first, so declaring a later column would move it forward.
+    for key, action in over_endpoint_functions(actions).items():
+        declared = [column.name for column in action.columns]
+        assert declared[:4] == ["Timestamp", "EventType", "Host", "Summary"], key
+        assert declared == leading_columns(action.kql)[: len(declared)], key

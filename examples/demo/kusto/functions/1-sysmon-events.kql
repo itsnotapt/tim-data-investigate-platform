@@ -1,11 +1,26 @@
-.create-or-alter function with (folder = "Endpoint", docstring = "The endpoint events Sysmon logged, with their event code, computer and fields") SysmonEvents() {
+.create-or-alter function with (folder = "Endpoint", docstring = "The endpoint events Sysmon logged, with their event code, their EventData fields and the fields of their System element") SysmonEvents() {
     Events
     | where SourceType == "XmlWinEventLog:Microsoft-Windows-Sysmon/Operational"
     | extend Xml = parse_xml(Raw)
+    | extend System = Xml.Event.System
     | mv-apply Item = Xml.Event.EventData.Data on (
         summarize Data = make_bag(bag_pack(tostring(Item["@Name"]), tostring(Item["#text"]))))
-    | project Timestamp, EventId, Host,
-        Computer = tostring(Xml.Event.System.Computer),
-        EventCode = toint(Xml.Event.System.EventID),
-        Data
+    | project Timestamp, Host,
+        EventCode = toint(System.EventID),
+        Data,
+        Provider = tostring(System.Provider["@Name"]),
+        ProviderGuid = tostring(System.Provider["@Guid"]),
+        EventVersion = toint(System.Version),
+        Level = toint(System.Level),
+        Task = toint(System.Task),
+        Opcode = toint(System.Opcode),
+        Keywords = tostring(System.Keywords),
+        TimeCreated = todatetime(System.TimeCreated["@SystemTime"]),
+        EventRecordId = tolong(System.EventRecordID),
+        ExecutionProcessId = tolong(System.Execution["@ProcessID"]),
+        ExecutionThreadId = tolong(System.Execution["@ThreadID"]),
+        Channel = tostring(System.Channel),
+        UserSid = tostring(System.Security["@UserID"]),
+        Computer = tostring(System.Computer),
+        EventId
 }

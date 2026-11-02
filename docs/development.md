@@ -343,7 +343,7 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
   - a PR that changes the smoke test's files: the workflow, `.github/scripts/demo_smoke.py`, `examples/demo/smoke.sh` and `examples/demo/smoke.py`.
 - Its `smoke` job runs `examples/demo/smoke.sh`, which checks that:
   - the first start loads the dataset;
-  - an analyst can run Alerts, pivot to the alert's host's process creations, and label the alert;
+  - an analyst can run Alerts, pivot to the alert's host's process creations and timeline, and label the alert;
   - a second analyst sees that label;
   - a restart attaches the dataset instead of loading it again.
 - The job's step summary lists how long each step took.

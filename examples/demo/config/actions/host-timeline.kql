@@ -1,10 +1,21 @@
 declare query_parameters(host: string, around: datetime, window: timespan);
-// The events the host's alerts name, by EventId, whichever host logged them.
-let alerted = Alerts() | where Host =~ host | project EventId;
-Events
-| where Timestamp between ((around - window) .. (around + window))
-| where Host =~ host or EventId in (alerted)
+let onHostInWindow = (T: (Timestamp: datetime, Host: string)) {
+    T | where Host =~ host and Timestamp between ((around - window) .. (around + window))
+};
+union
+    onHostInWindow(ProcessCreations()),
+    onHostInWindow(FileCreateTimeChanges()),
+    onHostInWindow(NetworkConnections()),
+    onHostInWindow(SysmonStateChanges()),
+    onHostInWindow(ProcessTerminations()),
+    onHostInWindow(DriverLoads()),
+    onHostInWindow(RemoteThreads()),
+    onHostInWindow(FileCreations()),
+    onHostInWindow(RegistryEvents()),
+    onHostInWindow(FileStreamCreations()),
+    (onHostInWindow(Alerts())
+        | extend EventType = "Alert", Summary = strcat("Alert created [", Product, "]: ", Alert))
 | order by abs(Timestamp - around) asc
 | take 10000
-| project Timestamp, Host, SourceType, Source, Raw, EventId
+| project-reorder Timestamp, EventType, Host, Summary, Severity, Alert, Product, SHA256
 | order by Timestamp asc
