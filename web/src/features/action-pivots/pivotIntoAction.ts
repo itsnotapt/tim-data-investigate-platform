@@ -20,6 +20,8 @@ interface ChildTabInput {
   /** Runs the child tab when it needs nothing. */
   run: (uuid: string) => void;
   store?: TabsStore;
+  /** PROTOTYPE #249: the pivot rows' `id`s, kept on the child tab. */
+  pivotRowIds?: (string | null)[];
 }
 
 export interface PivotIntoActionInput extends ChildTabInput {
@@ -56,7 +58,7 @@ interface ChildTab {
  * It runs at once when no param is missing, and otherwise waits for them, with the reasons.
  */
 function openChildTab(
-  { parentUuid, notify, goTo, run, store = useTabsStore }: ChildTabInput,
+  { parentUuid, notify, goTo, run, store = useTabsStore, pivotRowIds }: ChildTabInput,
   { action, title, params, missing, presetId, idColumn }: ChildTab,
 ): string {
   const uuid = store.getState().createTab({
@@ -64,7 +66,7 @@ function openChildTab(
     parentUuid,
     title,
     params: { action: action.key, params, ...(presetId ? { presetId } : {}) },
-    ...(idColumn ? { state: { idColumn } } : {}),
+    state: { ...(idColumn ? { idColumn } : {}), ...(pivotRowIds ? { pivotRowIds } : {}) },
   });
   const needed = Object.keys(missing);
   const goToChild = { label: 'Go to', onClick: () => goTo(uuid) };

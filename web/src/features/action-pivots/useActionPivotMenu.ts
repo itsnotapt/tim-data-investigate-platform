@@ -47,7 +47,11 @@ export function useActionPivotMenu(
   return useMemo(
     () => (params) => {
       if (!instance) return [];
-      const rows = menuTargets(params).map(values);
+      const targets = menuTargets(params);
+      const rows = targets.map(values);
+      const pivotRowIds = targets.map(
+        (n) => (n.data as { id?: string | null } | undefined)?.id ?? null,
+      );
       const column = params.column?.getColId();
       const clicked = params.node ? values(params.node) : {};
       const goTo = (uuid: string) => void navigate(`/view/${uuid}`);
@@ -64,6 +68,7 @@ export function useActionPivotMenu(
             action,
             parentUuid,
             rows,
+            pivotRowIds,
             cell: column && column in clicked ? { column, value: clicked[column] } : null,
             connections: instance.connections,
             notify,
@@ -73,7 +78,16 @@ export function useActionPivotMenu(
         },
         onPivotPreset: (preset, action, resolved) => {
           record(recentPivotKey(preset));
-          pivotIntoPreset({ preset, action, resolved, parentUuid, notify, goTo, run });
+          pivotIntoPreset({
+            preset,
+            action,
+            resolved,
+            parentUuid,
+            notify,
+            goTo,
+            run,
+            pivotRowIds,
+          });
         },
       });
     },

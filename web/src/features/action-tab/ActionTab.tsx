@@ -592,6 +592,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             runColumns={shown.columns}
             getContextMenuItems={pivotMenu}
             linkedRow={state.linkedRow}
+            pivotRowIds={state.pivotRowIds}
             onLinkedRowShown={linkedRowShown}
             quickFilterText={quickFilter}
             height={GRID_HEIGHT}
@@ -609,6 +610,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             runColumns={state.resultColumns}
             getContextMenuItems={pivotMenu}
             linkedRow={state.linkedRow}
+            pivotRowIds={state.pivotRowIds}
             onLinkedRowShown={linkedRowShown}
             quickFilterText={quickFilter}
             height={GRID_HEIGHT}

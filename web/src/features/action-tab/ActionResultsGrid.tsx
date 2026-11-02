@@ -41,6 +41,7 @@ import {
 import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
+import { GoToPivotRowPrototype } from './GoToPivotRow.prototype';
 import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
 
 const NO_LABELS: readonly InstanceLabel[] = [];
@@ -82,6 +83,8 @@ export type ActionResultsGridProps = Omit<
   linkedRow?: number | null;
   /** Called once the linked row is focused. */
   onLinkedRowShown?: () => void;
+  /** PROTOTYPE #249: the `id`s of the pivot rows the tab was pivoted from. */
+  pivotRowIds?: readonly (string | null)[] | null;
 };
 
 /** Whether `next` is `shown` with more rows after it (pages append; a reload gives new objects). */
@@ -116,6 +119,7 @@ export function ActionResultsGrid({
   linkIdColumn = null,
   linkedRow = null,
   onLinkedRowShown,
+  pivotRowIds = null,
   ...rest
 }: ActionResultsGridProps) {
   const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
@@ -159,6 +163,8 @@ export function ActionResultsGrid({
   const shown = useRef({ rows, idColumn });
   const api = useRef<GridApi<GridRowWithId> | null>(null);
   const [gridReady, setGridReady] = useState(false);
+  /** PROTOTYPE #249: the grid's api, for Go to pivot row. */
+  const [prototypeApi, setPrototypeApi] = useState<GridApi | null>(null);
   const [index] = useState<RowsById>(() => {
     const byId: RowsById = new Map();
     indexRows(byId, given);
@@ -209,6 +215,7 @@ export function ActionResultsGrid({
     (e: GridReadyEvent<GridRowWithId>) => {
       api.current = e.api;
       setGridReady(true);
+      setPrototypeApi(e.api);
       void start(e.api);
       void showStoredAnnotations();
       onGridReady?.(e);
@@ -364,6 +371,9 @@ export function ActionResultsGrid({
           onGridReady={ready}
         />
       </RoundedColumnsContext>
+      {pivotRowIds && (
+        <GoToPivotRowPrototype uuid={uuid} api={prototypeApi} pivotRowIds={pivotRowIds} />
+      )}
       {rowDetail}
       {dialog}
     </Box>
