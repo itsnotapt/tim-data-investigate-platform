@@ -178,7 +178,7 @@ From the rows, an analyst pivots:
 
 - **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
-  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId`. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
+  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
 
 ### Share links
 
@@ -244,7 +244,16 @@ Opening a preset creates a root action tab in the same way, titled with the pres
 - then the preset's `params`;
 - then the preset's fixed values.
 
-A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params.
+A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params, and `titleInputs`, the preset's inputs with Show in title on.
+
+**Tab titles.** An action tab shows a title that `tabTitle` (`features/action-tab/tabTitle.ts`) chooses, in the tree and in the app bar.
+
+- Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone.
+- After a run, a tab with no `titleInputs` shows `state.runTitle`, the title of its latest run, which the server made from the action's `title` template ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
+- A preset tab, opened from a preset, pivoted into one or saved as one, has `params.titleInputs`, its inputs that show in the title. After a run it shows the preset's name, then its latest run's values for those inputs, separated by spaces.
+  - A list shows its first two values joined by ", ", then " +N" for the rest.
+  - An unset or empty value is left out.
+- The tree clamps a title to two lines and the app bar to one. Both show the full title in a tooltip.
 
 The action tab has a header in the app bar, a pills bar and inner tabs.
 
@@ -392,6 +401,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
 
 - Name, menu folder (folders separated by `/`) and **Share with everyone**.
 - For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
+- A **Show in title** switch for each of those params and each query parameter. It starts on for a From row input and off for a fixed one, and returns to that when the input is switched between Fixed and From row. The inputs it is on for follow the preset's name in the tab's title ([Tab titles](#tab-titles)).
 - A **Query parameters** section, on an action that takes them. Add a parameter: its name is suggested from the names in the query. Pick its type, then **Fixed** with a value, or **From row** with columns.
   - Each row shows its number, `:N` for SQL and N for KQL, and has **Move up** and **Move down** buttons. For KQL the order sets the order of the `declare` statement. For SQL it sets the position each is bound to.
   - SQL offers no `timespan` type.
@@ -703,7 +713,7 @@ Database migrations are in `api/migrations` (Alembic).
 
 | Module | Responsibility |
 |---|---|
-| `action.py` | `Action`, the base of query action types, with its menu path, pivot columns and `resolve()` |
+| `action.py` | `Action`, the base of query action types, with its menu path, title template (`title_for`), pivot columns and `resolve()` |
 | `pivots.py` | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()` |
 | `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
 | `columns.py` | `Column` |
@@ -957,7 +967,7 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts the declare statement `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
-A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`.
+A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`. Its `title` template lists the query parameters shown in the title.
 
 **Run SQL** (`tim.run_sql`) is the built-in action on a Snowflake connection. It sets `pivot: none`. Its params:
 
@@ -967,7 +977,7 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 
 The run sends `sql` unchanged through `SnowflakeHook.query`, with the parameters bound by position, `:1` the first. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
 
-A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter.
+A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter. Its `title` template lists the query parameters shown in the title.
 
 **`snowflake_query`** (`SnowflakeQuery`, with `SnowflakeQueryFile` as its file model) is a file-capable action type with the fields `connection` and `sql`.
 
@@ -992,7 +1002,7 @@ Runs of an action go through `/api/runs` (`runs/`). They follow [ADR-0012](adr/0
 
 A run:
 
-1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`, and starts a tracked asyncio task.
+1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` gets the run's title from the action's `title_for`. The title is the action's name when `title_for` raises, which is logged, or returns a blank. The title is cut to 1,000 characters. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`. It then starts a tracked asyncio task.
 2. **Execute.** The task waits for a concurrency slot, still `running`. Then it runs the action's synchronous `run(params, ctx)` in its own daemon thread.
    - `ctx` gives `analyst`, `deadline` (when the timeout ends), `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
    - `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value. It gives one hook per connection per run.
@@ -1178,7 +1188,7 @@ A change that changes nothing rolls back. It takes no version, writes no history
 | `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
 | `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
 | `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
-| `runs` | `run_id` | `owner`, `status`, `action` and `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`, `heartbeat_at`; indexes on expiry and `running` runs, none on `heartbeat_at` so its updates can be HOT |
+| `runs` | `run_id` | `owner`, `status`, `action` (JSONB), `title`, `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`, `heartbeat_at`; indexes on expiry and `running` runs, none on `heartbeat_at` so its updates can be HOT |
 | `run_rows` | `(run_id, row_number)` | `UNLOGGED`. `row_number`, `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
 | `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
 | `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |

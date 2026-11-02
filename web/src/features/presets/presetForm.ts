@@ -22,6 +22,8 @@ export interface InputMode {
   fixed: boolean;
   /** From row only: the columns to read, in order; none asks for the value when opened. */
   columns: string[];
+  /** Whether a tab opened from the preset shows the value in its title. */
+  showInTitle: boolean;
 }
 
 /** One query parameter the Save… dialog declares, as typed. */
@@ -33,6 +35,8 @@ export interface QueryParameterForm {
   value: string;
   /** From row only: the columns to read, in order, separated by commas; none asks when opened. */
   columns: string;
+  /** Whether a tab opened from the preset shows the value in its title. */
+  showInTitle: boolean;
 }
 
 /** What the Save… dialog edits. */
@@ -54,7 +58,8 @@ export const rowParams = (action: CatalogueAction): CatalogueParam[] =>
 /**
  * The form for saving `params` of `action`. From an existing preset, its name, folder and inputs;
  * otherwise each set value is fixed and each unset one is read from all its columns, or for a
- * query parameter asked for when opened. A copy of someone else's preset starts private.
+ * query parameter asked for when opened, and those read from the row are shown in the title. A
+ * copy of someone else's preset starts private.
  */
 export function initialForm(
   action: CatalogueAction,
@@ -67,7 +72,7 @@ export function initialForm(
       const input = inputs.get(p.name);
       const fixed = input ? input.fixed : !isUnset(params[p.name]);
       const columns = input && !input.fixed ? input.fromColumns : (p.fromColumns ?? []);
-      return [p.name, { fixed, columns }];
+      return [p.name, { fixed, columns, showInTitle: input ? input.showInTitle : !fixed }];
     }),
   );
   return {
@@ -82,6 +87,7 @@ export function initialForm(
         name: entry.name,
         type: entry.type,
         fixed,
+        showInTitle: input?.source === 'queryParameter' ? input.showInTitle : !fixed,
         value: valueText(entry.type, entry.value),
         columns:
           input?.source === 'queryParameter' && !input.fixed ? input.fromColumns.join(', ') : '',
@@ -134,10 +140,24 @@ const columnList = (columns: string): string[] =>
 
 /** The query parameter inputs the form saves. */
 const queryParameterInputs = (form: PresetForm): PresetInput[] =>
-  form.queryParameters.map(({ name, type, fixed, value, columns }) =>
+  form.queryParameters.map(({ name, type, fixed, showInTitle, value, columns }) =>
     fixed
-      ? { name, source: 'queryParameter', type, fixed, value: parseValue(type, value).value }
-      : { name, source: 'queryParameter', type, fixed, fromColumns: columnList(columns) },
+      ? {
+          name,
+          source: 'queryParameter',
+          type,
+          fixed,
+          showInTitle,
+          value: parseValue(type, value).value,
+        }
+      : {
+          name,
+          source: 'queryParameter',
+          type,
+          fixed,
+          showInTitle,
+          fromColumns: columnList(columns),
+        },
   );
 
 /**
@@ -158,11 +178,23 @@ export function formFields(
     if (isParametersParam(p)) {
       inputs.push(...queryParameterInputs(form));
     } else if (mode && !mode.fixed) {
-      inputs.push({ name: p.name, source: 'param', fixed: false, fromColumns: mode.columns });
+      inputs.push({
+        name: p.name,
+        source: 'param',
+        fixed: false,
+        showInTitle: mode.showInTitle,
+        fromColumns: mode.columns,
+      });
     } else if (isUnset(value)) {
       continue;
     } else if (mode) {
-      inputs.push({ name: p.name, source: 'param', fixed: true, value });
+      inputs.push({
+        name: p.name,
+        source: 'param',
+        fixed: true,
+        showInTitle: mode.showInTitle,
+        value,
+      });
     } else {
       kept[p.name] = value;
     }

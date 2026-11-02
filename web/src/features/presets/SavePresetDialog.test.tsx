@@ -124,6 +124,50 @@ describe('SavePresetDialog Id column', () => {
   });
 });
 
+describe('SavePresetDialog params read from the row', () => {
+  const signIns: CatalogueAction = {
+    ...runKql,
+    key: 'dev-sign-ins',
+    name: 'Sign-ins',
+    params: [
+      {
+        name: 'users',
+        title: 'Users',
+        kind: 'string',
+        required: true,
+        many: true,
+        fromColumns: ['User'],
+      },
+      {
+        name: 'hosts',
+        title: 'Hosts',
+        kind: 'string',
+        required: false,
+        many: true,
+        fromColumns: ['Host'],
+      },
+    ],
+  };
+  const shown = (title: string) => screen.getByRole('switch', { name: `Show ${title} in title` });
+
+  it('shows a From row param in the title and a fixed one not, unless switched', async () => {
+    const { saved, dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    expect(shown('Users')).not.toBeChecked();
+    expect(shown('Hosts')).toBeChecked();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Users from the row' }));
+    expect(shown('Users')).toBeChecked();
+    await userEvent.click(shown('Hosts'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]?.inputs).toEqual([
+      { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
+      { name: 'hosts', source: 'param', fixed: false, showInTitle: false, fromColumns: ['Host'] },
+    ]);
+  });
+});
+
 describe('SavePresetDialog query parameters', () => {
   it("saves the tab's query parameters, one fixed and one read from the row", async () => {
     const { saved, dialog } = setup({
@@ -140,6 +184,13 @@ describe('SavePresetDialog query parameters', () => {
       within(parameter(1)).getByRole('textbox', { name: 'Columns' }),
       'UserPrincipalName, Upn',
     );
+    // From row is shown in the tab's title, fixed isn't, until switched.
+    const shown = (n: number) =>
+      within(parameter(n)).getByRole('switch', { name: 'Show in title' });
+    expect(shown(1)).toBeChecked();
+    expect(shown(2)).not.toBeChecked();
+    expect(shown(3)).not.toBeChecked();
+    await userEvent.click(shown(3));
 
     // The declare statement is the api's, before the query.
     await vi.waitFor(() =>
@@ -173,6 +224,7 @@ describe('SavePresetDialog query parameters', () => {
             source: 'queryParameter',
             type: 'string',
             fixed: false,
+            showInTitle: true,
             fromColumns: ['UserPrincipalName', 'Upn'],
           },
           {
@@ -180,6 +232,7 @@ describe('SavePresetDialog query parameters', () => {
             source: 'queryParameter',
             type: 'datetime',
             fixed: true,
+            showInTitle: false,
             value: '2026-10-01T00:00:00Z',
           },
           {
@@ -187,6 +240,7 @@ describe('SavePresetDialog query parameters', () => {
             source: 'queryParameter',
             type: 'dynamic',
             fixed: true,
+            showInTitle: true,
             value: ['TEXAS', 'FLORIDA'],
           },
         ],
@@ -226,6 +280,7 @@ describe('SavePresetDialog query parameters', () => {
         source: 'queryParameter',
         type: 'datetime',
         fixed: true,
+        showInTitle: false,
         value: '2026-10-01T00:00:00Z',
       },
     ]);

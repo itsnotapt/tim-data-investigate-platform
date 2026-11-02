@@ -8,6 +8,7 @@ const makeRun = (overrides: Partial<Run> = {}): Run => ({
   runId: RUN_ID,
   status: 'succeeded',
   action: { key: 'dev-sign-ins', name: 'Sign-ins' },
+  title: 'Sign-ins',
   params: { users: ['alice', 'bob'], limit: 10 },
   owner: 'jo@example.com',
   startedAt: '2026-10-20T10:00:00Z',

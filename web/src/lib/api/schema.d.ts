@@ -757,6 +757,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Showintitle
+             * @default false
+             */
+            showInTitle: boolean;
+            /**
              * Source
              * @constant
              */
@@ -777,6 +782,11 @@ export interface components {
             fixed: true;
             /** Name */
             name: string;
+            /**
+             * Showintitle
+             * @default false
+             */
+            showInTitle: boolean;
             /**
              * Source
              * @constant
@@ -806,6 +816,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Showintitle
+             * @default true
+             */
+            showInTitle: boolean;
+            /**
              * Source
              * @constant
              */
@@ -826,6 +841,11 @@ export interface components {
             fromColumns: string[];
             /** Name */
             name: string;
+            /**
+             * Showintitle
+             * @default true
+             */
+            showInTitle: boolean;
             /**
              * Source
              * @constant
@@ -1118,7 +1138,8 @@ export interface components {
          * Run
          * @description A run without its rows. Server-produced only, never a request.
          *
-         *     ``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``
+         *     ``title`` is the run title, from the action and the resolved params. ``params`` are the
+         *     resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``
          *     (seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the
          *     action's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a
          *     query action's run succeeds, never for a sink; ``error`` is a message safe to show.
@@ -1153,6 +1174,8 @@ export interface components {
             /** Startedat */
             startedAt: string;
             status: components["schemas"]["RunStatus"];
+            /** Title */
+            title: string;
         };
         /** RunAction */
         RunAction: {

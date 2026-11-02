@@ -9,10 +9,12 @@ import type {
   DisplayComponentState,
   ParamErrors,
   StoredError,
+  TitleInput,
 } from '../../lib/storage';
 
 export type {
   ActionParams,
+  TitleInput,
   DisplayComponentName as TabKind,
   DisplayComponentState as TabState,
   ParamErrors,

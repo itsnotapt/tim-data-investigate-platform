@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import type { CatalogueAction, Preset } from '../../lib/api';
 import { initialParams } from '../action-tab/paramValues';
 import { useInstanceStore } from '../instance';
-import { presetTabParams } from '../presets';
+import { presetTabParams, presetTitleInputs } from '../presets';
 import { useTabsStore, type TabsStore } from '../tabs';
 
 export interface NewQueryActions {
@@ -45,7 +45,12 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
         componentName: 'ActionResult',
         parentUuid: null,
         title: preset.name,
-        params: { action: action.key, params, presetId: preset.presetId },
+        params: {
+          action: action.key,
+          params,
+          presetId: preset.presetId,
+          titleInputs: presetTitleInputs(preset),
+        },
         ...(preset.idColumn ? { state: { idColumn: preset.idColumn } } : {}),
       });
       if (Object.keys(missing).length > 0)

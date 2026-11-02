@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
@@ -145,6 +146,7 @@ async def test_a_run_goes_end_to_end_over_http(storage: Storage, auth: AuthKit) 
         run = started.json()
         assert run["status"] == "succeeded"
         assert run["action"] == {"key": "acme.sign_ins", "name": "Sign-ins"}
+        assert run["title"] == "Sign-ins"
         assert run["owner"] == ALICE
         assert run["params"] == {}
         assert run["rowCount"] == 3
@@ -466,6 +468,76 @@ async def test_the_run_holds_the_resolved_params_and_runs_as_the_analyst(
         assert run["params"] == resolved
         [row] = (await env.rows(run["runId"])).json()["rows"]
         assert row["data"] == {**resolved, "analyst": ALICE}
+
+
+def host_timeline(title: str) -> Echo:
+    return Echo(
+        key="acme.host_timeline",
+        name="Host timeline",
+        pivot="row",
+        params=(
+            Param("host", "string", from_columns=("Host",)),
+            Param("users", "string", required=False, many=True),
+        ),
+        title=title,
+    )
+
+
+async def test_a_run_is_titled_by_its_actions_template(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth, [host_timeline("{{ action_name }} {{ host }}")]) as env:
+        run = (await env.start("acme.host_timeline", {"host": "BGIST-L"})).json()
+        assert run["title"] == "Host timeline BGIST-L"
+        polled = await env.client.get(f"/api/runs/{run['runId']}")
+        assert polled.json()["title"] == "Host timeline BGIST-L"
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        pytest.param("{{ users | join(', ') }}", id="a filter applied to null"),
+        pytest.param("{{ host.__class__ }}", id="python internals"),
+    ],
+)
+async def test_a_template_that_fails_titles_the_run_with_the_actions_name_and_is_logged(
+    storage: Storage, auth: AuthKit, caplog: pytest.LogCaptureFixture, title: str
+) -> None:
+    async with open_env(storage, auth, [host_timeline(title)]) as env:
+        with caplog.at_level(logging.ERROR, logger="tim_api"):
+            response = await env.start("acme.host_timeline", {"host": "BGIST-L"})
+        run = await env.wait(response.json()["runId"])
+        assert run["status"] == "succeeded"
+        assert run["title"] == "Host timeline"
+        [record] = [r for r in caplog.records if "title" in r.getMessage()]
+        assert "acme.host_timeline" in record.getMessage()
+        assert record.exc_info is not None
+
+
+async def test_a_template_that_renders_blank_titles_the_run_with_the_actions_name(
+    storage: Storage, auth: AuthKit, caplog: pytest.LogCaptureFixture
+) -> None:
+    action = host_timeline("{% if users %}{{ users | join(', ') }}{% endif %}  ")
+    async with open_env(storage, auth, [action]) as env:
+        with caplog.at_level(logging.ERROR):
+            run = (await env.start("acme.host_timeline", {"host": "BGIST-L"})).json()
+        assert run["title"] == "Host timeline"
+    assert caplog.records == []
+
+
+async def test_a_title_past_1000_characters_is_cut_off(storage: Storage, auth: AuthKit) -> None:
+    async with open_env(storage, auth, [host_timeline("{{ host }}")]) as env:
+        run = (await env.start("acme.host_timeline", {"host": "x" * 1001})).json()
+        assert run["title"] == "x" * 999 + "…"
+        fits = (await env.start("acme.host_timeline", {"host": "x" * 1000})).json()
+        assert fits["title"] == "x" * 1000
+
+
+async def test_a_nul_character_in_a_title_becomes_a_replacement_character(
+    storage: Storage, auth: AuthKit
+) -> None:
+    async with open_env(storage, auth, [host_timeline("{{ host }}")]) as env:
+        run = (await env.start("acme.host_timeline", {"host": "a\x00b"})).json()
+        polled = await env.client.get(f"/api/runs/{run['runId']}")
+        assert polled.json()["title"] == "a\ufffdb"
 
 
 async def test_details_come_after_duration_and_row_count_in_the_order_reported(

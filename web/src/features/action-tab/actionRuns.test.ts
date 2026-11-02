@@ -20,6 +20,7 @@ const makeRun = (overrides: Partial<Run> = {}): Run => ({
   runId: RUN_ID,
   status: 'running',
   action: { key: 'dev-sign-ins', name: 'Sign-ins' },
+  title: 'Sign-ins alice',
   params: { users: ['alice'] },
   owner: 'jo@example.com',
   startedAt: '2026-10-20T10:00:00Z',
@@ -380,6 +381,7 @@ describe('runActionTab', () => {
       error: { message: 'Failed' },
       paramErrors: { users: 'Required' },
       linkedRow: 1,
+      runTitle: 'Sign-ins bob',
     });
     let release = () => {};
     const started = new Promise<void>((resolve) => (release = resolve));
@@ -396,17 +398,19 @@ describe('runActionTab', () => {
       paramErrors: null,
       run: null,
       linkedRow: null,
+      runTitle: 'Sign-ins bob',
     });
     release();
     await running;
   });
 
-  it('keeps the params of the latest run and when the stored results’ run started', async () => {
+  it('keeps the params and title of the latest run and when the stored results’ run started', async () => {
     server.use(http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(0))));
     await runActionTab('a', { store, sleep });
     store.getState().updateParams('a', { params: { users: ['bob'] } });
     expect(tab().state).toMatchObject({
       runParams: { users: ['alice'] },
+      runTitle: 'Sign-ins alice',
       resultsStartedAt: '2026-10-20T10:00:00Z',
     });
   });

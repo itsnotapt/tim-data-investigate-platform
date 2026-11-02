@@ -29,6 +29,8 @@ export interface DisplayComponentState {
   paramErrors?: ParamErrors | null;
   /** The plain params the latest run started with. */
   runParams?: Record<string, unknown> | null;
+  /** The title of the latest run, kept while the next one starts. */
+  runTitle?: string | null;
   /** The run whose rows are in `row_results`. */
   resultsRunId?: string | null;
   /** The columns of that run. */
@@ -68,12 +70,23 @@ export interface TabColumnView {
   baseline: GridState;
 }
 
+/** An input of a preset whose value a preset tab shows in its title: a param or a query parameter. */
+export interface TitleInput {
+  source: 'param' | 'queryParameter';
+  name: string;
+}
+
 /** Action component params: the action's key and plain param values, never re-resolved. */
 export interface ActionParams {
   action: string;
   params: Record<string, unknown>;
   /** The preset the tab was opened from or last saved as, which Save… offers to update. */
   presetId?: string;
+  /**
+   * A preset tab's inputs shown in its title, in order, as the preset had them when the tab opened
+   * from it or was saved as it.
+   */
+  titleInputs?: TitleInput[];
 }
 
 interface DisplayComponentBase {

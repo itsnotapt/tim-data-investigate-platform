@@ -621,6 +621,7 @@ class RunKql(TakesQueryParameters):
             key=key,
             name=name,
             menu=menu,
+            title=file_params.title,
             pivot=file_params.pivot,
             connection=params["connection"],
             database=params["database"],

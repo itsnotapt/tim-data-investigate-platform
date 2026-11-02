@@ -288,7 +288,7 @@ One more piece lives beside it.
   - It is 56 px wide, and 700 px while hovered.
   - It reads the tab store, and takes the active node from the route with `useMatch('/view/:uuid')`.
   - Clicking a node marks the tab visited, and navigates to `/view/:uuid`.
-- Node labels: `[draft]` and `[new]` prefixes.
+- Node labels: `[draft]` and `[new]` prefixes, then the tab's title from `tabTitle`, cut to two lines with the full title in a tooltip.
 - Node icons: a spinner, an error, a ringed 0, a row-count badge ("9+" above nine) or a faded folder. The ringed 0 is an action tab whose run succeeded with no rows (`nodeStatus.ts`).
 - Header: the New menu and "Remove selected".
 - `useTreeSelection(activeUuid)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
@@ -298,7 +298,7 @@ One more piece lives beside it.
 
 - Actions and presets submenu: one tree of folders (`buildNewMenuTree`), where each folder shows its item count.
   - An action makes a root `ActionResult` tab (`createFromAction`), nested by its `menuPath`. The title is the action's name and the params are the defaults. It is not run.
-  - A preset makes a root `ActionResult` tab (`createFromPreset`), nested by its `menuPath`. The title is the preset's name, and the params keep `presetId`. It is not run.
+  - A preset makes a root `ActionResult` tab (`createFromPreset`), nested by its `menuPath`. The title is the preset's name, and the params keep `presetId` and `titleInputs`, the inputs shown in the title (`presetTitleInputs`). It is not run.
   - `presetTabParams` (`features/presets`) builds the params: the action's defaults, then the preset's `params`, then its fixed values. Each From row input still unset goes in `state.pivotMissing`; the query parameters become the `parameters` value, with From row ones left needed.
   - A filter shows All (with the actions), Mine, Others' or Hidden presets (`NewMenuFilter`). "Mine" shows the presets whose `owned` is true; the server sets it for the caller.
   - `entryCaption` gives the line under a preset: "Bookmark · owner" when every input is fixed, or "<action> · pivot on <columns> · asks for <params>".
@@ -309,6 +309,7 @@ One more piece lives beside it.
     - Its fields and its preview show an unset value as a placeholder for the param's type, e.g. `<number>`.
     - The preview lists every param of the action. With query parameters it shows the declare statement (`useDeclareStatement`) before the query, and a line per query parameter. A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
     - After saving on an action tab of Run KQL, the tab takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
+    - A Show in title switch for each input, on for From row and off for fixed; toggling Fixed and From row resets it to that.
     - A Query parameters section adds a parameter (its name suggested from names in the query), picks its type, and makes it Fixed with a value or From row with columns.
 - Search: case-insensitive. For actions it matches name, folders and key; for presets, name, folders, action, owner and From columns. It expands the groups.
 - The Welcome page's "Get Started" button is a `NewQueryMenu`.
@@ -384,6 +385,7 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A pill shows the server's reason for a refused param.
   - An Edited chip resets the params to the latest run's, and clears the marks.
 - `RunPanel.tsx`: the Run tab: status, start, duration, run id, the tab's error, details, columns and params. `runText.ts` words the status and durations.
+- `tabTitle.ts`: `tabTitle` is the title a tab shows, in the tree and the app bar (one line, full title in a tooltip). Until the tab runs it is the stored title. A tab with `params.titleInputs` shows its title, then its latest run's values for those inputs, a list as up to two values joined by ", " then " +N", unset ones left out. Any other tab shows `state.runTitle`, its latest run's `title`.
 - `cloneActionTab.ts`: `cloneActionTab` adds the sibling "Copy of <title>" with the same params.
 - `actionRuns.ts`:
   - `runActionTab` starts a run, polls it (every second for 10 s, then every 3 s) and loads its rows.

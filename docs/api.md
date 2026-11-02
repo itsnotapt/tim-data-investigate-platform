@@ -254,6 +254,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 | `runId` | uuid | |
 | `status` | `running` \| `succeeded` \| `error` \| `timedOut` \| `cancelled` | A run waiting for a free slot is `running`. |
 | `action` | object | `{key, name}` of the action. |
+| `title` | string | The run's title: the action's `title` template rendered with the params, or the action's name. Always set. |
 | `params` | object | The params after validation, with defaults filled in. |
 | `owner` | string | The token identity of the analyst who started it. |
 | `startedAt` | datetime | |
@@ -464,6 +465,7 @@ Returns the preset as an action file ([actions.md](actions.md#action-files)): th
   - `key` is a slug of the preset's name, and `menu` is its `menuPath` joined with `/`.
   - `pivot` is `rows` when the preset has From row query parameters and every one of them has columns, as a preset is a pivot. Otherwise it is `none`.
   - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from the preset's `idColumn`. For Run SQL, `sql` is the query as it is.
+  - `title` is `{{ action_name }}` then each query parameter with `showInTitle`, or none when no query parameter shows.
   - Each query parameter is a param of the file, in the preset's order. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`. In a `snowflake_query`, the order sets the position each is bound to, `:1` the first.
 
 ### PUT, DELETE /api/presets/{presetId}/hidden
@@ -503,6 +505,7 @@ An input is a param of the preset's action that declares `from_columns` (`source
 | `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
 | `value` | JSON | Fixed only: the value saved with the preset. |
 | `fromColumns` | string[] | From row only: the columns to read, in order. The input takes the first one the rows have. With none, the form asks for the value. |
+| `showInTitle` | boolean | Whether its value follows the preset's name in the title of a tab opened from the preset. Default `false` for a fixed input, `true` for a From row input. |
 
 ## Column views
 

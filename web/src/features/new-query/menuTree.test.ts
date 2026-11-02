@@ -44,7 +44,7 @@ function preset(over: Partial<Preset>): Preset {
 const mine = preset({
   name: 'Alice bookmark',
   menuPath: ['Identity'],
-  inputs: [{ name: 'users', source: 'param', fixed: true, value: ['alice'] }],
+  inputs: [{ name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['alice'] }],
 });
 const theirs = preset({
   name: 'Bob pivot',
@@ -52,7 +52,9 @@ const theirs = preset({
   owned: false,
   visibility: 'shared',
   menuPath: ['Identity', 'Daily'],
-  inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: ['Account'] }],
+  inputs: [
+    { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Account'] },
+  ],
 });
 const hidden = preset({
   name: 'Carol hidden',
@@ -149,7 +151,9 @@ describe('entryCaption', () => {
 
   it('says which values a preset asks for when its From-row inputs have no columns', () => {
     const asks = preset({
-      inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: [] }],
+      inputs: [
+        { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: [] },
+      ],
     });
     expect(entryCaption({ kind: 'preset', preset: asks, action: signIns })).toBe(
       'Sign-ins · asks for Users',

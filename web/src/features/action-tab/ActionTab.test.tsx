@@ -109,6 +109,7 @@ const succeeded: Run = {
   runId: 'r1',
   status: 'succeeded',
   action: { key: 'dev-sign-ins', name: 'Sign-ins' },
+  title: 'Sign-ins',
   params: {},
   owner: 'jo@example.com',
   startedAt: '2026-10-20T10:00:00Z',
@@ -198,6 +199,14 @@ describe('ActionTab', () => {
     expect(appBar.getByRole('heading', { name: 'Sign-ins for alice' })).toBeInTheDocument();
     for (const name of ['Save…', 'Clone', 'Copy link'])
       expect(appBar.getByRole('button', { name })).toBeInTheDocument();
+  });
+
+  it('titles the app bar by the latest run, in full in a tooltip', async () => {
+    setup({ runTitle: 'Sign-ins alice, bob' });
+    const appBar = within(screen.getByRole('banner'));
+    const heading = appBar.getByRole('heading', { name: 'Sign-ins alice, bob' });
+    await userEvent.hover(heading);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Sign-ins alice, bob');
   });
 
   it('leaves the app bar to the tab on show', () => {
@@ -666,6 +675,7 @@ describe('ActionTab with a query param', () => {
     expect(await screen.findByRole('button', { name: 'Since: 7' })).toBeInTheDocument();
     expect(useTabsStore.getState().tabs[uuid]?.params).toMatchObject({
       presetId: 'p-1',
+      titleInputs: [{ source: 'queryParameter', name: 'Upn' }],
       params: {
         parameters: [
           { name: 'Since', type: 'long', value: 7 },

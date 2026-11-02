@@ -50,12 +50,30 @@ STALE_SWEEP_SECONDS = 30.0
 CANCEL_GRACE_SECONDS = 10.0
 BATCH_ROWS = 1000
 BATCH_BYTES = 8 * 1024 * 1024
+# A safety limit on a run title's size, not a display limit.
+MAX_TITLE_CHARACTERS = 1000
 
 Clock = Callable[[], datetime]
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _run_title(action: Action | Sink, params: Mapping[str, Any]) -> str:
+    """The title of a run of ``action`` with ``params``: ``action.title_for(params)``, or the
+    action's name when that raises, which is logged, or is blank. Past
+    ``MAX_TITLE_CHARACTERS`` it is cut off with "…"."""
+    try:
+        title = action.title_for(params)
+    except Exception:
+        logger.exception("The title of a run of %s failed to render", action.key)
+        title = action.name
+    if not title.strip():
+        title = action.name
+    if len(title) > MAX_TITLE_CHARACTERS:
+        title = title[: MAX_TITLE_CHARACTERS - 1] + "…"
+    return str(sanitise_nul(title))
 
 
 @dataclass(frozen=True)
@@ -385,6 +403,7 @@ class Runner:
             run_id=uuid4(),
             status=RunStatus.RUNNING,
             action=RunAction(key=action.key, name=action.name),
+            title=_run_title(action, params),
             params=sanitise_nul(to_json_value(params)),
             owner=owner,
             started_at=self.clock(),

@@ -9,7 +9,8 @@ import {
 import { isApiError } from '../../lib/api/errors';
 import { initialParams, paramTitles, stillMissing } from '../action-tab/paramValues';
 import { pills } from '../action-tab/queryParameters';
-import { useTabsStore, type TabsStore } from '../tabs';
+import { presetTitleInputs } from '../presets';
+import { useTabsStore, type TabsStore, type TitleInput } from '../tabs';
 
 interface ChildTabInput {
   /** The tab the rows are in; the child tab opens under it. */
@@ -47,6 +48,8 @@ interface ChildTab {
   missing: Record<string, string | null>;
   /** The preset it was opened from. */
   presetId?: string;
+  /** The preset's inputs shown in the tab's title. */
+  titleInputs?: TitleInput[];
   /** The preset's Id column, over the action's. */
   idColumn?: string | null;
 }
@@ -57,13 +60,18 @@ interface ChildTab {
  */
 function openChildTab(
   { parentUuid, notify, goTo, run, store = useTabsStore }: ChildTabInput,
-  { action, title, params, missing, presetId, idColumn }: ChildTab,
+  { action, title, params, missing, presetId, titleInputs, idColumn }: ChildTab,
 ): string {
   const uuid = store.getState().createTab({
     componentName: 'ActionResult',
     parentUuid,
     title,
-    params: { action: action.key, params, ...(presetId ? { presetId } : {}) },
+    params: {
+      action: action.key,
+      params,
+      ...(presetId ? { presetId } : {}),
+      ...(titleInputs ? { titleInputs } : {}),
+    },
     ...(idColumn ? { state: { idColumn } } : {}),
   });
   const needed = Object.keys(missing);
@@ -147,6 +155,7 @@ export function pivotIntoPreset({
     title: preset.name,
     ...resolved,
     presetId: preset.presetId,
+    titleInputs: presetTitleInputs(preset),
     idColumn: preset.idColumn,
   });
 }

@@ -72,6 +72,7 @@ The fields every action file takes:
 | `name` | yes | What analysts see. |
 | `menu` | no | A `/`-separated folder path; none puts the action at the top level. |
 | `description` | no | A longer description. |
+| `title` | no | A Jinja template of the titles of the action's runs, below. Query actions only; a sink file does not take it. |
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
 | `id` | no | The column whose value is a row's `id`: the action's Id column. |
@@ -89,6 +90,20 @@ Annotations are kept by `id`, so a row needs one to be annotated. The browser co
 - Without `id`, the results start with no Id column.
 - A preset of Run KQL or Run SQL copied as an action file gets the preset's `idColumn` as its `id`.
 - The analyst can switch the Id column on any results without rerunning ([architecture.md](architecture.md#the-id-column)).
+
+### Run titles
+
+A tab that has run shows the title of its latest run: its **Run title**.
+
+- Without `title`, the title is the action's `name`.
+- With it, the server renders the template when it creates the run, in Jinja's sandbox with autoescape off ([ADR-0027](adr/0027-run-titles-from-jinja-templates.md)).
+  - It can use each of the run's params by name, with defaults applied and a `many` param as a list, and `action_name`, the action's `name`.
+  - `title: "{{ action_name }} {{ host }}"` gives "Host timeline BGIST-L".
+  - Jinja's filters format values, such as `{{ users | join(', ') }}` or `{{ limit | default(10) }}`.
+- `tim-api check` rejects a template with a syntax error and one that names something that is neither a param nor `action_name`. A param named `action_name` is rejected too.
+- A template that fails to render when the run starts does not stop the run: it is titled with the action's name, and the error is logged. A result that is blank also gives the name.
+- A title past 1,000 characters is cut to 1,000, ending in "…".
+- A title is display text. It is never sent to a connection.
 
 ### Params
 
@@ -429,7 +444,7 @@ docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connect
 
 ## Writing action types
 
-An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `params`, `pivot`, `columns` and `id`. [`storm_summary.py`](../examples/deployment/src/example_provider/storm_summary.py) is the example.
+An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `title`, `params`, `pivot`, `columns` and `id`. [`storm_summary.py`](../examples/deployment/src/example_provider/storm_summary.py) is the example.
 
 - **`Param`** declares a param as data, with the fields of [Params](#params). `Column` declares a result column the same way, with the fields of [Columns](#columns). An invalid declaration fails when it is constructed.
 - **`run(params, ctx)`** is synchronous and yields rows as mappings.
@@ -437,6 +452,7 @@ An action type is a subclass of `tim_actions.Action`. Its fields are its configu
   - `ctx` is the `RunContext`: `analyst`, `deadline`, `hook(name)`, `detail(key, value)` and `declare_columns(columns)`.
   - Raise `RunError` with a message safe to show the analyst. Any other exception ends the run with a generic message.
 - **`connections()`** returns the fixed connections, each name with the connection type it must be.
+- **`title_for(params)`** returns the title of a run with the resolved `params`. The default renders `title` as in [Run titles](#run-titles), or gives the name. Override it to build a title in Python; the server falls back to the name when it raises.
 
 ```python
 class StormSummary(Action):
@@ -538,14 +554,15 @@ def resolve(self, context: PivotContext) -> Resolved:
 
 ### Presets as action files
 
-An action type can say how a preset of its actions becomes an action file by overriding `Action.preset_file(*, key, name, menu, params, query_parameters)`.
+An action type can say how a preset of its actions becomes an action file by overriding `Action.preset_file(*, key, name, menu, params, query_parameters, id_column)`.
 
 - It returns an `ActionDocument`, or `None`, the default, when a preset of the action has no action file.
   - `RunKql.preset_file` returns `None` for a preset that lacks a connection, database or query.
   - `RunSql.preset_file` returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter.
   - The document of `RunSql.preset_file` is a `snowflake_query`, with a param per query parameter in the preset's order.
   - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
-- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries, in order.
+- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns, show_in_title)` entries, in order. `id_column` is the preset's Id column, which becomes the document's `id`.
+- The document's `title` is `{{ action_name }}` then each query parameter with `show_in_title`, as `{{ name }}`, or `{{ name | join(', ') }}` for a many-valued one. With none shown it has no `title`. `preset_file_params` returns it in `PresetFileParams.title`.
 - `tim_actions.query_parameters` holds what Run KQL and Run SQL share. `TakesQueryParameters` is their base class: it checks `parameters` against its `parameter_types`, each query parameter type with the param kind of its value. `checked_parameters` does the check, and `preset_file_params` turns a preset's query parameters into the file's params.
   - `declared_query_parameters(declared)` checks the names and types of a tab's query parameters, without values, with `check_declared`. Its problems are keyed `params.parameters`.
   - `declare_statement(query_parameters)` returns the declare statement, with no newline. The default is `""`, for an action that declares nothing. `RunKql` returns `declare query_parameters(name:type, ...);`, and its run and its `preset_file` put it on the line before the query.

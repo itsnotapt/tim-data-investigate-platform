@@ -53,6 +53,7 @@ describe('presetTabParams', () => {
           source: 'queryParameter',
           type: 'string',
           fixed: false,
+          showInTitle: true,
           fromColumns: ['UserPrincipalName'],
         },
         {
@@ -60,6 +61,7 @@ describe('presetTabParams', () => {
           source: 'queryParameter',
           type: 'datetime',
           fixed: true,
+          showInTitle: false,
           value: '2026-10-01T00:00:00Z',
         },
       ]),
