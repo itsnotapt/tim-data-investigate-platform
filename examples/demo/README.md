@@ -132,7 +132,7 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 |---|---|---|---|
 | Alerts | Alerts | Nothing; it is a starting point | `since` 2018-08-01 to `until` 2018-09-01 |
 | Process creations | Endpoint | `Host`, `Timestamp` | ±1 hour |
-| By user | Endpoint | `User`, `Timestamp` | ±1 hour |
+| Activity by user | Endpoint | `User`, `Timestamp` | ±1 hour |
 | Parent process | Endpoint | `Host`, `ParentProcessGuid`, `Timestamp` | ±1 day |
 | Child processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Process activity | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
@@ -156,7 +156,7 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
   - the files it created
   - its registry changes
   - its file streams
-- **By user:** the user's process creations and network connections.
+- **Activity by user:** the user's process creations and network connections.
 - **Host timeline:** one row per Sysmon event on the host, and one per alert on it. An alert's `EventType` is `Alert`, and its `Summary` is `Alert created [<Product>]: <Alert>`.
 - **Go to pivot row:** Host timeline offers it, because it declares `find_pivot_rows: true`. An alert's row has the alert's `EventId`, so it is found from the Alerts tab.
 - **Columns:** the Endpoint actions and Host timeline show every field of the events, with `EventType` and `Summary` beside `Timestamp` and `Host`. Their `columns:` declare only the first columns, because TIM shows the declared columns first.

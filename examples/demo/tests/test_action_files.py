@@ -7,6 +7,8 @@ from tim_actions.testing import load_actions
 
 CONFIG = Path(__file__).parents[1] / "config"
 FUNCTIONS = Path(__file__).parents[1] / "kusto" / "functions"
+SHA256 = "7A1367EFBA05B09E317909B040C3CDA972544212B4F9DB639237492351A3A405"
+MD5 = "95000560239032BC68B4C2FDFCDEF913"
 # The functions that parse the Sysmon events, such as ProcessCreations.
 ENDPOINT_FUNCTIONS = {
     match[1]
@@ -36,7 +38,7 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         "file": r"C:\Users\Public\update.exe",
         "user": "alice",
         "ip": "203.0.113.7",
-        "hash": "9f86d081",
+        "hash": SHA256,
     }
     titles = {
         key: action.title_for({p.name: row.get(p.name) for p in action.params}, [])
@@ -44,17 +46,23 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         if action.pivot != "none"
     }
     assert titles == {
-        "demo.by-user": "What alice did",
-        "demo.child-processes": "Processes {a1} started on BGIST-L",
-        "demo.connections-to-ip": "Connections to 203.0.113.7",
+        "demo.activity-by-user": "Activity by user alice",
+        "demo.child-processes": "Child processes of {a1} on BGIST-L",
+        "demo.connections-to-ip": "Connections to IP 203.0.113.7",
         "demo.file-executed-after-creation": r"C:\Users\Public\update.exe executed on BGIST-L after creation",
-        "demo.hash-seen-anywhere": "Events holding 9f86d081",
-        "demo.host-logs": "BGIST-L's other logs",
-        "demo.host-timeline": "BGIST-L's timeline",
+        "demo.hash-seen-anywhere": f"Events related to SHA256 {SHA256}",
+        "demo.host-logs": "Other logs for host BGIST-L",
+        "demo.host-timeline": "Host timeline for BGIST-L",
         "demo.parent-process": "Parent process {a0} on BGIST-L",
-        "demo.process-activity": "What {a1} did on BGIST-L",
-        "demo.process-creations": "Processes started on BGIST-L",
+        "demo.process-activity": "Process activity for {a1} on BGIST-L",
+        "demo.process-creations": "Process creations on BGIST-L",
     }
+
+
+def test_a_hash_titles_its_run_with_its_kind(actions: dict[str, Action]) -> None:
+    hash_seen_anywhere = actions["demo.hash-seen-anywhere"]
+
+    assert hash_seen_anywhere.title_for({"hash": MD5}) == f"Events related to MD5 {MD5}"
 
 
 def over_endpoint_functions(actions: dict[str, Action]) -> dict[str, KqlQuery]:

@@ -1,15 +1,15 @@
 # What a user did on every host around a time: the processes they started and the connections
 # those made.
 type: kql_query
-key: demo.by-user
-name: By user
-title: "What {{ user }} did"
+key: demo.activity-by-user
+name: Activity by user
+title: "{{ action_name }} {{ user }}"
 menu: Endpoint
 description: The processes a user started and the network connections they made, on every host, in the window around a time
 pivot: row
 connection: security
 database: Security
-kql_file: by-user.kql
+kql_file: activity-by-user.kql
 params:
   - name: user
     kind: string

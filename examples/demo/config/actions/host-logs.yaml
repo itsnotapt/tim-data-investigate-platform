@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.host-logs
 name: Host's other logs
-title: "{{ host }}'s other logs"
+title: "Other logs for host {{ host }}"
 menu: Host
 description: The raw text of the events the host logged nearest a time, from every sourcetype
 pivot: row

@@ -81,7 +81,7 @@ def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoin
     endpoint = {key: action for key, action in actions.items() if action.menu == "Endpoint"}
 
     assert sorted(action.name for action in endpoint.values()) == [
-        "By user",
+        "Activity by user",
         "Child processes",
         "Connections to IP",
         "File executed after creation",
@@ -369,7 +369,7 @@ def test_a_row_of_other_activity_leaves_the_file_to_fill_in(actions: dict[str, A
 def test_a_process_pivots_to_what_its_user_did_on_every_host_in_the_hour_around_it(
     actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
-    by_user = actions["demo.by-user"]
+    by_user = actions["demo.activity-by-user"]
     resolved = resolve_pivot(by_user, [PROCESS])
     assert (resolved.params, resolved.missing) == (
         {"user": "AzureAD\\FyodorMalteskesko", "around": "2018-08-20T10:01:41Z"},

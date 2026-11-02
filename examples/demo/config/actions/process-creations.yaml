@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.process-creations
 name: Process creations
-title: "Processes started on {{ host }}"
+title: "{{ action_name }} on {{ host }}"
 menu: Endpoint
 description: The processes that started on a host in the window around a time
 pivot: row
