@@ -147,7 +147,7 @@ async def test_the_action_files_title_renders_the_presets_title(
     [loaded] = load_action_files(tmp_path, {"kql_query": KqlQuery}).actions
     assert isinstance(loaded.action, KqlQuery)
 
-    title = loaded.action.title_for({"Upn": "alice@contoso.com", "Hosts": ["a"], "Limit": 5})
+    title = loaded.action.title_for({"Upn": "alice@contoso.com", "Hosts": ["a"], "Limit": 5}, [])
     assert title == "Sign-ins by user alice@contoso.com a"
 
 

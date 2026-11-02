@@ -178,7 +178,7 @@ From the rows, an analyst pivots:
 
 - **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
-  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
+  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It keeps `pivotRows` too. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
   - **Pivot rows.** Both pivots store the `id` of each pivot row on the child tab's state as `pivotRowIds` ([Go to pivot row](#go-to-pivot-row)).
 
 ### Share links
@@ -254,6 +254,12 @@ A From row query parameter is left unset too. A From row input that is still uns
 - A preset tab, opened from a preset, pivoted into one or saved as one, has `params.titleInputs`, its inputs that show in the title. After a run it shows the preset's name, then its latest run's values for those inputs, separated by spaces.
   - A list shows its first two values joined by ", ", then " +N" for the rest.
   - An unset or empty value is left out.
+- An action's template can name the rows the tab was pivoted from as `row` and `cols`.
+  - An action or preset pivot keeps the selected rows in the tab's `params.pivotRows`, trimmed to the action's `titleColumns`, or none when it has none.
+  - Each run sends them as `pivotRows`, a plain rerun included.
+  - Clone copies them.
+  - Editing any param drops them.
+  - The server never stores them.
 - The tree clamps a title to two lines and the app bar to one. Both show the full title in a tooltip.
 
 The action tab has a header in the app bar, a pills bar and inner tabs.
@@ -1021,7 +1027,7 @@ Runs of an action go through `/api/runs` (`runs/`). They follow [ADR-0012](adr/0
 
 A run:
 
-1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` gets the run's title from the action's `title_for`. The title is the action's name when `title_for` raises, which is logged, or returns a blank. The title is cut to 1,000 characters. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`. It then starts a tracked asyncio task.
+1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` gets the run's title from the action's `title_for`, given the params and the request's `pivotRows` (trimmed to the action's title columns). The title is the action's name when `title_for` raises, which is logged, or returns a blank. The title is cut to 1,000 characters. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`. It then starts a tracked asyncio task.
 2. **Execute.** The task waits for a concurrency slot, still `running`. Then it runs the action's synchronous `run(params, ctx)` in its own daemon thread.
    - `ctx` gives `analyst`, `deadline` (when the timeout ends), `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
    - `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value. It gives one hook per connection per run.

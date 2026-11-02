@@ -39,6 +39,8 @@ export interface PivotIntoPresetInput extends ChildTabInput {
   action: CatalogueAction;
   /** The preset's params resolved from the rows (`presetPivot`). */
   resolved: Pick<ChildTab, 'params' | 'missing'>;
+  /** The targets' values by column, as in `PivotIntoActionInput`. */
+  rows: readonly Record<string, unknown>[];
 }
 
 /** A child tab of an action to open: its title, params and the params it waits for. */
@@ -54,6 +56,8 @@ interface ChildTab {
   titleInputs?: TitleInput[];
   /** The preset's Id column, over the action's. */
   idColumn?: string | null;
+  /** The rows pivoted from, trimmed to the columns the action's title names. */
+  pivotRows?: Record<string, unknown>[];
 }
 
 /**
@@ -62,7 +66,7 @@ interface ChildTab {
  */
 function openChildTab(
   { parentUuid, notify, goTo, run, pivotRowIds, store = useTabsStore }: ChildTabInput,
-  { action, title, params, missing, presetId, titleInputs, idColumn }: ChildTab,
+  { action, title, params, missing, presetId, titleInputs, idColumn, pivotRows }: ChildTab,
 ): string {
   const uuid = store.getState().createTab({
     componentName: 'ActionResult',
@@ -73,6 +77,7 @@ function openChildTab(
       params,
       ...(presetId ? { presetId } : {}),
       ...(titleInputs ? { titleInputs } : {}),
+      ...(pivotRows ? { pivotRows } : {}),
     },
     state: { pivotRowIds: [...pivotRowIds], ...(idColumn ? { idColumn } : {}) },
   });
@@ -89,6 +94,18 @@ function openChildTab(
     notify({ message: `Running ${title}`, action: goToChild });
   }
   return uuid;
+}
+
+/** `rows` trimmed to the columns `action`'s title names, or none when it names none. */
+function pivotRowsFor(
+  action: CatalogueAction,
+  rows: readonly Record<string, unknown>[],
+): Record<string, unknown>[] | undefined {
+  const columns = action.titleColumns;
+  if (!columns?.length) return undefined;
+  return rows.map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([column]) => columns.includes(column))),
+  );
 }
 
 /** The columns a pivot into `action` reads: its pivot columns and each param's `fromColumns`. */
@@ -138,7 +155,13 @@ export async function pivotIntoAction({
       (name) => [name, resolved.reasons[name] ?? null],
     ),
   );
-  return openChildTab(child, { action, title: action.name, params, missing });
+  return openChildTab(child, {
+    action,
+    title: action.name,
+    params,
+    missing,
+    pivotRows: pivotRowsFor(action, rows),
+  });
 }
 
 /**
@@ -150,6 +173,7 @@ export function pivotIntoPreset({
   preset,
   action,
   resolved,
+  rows,
   ...child
 }: PivotIntoPresetInput): string {
   return openChildTab(child, {
@@ -159,5 +183,6 @@ export function pivotIntoPreset({
     presetId: preset.presetId,
     titleInputs: presetTitleInputs(preset),
     idColumn: preset.idColumn,
+    pivotRows: pivotRowsFor(action, rows),
   });
 }

@@ -92,6 +92,11 @@ export interface ActionParams {
    * from it or was saved as it.
    */
   titleInputs?: TitleInput[];
+  /**
+   * The rows the tab was pivoted from, each with only the columns its action's title names, for
+   * its runs' titles. Editing a param drops them.
+   */
+  pivotRows?: Record<string, unknown>[];
 }
 
 interface DisplayComponentBase {

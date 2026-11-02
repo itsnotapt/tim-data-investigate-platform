@@ -51,6 +51,11 @@ def _distinct(values: Sequence[Any]) -> list[Any]:
     return seen
 
 
+def column_values(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> list[Any]:
+    """The distinct first non-empty values of ``columns`` in ``rows``, in first-seen order."""
+    return _distinct([value for row in rows if (value := first_value(row, columns)) is not None])
+
+
 def resolve_from_columns(params: Sequence[Param], context: PivotContext) -> Resolved:
     """The default ``resolve()``: each param with ``from_columns`` takes the first non-empty of
     them in each row. A ``many`` param takes the distinct values; a single-valued one takes the
@@ -58,13 +63,7 @@ def resolve_from_columns(params: Sequence[Param], context: PivotContext) -> Reso
     value or a default is missing."""
     resolved = Resolved()
     for param in params:
-        values = _distinct(
-            [
-                value
-                for row in context.rows
-                if (value := first_value(row, param.from_columns)) is not None
-            ]
-        )
+        values = column_values(context.rows, param.from_columns)
         if values and param.many:
             resolved.params[param.name] = values
         elif len(values) == 1:

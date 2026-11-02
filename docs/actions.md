@@ -101,7 +101,16 @@ A tab that has run shows the title of its latest run: its **Run title**.
   - It can use each of the run's params by name, with defaults applied and a `many` param as a list, and `action_name`, the action's `name`.
   - `title: "{{ action_name }} {{ host }}"` gives "Host timeline BGIST-L".
   - Jinja's filters format values, such as `{{ users | join(', ') }}` or `{{ limit | default(10) }}`.
-- `tim-api check` rejects a template with a syntax error and one that names something that is neither a param nor `action_name`. A param named `action_name` is rejected too.
+  - `basename` is the last segment of a path split on `\` and `/`; `map('basename')` applies it to a list.
+- It can also use the rows the run was pivoted from:
+  - `row.X` is the value of column `X` the selected rows agree on, as a single-valued param with `from_columns: [X]` takes it.
+  - `cols.X` is the values of column `X` in the selected rows, as a `many` param with `from_columns: [X]` takes them: distinct, in first-seen order, with `None` and `""` skipped. One row gives a one-element list.
+  - Either is undefined when the rows disagree (`row` only), when no selected row has a value, or when the run has no pivot rows. A bare use then fails and the run is titled with the action's name. `{{ row.Image | default(process) }}` gives a fallback.
+  - `title: "{{ action_name }} {{ row.Image | basename }}"` gives "Child processes cmd.exe".
+  - `row` and `cols` hold only the columns, so a column named like `values` or `items` is that column: `row.values`.
+- The columns a template names as `row.X`, `row['X']`, `cols.X` or `cols['X']` with a literal name are the action's title columns. Whether a column exists is not checked.
+- `tim-api check` rejects a template with a syntax error and one that names something that is neither a param, `action_name`, `row` nor `cols`. It also rejects any other use of `row` or `cols` (a dynamic subscript, iterating, passing it whole). A param named `action_name`, `row` or `cols` is rejected too.
+- A sink's title may name only `action_name`, not params, `row` or `cols`.
 - A template that fails to render when the run starts does not stop the run: it is titled with the action's name, and the error is logged. A result that is blank also gives the name.
 - A title past 1,000 characters is cut to 1,000, ending in "…".
 - A title is display text. It is never sent to a connection.
@@ -453,7 +462,7 @@ An action type is a subclass of `tim_actions.Action`. Its fields are its configu
   - `ctx` is the `RunContext`: `analyst`, `deadline`, `hook(name)`, `detail(key, value)` and `declare_columns(columns)`.
   - Raise `RunError` with a message safe to show the analyst. Any other exception ends the run with a generic message.
 - **`connections()`** returns the fixed connections, each name with the connection type it must be.
-- **`title_for(params)`** returns the title of a run with the resolved `params`. The default renders `title` as in [Run titles](#run-titles), or gives the name. Override it to build a title in Python; the server falls back to the name when it raises.
+- **`title_for(params, pivot_rows)`** returns the title of a run with the resolved `params`, pivoted from `pivot_rows` (the title columns of each selected row; none for a run that wasn't pivoted). The default renders `title` as in [Run titles](#run-titles), or gives the name. Override it to build a title in Python; the server falls back to the name when it raises.
 
 ```python
 class StormSummary(Action):

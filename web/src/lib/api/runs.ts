@@ -13,18 +13,28 @@ const BASE = '/api/runs';
 const item = (runId: string) => `${BASE}/${encodeURIComponent(runId)}`;
 
 /**
- * Starts a run of `action` with `params`, and of a sink with the `input` it writes; the run may
- * already have ended.
+ * Starts a run of `action` with `params`, of a query action titled from the `pivotRows` it was
+ * pivoted from, and of a sink with the `input` it writes; the run may already have ended.
  */
 export async function startRun(
   action: string,
   params: Record<string, unknown>,
-  { client = getApiClient(), input, ...rest }: CallOptions & { input?: SinkInput } = {},
+  {
+    client = getApiClient(),
+    input,
+    pivotRows,
+    ...rest
+  }: CallOptions & { input?: SinkInput; pivotRows?: Record<string, unknown>[] } = {},
 ): Promise<Run> {
   const res = await client.request<Run>({
     method: 'POST',
     path: BASE,
-    body: input === undefined ? { action, params } : { action, params, input },
+    body: {
+      action,
+      params,
+      ...(input === undefined ? {} : { input }),
+      ...(pivotRows === undefined ? {} : { pivotRows }),
+    },
     ...rest,
   });
   return res.data;

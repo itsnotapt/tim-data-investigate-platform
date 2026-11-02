@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -68,8 +69,17 @@ class Env:
     def as_user(self, name: str, oid: str) -> None:
         self.client.headers.update(self._auth.headers(name, oid))
 
-    async def start(self, action: str, params: dict[str, Any] | None = None) -> httpx.Response:
-        return await self.client.post("/api/runs", json={"action": action, "params": params or {}})
+    async def start(
+        self,
+        action: str,
+        params: dict[str, Any] | None = None,
+        *,
+        pivot_rows: list[dict[str, Any]] | None = None,
+    ) -> httpx.Response:
+        body: dict[str, Any] = {"action": action, "params": params or {}}
+        if pivot_rows is not None:
+            body["pivotRows"] = pivot_rows
+        return await self.client.post("/api/runs", json=body)
 
     async def wait(self, run_id: str) -> dict[str, Any]:
         """Poll the run until it ends."""
@@ -489,6 +499,57 @@ async def test_a_run_is_titled_by_its_actions_template(storage: Storage, auth: A
         assert run["title"] == "Host timeline BGIST-L"
         polled = await env.client.get(f"/api/runs/{run['runId']}")
         assert polled.json()["title"] == "Host timeline BGIST-L"
+
+
+async def test_a_run_is_titled_from_the_rows_it_was_pivoted_from(
+    storage: Storage, auth: AuthKit
+) -> None:
+    title = "{{ action_name }} of {{ row.Image | basename }} on {{ host }}"
+    async with open_env(storage, auth, [host_timeline(title)]) as env:
+        rows = [{"Image": r"C:\Windows\System32\cmd.exe", "Host": "BGIST-L"}]
+        run = (await env.start("acme.host_timeline", {"host": "BGIST-L"}, pivot_rows=rows)).json()
+        assert run["title"] == "Host timeline of cmd.exe on BGIST-L"
+        polled = (await env.client.get(f"/api/runs/{run['runId']}")).json()
+        assert polled["title"] == "Host timeline of cmd.exe on BGIST-L"
+        assert "pivotRows" not in polled
+        assert "Image" not in str(polled["params"])
+
+
+class TitledByItsRows(Echo):
+    """Titled with the pivot rows it was given, rather than by rendering its template."""
+
+    def title_for(self, params: Mapping[str, Any], pivot_rows: Sequence[Mapping[str, Any]]) -> str:
+        return json.dumps(list(pivot_rows), sort_keys=True)
+
+
+async def test_a_run_is_titled_from_only_the_columns_its_template_names(
+    storage: Storage, auth: AuthKit
+) -> None:
+    action = TitledByItsRows(
+        key="acme.titled_by_rows",
+        name="Titled by rows",
+        pivot="rows",
+        params=(Param("host", "string", from_columns=("Host",)),),
+        title="{{ row.Image }} {{ cols['Command Line'] | first }}",
+    )
+    async with open_env(storage, auth, [action]) as env:
+        rows = [
+            {"Image": "cmd.exe", "Command Line": "cmd /c", "Host": "BGIST-L", "Secret": "s"},
+            {"Host": "BGIST-L"},
+        ]
+        run = (await env.start("acme.titled_by_rows", {"host": "BGIST-L"}, pivot_rows=rows)).json()
+        assert json.loads(run["title"]) == [{"Command Line": "cmd /c", "Image": "cmd.exe"}, {}]
+
+
+async def test_a_run_takes_at_most_the_pivot_row_limit(
+    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TIM_MAX_PIVOT_ROWS", "2")
+    async with open_env(storage, auth, [host_timeline("{{ cols.Image | join(', ') }}")]) as env:
+        rows = [{"Image": "a.exe"}, {"Image": "b.exe"}, {"Image": "c.exe"}]
+        response = await env.start("acme.host_timeline", {"host": "BGIST-L"}, pivot_rows=rows)
+        assert response.status_code == 422
+        assert response.json()["errors"] == {"pivotRows": ["At most 2 rows; 3 given"]}
 
 
 @pytest.mark.parametrize(

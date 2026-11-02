@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Self, TypeGuard
 
-from jinja2 import StrictUndefined, TemplateSyntaxError, meta
+from jinja2 import StrictUndefined, TemplateSyntaxError, meta, nodes
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from pydantic import BaseModel, StringConstraints, ValidationError, field_validator, model_validator
 from pydantic_core import InitErrorDetails, PydanticCustomError
@@ -15,7 +16,7 @@ from pydantic_core import InitErrorDetails, PydanticCustomError
 from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
 from tim_actions.params import Param, validate_params
-from tim_actions.pivots import PivotContext, Resolved, resolve_from_columns
+from tim_actions.pivots import PivotContext, Resolved, column_values, resolve_from_columns
 from tim_actions.run import RunContext
 
 if TYPE_CHECKING:
@@ -29,8 +30,24 @@ Pivot = Literal["row", "rows", "none"]
 _TITLES = ImmutableSandboxedEnvironment(autoescape=False, undefined=StrictUndefined)
 """Renders title templates: immutable values, no unsafe attributes, and undefined names raise."""
 
+
+def _basename(path: str) -> str:
+    """The last segment of a Windows or POSIX path."""
+    return re.split(r"[\\/]", path)[-1]
+
+
+_TITLES.filters["basename"] = _basename
+
 _ACTION_NAME = "action_name"
 """The action's name in a title template."""
+
+_ROW = "row"
+"""The pivot row's values in a title template: each column's value the rows agree on."""
+
+_COLS = "cols"
+"""The pivot rows' values in a title template: each column's distinct values."""
+
+_PIVOT_ROWS_NAMES = (_ROW, _COLS)
 
 QueryParameterType = Literal["string", "long", "real", "bool", "datetime", "timespan", "dynamic"]
 
@@ -103,6 +120,13 @@ class ActionBase(BaseModel, ABC):
             raise _field_error(
                 "title", self.title, f"names {names}, which are neither params nor {_ACTION_NAME}"
             )
+        if not _names_columns_only_literally(template):
+            raise _field_error(
+                "title",
+                self.title,
+                f"uses {_ROW} or {_COLS} other than as {_ROW}.Column, {_ROW}['Column'],"
+                f" {_COLS}.Column or {_COLS}['Column']",
+            )
         return self
 
     def _title_names(self) -> set[str]:
@@ -110,21 +134,84 @@ class ActionBase(BaseModel, ABC):
         return {_ACTION_NAME}
 
     @property
+    def title_columns(self) -> tuple[str, ...]:
+        """The columns the title template names under ``row`` and ``cols``, sorted."""
+        if self.title is None:
+            return ()
+        return tuple(sorted(_columns_named(_TITLES.parse(self.title))))
+
+    @property
     def menu_path(self) -> list[str]:
         return [part.strip() for part in self.menu.split("/")] if self.menu else []
 
-    def title_for(self, params: Mapping[str, Any]) -> str:
-        """The title of a run with the resolved ``params``. The default renders ``title`` with
-        each param by name and ``action_name``, the action's name; without ``title`` it is the
-        name. Raises when the template fails to render."""
+    def title_for(self, params: Mapping[str, Any], pivot_rows: Sequence[Mapping[str, Any]]) -> str:
+        """The title of a run with the resolved ``params``, pivoted from ``pivot_rows``. The
+        default renders ``title`` with each param by name; ``action_name``, the action's name;
+        ``row``, each column's value the pivot rows agree on; and ``cols``, each column's
+        distinct values in them. Without ``title`` it is the name. Raises when the template fails
+        to render."""
         if self.title is None:
             return self.name
-        return _TITLES.from_string(self.title).render({**params, _ACTION_NAME: self.name})
+        columns = {column for pivot_row in pivot_rows for column in pivot_row}
+        cols = {
+            column: found for column in columns if (found := column_values(pivot_rows, [column]))
+        }
+        row = {column: found[0] for column, found in cols.items() if len(found) == 1}
+        return _TITLES.from_string(self.title).render(
+            {**params, _ACTION_NAME: self.name, _ROW: _Columns(row), _COLS: _Columns(cols)}
+        )
 
     def connections(self) -> Mapping[str, str]:
         """The fixed connections this action uses: each name and the connection type it must
         be."""
         return {}
+
+
+class _Columns:
+    """Columns' values in a title template, which has only keys, so ``row.values`` is the
+    ``values`` column."""
+
+    __slots__ = ("__values",)
+
+    def __init__(self, values: Mapping[str, Any]) -> None:
+        self.__values = values
+
+    def __getitem__(self, column: str) -> Any:
+        return self.__values[column]
+
+
+def _columns_named(template: nodes.Template) -> set[str]:
+    """The columns ``template`` names as ``row.X``, ``row['X']``, ``cols.X`` or ``cols['X']``."""
+    return {column for column, _ in _column_lookups(template)}
+
+
+def _names_columns_only_literally(template: nodes.Template) -> bool:
+    """Whether ``template`` uses ``row`` and ``cols`` only to name a column literally."""
+    looked_up = {id(name) for _, name in _column_lookups(template)}
+    return all(
+        id(name) in looked_up
+        for name in template.find_all(nodes.Name)
+        if name.name in _PIVOT_ROWS_NAMES
+    )
+
+
+def _column_lookups(template: nodes.Template) -> Iterator[tuple[str, nodes.Name]]:
+    """Each column ``template`` names literally under ``row`` or ``cols``, with that name."""
+    for node in template.find_all((nodes.Getattr, nodes.Getitem)):
+        if isinstance(node, nodes.Getattr) and _is_row_or_cols(node.node):
+            yield node.attr, node.node
+        elif (
+            isinstance(node, nodes.Getitem)
+            and _is_row_or_cols(node.node)
+            and isinstance(node.arg, nodes.Const)
+            and isinstance(node.arg.value, str)
+        ):
+            yield node.arg.value, node.node
+
+
+def _is_row_or_cols(node: nodes.Node) -> TypeGuard[nodes.Name]:
+    """Whether ``node`` is the name ``row`` or ``cols``."""
+    return isinstance(node, nodes.Name) and node.name in _PIVOT_ROWS_NAMES
 
 
 def _field_error(field: str, value: Any, message: str) -> ValidationError:
@@ -162,6 +249,9 @@ class Action(ActionBase):
             raise ValueError("names must be unique")
         if _ACTION_NAME in names:
             raise ValueError(f"{_ACTION_NAME} is the action's name in its title")
+        for reserved in _PIVOT_ROWS_NAMES:
+            if reserved in names:
+                raise ValueError(f"{reserved} is the pivot rows' values in its title")
         for param in value:
             unknown = [name for name in param.schema_from if name not in names]
             if unknown:
@@ -169,7 +259,7 @@ class Action(ActionBase):
         return value
 
     def _title_names(self) -> set[str]:
-        return {_ACTION_NAME, *(param.name for param in self.params)}
+        return {_ACTION_NAME, *_PIVOT_ROWS_NAMES, *(param.name for param in self.params)}
 
     @model_validator(mode="after")
     def _find_pivot_rows(self) -> Self:

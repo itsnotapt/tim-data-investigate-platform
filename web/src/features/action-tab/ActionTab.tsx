@@ -289,7 +289,8 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
 
   const setParam = (name: string, value: unknown) => {
     const tabs = useTabsStore.getState();
-    tabs.updateParams(uuid, { params: setPill(params.params, name, value) });
+    // Editing a param drops the pivot rows, so they stop titling its runs.
+    tabs.updateParams(uuid, { params: setPill(params.params, name, value), pivotRows: undefined });
     if (state.paramErrors?.[name] !== undefined) {
       const paramErrors = { ...state.paramErrors };
       delete paramErrors[name];

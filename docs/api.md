@@ -85,7 +85,7 @@ Every non-2xx response has this body:
 | 409 | `no-action-file` | An action file was requested for a preset whose action has none. A Run KQL preset without a connection, database or query has none either. |
 | 410 | `results-gone` | A `succeeded` run with rows has none stored any more, after a database crash or failover. Run it again. |
 | 413 | `too-large` | Request body over the size limit. |
-| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A declare statement request with a bad query parameter (`errors["params.parameters"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
+| 422 | `validation` | Invalid body, query or path (a column view without a name, or whose `state` is not a JSON object, included); `endRow` less than `startRow`; no `ids`, or an `id` over 512 characters, in an annotations change; a negative `since`; a missing, empty or over-512-character `id` in an annotations history read (`errors.id`). A well-formed run request with an unknown action (`errors.action`) or invalid params (`errors["params.<name>"]`). A sink run with missing, unsuitable or too many rows (`errors.input`, `errors["input.rows"]`, `errors["input.columns"]`). A run with more `pivotRows` than `TIM_MAX_PIVOT_ROWS`, or a sink run with any (`errors.pivotRows`). A resolve request the action isn't offered on (`errors["pivot.rows"]`). A declare statement request with a bad query parameter (`errors["params.parameters"]`). A preset with an unknown action or a sink (`errors.action`). A preset with an input that is not a param of the action with `fromColumns` (`errors["inputs.<i>.name"]`). A preset with a query parameter on an action that takes none (`errors["inputs.<i>.source"]`). A run of Run KQL with a bad `parameters` value (`errors["params.parameters"]`, or `errors["params.parameters.<name>"]` for one query parameter's value). A well-formed annotations change with an unknown label (`errors.label`), more `id`s than `maxAnnotationIds` (`errors.ids`), no change field (`errors.body`), or an invalid tag or comment (`errors.addTags`, `errors.removeTags`, `errors.setTags`, `errors.comment`). |
 | 500 | `internal` | Unhandled error; details are in the server log under the `traceId`. |
 | 502 | `upstream` | Entra unreachable, token exchange failure, or editor schema failure. |
 | 503 | `unavailable` | Storage down, or token exchange unavailable (auth disabled, or no OBO credential configured and no connection using `obo`). |
@@ -114,7 +114,7 @@ What the browser needs to know about this instance, built once at startup from t
 ```
 
 - `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, the labels file, and the rest of this body. It changes when any of them does, for example after a rolling update.
-- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, idColumn?, findPivotRows, actionFile}`:
+- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, idColumn?, findPivotRows, titleColumns?, actionFile}`:
   - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []`, `pivot: {rows: "rows", columns: []}` and `actionFile: false`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
@@ -123,6 +123,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
   - `idColumn` is the column the action's results start with as their Id column: the `id` of its action file. It is left out when the action has none. A preset's `idColumn` takes its place in a tab opened from it ([architecture.md](architecture.md#the-id-column)).
   - `findPivotRows` is whether tabs pivoted into the action show **Go to pivot row**: the `find_pivot_rows` of its action file or Python action. It is always present, and `false` for a sink.
+  - `titleColumns` are the columns its `title` names from the rows a run was pivoted from ([actions.md](actions.md#run-titles)): the columns each row of `pivotRows` holds. It is left out when the title names none.
   - `actionFile` is whether a preset of the action can be copied as an action file ([GET /api/presets/{presetId}/actionFile](#get-apipresetspresetidactionfile)).
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql` for Kusto, `sql` for Snowflake). `databases` are the suggestions a Kusto or `dev_kql` connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
@@ -185,7 +186,7 @@ A run is one execution of an action by the server ([architecture.md](architectur
 
 ### POST /api/runs
 
-Body: `{"action": "<key>", "params": {...}, "input": {...}}`.
+Body: `{"action": "<key>", "params": {...}, "input": {...}, "pivotRows": [{...}]}`.
 
 - `params` maps param names to values as the browser sends them. It may be left out when the action takes none.
 - An unknown action or invalid params give `422` before a run exists, with every problem in `errors`.
@@ -196,6 +197,11 @@ Body: `{"action": "<key>", "params": {...}, "input": {...}}`.
   - A sink has no params, so any `params` are `Unknown param`.
   - The input counts toward `TIM_MAX_REQUEST_BYTES`.
   - `POST /api/actions/{key}/resolve` gives `404` for a sink.
+- `pivotRows` is for a query action's title: the rows the run was pivoted from, each `{"<column>": <value>}`. It may be left out.
+  - The server keeps only each row's `titleColumns` and renders the title with them ([actions.md](actions.md#run-titles)). `pivotRows` is never stored.
+  - More than `TIM_MAX_PIVOT_ROWS` rows give `422` with `errors.pivotRows` ("At most N rows; M given").
+  - A sink with `pivotRows` gives `422` with `errors.pivotRows` ("Only a query action takes pivot rows").
+  - They count toward `TIM_MAX_REQUEST_BYTES`.
 
 For example:
 

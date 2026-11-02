@@ -129,7 +129,7 @@ One execution of an action by the server for the analyst who started it. It ends
 _Avoid_: action run, query run, job, execution
 
 **Run title**:
-The title of a tab that has run, from the values its latest run was for. An action formats its runs' titles from their params, and may name itself in them; an action that doesn't gives its name. A preset's is its name, then the values of the inputs its owner shows in the title.
+The title of a tab that has run, from the values its latest run was for. An action formats its runs' titles from their params and the rows they were pivoted from, and may name itself in them; an action that doesn't gives its name. A preset's is its name, then the values of the inputs its owner shows in the title.
 _Avoid_: tab name, action run title
 
 **Run details**:

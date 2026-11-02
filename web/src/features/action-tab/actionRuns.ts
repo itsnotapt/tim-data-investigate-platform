@@ -213,7 +213,10 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
   });
   let run: Run;
   try {
-    run = await startRun(tab.params.action, tab.params.params, { signal });
+    run = await startRun(tab.params.action, tab.params.params, {
+      signal,
+      pivotRows: tab.params.pivotRows,
+    });
   } catch (e) {
     if (signal.aborted) return;
     following.delete(uuid);
