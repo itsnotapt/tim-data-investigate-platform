@@ -49,7 +49,7 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         "demo.activity-by-user": "Activity by user alice",
         "demo.child-processes": "Child processes of {a1} on BGIST-L",
         "demo.connections-to-ip": "Connections to IP 203.0.113.7",
-        "demo.file-executed-after-creation": r"C:\Users\Public\update.exe executed on BGIST-L after creation",
+        "demo.filename-seen-on-host": "Filename update.exe seen on BGIST-L",
         "demo.hash-seen-anywhere": f"Events related to SHA256 {SHA256}",
         "demo.host-logs": "Other logs for host BGIST-L",
         "demo.host-timeline": "Host timeline for BGIST-L",

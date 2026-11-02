@@ -1,6 +1,0 @@
-declare query_parameters(host: string, file: string, created: datetime, window: timespan);
-ProcessCreations()
-| where Host == host and Timestamp between (created .. (created + window))
-| where Image =~ file
-| order by Timestamp asc
-| take 10000

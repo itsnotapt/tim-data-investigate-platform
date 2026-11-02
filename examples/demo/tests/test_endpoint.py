@@ -84,7 +84,7 @@ def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoin
         "Activity by user",
         "Child processes",
         "Connections to IP",
-        "File executed after creation",
+        "Filename seen on this host",
         "Hash seen anywhere",
         "Parent process",
         "Process activity",
@@ -326,44 +326,39 @@ def test_a_row_with_only_an_md5_pivots_on_its_md5(
     assert resolved.params["hash"] == "95000560239032BC68B4C2FDFCDEF913"
 
 
-def test_a_file_creation_pivots_to_the_runs_of_the_file_after_it(
+def test_a_file_creation_pivots_to_every_event_on_its_host_that_names_the_file(
     actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
-    file_executed_after_creation = actions["demo.file-executed-after-creation"]
-    resolved = resolve_pivot(file_executed_after_creation, [FILE_CREATION])
+    filename_seen_on_host = actions["demo.filename-seen-on-host"]
+    resolved = resolve_pivot(filename_seen_on_host, [FILE_CREATION])
     assert (resolved.params, resolved.missing) == (
         {
             "host": "FYODOR-L",
             "file": "C:\\Windows\\Temp\\hdoor.exe",
-            "created": "2018-08-20T10:42:49Z",
+            "around": "2018-08-20T10:42:49Z",
         },
         {},
     )
     tim_kusto.respond([])
 
-    run_action(file_executed_after_creation, resolved.params, connections=tim_connections)
+    run_action(filename_seen_on_host, resolved.params, connections=tim_connections)
 
     [call] = tim_kusto.calls
     assert call.parameters == {
         "host": "FYODOR-L",
         "file": "C:\\Windows\\Temp\\hdoor.exe",
-        "created": "datetime(2018-08-20T10:42:49.0000000Z)",
+        "around": "datetime(2018-08-20T10:42:49.0000000Z)",
         "window": "timespan(1.00:00:00)",
     }
-    assert call.kql.startswith(
-        "declare query_parameters(host: string, file: string, "
-        "created: datetime, window: timespan);\n"
-        "ProcessCreations()\n"
-        "| where Host == host and Timestamp between (created .. (created + window))\n"
-        "| where Image =~ file\n"
-    )
-    assert call.kql.endswith("| take 10000\n")
+    # The file's name, not its path, so a copy elsewhere or a script given to an interpreter counts.
+    assert 'let name = tostring(split(file, "\\\\")[-1]);' in call.kql
+    assert "CommandLine has name or ParentCommandLine has name" in call.kql
 
 
-def test_a_row_of_other_activity_leaves_the_file_to_fill_in(actions: dict[str, Action]) -> None:
-    resolved = resolve_pivot(actions["demo.file-executed-after-creation"], [CONNECTION])
+def test_a_row_of_other_activity_pivots_on_the_file_of_its_process(actions: dict[str, Action]) -> None:
+    resolved = resolve_pivot(actions["demo.filename-seen-on-host"], [CONNECTION])
 
-    assert resolved.missing == {"file": None}
+    assert resolved.params["file"] == "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
 
 
 def test_a_process_pivots_to_what_its_user_did_on_every_host_in_the_hour_around_it(

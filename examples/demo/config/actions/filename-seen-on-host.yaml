@@ -1,0 +1,36 @@
+# Every Sysmon event on a host that names a file, wherever it sits: the processes it ran as, or was given to
+# on their command line, the files it was created or copied as, the drivers it loaded as, and what its
+# processes did. A dropped payload shows its creation, then its runs.
+type: kql_query
+key: demo.filename-seen-on-host
+name: Filename seen on this host
+title: 'Filename {{ file.split("\\")[-1] }} seen on {{ host }}'
+menu: Endpoint
+description: Every Sysmon event on the host whose file paths or command lines name the file
+pivot: row
+connection: security
+database: Security
+kql_file: filename-seen-on-host.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: file
+    kind: string
+    title: File
+    from_columns: [TargetFilename, ImageLoaded, Image]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: EventType, type: string, title: Event type, width: 170}
+  - {name: Host, type: string, width: 120}
+  - {name: Summary, type: string, width: 640}

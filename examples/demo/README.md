@@ -137,7 +137,7 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 | Child processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Process activity | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Connections to IP | Endpoint | `DestinationIp`, `Timestamp` | ±1 day |
-| File executed after creation | Endpoint | `Host`, `TargetFilename`, `Timestamp` | 1 day after the file was created |
+| Filename seen on this host | Endpoint | `Host`, `TargetFilename` or else `ImageLoaded` or `Image`, `Timestamp` | ±1 day |
 | Hash seen anywhere | Endpoint | `SHA256` or `MD5`, `Timestamp` | ±1 day |
 | Host timeline | Host | `Host`, `Timestamp` | ±15 minutes |
 | Host's other logs | Host | `Host`, `Timestamp` | ±1 hour |
@@ -157,6 +157,7 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
   - its registry changes
   - its file streams
 - **Activity by user:** the user's process creations and network connections.
+- **Filename seen on this host:** every Sysmon event on the host with a file path that ends in the file's name, or a `CommandLine` or `ParentCommandLine` that holds it. A file another process created shows its creation, then its runs.
 - **Host timeline:** one row per Sysmon event on the host, and one per alert on it. An alert's `EventType` is `Alert`, and its `Summary` is `Alert created [<Product>]: <Alert>`.
 - **Go to pivot row:** Host timeline offers it, because it declares `find_pivot_rows: true`. An alert's row has the alert's `EventId`, so it is found from the Alerts tab.
 - **Columns:** the Endpoint actions and Host timeline show every field of the events, with `EventType` and `Summary` beside `Timestamp` and `Host`. Their `columns:` declare only the first columns, because TIM shows the declared columns first.
