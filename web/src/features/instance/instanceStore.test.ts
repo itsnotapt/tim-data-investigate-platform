@@ -8,6 +8,7 @@ const instance = (version: string, names: string[] = []): Instance => ({
     key: name.toLowerCase(),
     kind: 'query',
     actionFile: false,
+    findPivotRows: false,
     name,
     menuPath: [],
     connections: [],

@@ -59,6 +59,11 @@ export interface DisplayComponentState {
    * lack that row, or when a new run of the tab starts.
    */
   linkedRow?: number | null;
+  /**
+   * The `id`s of the pivot rows the tab was pivoted from, each `null` for a row without one.
+   * Kept across runs.
+   */
+  pivotRowIds?: (string | null)[] | null;
 }
 
 /** The column view an action tab started from or last picked, and its state at that point. */

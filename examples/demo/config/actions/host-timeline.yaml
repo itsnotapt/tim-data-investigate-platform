@@ -1,11 +1,13 @@
-# Host timeline: the sequence of events on a host, from every sourcetype, nearest a time such as a row's.
+# Host timeline: the sequence of events on a host, from every sourcetype, nearest a time such as a row's,
+# with the events of the host's alerts. Go to pivot row finds the row pivoted from, by EventId.
 type: kql_query
 key: demo.host-timeline
 name: Host timeline
 title: "{{ action_name }} {{ host }}"
 menu: Host
-description: The sequence of events on the host, from every sourcetype, nearest a time
+description: The sequence of events on the host, from every sourcetype, and its alerts' events, nearest a time
 pivot: row
+find_pivot_rows: true
 connection: security
 database: Security
 kql_file: host-timeline.kql

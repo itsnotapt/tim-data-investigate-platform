@@ -76,6 +76,7 @@ The fields every action file takes:
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
 | `id` | no | The column whose value is a row's `id`: the action's Id column. |
+| `find_pivot_rows` | no | `true` shows **Go to pivot row** on tabs pivoted into this action ([architecture.md](architecture.md#go-to-pivot-row)). Default `false`. It is an action-file error with `pivot: none`, or without `id`; `tim-api check` reports it. |
 | `columns` | no | Declared result columns, below. |
 
 The action type adds fields of its own, such as a connection and a query.
@@ -444,7 +445,7 @@ docker run --rm -v "$PWD/actions:/actions:ro" -v "$PWD/connections.yaml:/connect
 
 ## Writing action types
 
-An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `title`, `params`, `pivot`, `columns` and `id`. [`storm_summary.py`](../examples/deployment/src/example_provider/storm_summary.py) is the example.
+An action type is a subclass of `tim_actions.Action`. Its fields are its configuration, and each instance is one action, with its `key`, `name`, `menu`, `description`, `title`, `params`, `pivot`, `columns`, `id` and `find_pivot_rows`. [`storm_summary.py`](../examples/deployment/src/example_provider/storm_summary.py) is the example.
 
 - **`Param`** declares a param as data, with the fields of [Params](#params). `Column` declares a result column the same way, with the fields of [Columns](#columns). An invalid declaration fails when it is constructed.
 - **`run(params, ctx)`** is synchronous and yields rows as mappings.
@@ -802,5 +803,5 @@ class AcmeTickets(Sink):
 
 - `columns` lists the names and types of the rows' columns. `rows` are the selected rows, every column of each.
 - Raise `RunError` to end the run in error with a message the analyst sees. Report facts with `ctx.detail`.
-- A sink has no `params`, `pivot`, `columns` or `id`. It is offered on any selected rows, in the Annotate dialog and the grid's context menu ([architecture.md](architecture.md#sinks)).
+- A sink has no `params`, `pivot`, `columns`, `id` or `find_pivot_rows`. It is offered on any selected rows, in the Annotate dialog and the grid's context menu ([architecture.md](architecture.md#sinks)).
 - Test it with `run_sink` ([Testing](#testing)).

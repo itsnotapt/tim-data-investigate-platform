@@ -53,3 +53,15 @@ params:
 generate: 3
 columns:
   - { name: Host, type: string }
+---
+type: dev_rows
+key: dev-host-list
+name: Host list
+menu: Development / Pivots
+description: Every generated host, the pivot row's last, for Go to pivot row
+pivot: row
+id: Host
+find_pivot_rows: true
+generate: 2500
+columns:
+  - { name: Host, type: string, sort: desc }

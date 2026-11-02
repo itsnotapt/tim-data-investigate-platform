@@ -30,6 +30,7 @@ const action = (key: string, name: string): CatalogueAction => ({
   key,
   kind: 'query',
   actionFile: false,
+  findPivotRows: false,
   name,
   menuPath: [],
   connections: [],

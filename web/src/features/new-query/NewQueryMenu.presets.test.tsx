@@ -12,6 +12,7 @@ const signIns: CatalogueAction = {
   key: 'dev-sign-ins',
   kind: 'query',
   actionFile: false,
+  findPivotRows: false,
   name: 'Sign-ins',
   menuPath: ['Identity'],
   connections: [],

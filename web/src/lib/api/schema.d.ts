@@ -515,6 +515,8 @@ export interface components {
             connections: string[];
             /** Description */
             description?: string | null;
+            /** Findpivotrows */
+            findPivotRows: boolean;
             /** Idcolumn */
             idColumn?: string | null;
             /** Key */

@@ -40,6 +40,7 @@ def test_the_host_timeline_is_in_the_host_menu_and_pivots_from_an_alert(
         "Security",
         "EventId",
     )
+    assert timeline.find_pivot_rows is True
     assert resolve_pivot(timeline, [ALERT]).params == {
         "host": "BGIST-L",
         "around": "2018-08-20T10:00:00Z",
@@ -63,6 +64,10 @@ def test_a_host_timeline_from_a_process_runs_on_its_short_host_around_its_timest
         "window": "timespan(00:15:00)",
     }
     assert "Timestamp between ((around - window) .. (around + window))" in call.kql
+    # An alert's event is logged under its product's host, and is on the timeline of the host the
+    # alert names.
+    assert "let alerted = Alerts() | where Host =~ host | project EventId;" in call.kql
+    assert "where Host =~ host or EventId in (alerted)" in call.kql
     assert "order by abs(Timestamp - around) asc" in call.kql
     assert "order by Timestamp asc" in call.kql
 

@@ -321,6 +321,11 @@
           "default": null,
           "title": "Id"
         },
+        "find_pivot_rows": {
+          "default": false,
+          "title": "Find Pivot Rows",
+          "type": "boolean"
+        },
         "connection": {
           "pattern": "^[a-z0-9-]+$",
           "title": "Connection",
@@ -459,6 +464,11 @@
           "default": null,
           "title": "Id"
         },
+        "find_pivot_rows": {
+          "default": false,
+          "title": "Find Pivot Rows",
+          "type": "boolean"
+        },
         "connection": {
           "pattern": "^[a-z0-9-]+$",
           "title": "Connection",
@@ -575,6 +585,11 @@
           ],
           "default": null,
           "title": "Id"
+        },
+        "find_pivot_rows": {
+          "default": false,
+          "title": "Find Pivot Rows",
+          "type": "boolean"
         },
         "connection": {
           "pattern": "^[a-z0-9-]+$",

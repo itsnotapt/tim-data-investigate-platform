@@ -2,6 +2,7 @@
 constructed."""
 
 from collections.abc import Iterator, Mapping
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -16,7 +17,9 @@ from tim_actions import (
     Param,
     Provider,
     RunContext,
+    dev,
 )
+from tim_actions.testing import ActionFilesError, load_actions
 
 
 def test_a_param_with_every_field() -> None:
@@ -159,6 +162,52 @@ def test_an_invalid_action_fails_on_construction(kwargs: dict[str, Any], message
 def test_an_action_must_say_whether_it_pivots() -> None:
     with pytest.raises(ValidationError, match="pivot"):
         Users(key="acme.users", name="Users")  # type: ignore[call-arg]
+
+
+def _file_action(tmp_path: Path, text: str) -> Action:
+    (tmp_path / "a.yaml").write_text(text)
+    action = load_actions(tmp_path, [dev.DevRows])["acme.rows"]
+    assert isinstance(action, Action)
+    return action
+
+
+def test_an_action_does_not_find_pivot_rows_unless_it_says_so(tmp_path: Path) -> None:
+    action = _file_action(tmp_path, "type: dev_rows\nkey: acme.rows\nname: Rows\npivot: row\n")
+    assert action.find_pivot_rows is False
+
+
+@pytest.mark.parametrize("pivot", ["row", "rows"])
+def test_an_action_pivoted_into_with_an_id_may_find_pivot_rows(tmp_path: Path, pivot: str) -> None:
+    action = _file_action(
+        tmp_path,
+        f"type: dev_rows\nkey: acme.rows\nname: Rows\npivot: {pivot}\nid: EventId\n"
+        "find_pivot_rows: true\n",
+    )
+    assert action.find_pivot_rows is True
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        (
+            "pivot: none\nid: EventId\n",
+            "a.yaml:6: find_pivot_rows: acme.rows has pivot: none, so no tab is pivoted into it",
+        ),
+        (
+            "pivot: row\n",
+            "a.yaml:5: find_pivot_rows: acme.rows has no id to match the pivot rows by",
+        ),
+    ],
+)
+def test_finding_pivot_rows_needs_a_pivot_and_an_id(
+    tmp_path: Path, fields: str, message: str
+) -> None:
+    (tmp_path / "a.yaml").write_text(
+        f"type: dev_rows\nkey: acme.rows\nname: Rows\n{fields}find_pivot_rows: true\n"
+    )
+    with pytest.raises(ActionFilesError) as raised:
+        load_actions(tmp_path, [dev.DevRows])
+    assert [problem.replace(f"{tmp_path}/", "") for problem in raised.value.problems] == [message]
 
 
 def test_an_action_type_must_implement_run() -> None:

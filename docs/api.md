@@ -114,7 +114,7 @@ What the browser needs to know about this instance, built once at startup from t
 ```
 
 - `version`: a hash of the installed provider distributions, the content of every action file and sidecar read, the connections file, the labels file, and the rest of this body. It changes when any of them does, for example after a rolling update.
-- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, idColumn?, actionFile}`:
+- `actions`: the catalogue: the providers' Python actions in provider order, then the actions from each provider's package data, then those from `TIM_ACTIONS_DIR`, each directory in file name order. An action is `{key, kind, name, description?, menuPath, connections, params, pivot, columns?, idColumn?, findPivotRows, actionFile}`:
   - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []`, `pivot: {rows: "rows", columns: []}` and `actionFile: false`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
@@ -122,6 +122,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
   - `idColumn` is the column the action's results start with as their Id column: the `id` of its action file. It is left out when the action has none. A preset's `idColumn` takes its place in a tab opened from it ([architecture.md](architecture.md#the-id-column)).
+  - `findPivotRows` is whether tabs pivoted into the action show **Go to pivot row**: the `find_pivot_rows` of its action file or Python action. It is always present, and `false` for a sink.
   - `actionFile` is whether a preset of the action can be copied as an action file ([GET /api/presets/{presetId}/actionFile](#get-apipresetspresetidactionfile)).
 - `connections`: the connections file's connections, in file order, each `{name, type, title, editor, databases?}`. `editor` is the connection type's editor (`kql` for Kusto, `sql` for Snowflake). `databases` are the suggestions a Kusto or `dev_kql` connection lists. Never its cluster, auth or scope.
 - `labels`: the labels file's labels in file order, each `{key, name, colour, symbol?}` ([actions.md](actions.md#labels-file)). Without the file they are Malicious, Suspicious and Benign. `colour` is one of `red`, `amber`, `green`, `teal`, `blue`, `purple`, `pink` or `grey`. `symbol` is one of `skull`, `warning`, `check`, `flag`, `star`, `question`, `block`, `bug` or `eye`.
