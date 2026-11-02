@@ -3,6 +3,7 @@
 type: kql_query
 key: demo.process-activity
 name: Process activity
+title: "{{ action_name }} {{ host }} {{ process }}"
 menu: Endpoint
 description: The network connections, files, registry changes and child processes of a process
 pivot: row

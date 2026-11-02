@@ -7,7 +7,10 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Self
 
-from pydantic import BaseModel, StringConstraints, field_validator
+from jinja2 import StrictUndefined, TemplateSyntaxError, meta
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+from pydantic import BaseModel, StringConstraints, ValidationError, field_validator, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from tim_actions._common import STRICT, NonBlankStr
 from tim_actions.columns import Column
@@ -23,6 +26,12 @@ ActionKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_.-]+$")]
 
 Pivot = Literal["row", "rows", "none"]
 
+_TITLES = ImmutableSandboxedEnvironment(autoescape=False, undefined=StrictUndefined)
+"""Renders title templates: immutable values, no unsafe attributes, and undefined names raise."""
+
+_ACTION_NAME = "action_name"
+"""The action's name in a title template."""
+
 QueryParameterType = Literal["string", "long", "real", "bool", "datetime", "timespan", "dynamic"]
 
 
@@ -30,19 +39,21 @@ QueryParameterType = Literal["string", "long", "real", "bool", "datetime", "time
 class QueryParameter:
     """A query parameter of a preset: a name in its query, declared with ``type`` (``string``,
     ``long``, ``real``, ``bool``, ``datetime``, ``timespan`` or ``dynamic``). It is fixed to
-    ``value``, or with ``from_columns`` filled from the rows; no columns asks the analyst."""
+    ``value``, or with ``from_columns`` filled from the rows; no columns asks the analyst.
+    ``show_in_title`` is whether its value follows the preset's name in run titles."""
 
     name: str
     type: QueryParameterType
     value: Any = None
     from_columns: tuple[str, ...] | None = None
+    show_in_title: bool = False
 
 
 class ActionBase(BaseModel, ABC):
     """What query actions and sinks share: the key, name, menu folder path and description, the
-    fixed connections, and how an action file builds one.
+    title template, the fixed connections, and how an action file builds one.
 
-    ``menu`` is a ``/``-separated folder path.
+    ``menu`` is a ``/``-separated folder path. ``title`` is a Jinja template of its runs' titles.
     """
 
     model_config = STRICT | {"frozen": True}
@@ -54,6 +65,7 @@ class ActionBase(BaseModel, ABC):
     name: NonBlankStr
     menu: str = ""
     description: NonBlankStr | None = None
+    title: NonBlankStr | None = None
 
     @field_validator("menu")
     @classmethod
@@ -69,14 +81,55 @@ class ActionBase(BaseModel, ABC):
         fields differ."""
         return cls.model_validate({name: value for name, value in file if name != "type"})
 
+    @model_validator(mode="after")
+    def _title(self) -> Self:
+        if self.title is None:
+            return self
+        try:
+            template = _TITLES.parse(self.title)
+        except TemplateSyntaxError as exc:
+            raise _title_error(self.title, f"not a valid template: {exc.message}") from None
+        unknown = sorted(meta.find_undeclared_variables(template) - self._title_names())
+        if len(unknown) == 1:
+            raise _title_error(
+                self.title, f"names {unknown[0]}, which is neither a param nor {_ACTION_NAME}"
+            )
+        if unknown:
+            names = ", ".join(unknown)
+            raise _title_error(
+                self.title, f"names {names}, which are neither params nor {_ACTION_NAME}"
+            )
+        return self
+
+    def _title_names(self) -> set[str]:
+        """The names a title template may use."""
+        return {_ACTION_NAME}
+
     @property
     def menu_path(self) -> list[str]:
         return [part.strip() for part in self.menu.split("/")] if self.menu else []
+
+    def title_for(self, params: Mapping[str, Any]) -> str:
+        """The title of a run with the resolved ``params``. The default renders ``title`` with
+        each param by name and ``action_name``, the action's name; without ``title`` it is the
+        name. Raises when the template fails to render."""
+        if self.title is None:
+            return self.name
+        return _TITLES.from_string(self.title).render({**params, _ACTION_NAME: self.name})
 
     def connections(self) -> Mapping[str, str]:
         """The fixed connections this action uses: each name and the connection type it must
         be."""
         return {}
+
+
+def _title_error(title: str, message: str) -> ValidationError:
+    """A validation error of the ``title`` field, which a model validator raises to report it
+    there."""
+    error = PydanticCustomError("title", "{message}", {"message": message})
+    return ValidationError.from_exception_data(
+        "title", [InitErrorDetails(type=error, loc=("title",), input=title)]
+    )
 
 
 class Action(ActionBase):
@@ -102,11 +155,16 @@ class Action(ActionBase):
         names = [param.name for param in value]
         if len(set(names)) != len(names):
             raise ValueError("names must be unique")
+        if _ACTION_NAME in names:
+            raise ValueError(f"{_ACTION_NAME} is the action's name in its title")
         for param in value:
             unknown = [name for name in param.schema_from if name not in names]
             if unknown:
                 raise ValueError(f"{param.name}.schema_from: unknown params {unknown}")
         return value
+
+    def _title_names(self) -> set[str]:
+        return {_ACTION_NAME, *(param.name for param in self.params)}
 
     @field_validator("columns")
     @classmethod

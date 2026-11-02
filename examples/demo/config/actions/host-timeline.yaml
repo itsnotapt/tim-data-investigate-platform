@@ -2,6 +2,7 @@
 type: kql_query
 key: demo.host-timeline
 name: Host timeline
+title: "{{ action_name }} {{ host }}"
 menu: Host
 description: The sequence of events on the host, from every sourcetype, nearest a time
 pivot: row

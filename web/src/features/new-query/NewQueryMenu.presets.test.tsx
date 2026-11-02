@@ -48,7 +48,7 @@ const PRESETS: Preset[] = [
     owned: true,
     visibility: 'private',
     params: { limit: 5 },
-    inputs: [{ name: 'users', source: 'param', fixed: true, value: ['alice'] }],
+    inputs: [{ name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['alice'] }],
   },
   {
     ...base,
@@ -56,7 +56,7 @@ const PRESETS: Preset[] = [
     name: 'Bob asks',
     owner: 'bob@example.com',
     params: {},
-    inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: [] }],
+    inputs: [{ name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: [] }],
   },
   {
     ...base,
@@ -66,7 +66,7 @@ const PRESETS: Preset[] = [
     owner: ME,
     owned: true,
     params: {},
-    inputs: [{ name: 'users', source: 'param', fixed: true, value: ['bob'] }],
+    inputs: [{ name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['bob'] }],
   },
   {
     ...base,
@@ -162,6 +162,7 @@ describe('NewQueryMenu presets', () => {
       action: 'dev-sign-ins',
       params: { limit: 5, users: ['alice'] },
       presetId: 'p-mine',
+      titleInputs: [],
     });
     expect(tab?.state.pivotMissing ?? null).toBeNull();
   });
@@ -175,6 +176,7 @@ describe('NewQueryMenu presets', () => {
       action: 'dev-sign-ins',
       params: { limit: 10 },
       presetId: 'p-bob',
+      titleInputs: [{ source: 'param', name: 'users' }],
     });
     expect(tab?.state.pivotMissing).toEqual({ users: null });
   });
@@ -295,7 +297,7 @@ describe('NewQueryMenu presets', () => {
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]?.params).toEqual({});
     expect(saved[0]?.inputs).toEqual([
-      { name: 'users', source: 'param', fixed: true, value: ['bob'] },
+      { name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['bob'] },
     ]);
   });
 });

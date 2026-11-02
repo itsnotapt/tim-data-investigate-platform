@@ -50,11 +50,13 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();
 
-  // She pivots with it from one row of Sign-ins; the child tab runs with the row's Result.
+  // She pivots with it from one row of Sign-ins; the child tab runs with the row's Result, which
+  // its title shows after the preset's name.
   await runRows(page, 'Sign-ins', 4);
   await pivotWithPreset(page, 1, idPrefix, name);
   await expect(page.getByRole('button', { name: 'Result: Failure' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: `${name} Failure`, exact: true })).toBeVisible();
 
   // Rows that disagree on Result disable it, with the reason.
   await page.goBack();

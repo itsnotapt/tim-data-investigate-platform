@@ -25,7 +25,12 @@ import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
 import type { EditorLanguage } from '../../lib/monaco';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
-import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
+import {
+  PresetsLoadErrorDialog,
+  presetTitleInputs,
+  SavePresetDialog,
+  usePresetsStore,
+} from '../presets';
 import { copyShareLink } from '../share-links';
 import type { TabComponentProps } from '../tabs/tabRegistry';
 import { useTabsStore } from '../tabs/tabStore';
@@ -49,6 +54,7 @@ import {
 import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
 import { durationText, outcomeText } from './runText';
+import { tabTitle } from './tabTitle';
 import { useElapsed } from './useElapsed';
 
 export interface ActionTabProps extends TabComponentProps {
@@ -333,7 +339,11 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       action && takesQueryParameters(action)
         ? { params: withPresetQueryParameters(params.params, preset.inputs ?? []) }
         : {};
-    useTabsStore.getState().updateParams(uuid, { presetId: preset.presetId, ...declared });
+    useTabsStore.getState().updateParams(uuid, {
+      presetId: preset.presetId,
+      titleInputs: presetTitleInputs(preset),
+      ...declared,
+    });
     useTabsStore.getState().updateTitle(uuid, preset.name);
   };
 
@@ -403,6 +413,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     </Button>
   );
 
+  const title = tabTitle(tab);
   return (
     <Box>
       {onShow && (
@@ -423,9 +434,11 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             <Typography color="text.secondary" aria-hidden>
               ›
             </Typography>
-            <Typography variant="subtitle1" component="h2" noWrap sx={{ fontWeight: 500 }}>
-              {tab.title}
-            </Typography>
+            <Tooltip title={title}>
+              <Typography variant="subtitle1" component="h2" noWrap sx={{ fontWeight: 500 }}>
+                {title}
+              </Typography>
+            </Tooltip>
             <Box sx={{ display: 'flex', flexShrink: 0 }}>
               <TooltipButton
                 title="Save…"

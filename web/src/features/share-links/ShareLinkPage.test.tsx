@@ -17,6 +17,7 @@ const run: Run = {
   runId: RUN_ID,
   status: 'succeeded',
   action: { key: 'dev-sign-ins', name: 'Sign-ins' },
+  title: 'Sign-ins alice',
   params: { users: ['alice'] },
   owner: 'jo@example.com',
   startedAt: '2026-10-20T10:00:00Z',
@@ -87,7 +88,11 @@ describe('ShareLinkPage', () => {
       title: 'Sign-ins',
       params: { action: 'dev-sign-ins', params: { users: ['alice'] } },
     });
-    expect(tab.state).toMatchObject({ linkedRow: 1, runParams: { users: ['alice'] } });
+    expect(tab.state).toMatchObject({
+      linkedRow: 1,
+      runParams: { users: ['alice'] },
+      runTitle: 'Sign-ins alice',
+    });
     await waitFor(() => expect(onlyTab().state.resultsRunId).toBe(RUN_ID));
     expect(onlyTab().state.rowCount).toBe(2);
     expect(started).toBe(0);

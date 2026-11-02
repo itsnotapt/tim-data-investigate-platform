@@ -132,7 +132,9 @@ function QueryParameterFields({
         exclusive
         aria-label="Value"
         value={qp.fixed ? 'fixed' : 'row'}
-        onChange={(_, value: string | null) => value && onChange({ fixed: value === 'fixed' })}
+        onChange={(_, value: string | null) =>
+          value && onChange({ fixed: value === 'fixed', showInTitle: value !== 'fixed' })
+        }
       >
         <ToggleButton value="fixed">Fixed</ToggleButton>
         <ToggleButton value="row">From row</ToggleButton>
@@ -157,6 +159,16 @@ function QueryParameterFields({
           sx={{ flex: 1, minWidth: 160 }}
         />
       )}
+      <FormControlLabel
+        label="Show in title"
+        control={
+          <Switch
+            size="small"
+            checked={qp.showInTitle}
+            onChange={(e) => onChange({ showInTitle: e.target.checked })}
+          />
+        }
+      />
       <Tooltip title="Move up">
         <span>
           <IconButton
@@ -267,7 +279,7 @@ export function SavePresetDialog({
             }
           />
           {rowParams(action).map((p) => {
-            const mode = form.modes[p.name] ?? { fixed: true, columns: [] };
+            const mode = form.modes[p.name] ?? { fixed: true, columns: [], showInTitle: false };
             return (
               <Stack key={p.name} spacing={0.5}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -282,6 +294,7 @@ export function SavePresetDialog({
                       setMode(p.name, {
                         fixed: value === 'fixed',
                         columns: mode.columns.length > 0 ? mode.columns : (p.fromColumns ?? []),
+                        showInTitle: value !== 'fixed',
                       })
                     }
                   >
@@ -297,6 +310,20 @@ export function SavePresetDialog({
                       {valueOrType(p, params[p.name])}
                     </Typography>
                   )}
+                  <FormControlLabel
+                    label="Show in title"
+                    sx={{ ml: 'auto' }}
+                    control={
+                      <Switch
+                        size="small"
+                        checked={mode.showInTitle}
+                        onChange={(e) =>
+                          setMode(p.name, { ...mode, showInTitle: e.target.checked })
+                        }
+                        slotProps={{ input: { 'aria-label': `Show ${p.title} in title` } }}
+                      />
+                    }
+                  />
                 </Stack>
                 {!mode.fixed && (
                   <Stack direction="row" sx={{ flexWrap: 'wrap', pl: 2 }}>
@@ -310,6 +337,7 @@ export function SavePresetDialog({
                             checked={mode.columns.includes(column)}
                             onChange={(e) =>
                               setMode(p.name, {
+                                ...mode,
                                 fixed: false,
                                 columns: (p.fromColumns ?? []).filter((c) =>
                                   c === column ? e.target.checked : mode.columns.includes(c),
@@ -351,7 +379,14 @@ export function SavePresetDialog({
                   onClick={() =>
                     setQueryParameters((all) => [
                       ...all,
-                      { name: '', type: 'string', fixed: true, value: '', columns: '' },
+                      {
+                        name: '',
+                        type: 'string',
+                        fixed: true,
+                        showInTitle: false,
+                        value: '',
+                        columns: '',
+                      },
                     ])
                   }
                 >

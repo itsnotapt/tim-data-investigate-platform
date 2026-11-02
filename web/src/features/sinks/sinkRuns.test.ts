@@ -19,6 +19,7 @@ const makeRun = (overrides: Partial<Run> = {}): Run => ({
   runId: RUN_ID,
   status: 'running',
   action: SAVE,
+  title: 'Save event',
   params: {},
   owner: 'jo@example.com',
   startedAt: '2026-10-23T10:00:00Z',

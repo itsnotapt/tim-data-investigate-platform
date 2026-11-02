@@ -102,6 +102,7 @@ def make_run(
         run_id=run_id or uuid4(),
         status=RunStatus.RUNNING,
         action=RunAction(key="acme.sign_ins", name="Sign-ins"),
+        title="Sign-ins alice@example.com",
         params={"user": "alice@example.com", "since": "2026-10-01T00:00:00Z", "limit": None},
         owner=owner,
         started_at=started,

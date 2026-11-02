@@ -15,6 +15,8 @@ from kusto_fakes import FakeObo, connections_file, open_client
 from snowflake_fakes import CONNECTIONS as SNOWFLAKE_CONNECTIONS
 from snowflake_fakes import open_client as open_snowflake_client
 from test_action_files import FIXTURES
+from tim_actions.files import load_action_files
+from tim_actions.kusto import KqlQuery
 
 from tim_api.cli import main
 
@@ -34,6 +36,7 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "string",
             "fixed": False,
             "fromColumns": ["UserPrincipalName", "Upn"],
+            "showInTitle": True,
         },
         {
             "name": "Since",
@@ -48,6 +51,7 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "dynamic",
             "fixed": False,
             "fromColumns": ["Host"],
+            "showInTitle": True,
         },
         {
             "name": "Limit",
@@ -55,6 +59,7 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "long",
             "fixed": False,
             "fromColumns": ["Limit"],
+            "showInTitle": False,
         },
     ],
 }
@@ -78,6 +83,7 @@ RUN_SQL_PRESET: dict[str, Any] = {
             "type": "dynamic",
             "fixed": False,
             "fromColumns": ["UPN"],
+            "showInTitle": False,
         },
         {
             "name": "since",
@@ -117,6 +123,7 @@ async def test_a_run_kql_preset_is_a_kql_query_action_file(client: httpx.AsyncCl
         "key": "sign-ins-by-user",
         "name": "Sign-ins by user",
         "menu": "Identity/Daily",
+        "title": "{{ action_name }} {{ Upn }} {{ Hosts | join(', ') }}",
         "pivot": "rows",
         "connection": "security",
         "database": "Samples",
@@ -130,6 +137,27 @@ async def test_a_run_kql_preset_is_a_kql_query_action_file(client: httpx.AsyncCl
             {"name": "Limit", "kind": "number", "from_columns": ["Limit"]},
         ],
     }
+
+
+async def test_the_action_files_title_renders_the_presets_title(
+    client: httpx.AsyncClient, tmp_path: Path
+) -> None:
+    response = await action_file(client, RUN_KQL_PRESET)
+    (tmp_path / "preset.yaml").write_text(response.text)
+    [loaded] = load_action_files(tmp_path, {"kql_query": KqlQuery}).actions
+    assert isinstance(loaded.action, KqlQuery)
+
+    title = loaded.action.title_for({"Upn": "alice@contoso.com", "Hosts": ["a"], "Limit": 5})
+    assert title == "Sign-ins by user alice@contoso.com a"
+
+
+async def test_a_preset_without_inputs_in_its_title_gives_an_action_file_without_one(
+    client: httpx.AsyncClient,
+) -> None:
+    inputs = [{**i, "showInTitle": False} for i in RUN_KQL_PRESET["inputs"]]
+    response = await action_file(client, {**RUN_KQL_PRESET, "inputs": inputs})
+
+    assert "title" not in yaml.safe_load(response.text)
 
 
 async def test_a_from_row_input_without_columns_makes_the_action_file_no_pivot(

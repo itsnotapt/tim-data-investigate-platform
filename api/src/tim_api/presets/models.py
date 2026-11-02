@@ -18,6 +18,7 @@ class FixedInput(ApiModel):
     source: Literal["param"]
     fixed: Literal[True]
     value: Any
+    show_in_title: bool = False
 
 
 class FromRowInput(ApiModel):
@@ -28,6 +29,7 @@ class FromRowInput(ApiModel):
     source: Literal["param"]
     fixed: Literal[False]
     from_columns: list[NonBlankStr]
+    show_in_title: bool = True
 
 
 class FixedQueryParameter(ApiModel):
@@ -39,6 +41,7 @@ class FixedQueryParameter(ApiModel):
     type: QueryParameterType
     fixed: Literal[True]
     value: Any
+    show_in_title: bool = False
 
 
 class FromRowQueryParameter(ApiModel):
@@ -50,9 +53,12 @@ class FromRowQueryParameter(ApiModel):
     type: QueryParameterType
     fixed: Literal[False]
     from_columns: list[NonBlankStr]
+    show_in_title: bool = True
 
 
 PresetInput = FixedInput | FromRowInput | FixedQueryParameter | FromRowQueryParameter
+"""An input of a preset. ``show_in_title`` is whether its value follows the preset's name in the
+run title of a tab opened from it, by default only for a From row input."""
 
 
 class PresetFields(ApiModel):

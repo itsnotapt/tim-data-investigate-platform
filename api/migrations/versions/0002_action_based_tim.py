@@ -37,6 +37,7 @@ def upgrade() -> None:
         sa.Column("owner", sa.Text(), nullable=False),
         sa.Column("status", sa.String(16), nullable=False),
         sa.Column("action", _jsonb(), nullable=False),
+        sa.Column("title", sa.Text(), nullable=False),
         sa.Column("params", _jsonb(), nullable=False),
         sa.Column("details", _json(), nullable=False),
         sa.Column("columns", _jsonb()),

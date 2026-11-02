@@ -782,6 +782,11 @@
             "title": "Name",
             "type": "string"
           },
+          "showInTitle": {
+            "default": false,
+            "title": "Showintitle",
+            "type": "boolean"
+          },
           "source": {
             "const": "param",
             "title": "Source",
@@ -811,6 +816,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "showInTitle": {
+            "default": false,
+            "title": "Showintitle",
+            "type": "boolean"
           },
           "source": {
             "const": "queryParameter",
@@ -863,6 +873,11 @@
             "title": "Name",
             "type": "string"
           },
+          "showInTitle": {
+            "default": true,
+            "title": "Showintitle",
+            "type": "boolean"
+          },
           "source": {
             "const": "param",
             "title": "Source",
@@ -896,6 +911,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "showInTitle": {
+            "default": true,
+            "title": "Showintitle",
+            "type": "boolean"
           },
           "source": {
             "const": "queryParameter",
@@ -1596,7 +1616,7 @@
         "type": "object"
       },
       "Run": {
-        "description": "A run without its rows. Server-produced only, never a request.\n\n``params`` are the resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``\n(seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the\naction's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a\nquery action's run succeeds, never for a sink; ``error`` is a message safe to show.",
+        "description": "A run without its rows. Server-produced only, never a request.\n\n``title`` is the run title, from the action and the resolved params. ``params`` are the\nresolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``\n(seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the\naction's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a\nquery action's run succeeds, never for a sink; ``error`` is a message safe to show.",
         "properties": {
           "action": {
             "$ref": "#/components/schemas/RunAction"
@@ -1694,12 +1714,17 @@
           },
           "status": {
             "$ref": "#/components/schemas/RunStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
           }
         },
         "required": [
           "runId",
           "status",
           "action",
+          "title",
           "params",
           "owner",
           "startedAt",

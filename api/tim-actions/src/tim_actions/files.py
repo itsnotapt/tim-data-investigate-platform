@@ -99,9 +99,11 @@ class ActionDocument(DocumentBase):
     """A query action in an action file. A query action type's ``File`` model subclasses this
     and adds the type's own fields.
 
-    ``id`` is the Id column the results open with; leaving it out opens them with none.
+    ``id`` is the Id column the results open with; leaving it out opens them with none. ``title``
+    is a Jinja template of its runs' titles; leaving it out titles them with ``name``.
     """
 
+    title: NonBlankStr | None = None
     pivot: Pivot
     params: tuple[Param, ...] = ()
     columns: tuple[Column, ...] | None = None

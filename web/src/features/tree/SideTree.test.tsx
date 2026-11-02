@@ -90,6 +90,20 @@ describe('SideTree', () => {
     expect(status('filled')).toHaveAttribute('data-status', 'draft');
   });
 
+  it("titles a tab that has run by its latest run, in full in a tooltip and the checkbox's name", async () => {
+    const store = newTestStore();
+    const title = `Host timeline ${'BGIST-L '.repeat(20).trim()}`;
+    store.getState().createTab(tab('ran', null, { state: { runTitle: title, isVisited: true } }));
+    renderTree(store);
+    await expand();
+    expect(node('ran')).toHaveTextContent(title);
+    expect(
+      within(node('ran')).getByRole('checkbox', { name: `Select ${title}` }),
+    ).toBeInTheDocument();
+    await userEvent.hover(within(node('ran')).getByText(title));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(title);
+  });
+
   it('click marks visited and navigates', async () => {
     const store = newTestStore();
     store.getState().createTab(tab('a', null, { state: { rowCount: 2 } }));

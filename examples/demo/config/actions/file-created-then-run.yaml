@@ -2,6 +2,7 @@
 type: kql_query
 key: demo.file-created-then-run
 name: File created, then run?
+title: "{{ action_name }} {{ host }} {{ file }}"
 menu: Endpoint
 description: The processes started from a file on its host after it was created
 pivot: row

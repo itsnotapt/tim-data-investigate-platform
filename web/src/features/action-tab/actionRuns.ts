@@ -231,6 +231,7 @@ export async function runActionTab(uuid: string, options: ActionRunOptions = {})
   store.getState().updateState(uuid, {
     run,
     runParams: tab.params.params,
+    runTitle: run.title,
     pivotMissing: null,
   });
   // Saved at once, so a reload picks the run up by its id.
@@ -311,6 +312,7 @@ export function openRunTab(
     state: {
       run,
       runParams: run.params,
+      runTitle: run.title,
       isExecuting: true,
       linkedRow,
       ...(idColumn !== null && { idColumn }),

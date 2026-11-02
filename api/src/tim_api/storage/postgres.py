@@ -84,6 +84,7 @@ runs = Table(
     Column("owner", Text, nullable=False),
     Column("status", String(16), nullable=False),
     Column("action", _JSON, nullable=False),
+    Column("title", Text, nullable=False),
     Column("params", _JSON, nullable=False),
     # json, not jsonb: details keep the order they were reported in.
     Column("details", JSON(none_as_null=True), nullable=False),
@@ -226,6 +227,7 @@ def _run_values(run: Run) -> dict[str, Any]:
         "owner": run.owner,
         "status": run.status.value,
         "action": run.action.model_dump(mode="json"),
+        "title": run.title,
         "params": run.params,
         "details": run.details,
         "columns": None,
@@ -244,6 +246,7 @@ def _run_from_row(row: Any) -> Run:
         run_id=m["run_id"],
         status=RunStatus(m["status"]),
         action=RunAction.model_validate(m["action"]),
+        title=m["title"],
         params=m["params"],
         owner=m["owner"],
         started_at=m["started_at"],

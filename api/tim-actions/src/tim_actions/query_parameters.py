@@ -98,11 +98,12 @@ def params_and_values(entries: Sequence[CheckedParameter]) -> tuple[list[Param],
 
 @dataclass(frozen=True)
 class PresetFileParams:
-    """The params of the action file of a preset with query parameters, in their order, and how
-    it pivots."""
+    """The params of the action file of a preset with query parameters, in their order, how it
+    pivots, and its title template."""
 
     params: tuple[Param, ...]
     pivot: Pivot
+    title: str | None
 
 
 def preset_file_params(
@@ -111,10 +112,13 @@ def preset_file_params(
     """Each query parameter of a preset as a param, in order: a fixed one with its value as the
     default, a From row one with its columns. A ``dynamic`` one is a ``json`` param, ``many``
     unless its fixed value is not a list. Like the preset, it pivots on ``rows`` when every From
-    row query parameter has columns. ``None`` when a type isn't one of ``types``."""
+    row query parameter has columns. The title template is ``action_name`` then each query
+    parameter shown in the title, a ``many`` one joined by ", "; without any, there is none.
+    ``None`` when a type isn't one of ``types``."""
     if any(p.type not in types for p in query_parameters):
         return None
     params = []
+    shown = []
     for p in query_parameters:
         kind = types[p.type]
         many = p.type == "dynamic" and (p.from_columns is not None or isinstance(p.value, list))
@@ -122,8 +126,11 @@ def preset_file_params(
             params.append(Param(p.name, kind, many=many, default=p.value))
         else:
             params.append(Param(p.name, kind, many=many, from_columns=p.from_columns))
+        if p.show_in_title:
+            shown.append(f"{{{{ {p.name} | join(', ') }}}}" if many else f"{{{{ {p.name} }}}}")
     from_row = [p.from_columns for p in query_parameters if p.from_columns is not None]
-    return PresetFileParams(tuple(params), "rows" if from_row and all(from_row) else "none")
+    title = " ".join(["{{ action_name }}", *shown]) if shown else None
+    return PresetFileParams(tuple(params), "rows" if from_row and all(from_row) else "none", title)
 
 
 class TakesQueryParameters(Action):

@@ -54,6 +54,33 @@ test('a pivot from one row opens a child tab in the background, which runs, and 
   await expect(menuOption(page, 'Development / Pivots / Sessions for users')).toBeVisible();
 });
 
+test('pivots from rows with different users are titled by their users once run, and a rerun retitles', async ({
+  page,
+}) => {
+  await runRows(page, 'Sign-ins', 4);
+  for (const index of [1, 3])
+    await pivot(page, index, 'User', ['Development', 'Pivots', 'Sessions for users']);
+  const tree = page.getByLabel('Query tree');
+  await tree.hover();
+  await expect(tree.getByText('Sessions for users bob@example.com', { exact: true })).toBeVisible();
+  await tree.getByText('Sessions for users carol@example.com', { exact: true }).click();
+  await page.mouse.move(900, 500);
+  const title = page.getByRole('heading', { name: 'Sessions for users carol@example.com' });
+  await expect(title).toBeVisible();
+
+  // Editing a param leaves the title to the latest run, until the tab runs again.
+  await page.getByRole('button', { name: 'Users: carol@example.com' }).click();
+  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await users.fill('alice@example.com');
+  await users.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(title).toBeVisible();
+  await page.getByRole('button', { name: 'Run' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Sessions for users carol@example.com, alice@example.com' }),
+  ).toBeVisible();
+});
+
 test('a pivot from several rows takes the selected rows, and a right-click outside them selects just its row', async ({
   page,
 }) => {

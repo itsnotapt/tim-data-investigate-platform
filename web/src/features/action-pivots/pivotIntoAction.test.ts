@@ -105,7 +105,9 @@ const FAILURES: Preset = {
   hidden: false,
   action: 'sign-ins',
   params: {},
-  inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: ['User'] }],
+  inputs: [
+    { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
+  ],
   createdAt: '2026-10-01T00:00:00Z',
   updatedAt: '2026-10-01T00:00:00Z',
 };
@@ -210,6 +212,7 @@ describe('pivotIntoAction', () => {
         action: 'sign-ins',
         params: { connection: 'kusto-dev', users: ['alice'], result: 'Failure', limit: 10 },
         presetId: 'p-1',
+        titleInputs: [{ source: 'param', name: 'users' }],
       },
     });
     expect(run).toHaveBeenCalledWith(uuid);

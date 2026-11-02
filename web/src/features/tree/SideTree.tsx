@@ -10,6 +10,7 @@ import IconButton from '@mui/material/IconButton';
 import ListItemButton from '@mui/material/ListItemButton';
 import { useEffect, useMemo, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router';
+import { tabTitle } from '../action-tab/tabTitle';
 import { NewQueryMenu } from '../new-query';
 import { selectAncestors, selectRoots, useTabsStore, type Tab, type TabsStore } from '../tabs';
 import { TreeNodeIcon } from './TreeNodeIcon';
@@ -134,7 +135,7 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
               checked={selection.checked.has(t.componentUuid)}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => selection.toggle(t.componentUuid, e.target.checked)}
-              slotProps={{ input: { 'aria-label': `Select ${t.title}` } }}
+              slotProps={{ input: { 'aria-label': `Select ${tabTitle(t)}` } }}
             />
           )}
           <Box sx={{ display: 'flex', mr: 1 }}>

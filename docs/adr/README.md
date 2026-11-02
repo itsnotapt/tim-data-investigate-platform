@@ -78,3 +78,4 @@ Numbers are never reused, so the sequence has gaps.
 | [0024](0024-one-release-version.md) | One release version for TIM, its own for `tim-actions` | accepted | 2026-10-29 |
 | [0025](0025-ids-from-the-id-column-in-the-browser.md) | A row's `id` is the value of the Id column, computed in the browser | accepted | 2026-10-30 |
 | [0026](0026-a-demo-instance-needs-no-accounts.md) | A demo instance needs no accounts | accepted | 2026-10-31 |
+| [0027](0027-run-titles-from-jinja-templates.md) | Run titles: Jinja templates for actions, Show in title for presets | accepted | 2026-11-01 |
