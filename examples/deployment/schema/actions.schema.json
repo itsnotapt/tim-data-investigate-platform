@@ -264,6 +264,18 @@
           "default": null,
           "title": "Description"
         },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
         "pivot": {
           "enum": [
             "row",
@@ -390,6 +402,18 @@
           "default": null,
           "title": "Description"
         },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
         "pivot": {
           "enum": [
             "row",
@@ -494,6 +518,18 @@
           ],
           "default": null,
           "title": "Description"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
         },
         "pivot": {
           "enum": [
