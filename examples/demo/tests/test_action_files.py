@@ -44,16 +44,16 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         if action.pivot != "none"
     }
     assert titles == {
-        "demo.by-user": "By user alice",
-        "demo.child-processes": "Child processes BGIST-L {a1}",
-        "demo.connections-to-ip": "Connections to IP 203.0.113.7",
-        "demo.file-created-then-run": r"File created, then run? BGIST-L C:\Users\Public\update.exe",
-        "demo.hash-seen-anywhere": "Hash seen anywhere 9f86d081",
-        "demo.host-logs": "Host's other logs BGIST-L",
-        "demo.host-timeline": "Host timeline BGIST-L",
-        "demo.parent-process": "Parent process BGIST-L {a0}",
-        "demo.process-activity": "Process activity BGIST-L {a1}",
-        "demo.process-creations": "Process creations BGIST-L",
+        "demo.by-user": "What alice did",
+        "demo.child-processes": "Processes {a1} started on BGIST-L",
+        "demo.connections-to-ip": "Connections to 203.0.113.7",
+        "demo.file-executed-after-creation": r"C:\Users\Public\update.exe executed on BGIST-L after creation",
+        "demo.hash-seen-anywhere": "Events holding 9f86d081",
+        "demo.host-logs": "BGIST-L's other logs",
+        "demo.host-timeline": "BGIST-L's timeline",
+        "demo.parent-process": "Parent process {a0} on BGIST-L",
+        "demo.process-activity": "What {a1} did on BGIST-L",
+        "demo.process-creations": "Processes started on BGIST-L",
     }
 
 

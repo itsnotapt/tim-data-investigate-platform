@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.hash-seen-anywhere
 name: Hash seen anywhere
-title: "{{ action_name }} {{ hash }}"
+title: "Events holding {{ hash }}"
 menu: Endpoint
 description: The events in every log that hold a SHA256 or MD5 hash, in the window around a time
 pivot: row

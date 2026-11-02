@@ -84,7 +84,7 @@ def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoin
         "By user",
         "Child processes",
         "Connections to IP",
-        "File created, then run?",
+        "File executed after creation",
         "Hash seen anywhere",
         "Parent process",
         "Process activity",
@@ -329,8 +329,8 @@ def test_a_row_with_only_an_md5_pivots_on_its_md5(
 def test_a_file_creation_pivots_to_the_runs_of_the_file_after_it(
     actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
 ) -> None:
-    file_created_then_run = actions["demo.file-created-then-run"]
-    resolved = resolve_pivot(file_created_then_run, [FILE_CREATION])
+    file_executed_after_creation = actions["demo.file-executed-after-creation"]
+    resolved = resolve_pivot(file_executed_after_creation, [FILE_CREATION])
     assert (resolved.params, resolved.missing) == (
         {
             "host": "FYODOR-L",
@@ -341,7 +341,7 @@ def test_a_file_creation_pivots_to_the_runs_of_the_file_after_it(
     )
     tim_kusto.respond([])
 
-    run_action(file_created_then_run, resolved.params, connections=tim_connections)
+    run_action(file_executed_after_creation, resolved.params, connections=tim_connections)
 
     [call] = tim_kusto.calls
     assert call.parameters == {
@@ -361,7 +361,7 @@ def test_a_file_creation_pivots_to_the_runs_of_the_file_after_it(
 
 
 def test_a_row_of_other_activity_leaves_the_file_to_fill_in(actions: dict[str, Action]) -> None:
-    resolved = resolve_pivot(actions["demo.file-created-then-run"], [CONNECTION])
+    resolved = resolve_pivot(actions["demo.file-executed-after-creation"], [CONNECTION])
 
     assert resolved.missing == {"file": None}
 

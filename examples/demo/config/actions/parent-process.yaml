@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.parent-process
 name: Parent process
-title: "{{ action_name }} {{ host }} {{ parent }}"
+title: "Parent process {{ parent }} on {{ host }}"
 menu: Endpoint
 description: The process that started a process
 pivot: row

@@ -1,14 +1,14 @@
-# Whether a file a process created was run afterwards, to spot dropped payloads.
+# The runs of a file after a process created it, to spot dropped payloads.
 type: kql_query
-key: demo.file-created-then-run
-name: File created, then run?
-title: "{{ action_name }} {{ host }} {{ file }}"
+key: demo.file-executed-after-creation
+name: File executed after creation
+title: "{{ file }} executed on {{ host }} after creation"
 menu: Endpoint
 description: The processes started from a file on its host after it was created
 pivot: row
 connection: security
 database: Security
-kql_file: file-created-then-run.kql
+kql_file: file-executed-after-creation.kql
 params:
   - name: host
     kind: string

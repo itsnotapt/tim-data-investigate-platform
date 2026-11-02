@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.connections-to-ip
 name: Connections to IP
-title: "{{ action_name }} {{ ip }}"
+title: "Connections to {{ ip }}"
 menu: Endpoint
 description: The network connections to an IP from every host, in the window around a time
 pivot: row

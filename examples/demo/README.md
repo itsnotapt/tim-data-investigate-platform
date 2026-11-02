@@ -137,7 +137,7 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 | Child processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Process activity | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Connections to IP | Endpoint | `DestinationIp`, `Timestamp` | ±1 day |
-| File created, then run? | Endpoint | `Host`, `TargetFilename`, `Timestamp` | 1 day after the file was created |
+| File executed after creation | Endpoint | `Host`, `TargetFilename`, `Timestamp` | 1 day after the file was created |
 | Hash seen anywhere | Endpoint | `SHA256` or `MD5`, `Timestamp` | ±1 day |
 | Host timeline | Host | `Host`, `Timestamp` | ±15 minutes |
 | Host's other logs | Host | `Host`, `Timestamp` | ±1 hour |
