@@ -12,7 +12,7 @@ from scripted_actions import Recording, Rows, WaitingSink
 from test_runs_api import ALICE, Env, open_env
 from tim_actions import Column
 
-from tim_api.storage import Storage
+from tim_api.storage import PostgresStorage
 
 SAVE = Recording(key="acme.save_event", name="Save event", menu="Kusto")
 HOST = {"name": "Host", "type": "string"}
@@ -34,7 +34,7 @@ async def start(env: Env, action: str, body: dict[str, Any]) -> httpx.Response:
 
 
 async def test_a_sink_run_writes_the_input_rows_and_keeps_none(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [SAVE]) as env:
         started = await start(env, "acme.save_event", {"input": INPUT})
@@ -84,7 +84,7 @@ SIGN_INS = Rows(key="acme.sign_ins", name="Sign-ins", pivot="none", rows=({"n": 
     ],
 )
 async def test_a_sink_takes_input_and_only_a_sink_does(
-    storage: Storage,
+    storage: PostgresStorage,
     auth: AuthKit,
     monkeypatch: pytest.MonkeyPatch,
     action: str,
@@ -99,7 +99,9 @@ async def test_a_sink_takes_input_and_only_a_sink_does(
         assert Recording.received == []
 
 
-async def test_a_failed_sink_reports_its_error_and_details(storage: Storage, auth: AuthKit) -> None:
+async def test_a_failed_sink_reports_its_error_and_details(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     sink = Recording(
         key="acme.refuses", name="Refuses", details=(("cluster", "help"),), error="Ingest refused"
     )
@@ -113,7 +115,7 @@ async def test_a_failed_sink_reports_its_error_and_details(storage: Storage, aut
 
 
 async def test_a_sink_run_can_be_cancelled_through_its_hook(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     sink = WaitingSink(key="acme.waits", name="Waits")
     async with open_env(storage, auth, [sink], race_seconds=0.1) as env:
@@ -128,7 +130,7 @@ async def test_a_sink_run_can_be_cancelled_through_its_hook(
 
 
 async def test_the_most_rows_of_a_few_kilobytes_each_fit_in_one_request(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     rows = [{"Host": f"h-{n}", "Raw": "x" * 2000} for n in range(10_000)]
     async with open_env(storage, auth, [SAVE]) as env:

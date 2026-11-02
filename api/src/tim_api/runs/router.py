@@ -22,7 +22,7 @@ from tim_api.runs.connections import Connections, get_connections
 from tim_api.runs.models import RowsPage, Run, RunStatus, StartRun
 from tim_api.runs.results import ResultsGoneError, RunNotSucceededError
 from tim_api.runs.runner import RunInput, Runner
-from tim_api.storage import RunStore
+from tim_api.storage import PostgresRunStore
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -75,14 +75,14 @@ def _pivot_rows(action: Action | Sink, body: StartRun, max_rows: int) -> list[di
     return [{column: row[column] for column in columns if column in row} for row in given]
 
 
-async def _known_run(store: RunStore, run_id: UUID) -> Run:
+async def _known_run(store: PostgresRunStore, run_id: UUID) -> Run:
     run = await store.get(run_id, datetime.now(UTC))
     if run is None:  # unknown or expired
         raise problem_exception(404, "Run not found")
     return run
 
 
-async def _owned_run(store: RunStore, run_id: UUID, principal: Principal) -> Run:
+async def _owned_run(store: PostgresRunStore, run_id: UUID, principal: Principal) -> Run:
     run = await _known_run(store, run_id)
     if run.owner != principal.name:
         raise problem_exception(404, "Run not found")
@@ -135,7 +135,7 @@ async def start_run(
 async def get_run(
     run_id: RunId,
     principal: Caller,
-    store: Annotated[RunStore, Depends(get_run_store)],
+    store: Annotated[PostgresRunStore, Depends(get_run_store)],
 ) -> Run:
     """Any analyst holding the ``runId`` can read the run; only its owner can cancel it."""
     return await _known_run(store, run_id)
@@ -145,7 +145,7 @@ async def get_run(
 async def cancel_run(
     run_id: RunId,
     principal: Caller,
-    store: Annotated[RunStore, Depends(get_run_store)],
+    store: Annotated[PostgresRunStore, Depends(get_run_store)],
     runner: Annotated[Runner, Depends(get_runner)],
 ) -> Run:
     """Cancel the run. It is ``cancelled`` once ``Hook.cancel()`` returns or the worker exits,
@@ -157,7 +157,7 @@ async def cancel_run(
 async def get_rows(
     run_id: RunId,
     principal: Caller,
-    store: Annotated[RunStore, Depends(get_run_store)],
+    store: Annotated[PostgresRunStore, Depends(get_run_store)],
     settings: Annotated[Settings, Depends(get_settings)],
     start_row: Annotated[int, Query(alias="startRow", ge=0)] = 0,
     end_row: Annotated[int | None, Query(alias="endRow", ge=0)] = None,

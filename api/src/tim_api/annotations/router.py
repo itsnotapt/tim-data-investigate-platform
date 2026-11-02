@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from tim_api.actions.models import Instance
 from tim_api.annotations.models import (
     AnnotationChangesPage,
+    AnnotationEdit,
     AnnotationHistory,
     AnnotationId,
     AnnotationsChange,
@@ -21,13 +22,13 @@ from tim_api.auth.principal import Principal
 from tim_api.config import Settings, get_settings
 from tim_api.deps import get_annotation_store
 from tim_api.errors import UnprocessableError
-from tim_api.storage import AnnotationEdit, AnnotationStore
+from tim_api.storage import PostgresAnnotationStore
 
 router = APIRouter(prefix="/api/annotations", tags=["annotations"])
 tags_router = APIRouter(prefix="/api/tags", tags=["annotations"])
 
 Caller = Annotated[Principal, Depends(get_current_principal)]
-Store = Annotated[AnnotationStore, Depends(get_annotation_store)]
+Store = Annotated[PostgresAnnotationStore, Depends(get_annotation_store)]
 
 # Changed ids per page of the feed, give or take the rest of the page's last change.
 CHANGES_PAGE_SIZE = 1000

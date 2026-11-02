@@ -131,23 +131,9 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _asyncpg_dsn(cls, value: SecretStr) -> SecretStr:
-        url = value.get_secret_value()
-        # memory:// is the in-memory store (data lost on restart); production check below.
-        if not url.startswith(("memory://", "postgresql+asyncpg://")):
-            raise ValueError("must start with postgresql+asyncpg:// (or memory:// in development)")
+        if not value.get_secret_value().startswith("postgresql+asyncpg://"):
+            raise ValueError("must start with postgresql+asyncpg://")
         return value
-
-    @model_validator(mode="after")
-    def _no_memory_store_in_production(self) -> Settings:
-        if (
-            self.database_url.get_secret_value().startswith("memory://")
-            and self.environment == "production"
-        ):
-            raise ValueError(
-                f"{ENV_PREFIX}DATABASE_URL=memory:// is not allowed when "
-                f"{ENV_PREFIX}ENVIRONMENT=production"
-            )
-        return self
 
     @model_validator(mode="after")
     def _no_auth_bypass_in_production(self) -> Settings:

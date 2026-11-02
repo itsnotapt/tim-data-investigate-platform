@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
+from database import empty_database
 from fastapi import FastAPI
 from jwt.algorithms import RSAAlgorithm
 from tim_actions import Provider
@@ -19,27 +20,30 @@ from tim_api.runs.runner import (
     STALE_HEARTBEAT_SECONDS,
     STALE_SWEEP_SECONDS,
 )
-from tim_api.storage import MemoryStorage, Storage
+from tim_api.storage import PostgresStorage, build_storage
+
+
+def empty_storage(settings: Settings) -> PostgresStorage:
+    """The storage at ``TIM_DATABASE_URL``, the test database, emptied."""
+    empty_database(settings.database_url.get_secret_value())
+    return build_storage(settings)
 
 
 def create_test_app(
     *,
-    storage_factory: Callable[[Settings], Storage] | None = None,
+    storage_factory: Callable[[Settings], PostgresStorage] = empty_storage,
     race_seconds: float = RACE_SECONDS,
     providers: Sequence[Provider] | None = (),
     cancel_poll_seconds: float = CANCEL_POLL_SECONDS,
     stale_heartbeat_seconds: float = STALE_HEARTBEAT_SECONDS,
     stale_sweep_seconds: float = STALE_SWEEP_SECONDS,
 ) -> FastAPI:
-    """``create_app`` backed by the in-memory store unless a ``storage_factory`` is given.
+    """``create_app`` backed by the emptied test database unless a ``storage_factory`` is given.
 
     ``providers`` defaults to none; ``None`` discovers the installed ones.
-
-    The default test environment names a Postgres DSN (production settings), so an app built
-    without this would try to reach a database on startup.
     """
     return create_app(
-        storage_factory=storage_factory or (lambda _settings: MemoryStorage()),
+        storage_factory=storage_factory,
         race_seconds=race_seconds,
         providers=providers,
         cancel_poll_seconds=cancel_poll_seconds,

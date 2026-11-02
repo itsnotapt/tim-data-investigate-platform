@@ -48,7 +48,7 @@ Commands are in [docs/development.md](docs/development.md).
   - A hook gets tokens from the `token_for(scope)` callable it is given (`OboTokenProvider.token_for` behind it), never the user's token.
   - Callers depend on the `Hook`, not the implementation behind it.
 - A change to stored data comes with an Alembic migration in `api/migrations/`.
-- Every storage implementation passes the shared suite in `api/tests/storage_contract.py`.
+- A change to the storage comes with tests in `api/tests/storage_contract.py`.
 
 ## Tests
 

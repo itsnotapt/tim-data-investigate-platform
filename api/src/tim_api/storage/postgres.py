@@ -2,6 +2,7 @@
 
 Each method is one statement (or one short transaction), so it is safe to call concurrently.
 Timestamps and identities are supplied by callers; the database never reads the clock.
+Validation, owner identity and retention length are decided by the endpoints and the runner.
 Schema changes go through Alembic (``migrations/``); the app does not create tables itself.
 """
 
@@ -45,7 +46,11 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from tim_api.annotations.models import (
+    AnnotationChanges,
+    AnnotationEdit,
     Annotations,
+    AnnotationsChanged,
+    AnnotationsOf,
     Comment,
     CommentEntry,
     HistoryEntry,
@@ -56,20 +61,7 @@ from tim_api.annotations.models import (
 from tim_api.column_views.models import ColumnView, ColumnViewFields, StoredColumnView
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.runs.models import Run, RunAction, RunColumn, RunRow, RunStatus
-from tim_api.storage.base import (
-    AlreadyExistsError,
-    AnnotationChanges,
-    AnnotationEdit,
-    AnnotationsChanged,
-    AnnotationsOf,
-    AnnotationStore,
-    ColumnViewStore,
-    NotFoundError,
-    PresetStore,
-    RunStore,
-    Storage,
-    StorageUnavailableError,
-)
+from tim_api.storage.errors import AlreadyExistsError, NotFoundError, StorageUnavailableError
 
 metadata = MetaData()
 
@@ -317,11 +309,16 @@ def _is_connection_error(exc: DBAPIError) -> bool:
     return code.startswith(("08", "57P0", "53300"))
 
 
-class PostgresRunStore(RunStore):
+class PostgresRunStore:
+    """Runs and their rows. Rows are kept only for ``succeeded`` runs: every transition to
+    another outcome deletes them in the same transaction."""
+
     def __init__(self, db: _Db) -> None:
         self._db = db
 
     async def create(self, run: Run) -> Run:
+        """Insert a ``running`` run, with ``heartbeat_at`` its ``started_at``. Raises
+        ``AlreadyExistsError`` on a duplicate ``run_id``."""
         try:
             async with self._db.begin() as conn:
                 await conn.execute(insert(runs).values(**_run_values(run)))
@@ -330,12 +327,14 @@ class PostgresRunStore(RunStore):
         return run.model_copy(deep=True)
 
     async def get(self, run_id: UUID, now: datetime) -> Run | None:
+        """The run, or ``None`` when unknown or expired (``expires_at <= now``)."""
         stmt = select(runs).where(runs.c.run_id == run_id, runs.c.expires_at > now)
         async with self._db.begin() as conn:
             row = (await conn.execute(stmt)).first()
         return _run_from_row(row) if row else None
 
     async def add_rows(self, run_id: UUID, rows: Sequence[RunRow]) -> None:
+        """Store a batch of rows of a run. Raises ``NotFoundError`` when the run is missing."""
         if not rows:
             return
         values = [{"run_id": run_id, "row_number": r.row, "data": r.data} for r in rows]
@@ -346,6 +345,7 @@ class PostgresRunStore(RunStore):
             raise NotFoundError(str(run_id)) from None
 
     async def rows(self, run_id: UUID, start: int, end: int) -> list[RunRow]:
+        """The stored rows with ``start <= row < end``, in row order."""
         stmt = (
             select(run_rows.c.row_number, run_rows.c.data)
             .where(
@@ -360,6 +360,7 @@ class PostgresRunStore(RunStore):
         return [RunRow(row=r.row_number, data=r.data) for r in found]
 
     async def has_rows(self, run_id: UUID) -> bool:
+        """Whether any row of the run is stored."""
         stmt = select(exists().where(run_rows.c.run_id == run_id))
         async with self._db.begin() as conn:
             return bool((await conn.execute(stmt)).scalar())
@@ -376,6 +377,8 @@ class PostgresRunStore(RunStore):
         row_count: int | None = None,
         error: str | None = None,
     ) -> Run:
+        """End a ``running`` run; any status but ``succeeded`` also deletes its rows. A run that
+        has already ended is returned unchanged. Raises ``NotFoundError`` when missing."""
         stmt = (
             update(runs)
             .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING.value)
@@ -404,6 +407,7 @@ class PostgresRunStore(RunStore):
         return _run_from_row(row)
 
     async def request_cancel(self, run_id: UUID) -> None:
+        """Ask the process executing a ``running`` run to cancel it; a no-op otherwise."""
         stmt = (
             update(runs)
             .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING.value)
@@ -413,6 +417,8 @@ class PostgresRunStore(RunStore):
             await conn.execute(stmt)
 
     async def heartbeat(self, run_ids: Collection[UUID], now: datetime) -> dict[UUID, bool]:
+        """Set ``heartbeat_at`` to ``now`` for those of ``run_ids`` still ``running``; returns
+        each of them with whether its cancel has been requested."""
         if not run_ids:
             return {}
         stmt = (
@@ -425,6 +431,8 @@ class PostgresRunStore(RunStore):
             return {r.run_id: r.cancel_requested for r in await conn.execute(stmt)}
 
     async def delete_expired(self, now: datetime, limit: int) -> int:
+        """Delete at most ``limit`` runs with ``expires_at <= now``, with their rows; returns
+        how many."""
         # SKIP LOCKED: replicas sweeping at once take different runs.
         expired = (
             select(runs.c.run_id)
@@ -442,6 +450,8 @@ class PostgresRunStore(RunStore):
     async def mark_stale_running_as_error(
         self, before: datetime, *, message: str, finished_at: datetime, expires_at: datetime
     ) -> int:
+        """Sweep: runs still ``running`` with ``heartbeat_at < before`` become ``error`` with
+        ``message``, and their partial rows are deleted; returns how many."""
         # SKIP LOCKED: replicas sweeping at once take different runs, and a run whose heartbeat
         # or finish is being written is left for the next sweep.
         stale_runs = (
@@ -468,7 +478,7 @@ class PostgresRunStore(RunStore):
         return len(stale)
 
 
-class PostgresPresetStore(PresetStore):
+class PostgresPresetStore:
     def __init__(self, db: _Db) -> None:
         self._db = db
 
@@ -485,6 +495,8 @@ class PostgresPresetStore(PresetStore):
         return select(presets, (presets.c.owner == viewer).label("owned"), hidden)
 
     async def list(self, viewer: str) -> list[Preset]:
+        """The presets ``viewer`` owns and those shared, ordered by ``created_at`` then
+        ``preset_id``, each with whether ``viewer`` owns and hid it."""
         stmt = (
             self._select(viewer)
             .where((presets.c.owner == viewer) | (presets.c.visibility == "shared"))
@@ -495,12 +507,15 @@ class PostgresPresetStore(PresetStore):
         return [_preset_from_row(r) for r in rows]
 
     async def get(self, preset_id: UUID, viewer: str) -> Preset | None:
+        """The preset, whoever owns it, with whether ``viewer`` owns and hid it; ``None`` when
+        unknown."""
         stmt = self._select(viewer).where(presets.c.preset_id == preset_id)
         async with self._db.begin() as conn:
             row = (await conn.execute(stmt)).first()
         return _preset_from_row(row) if row else None
 
     async def create(self, preset: StoredPreset) -> None:
+        """Insert. Raises ``AlreadyExistsError`` if the ``preset_id`` exists."""
         values = {
             **_preset_field_values(preset),
             "preset_id": preset.preset_id,
@@ -515,6 +530,8 @@ class PostgresPresetStore(PresetStore):
             raise AlreadyExistsError(str(preset.preset_id)) from None
 
     async def replace(self, preset_id: UUID, fields: PresetFields, *, updated_at: datetime) -> None:
+        """Overwrite the owner's fields; ``owner`` and ``created_at`` are kept. Raises
+        ``NotFoundError`` when missing."""
         stmt = (
             update(presets)
             .where(presets.c.preset_id == preset_id)
@@ -526,6 +543,8 @@ class PostgresPresetStore(PresetStore):
                 raise NotFoundError(str(preset_id))
 
     async def delete(self, preset_id: UUID) -> None:
+        """Delete the preset and every analyst's hidden mark on it. Raises ``NotFoundError``
+        when missing."""
         stmt = (
             delete(presets).where(presets.c.preset_id == preset_id).returning(presets.c.preset_id)
         )
@@ -534,6 +553,8 @@ class PostgresPresetStore(PresetStore):
                 raise NotFoundError(str(preset_id))
 
     async def set_hidden(self, preset_id: UUID, analyst: str, hidden: bool) -> None:
+        """Hide or unhide the preset for ``analyst``; idempotent. Raises ``NotFoundError``
+        when the preset is missing."""
         async with self._db.begin() as conn:
             found = await conn.execute(
                 select(presets.c.preset_id)
@@ -556,7 +577,7 @@ class PostgresPresetStore(PresetStore):
                 )
 
 
-class PostgresColumnViewStore(ColumnViewStore):
+class PostgresColumnViewStore:
     def __init__(self, db: _Db) -> None:
         self._db = db
 
@@ -573,6 +594,8 @@ class PostgresColumnViewStore(ColumnViewStore):
         return select(column_views, (column_views.c.owner == viewer).label("owned"), hidden)
 
     async def list(self, viewer: str) -> list[ColumnView]:
+        """The views ``viewer`` owns and those shared, ordered by ``created_at`` then
+        ``view_id``, each with whether ``viewer`` owns and hid it."""
         stmt = (
             self._select(viewer)
             .where((column_views.c.owner == viewer) | (column_views.c.visibility == "shared"))
@@ -583,12 +606,15 @@ class PostgresColumnViewStore(ColumnViewStore):
         return [_column_view_from_row(r) for r in rows]
 
     async def get(self, view_id: UUID, viewer: str) -> ColumnView | None:
+        """The view, whoever owns it, with whether ``viewer`` owns and hid it; ``None`` when
+        unknown."""
         stmt = self._select(viewer).where(column_views.c.view_id == view_id)
         async with self._db.begin() as conn:
             row = (await conn.execute(stmt)).first()
         return _column_view_from_row(row) if row else None
 
     async def create(self, view: StoredColumnView) -> None:
+        """Insert. Raises ``AlreadyExistsError`` if the ``view_id`` exists."""
         values = {
             "view_id": view.view_id,
             "owner": view.owner,
@@ -609,6 +635,8 @@ class PostgresColumnViewStore(ColumnViewStore):
     async def replace(
         self, view_id: UUID, fields: ColumnViewFields, *, updated_at: datetime
     ) -> None:
+        """Overwrite the owner's fields; ``owner``, ``saved_from`` and ``created_at`` are kept.
+        Raises ``NotFoundError`` when missing."""
         stmt = (
             update(column_views)
             .where(column_views.c.view_id == view_id)
@@ -625,6 +653,8 @@ class PostgresColumnViewStore(ColumnViewStore):
                 raise NotFoundError(str(view_id))
 
     async def delete(self, view_id: UUID) -> None:
+        """Delete the view and every analyst's hidden mark on it. Raises ``NotFoundError``
+        when missing."""
         stmt = (
             delete(column_views)
             .where(column_views.c.view_id == view_id)
@@ -635,6 +665,8 @@ class PostgresColumnViewStore(ColumnViewStore):
                 raise NotFoundError(str(view_id))
 
     async def set_hidden(self, view_id: UUID, analyst: str, hidden: bool) -> None:
+        """Hide or unhide the view for ``analyst``; idempotent. Raises ``NotFoundError`` when
+        the view is missing."""
         async with self._db.begin() as conn:
             found = await conn.execute(
                 select(column_views.c.view_id)
@@ -719,13 +751,19 @@ async def _commented(
     return [id for id in ids if own.get(id) != edit.comment]
 
 
-class PostgresAnnotationStore(AnnotationStore):
+class PostgresAnnotationStore:
+    """The annotations of ids, with one version counter (ADR-0020). Every change is one
+    transaction that takes the next version, so versions are gapless and in commit order."""
+
     def __init__(self, db: _Db) -> None:
         self._db = db
 
     async def change(
         self, ids: Collection[str], edit: AnnotationEdit, *, by: str, at: datetime
     ) -> AnnotationsChanged:
+        """Apply ``edit`` to every one of ``ids`` under one new version. An id the edit leaves as
+        it was isn't changed, and a change that changes nothing takes no version and writes no
+        history."""
         wanted = sorted(set(ids))
         try:
             async with self._db.begin() as conn:
@@ -850,6 +888,8 @@ class PostgresAnnotationStore(AnnotationStore):
             return AnnotationsChanged(changes=[], version=current)
 
     async def of_ids(self, ids: Collection[str]) -> AnnotationsOf:
+        """The annotations of those of ``ids`` that have any, including ids whose annotations
+        have all been removed."""
         async with self._db.begin() as conn:
             # The version before the state, so the state is never older than it.
             version = (await conn.execute(select(annotation_clock.c.version))).scalar_one()
@@ -860,6 +900,8 @@ class PostgresAnnotationStore(AnnotationStore):
         return AnnotationsOf(annotations={a.id: a for a in found}, version=version)
 
     async def changes(self, since: int, limit: int) -> AnnotationChanges:
+        """The ids changed after version ``since``: the first ``limit``, and the others of the
+        last one's version, so a page always ends after a whole version."""
         after = id_state.c.version > since
         async with self._db.begin() as conn:
             last = (
@@ -882,6 +924,8 @@ class PostgresAnnotationStore(AnnotationStore):
         return AnnotationChanges(changes=found, has_more=has_more)
 
     async def history(self, id: str) -> list[HistoryEntry]:
+        """The label changes of ``id`` and each author's comment, newest first, the label change
+        before the comment of the same change; none for an id never changed."""
         async with self._db.begin() as conn:
             labelled = await conn.execute(select(label_changes).where(label_changes.c.id == id))
             commented = await conn.execute(select(comments).where(comments.c.id == id))
@@ -900,6 +944,9 @@ class PostgresAnnotationStore(AnnotationStore):
         return [entry for _, entry in sorted(found, key=lambda f: f[0])]
 
     async def tag_suggestions(self, prefix: str, *, by: str, limit: int) -> TagSuggestions:
+        """Up to ``limit`` of the tags ``by`` added that are still on an id, newest first, then
+        up to ``limit`` of the other tags, on the most ids first. A tag matches when it starts
+        with ``prefix``, ignoring case. Ties go in tag order."""
         matching = func.starts_with(func.lower(tags.c.tag), func.lower(prefix))
         mine = select(tags.c.tag).where(matching, tags.c.added_by == by).group_by(tags.c.tag)
         async with self._db.begin() as conn:
@@ -926,7 +973,9 @@ class PostgresAnnotationStore(AnnotationStore):
         return TagSuggestions(recent=recent, most_used=most_used)
 
 
-class PostgresStorage(Storage):
+class PostgresStorage:
+    """Bundle wired into the app: the stores plus lifecycle and health."""
+
     def __init__(self, url: str, *, pool_size: int = 10) -> None:
         self._engine = create_async_engine(url, pool_size=pool_size, pool_pre_ping=True)
         db = _Db(self._engine)
@@ -936,6 +985,7 @@ class PostgresStorage(Storage):
         self.annotations = PostgresAnnotationStore(db)
 
     async def health(self) -> bool:
+        """``True`` when the store is reachable. Must not raise."""
         try:
             async with self._engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
@@ -944,4 +994,5 @@ class PostgresStorage(Storage):
         return True
 
     async def aclose(self) -> None:
+        """Release resources."""
         await self._engine.dispose()

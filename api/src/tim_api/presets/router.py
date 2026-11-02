@@ -16,7 +16,7 @@ from tim_api.errors import UnprocessableError, problem_exception
 from tim_api.presets.action_file import preset_action_file
 from tim_api.presets.models import Preset, PresetFields, StoredPreset
 from tim_api.runs.router import get_actions
-from tim_api.storage import PresetStore
+from tim_api.storage import PostgresPresetStore
 
 router = APIRouter(
     prefix="/api/presets",
@@ -24,7 +24,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_principal)],
 )
 
-Store = Annotated[PresetStore, Depends(get_preset_store)]
+Store = Annotated[PostgresPresetStore, Depends(get_preset_store)]
 Caller = Annotated[Principal, Depends(get_current_principal)]
 Actions = Annotated[dict[str, Action | Sink], Depends(get_actions)]
 PresetId = Annotated[UUID, Path(alias="presetId")]
@@ -70,14 +70,14 @@ def _check(body: PresetFields, actions: dict[str, Action | Sink]) -> None:
         raise UnprocessableError(errors)
 
 
-async def _visible(store: PresetStore, preset_id: UUID, principal: Principal) -> Preset:
+async def _visible(store: PostgresPresetStore, preset_id: UUID, principal: Principal) -> Preset:
     preset = await store.get(preset_id, principal.name)
     if preset is None or (preset.owner != principal.name and preset.visibility == "private"):
         raise problem_exception(404, "Preset not found")
     return preset
 
 
-async def _owned(store: PresetStore, preset_id: UUID, principal: Principal) -> Preset:
+async def _owned(store: PostgresPresetStore, preset_id: UUID, principal: Principal) -> Preset:
     preset = await _visible(store, preset_id, principal)
     if preset.owner != principal.name:
         raise problem_exception(403, "Only the owner can change a preset")

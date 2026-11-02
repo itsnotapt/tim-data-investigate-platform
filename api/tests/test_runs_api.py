@@ -33,7 +33,7 @@ from tim_api.runs.runner import (
     STALE_HEARTBEAT_SECONDS,
     STALE_SWEEP_SECONDS,
 )
-from tim_api.storage import Storage
+from tim_api.storage import PostgresStorage
 
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
@@ -58,7 +58,7 @@ class Env:
         self,
         client: httpx.AsyncClient,
         auth: AuthKit,
-        storage: Storage,
+        storage: PostgresStorage,
         obo: FakeObo,
     ) -> None:
         self.client = client
@@ -106,7 +106,7 @@ class Env:
 
 @asynccontextmanager
 async def open_env(
-    storage: Storage,
+    storage: PostgresStorage,
     auth: AuthKit,
     actions: Sequence[Any],
     race_seconds: float = 0.5,
@@ -149,7 +149,7 @@ SIGN_INS = Rows(
 )
 
 
-async def test_a_run_goes_end_to_end_over_http(storage: Storage, auth: AuthKit) -> None:
+async def test_a_run_goes_end_to_end_over_http(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth, [SIGN_INS]) as env:
         started = await env.start("acme.sign_ins")
         assert started.status_code == 200
@@ -214,7 +214,7 @@ async def wait_for_rows(env: Env, run_id: str) -> None:
 
 
 async def test_cancel_calls_the_hook_from_another_thread_and_drops_partial_rows(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [WAITS], race_seconds=0.1) as env:
         started = await env.start("acme.waits")
@@ -249,7 +249,7 @@ async def test_cancel_calls_the_hook_from_another_thread_and_drops_partial_rows(
 
 
 async def test_cancelling_a_finished_run_returns_it_unchanged(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [SIGN_INS]) as env:
         run = (await env.start("acme.sign_ins")).json()
@@ -258,7 +258,9 @@ async def test_cancelling_a_finished_run_returns_it_unchanged(
         assert cancelled.json() == run
 
 
-async def test_any_analyst_holding_the_run_id_can_read_it(storage: Storage, auth: AuthKit) -> None:
+async def test_any_analyst_holding_the_run_id_can_read_it(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     async with open_env(storage, auth, [SIGN_INS]) as env:
         run = (await env.start("acme.sign_ins")).json()
         env.as_user(BOB, "oid-b")
@@ -270,7 +272,7 @@ async def test_any_analyst_holding_the_run_id_can_read_it(storage: Storage, auth
         assert [r["data"]["User"] for r in rows.json()["rows"]] == ["alice", "bob", "carol"]
 
 
-async def test_only_the_owner_can_cancel_a_run(storage: Storage, auth: AuthKit) -> None:
+async def test_only_the_owner_can_cancel_a_run(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth, [SIGN_INS]) as env:
         run = (await env.start("acme.sign_ins")).json()
         env.as_user(BOB, "oid-b")
@@ -280,7 +282,7 @@ async def test_only_the_owner_can_cancel_a_run(storage: Storage, auth: AuthKit) 
 
 
 async def test_a_run_over_the_timeout_ends_timed_out_without_rows(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "1")
     async with open_env(storage, auth, [WAITS], race_seconds=0.1) as env:
@@ -293,7 +295,9 @@ async def test_a_run_over_the_timeout_ends_timed_out_without_rows(
         assert await stored_rows_exist(env, run["runId"]) is False
 
 
-async def test_a_safe_error_is_shown_and_leaves_no_rows(storage: Storage, auth: AuthKit) -> None:
+async def test_a_safe_error_is_shown_and_leaves_no_rows(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     action = SafeError(key="acme.fails", name="Fails", pivot="none", rows=PARTIAL)
     async with open_env(storage, auth, [action]) as env:
         run = (await env.start("acme.fails")).json()
@@ -304,7 +308,7 @@ async def test_a_safe_error_is_shown_and_leaves_no_rows(storage: Storage, auth: 
 
 
 async def test_an_unexpected_error_hides_its_message_and_leaves_no_rows(
-    storage: Storage, auth: AuthKit, caplog: pytest.LogCaptureFixture
+    storage: PostgresStorage, auth: AuthKit, caplog: pytest.LogCaptureFixture
 ) -> None:
     action = Unexpected(key="acme.breaks", name="Breaks", pivot="none", rows=PARTIAL)
     async with open_env(storage, auth, [action]) as env:
@@ -328,7 +332,7 @@ GENERATES = Rows(key="acme.many", name="Many", pivot="none", generate=1500)
     ],
 )
 async def test_a_result_over_a_cap_is_an_error_never_truncated(
-    storage: Storage,
+    storage: PostgresStorage,
     auth: AuthKit,
     monkeypatch: pytest.MonkeyPatch,
     variable: str,
@@ -344,7 +348,7 @@ async def test_a_result_over_a_cap_is_an_error_never_truncated(
 
 
 async def test_rows_come_in_pages_of_at_most_the_page_size(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_ROWS_PAGE_SIZE", "1000")
     async with open_env(storage, auth, [GENERATES]) as env:
@@ -370,7 +374,9 @@ async def test_rows_come_in_pages_of_at_most_the_page_size(
         assert list(backwards.json()["errors"]) == ["endRow"]
 
 
-async def test_a_run_with_no_rows_has_an_empty_first_page(storage: Storage, auth: AuthKit) -> None:
+async def test_a_run_with_no_rows_has_an_empty_first_page(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     empty = Rows(key="acme.empty", name="Empty", pivot="none", id="CorrelationId")
     async with open_env(storage, auth, [empty]) as env:
         run = (await env.start("acme.empty")).json()
@@ -385,7 +391,7 @@ async def test_a_run_with_no_rows_has_an_empty_first_page(storage: Storage, auth
 
 
 async def test_unknown_and_expired_runs_are_not_found(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_RUN_RETENTION_SECONDS", "1")
     async with open_env(storage, auth, [SIGN_INS]) as env:
@@ -398,30 +404,26 @@ async def test_unknown_and_expired_runs_are_not_found(
         assert (await env.rows(run["runId"])).status_code == 404
 
 
-async def test_rows_lost_after_a_crash_are_gone(postgres_dsn: str, auth: AuthKit) -> None:
+async def test_rows_lost_after_a_crash_are_gone(
+    storage: PostgresStorage, postgres_dsn: str, auth: AuthKit
+) -> None:
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    from tim_api.storage import PostgresStorage
-
-    storage = PostgresStorage(postgres_dsn)
-    try:
-        async with open_env(storage, auth, [SIGN_INS]) as env:
-            run = (await env.start("acme.sign_ins")).json()
-            engine = create_async_engine(postgres_dsn)
-            async with engine.begin() as conn:  # what crash recovery does to an UNLOGGED table
-                await conn.execute(text("TRUNCATE run_rows"))
-            await engine.dispose()
-            gone = await env.rows(run["runId"])
-            assert gone.status_code == 410
-            assert gone.json()["type"] == "urn:tim:problem:results-gone"
-            assert (await env.client.get(f"/api/runs/{run['runId']}")).json() == run
-    finally:
-        await storage.aclose()
+    async with open_env(storage, auth, [SIGN_INS]) as env:
+        run = (await env.start("acme.sign_ins")).json()
+        engine = create_async_engine(postgres_dsn)
+        async with engine.begin() as conn:  # what crash recovery does to an UNLOGGED table
+            await conn.execute(text("TRUNCATE run_rows"))
+        await engine.dispose()
+        gone = await env.rows(run["runId"])
+        assert gone.status_code == 410
+        assert gone.json()["type"] == "urn:tim:problem:results-gone"
+        assert (await env.client.get(f"/api/runs/{run['runId']}")).json() == run
 
 
 async def test_a_row_is_its_row_number_and_data_even_when_the_action_has_an_id_column(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = Rows(key="acme.ids", name="Ids", pivot="none", id="EventId", rows=({"EventId": 9},))
     async with open_env(storage, auth, [action]) as env:
@@ -447,7 +449,7 @@ ECHO = Echo(
 
 
 async def test_params_are_validated_before_the_run_is_created(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [ECHO]) as env:
         response = await env.start("acme.echo", {"limit": "ten", "colour": "red"})
@@ -465,7 +467,7 @@ async def test_params_are_validated_before_the_run_is_created(
 
 
 async def test_the_run_holds_the_resolved_params_and_runs_as_the_analyst(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [ECHO]) as env:
         run = (await env.start("acme.echo", {"user": "bob", "window": "PT1H30M"})).json()
@@ -493,7 +495,9 @@ def host_timeline(title: str) -> Echo:
     )
 
 
-async def test_a_run_is_titled_by_its_actions_template(storage: Storage, auth: AuthKit) -> None:
+async def test_a_run_is_titled_by_its_actions_template(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     async with open_env(storage, auth, [host_timeline("{{ action_name }} {{ host }}")]) as env:
         run = (await env.start("acme.host_timeline", {"host": "BGIST-L"})).json()
         assert run["title"] == "Host timeline BGIST-L"
@@ -502,7 +506,7 @@ async def test_a_run_is_titled_by_its_actions_template(storage: Storage, auth: A
 
 
 async def test_a_run_is_titled_from_the_rows_it_was_pivoted_from(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     title = "{{ action_name }} of {{ row.Image | basename }} on {{ host }}"
     async with open_env(storage, auth, [host_timeline(title)]) as env:
@@ -523,7 +527,7 @@ class TitledByItsRows(Echo):
 
 
 async def test_a_run_is_titled_from_only_the_columns_its_template_names(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = TitledByItsRows(
         key="acme.titled_by_rows",
@@ -542,7 +546,7 @@ async def test_a_run_is_titled_from_only_the_columns_its_template_names(
 
 
 async def test_a_run_takes_at_most_the_pivot_row_limit(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_MAX_PIVOT_ROWS", "2")
     async with open_env(storage, auth, [host_timeline("{{ cols.Image | join(', ') }}")]) as env:
@@ -560,7 +564,7 @@ async def test_a_run_takes_at_most_the_pivot_row_limit(
     ],
 )
 async def test_a_template_that_fails_titles_the_run_with_the_actions_name_and_is_logged(
-    storage: Storage, auth: AuthKit, caplog: pytest.LogCaptureFixture, title: str
+    storage: PostgresStorage, auth: AuthKit, caplog: pytest.LogCaptureFixture, title: str
 ) -> None:
     async with open_env(storage, auth, [host_timeline(title)]) as env:
         with caplog.at_level(logging.ERROR, logger="tim_api"):
@@ -574,7 +578,7 @@ async def test_a_template_that_fails_titles_the_run_with_the_actions_name_and_is
 
 
 async def test_a_template_that_renders_blank_titles_the_run_with_the_actions_name(
-    storage: Storage, auth: AuthKit, caplog: pytest.LogCaptureFixture
+    storage: PostgresStorage, auth: AuthKit, caplog: pytest.LogCaptureFixture
 ) -> None:
     action = host_timeline("{% if users %}{{ users | join(', ') }}{% endif %}  ")
     async with open_env(storage, auth, [action]) as env:
@@ -584,7 +588,9 @@ async def test_a_template_that_renders_blank_titles_the_run_with_the_actions_nam
     assert caplog.records == []
 
 
-async def test_a_title_past_1000_characters_is_cut_off(storage: Storage, auth: AuthKit) -> None:
+async def test_a_title_past_1000_characters_is_cut_off(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     async with open_env(storage, auth, [host_timeline("{{ host }}")]) as env:
         run = (await env.start("acme.host_timeline", {"host": "x" * 1001})).json()
         assert run["title"] == "x" * 999 + "…"
@@ -593,7 +599,7 @@ async def test_a_title_past_1000_characters_is_cut_off(storage: Storage, auth: A
 
 
 async def test_a_nul_character_in_a_title_becomes_a_replacement_character(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth, [host_timeline("{{ host }}")]) as env:
         run = (await env.start("acme.host_timeline", {"host": "a\x00b"})).json()
@@ -602,7 +608,7 @@ async def test_a_nul_character_in_a_title_becomes_a_replacement_character(
 
 
 async def test_details_come_after_duration_and_row_count_in_the_order_reported(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = Rows(
         key="acme.details",
@@ -628,7 +634,7 @@ async def test_details_come_after_duration_and_row_count_in_the_order_reported(
 
 
 async def test_columns_are_declared_first_then_inferred_in_first_seen_order(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = Rows(
         key="acme.columns",
@@ -659,7 +665,7 @@ async def test_columns_are_declared_first_then_inferred_in_first_seen_order(
 
 
 async def test_a_declared_bigint_column_is_served_as_digit_strings(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = Rows(
         key="acme.bigint",
@@ -689,7 +695,7 @@ async def test_a_declared_bigint_column_is_served_as_digit_strings(
 
 
 async def test_a_declared_tim_column_is_not_one_of_the_runs_columns(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = Rows(
         key="acme.tim",
@@ -704,7 +710,7 @@ async def test_a_declared_tim_column_is_not_one_of_the_runs_columns(
 
 
 async def test_nul_characters_become_replacement_characters(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = Rows(
         key="acme.nul",
@@ -721,7 +727,7 @@ async def test_nul_characters_become_replacement_characters(
 
 
 async def test_a_run_cannot_reach_a_connection_its_action_did_not_declare(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     action = UndeclaredHook(key="acme.sneaky", name="Sneaky", pivot="none")
     async with open_env(storage, auth, [action]) as env:
@@ -732,7 +738,7 @@ async def test_a_run_cannot_reach_a_connection_its_action_did_not_declare(
 
 
 async def test_startup_marks_runs_whose_heartbeat_stopped_as_interrupted(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     from datetime import UTC, datetime, timedelta
 
@@ -759,7 +765,7 @@ async def test_startup_marks_runs_whose_heartbeat_stopped_as_interrupted(
 
 
 async def test_a_running_app_marks_runs_whose_heartbeat_stopped_as_interrupted(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     from datetime import UTC, datetime
 
@@ -776,7 +782,9 @@ async def test_a_running_app_marks_runs_whose_heartbeat_stopped_as_interrupted(
         assert await storage.runs.has_rows(stale.run_id) is False
 
 
-async def test_shutdown_ends_runs_in_flight_as_interrupted(storage: Storage, auth: AuthKit) -> None:
+async def test_shutdown_ends_runs_in_flight_as_interrupted(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     from datetime import UTC, datetime
     from uuid import UUID
 
@@ -793,7 +801,7 @@ async def test_shutdown_ends_runs_in_flight_as_interrupted(storage: Storage, aut
 
 
 async def test_a_cancel_reaches_a_run_executing_in_another_process(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with (
         open_env(storage, auth, [WAITS], race_seconds=0.1) as executing,
@@ -810,7 +818,7 @@ async def test_a_cancel_reaches_a_run_executing_in_another_process(
 
 
 async def test_a_run_older_than_the_timeout_is_left_alone_while_its_process_executes_it(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from datetime import datetime, timedelta
 
@@ -836,7 +844,7 @@ async def test_a_run_older_than_the_timeout_is_left_alone_while_its_process_exec
 
 
 async def test_a_run_another_process_swept_is_cancelled_where_it_executes(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_MAX_CONCURRENT_RUNS", "1")
     async with open_env(
@@ -858,7 +866,7 @@ async def test_a_run_another_process_swept_is_cancelled_where_it_executes(
 
 
 async def test_a_run_waiting_for_a_slot_is_running_and_can_be_cancelled(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_MAX_CONCURRENT_RUNS", "1")
     async with open_env(storage, auth, [WAITS, SIGN_INS], race_seconds=0.1) as env:

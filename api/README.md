@@ -21,7 +21,7 @@ uv run mypy                                     # type check (strict; src + test
 
 Local stack (PostgreSQL, running api and web together): see [development.md](../docs/development.md).
 
-- **Health probes:** `GET /api/healthChecks/liveness` answers 204. `/readiness` answers 204 when `Storage.health()` passes, else 503 with a problem body.
+- **Health probes:** `GET /api/healthChecks/liveness` answers 204. `/readiness` answers 204 when `PostgresStorage.health()` passes, else 503 with a problem body.
 - **OpenAPI docs** are at `/api/docs`.
 - **Errors** are described in [Errors, CORS and logging](#errors-cors-and-logging).
 
@@ -39,19 +39,16 @@ Production deployment and `/api` routing are in [docs/deployment.md](../docs/dep
 
 ## Storage
 
-`tim_api.storage` defines the persistence ports, bundled as `Storage` with `presets`, `runs`, `column_views` and `annotations`:
+`tim_api.storage` holds the PostgreSQL storage (SQLAlchemy 2 async with asyncpg, ADR-0004). `PostgresStorage` bundles `presets`, `runs`, `column_views` and `annotations`:
 
-- `PresetStore`, for presets and each analyst's hidden marks;
-- `RunStore`, for runs and their rows;
-- `ColumnViewStore`, for column views (`column_views`) and each analyst's hidden marks (`column_view_hidden`);
-- `AnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
+- `PostgresPresetStore`, for presets and each analyst's hidden marks;
+- `PostgresRunStore`, for runs and their rows;
+- `PostgresColumnViewStore`, for column views (`column_views`) and each analyst's hidden marks (`column_view_hidden`);
+- `PostgresAnnotationStore`, for labels and the change feed (ADR-0020, [architecture.md](../docs/architecture.md#annotations-and-the-change-feed)). Every change takes its version first from `annotation_clock`, so versions are gapless and in commit order.
 
-There are two implementations:
+`TIM_DATABASE_URL` must start with `postgresql+asyncpg://` in every environment. The storage errors are in `storage/errors.py`.
 
-- `PostgresStorage`: SQLAlchemy 2 async with asyncpg (ADR-0004);
-- an in-memory store (`TIM_DATABASE_URL=memory://`): development only, rejected in production.
-
-Endpoints get stores through `tim_api.deps.get_preset_store`, `get_run_store` and `get_column_view_store`.
+Endpoints get stores through `tim_api.deps.get_preset_store`, `get_run_store`, `get_column_view_store` and `get_annotation_store`.
 
 **Migrations (Alembic).** The schema lives in `migrations/`. `tim_api.storage.postgres.metadata` is the model definition.
 
@@ -72,13 +69,13 @@ Endpoints get stores through `tim_api.deps.get_preset_store`, `get_run_store` an
   - It deletes runs ten at a time (`RUNS_PER_BATCH`), each with its rows.
   - It skips runs that another replica's sweep has locked.
 
-**Tests.** `tests/storage_contract.py` runs against both stores, through the `storage` fixture in `tests/conftest.py`.
+**Tests.** `tests/storage_contract.py` runs against Postgres, through the `storage` fixture in `tests/conftest.py`.
 
 - Postgres tests use a real server:
   - `TIM_TEST_DATABASE_URL` (`postgresql+asyncpg://...`), used in CI with a `postgres:17` service. Tables are truncated per test.
   - When it is unset, a temporary server from the `pgserver` dev dependency. It bundles PostgreSQL binaries, so no Docker is needed.
 - The tests apply the migrations themselves.
-- If neither server is available, the tests skip.
+- If neither server is available, the tests fail with a message naming both.
 
 ## Auth
 
@@ -236,8 +233,8 @@ A timeout and a cancel both:
 
 Ending and cancelling:
 
-- `RunStore.finish` writes the final state, and deletes the rows unless the run succeeded. It leaves a run that has already ended unchanged.
-- Cancel sets `cancel_requested` on the run, so a replica that doesn't execute it can take the request. `Runner.start_watching` calls `RunStore.heartbeat` for this process's runs every second (`CANCEL_POLL_SECONDS`). It sets their `heartbeat_at` and returns each run still `running` with its `cancel_requested`.
+- `PostgresRunStore.finish` writes the final state, and deletes the rows unless the run succeeded. It leaves a run that has already ended unchanged.
+- Cancel sets `cancel_requested` on the run, so a replica that doesn't execute it can take the request. `Runner.start_watching` calls `PostgresRunStore.heartbeat` for this process's runs every second (`CANCEL_POLL_SECONDS`). It sets their `heartbeat_at` and returns each run still `running` with its `cancel_requested`.
   - A run the heartbeat doesn't return has ended elsewhere, and is cancelled locally.
 - `Runner.mark_stale`, at startup and every `STALE_SWEEP_SECONDS` (30), marks runs `running` with a `heartbeat_at` older than `STALE_HEARTBEAT_SECONDS` (15) as `error` "Run interrupted by server restart".
 - `Runner.aclose`, at shutdown, does the same for runs in flight.
@@ -249,7 +246,7 @@ Rows are in the `UNLOGGED` table `run_rows`. `GET /{runId}/rows` answers:
 
 Tests:
 
-- `tests/test_runs_api.py` drives the endpoints through `create_app(providers=...)`, with the scripted action types in `tests/scripted_actions.py`, against both stores.
+- `tests/test_runs_api.py` drives the endpoints through `create_app(providers=...)`, with the scripted action types in `tests/scripted_actions.py`, against PostgreSQL.
 - The built-ins' action tests live in `api/tim-actions/tests`, on `tim_actions.testing` ([actions.md](../docs/actions.md#testing)).
 - `tests/test_run_kql.py` covers Run KQL. Its live test needs `TIM_TEST_KUSTO_CLUSTER` (see [development.md](../docs/development.md)).
 

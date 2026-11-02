@@ -5,10 +5,10 @@ from datetime import timedelta
 
 from storage_contract import T0, make_rows, make_run
 
-from tim_api.storage import Storage, start_retention_loop, sweep_expired
+from tim_api.storage import PostgresStorage, start_retention_loop, sweep_expired
 
 
-async def test_background_loop_deletes_expired(storage: Storage) -> None:
+async def test_background_loop_deletes_expired(storage: PostgresStorage) -> None:
     run = make_run(expires=T0)  # long expired relative to the real clock the loop uses
     await storage.runs.create(run)
     before = T0 - timedelta(days=1)
@@ -24,7 +24,7 @@ async def test_background_loop_deletes_expired(storage: Storage) -> None:
 
 
 async def test_sweep_deletes_expired_runs_and_their_rows_a_few_at_a_time(
-    storage: Storage,
+    storage: PostgresStorage,
 ) -> None:
     expired = [make_run(expires=T0 + timedelta(minutes=i)) for i in range(25)]
     fresh = make_run(expires=T0 + timedelta(hours=5))

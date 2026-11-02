@@ -12,7 +12,7 @@ imagePullSecrets: []
 
 # --- Application configuration (shared by web and api) ---------------------------------------
 config:
-  # TIM_ENVIRONMENT (api and web). "production" refuses TIM_AUTH_DISABLED and memory:// storage.
+  # TIM_ENVIRONMENT (api and web). "production" refuses TIM_AUTH_DISABLED.
   environment: production
   # Public origin users open, scheme://host[:port] without a trailing slash. Empty = derived from
   # ingress.host (https://<host>). REDIRECT_URI (web) = <publicUrl>/blank.html; register it as a
