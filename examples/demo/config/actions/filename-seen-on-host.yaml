@@ -4,7 +4,7 @@
 type: kql_query
 key: demo.filename-seen-on-host
 name: Filename seen on this host
-title: 'Filename {{ file.split("\\")[-1] }} seen on {{ host }}'
+title: "Filename {{ file | basename }} seen on {{ host }}"
 menu: Endpoint
 description: Every Sysmon event on the host whose file paths or command lines name the file
 pivot: row

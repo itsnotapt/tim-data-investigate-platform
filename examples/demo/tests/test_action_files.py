@@ -30,39 +30,59 @@ def test_every_action_keys_its_rows_by_eventid_so_an_annotation_follows_the_even
     assert {key: action.id for key, action in actions.items() if action.id != "EventId"} == {}
 
 
-def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -> None:
-    row = {
-        "host": "BGIST-L",
-        "process": "{a1}",
-        "parent": "{a0}",
-        "file": r"C:\Users\Public\update.exe",
-        "user": "alice",
-        "ip": "203.0.113.7",
-        "hash": SHA256,
-    }
-    titles = {
-        key: action.title_for({p.name: row.get(p.name) for p in action.params}, [])
+# The values of a row each pivot takes its params from, and the row's process.
+PARAMS = {
+    "host": "BGIST-L",
+    "process": "{a1}",
+    "parent": "{a0}",
+    "file": r"C:\Users\Public\update.exe",
+    "user": "alice",
+    "ip": "203.0.113.7",
+    "hash": SHA256,
+}
+PIVOT_ROW = {
+    "Image": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+    "ParentImage": r"C:\Windows\System32\browser_broker.exe",
+}
+
+
+def titles(actions: dict[str, Action], pivot_rows: list[dict[str, str]]) -> dict[str, str]:
+    return {
+        key: action.title_for({p.name: PARAMS.get(p.name) for p in action.params}, pivot_rows)
         for key, action in actions.items()
         if action.pivot != "none"
     }
-    assert titles == {
+
+
+def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -> None:
+    assert titles(actions, [PIVOT_ROW]) == {
         "demo.activity-by-user": "Activity by user alice",
-        "demo.child-processes": "Child processes of {a1} on BGIST-L",
+        "demo.child-processes": "Child processes of powershell.exe on BGIST-L",
         "demo.connections-to-ip": "Connections to IP 203.0.113.7",
         "demo.filename-seen-on-host": "Filename update.exe seen on BGIST-L",
         "demo.hash-seen-anywhere": f"Events related to SHA256 {SHA256}",
         "demo.host-logs": "Other logs for host BGIST-L",
         "demo.host-timeline": "Host timeline for BGIST-L",
+        "demo.parent-process": "Parent process browser_broker.exe on BGIST-L",
+        "demo.process-activity": "Process activity for powershell.exe on BGIST-L",
+        "demo.process-creations": "Process creations on BGIST-L",
+    }
+
+
+def test_a_run_without_pivot_rows_names_its_process_by_its_guid(actions: dict[str, Action]) -> None:
+    by_guid = {key: title for key, title in titles(actions, []).items() if "{a" in title}
+
+    assert by_guid == {
+        "demo.child-processes": "Child processes of {a1} on BGIST-L",
         "demo.parent-process": "Parent process {a0} on BGIST-L",
         "demo.process-activity": "Process activity for {a1} on BGIST-L",
-        "demo.process-creations": "Process creations on BGIST-L",
     }
 
 
 def test_a_hash_titles_its_run_with_its_kind(actions: dict[str, Action]) -> None:
     hash_seen_anywhere = actions["demo.hash-seen-anywhere"]
 
-    assert hash_seen_anywhere.title_for({"hash": MD5}) == f"Events related to MD5 {MD5}"
+    assert hash_seen_anywhere.title_for({"hash": MD5}, []) == f"Events related to MD5 {MD5}"
 
 
 def over_endpoint_functions(actions: dict[str, Action]) -> dict[str, KqlQuery]:
