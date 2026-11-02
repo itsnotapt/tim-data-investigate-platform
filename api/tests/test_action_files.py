@@ -44,6 +44,7 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
             "params": [],
             "pivot": None,
             "idColumn": "UserPrincipalName",
+            "findPivotRows": False,
             "actionFile": False,
         },
         {
@@ -72,6 +73,7 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
             ],
             "pivot": {"rows": "rows", "columns": [["UserPrincipalName", "Upn"]]},
             "idColumn": "CorrelationId",
+            "findPivotRows": False,
             "actionFile": False,
             "columns": [
                 {

@@ -14,6 +14,7 @@ const SIGN_INS: CatalogueAction = {
   key: 'sign-ins',
   kind: 'query',
   actionFile: false,
+  findPivotRows: false,
   name: 'Sign-ins',
   menuPath: ['Identity'],
   connections: [],
@@ -66,26 +67,35 @@ function setup(preset: Preset = FAILURES) {
   const run = vi.fn();
   const notified: NotifyOptions[] = [];
   const goTo = vi.fn();
-  const pivot = (rows: Record<string, unknown>[], cell?: { column: string; value: unknown }) =>
+  const pivot = (
+    rows: Record<string, unknown>[],
+    cell?: { column: string; value: unknown },
+    pivotRowIds: (string | null)[] = [],
+  ) =>
     pivotIntoAction({
       action: SIGN_INS,
       parentUuid: parent,
       rows,
       cell,
+      pivotRowIds,
       connections: CONNECTIONS,
       store,
       run,
       goTo,
       notify: (o) => notified.push(typeof o === 'string' ? { message: o } : o),
     });
-  const pivotPreset = (resolved: {
-    params: Record<string, unknown>;
-    missing: Record<string, string | null>;
-  }) =>
+  const pivotPreset = (
+    resolved: {
+      params: Record<string, unknown>;
+      missing: Record<string, string | null>;
+    },
+    pivotRowIds: (string | null)[] = [],
+  ) =>
     pivotIntoPreset({
       preset,
       action: SIGN_INS,
       resolved,
+      pivotRowIds,
       parentUuid: parent,
       store,
       run,
@@ -178,6 +188,15 @@ describe('pivotIntoAction', () => {
     expect(notified.map((n) => n.message)).toEqual(['Opened Sign-ins: needs Result']);
   });
 
+  it('keeps the pivot rows’ ids on the child tab, null for a row without one', async () => {
+    server.use(resolving({ params: { users: ['alice', 'bob'] }, missing: [], reasons: {} }));
+    const { store, pivot } = setup();
+
+    const uuid = await pivot([{ User: 'alice' }, { User: 'bob' }], undefined, ['e-1', null]);
+
+    expect(store.getState().tabs[uuid!]?.state.pivotRowIds).toEqual(['e-1', null]);
+  });
+
   it('says why when the server refuses the pivot, and opens no tab', async () => {
     server.use(
       http.post(apiUrl('/api/actions/sign-ins/resolve'), () =>
@@ -229,6 +248,17 @@ describe('pivotIntoAction', () => {
     expect(store.getState().tabs[uuid]?.state).toMatchObject({ idColumn: 'Host' });
   });
 
+  it('keeps the pivot rows’ ids on a preset pivot’s child tab, beside the preset’s Id column', () => {
+    const { store, pivotPreset } = setup({ ...FAILURES, idColumn: 'Host' });
+
+    const uuid = pivotPreset({ params: { connection: 'kusto-dev' }, missing: {} }, [null, 'e-2']);
+
+    expect(store.getState().tabs[uuid]?.state).toMatchObject({
+      idColumn: 'Host',
+      pivotRowIds: [null, 'e-2'],
+    });
+  });
+
   it('opens a preset pivot that misses a value as a child tab waiting for it', () => {
     const { store, run, notified, pivotPreset } = setup();
 
@@ -268,6 +298,7 @@ describe('pivotIntoAction', () => {
         },
         missing: { 'parameters.Upn': null },
       },
+      pivotRowIds: [],
       parentUuid: parent,
       store,
       run,

@@ -351,6 +351,165 @@ describe('ActionResultsGrid', () => {
   });
 });
 
+describe('ActionResultsGrid Go to pivot row', () => {
+  /** Events in time order; e-2 shows twice, and the pivot rows below look for it. */
+  const events: RunRow[] = ['e-1', 'e-2', 'e-3', 'e-2'].map((id, row) => ({
+    row,
+    data: { [ID_COLUMN]: id, User: `user-${row}` },
+  }));
+
+  function renderPivoted({
+    pivotRowIds = ['e-3'] as (string | null)[] | null,
+    findPivotRows = true,
+    shown = events,
+    declaredColumns = null as CatalogueColumn[] | null,
+  } = {}) {
+    let api: GridApi | undefined;
+    render(
+      <ActionResultsGrid
+        uuid="pivoted"
+        rows={shown}
+        declaredColumns={declaredColumns}
+        runColumns={[{ name: 'User', type: 'string', declared: !!declaredColumns }]}
+        idColumn={ID_COLUMN}
+        pivotRowIds={pivotRowIds}
+        findPivotRows={findPivotRows}
+        height={400}
+        onGridReady={(e) => (api = e.api)}
+      />,
+    );
+    return async () => {
+      await waitFor(() => expect(api?.getDisplayedRowCount()).toBeGreaterThan(0));
+      return api!;
+    };
+  }
+
+  const link = () => screen.queryByRole('button', { name: /^Go to pivot row/ });
+
+  it('shows the link only on a tab with pivot rows, into an action that finds them', async () => {
+    await renderPivoted({ pivotRowIds: null })();
+    expect(link()).not.toBeInTheDocument();
+  });
+
+  it("shows no link when the action doesn't find pivot rows", async () => {
+    await renderPivoted({ findPivotRows: false })();
+    expect(link()).not.toBeInTheDocument();
+  });
+
+  const focusedRow = (api: GridApi) => {
+    const focused = api.getFocusedCell();
+    return focused ? api.getDisplayedRowAtIndex(focused.rowIndex)?.id : undefined;
+  };
+
+  it('focuses and flashes the matching row, and leaves the selection alone', async () => {
+    const api = await renderPivoted()();
+    act(() => api.getRowNode('0')!.setSelected(true));
+
+    await waitFor(() => expect(link()).toBeEnabled());
+    await userEvent.click(link()!);
+
+    expect(focusedRow(api)).toBe('2');
+    expect(document.querySelector('.ag-row[row-id="2"] .ag-cell-data-changed')).not.toBeNull();
+    expect(api.getSelectedNodes().map((n) => n.id)).toEqual(['0']);
+    expect(screen.queryByRole('complementary', { name: 'Row detail' })).not.toBeInTheDocument();
+    expect(link()).toHaveAccessibleName('Go to pivot row');
+  });
+
+  it('goes through the matching rows in grid order, counting them, and wraps', async () => {
+    const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
+    await waitFor(() => expect(link()).toBeEnabled());
+    expect(link()).toHaveAccessibleName('Go to pivot row');
+
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('1');
+    expect(link()).toHaveAccessibleName('Go to pivot row (1 of 2)');
+
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('3');
+    expect(link()).toHaveAccessibleName('Go to pivot row (2 of 2)');
+
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('1');
+    expect(link()).toHaveAccessibleName('Go to pivot row (1 of 2)');
+  });
+
+  it("opens the matching row's group", async () => {
+    const api = await renderPivoted({
+      declaredColumns: [{ name: 'User', type: 'string', hidden: false, group: true }],
+    })();
+    expect(api.getRowNode('2')!.parent!.expanded).toBe(false);
+    await waitFor(() => expect(link()).toBeEnabled());
+
+    await userEvent.click(link()!);
+
+    expect(api.getRowNode('2')!.parent!.expanded).toBe(true);
+    expect(focusedRow(api)).toBe('2');
+  });
+
+  it('goes through the matching rows in the order the grid sorts them', async () => {
+    const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
+    act(() => void api.applyColumnState({ state: [{ colId: 'User', sort: 'desc' }] }));
+    await waitFor(() => expect(link()).toBeEnabled());
+
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('3');
+  });
+
+  /** The tooltip the disabled link shows on hover, if any. */
+  async function disabledTooltip() {
+    await waitFor(() => expect(link()).toBeDisabled());
+    await userEvent.hover(link()!.parentElement!);
+    return screen.findByRole('tooltip').then(
+      (t) => t.textContent,
+      () => null,
+    );
+  }
+
+  it.each([
+    ['no id', [null, null], 'The pivot rows have no id.'],
+    ['no row with the id', ['e-9', null], "No row here has a pivot row's id."],
+  ])('is disabled when the pivot rows have %s, and says why', async (_, pivotRowIds, reason) => {
+    await renderPivoted({ pivotRowIds })();
+    expect(await disabledTooltip()).toBe(reason);
+  });
+
+  it('is disabled when the filters hide every matching row, and says why', async () => {
+    const api = await renderPivoted()();
+    await act(async () => {
+      await api.setColumnFilterModel('User', {
+        filterType: 'multi',
+        filterModels: [{ filterType: 'text', type: 'notEqual', filter: 'user-2' }],
+      });
+      api.onFilterChanged();
+    });
+    expect(await disabledTooltip()).toBe("The pivot row is hidden by the grid's filters.");
+  });
+
+  it('is disabled with no reason until the rows arrive', async () => {
+    renderPivoted({ shown: [] });
+    await waitFor(() => expect(link()).toBeInTheDocument());
+    expect(await disabledTooltip()).toBeNull();
+  });
+
+  it('skips a matching row the filters hide', async () => {
+    const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
+    await act(async () => {
+      await api.setColumnFilterModel('User', {
+        filterType: 'multi',
+        filterModels: [{ filterType: 'text', type: 'notEqual', filter: 'user-1' }],
+      });
+      api.onFilterChanged();
+    });
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(3));
+
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('3');
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('3');
+    expect(link()).toHaveAccessibleName('Go to pivot row');
+  });
+});
+
 describe('ActionResultsGrid Row detail', () => {
   const idless: RunRow[] = [
     { row: 0, data: { User: 'alice', Host: 'h1' } },

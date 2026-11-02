@@ -54,14 +54,15 @@ The data is from a staged attack on a company called Frothly, in August 2018. Si
 3. Right-click the alert's **Host** cell. Choose **Pivot** ▸ **Endpoint** ▸ **Process creations**.
 4. TIM shows "Running Process creations". Choose **Go to**.
 5. BGIST-L started only Edge and a Dropbox install. Symantec deleted the file before it ran.
+6. Go back to the Alerts tab. Right-click the alert's **Host** cell again. Choose **Pivot** ▸ **Host** ▸ **Host timeline**. TIM shows "Running Host timeline". Choose **Go to**, then **Go to pivot row**. The timeline scrolls to the alert's event, logged by `SEPM`, and flashes it.
 
 ### Follow the file to other hosts
 
-6. Go back to the Alerts tab. Right-click the alert's **SHA256** cell, the file's hash. Choose **Pivot** ▸ **Endpoint** ▸ **Hash seen anywhere**.
-7. The same file is on ABUNGST-L, BSTOLL-L and FYODOR-L. SEPM, Symantec's server, logged it too.
-8. Right-click a FYODOR-L row. Choose **Pivot** ▸ **Endpoint** ▸ **Process creations**.
-9. Type `-enc` in **Filter rows**. The first row is PowerShell, started at 10:01:41. Its command is `-noP -sta -w 1 -enc` and a long encoded script. Its parent is `browser_broker.exe`, the browser.
-10. The other rows are what encoded PowerShell ran on FYODOR-L that morning:
+7. Go back to the Alerts tab. Right-click the alert's **SHA256** cell, the file's hash. Choose **Pivot** ▸ **Endpoint** ▸ **Hash seen anywhere**.
+8. The same file is on ABUNGST-L, BSTOLL-L and FYODOR-L. SEPM, Symantec's server, logged it too.
+9. Right-click a FYODOR-L row. Choose **Pivot** ▸ **Endpoint** ▸ **Process creations**.
+10. Type `-enc` in **Filter rows**. The first row is PowerShell, started at 10:01:41. Its command is `-noP -sta -w 1 -enc` and a long encoded script. Its parent is `browser_broker.exe`, the browser.
+11. The other rows are what encoded PowerShell ran on FYODOR-L that morning:
     - `whoami /groups`, to see the user's rights;
     - `fodhelper.exe`, to get past User Account Control;
     - `net user /add svcvnc`, a new user;
@@ -71,17 +72,17 @@ The data is from a staged attack on a company called Frothly, in August 2018. Si
 
 ### Find the attacker's server
 
-11. Right-click the 10:01:41 PowerShell row. Choose **Pivot** ▸ **Endpoint** ▸ **Child processes**. It started a second PowerShell at 10:01:44.
-12. Right-click that row. Choose **Pivot** ▸ **Endpoint** ▸ **Process activity**. It connected to `45.77.53.176` on port 443, again and again.
-13. Right-click a **DestinationIp** cell of `45.77.53.176`. Choose **Pivot** ▸ **Endpoint** ▸ **Connections to IP**. ABUNGST-L connects to it too.
+12. Right-click the 10:01:41 PowerShell row. Choose **Pivot** ▸ **Endpoint** ▸ **Child processes**. It started a second PowerShell at 10:01:44.
+13. Right-click that row. Choose **Pivot** ▸ **Endpoint** ▸ **Process activity**. It connected to `45.77.53.176` on port 443, again and again.
+14. Right-click a **DestinationIp** cell of `45.77.53.176`. Choose **Pivot** ▸ **Endpoint** ▸ **Connections to IP**. ABUNGST-L connects to it too.
 
 ### Label it and share it
 
-14. Go back to the FYODOR-L Process creations tab. Click the 10:01:41 PowerShell row and press `t`.
-15. In **Annotate**, choose **Malicious**. Type a comment, such as `Empire stager from the browser`. Choose **Save**. The row turns red.
-16. Right-click the row. Choose **Copy link**. TIM shows "Copied a link to this row".
-17. Open a private window and paste the link. Choose `bob@demo.example`.
-18. Bob sees the same rows, with that row open in **Row detail**. It shows Alice's Malicious label and her comment.
+15. Go back to the FYODOR-L Process creations tab. Click the 10:01:41 PowerShell row and press `t`.
+16. In **Annotate**, choose **Malicious**. Type a comment, such as `Empire stager from the browser`. Choose **Save**. The row turns red.
+17. Right-click the row. Choose **Copy link**. TIM shows "Copied a link to this row".
+18. Open a private window and paste the link. Choose `bob@demo.example`.
+19. Bob sees the same rows, with that row open in **Row detail**. It shows Alice's Malicious label and her comment.
 
 Every action pivots from the columns in [Actions](#actions). Try others from any row.
 
@@ -145,6 +146,8 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 - **Window:** every action is bounded by a time window. The analyst can change it.
 - **Row limit:** every action keeps at most 10,000 rows, with `take 10000`.
   - Host timeline and Host's other logs keep the events nearest the time, then sort them by `Timestamp`.
+- **Alert events:** Host timeline also takes in the events of the host's alerts, matched by `EventId`. An alert's event is logged under its product's host: the PsEmpire alert's event is logged by `SEPM`. Those rows keep the `Host` they were logged under.
+- **Go to pivot row:** Host timeline offers it, because it declares `find_pivot_rows: true`.
 - **Id:** every action uses `EventId` as the row's `id`, so an annotation follows an event across actions.
 
 ## In this folder

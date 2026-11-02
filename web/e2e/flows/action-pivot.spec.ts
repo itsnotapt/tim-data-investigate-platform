@@ -169,3 +169,28 @@ test('pivots are disabled, with the reason, for several rows into a one-row acti
   await pivots.hover();
   await expect(page.getByText('At most 100 rows; 2,500 selected')).toBeVisible();
 });
+
+test('Go to pivot row moves to the row the pivot came from, in view and focused', async ({
+  page,
+}) => {
+  await runRows(page, 'Generated rows', 2500);
+  await expect(row(page, 0).locator('[col-id="Host"]')).toHaveText('Host-1');
+
+  await pivot(page, 0, 'Host', ['Development', 'Pivots', 'Host list']);
+  await page
+    .getByRole('alert')
+    .filter({ hasText: 'Running Host list' })
+    .getByRole('button', { name: 'Go to' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Host list' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Results · 2500' })).toBeVisible();
+  // The hosts sort descending, so Host-1 is the last row, out of view.
+  const pivotRow = grid(page).locator('.ag-row[row-index="2499"]');
+  await expect(pivotRow).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Go to pivot row' }).click();
+
+  await expect(pivotRow.locator('[col-id="Host"]')).toHaveText('Host-1');
+  await expect(pivotRow).toBeInViewport();
+  await expect(pivotRow.locator('.ag-cell-focus')).toHaveCount(1);
+});

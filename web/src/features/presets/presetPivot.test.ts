@@ -4,6 +4,7 @@ import { presetPivot } from './presetPivot';
 const SIGN_INS: CatalogueAction = {
   key: 'sign-ins',
   actionFile: false,
+  findPivotRows: false,
   kind: 'query',
   name: 'Sign-ins',
   menuPath: ['Identity'],
@@ -42,6 +43,7 @@ const CONNECTIONS = [{ name: 'kusto-dev', type: 'kusto' }] as InstanceConnection
 const RUN_KQL: CatalogueAction = {
   key: 'tim.run_kql',
   actionFile: true,
+  findPivotRows: false,
   kind: 'query',
   name: 'Run KQL',
   menuPath: [],

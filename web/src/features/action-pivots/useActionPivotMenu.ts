@@ -5,6 +5,7 @@ import { useNotify } from '../../components/useNotify';
 import type { RunRow } from '../../lib/api';
 import type { GetExtraContextMenuItems } from '../grid';
 import { useInstanceStore } from '../instance';
+import type { LabelledRow } from '../labels';
 import { usePresetsStore } from '../presets';
 import { buildActionPivotMenu, recentPivotKey } from './actionPivotMenu';
 import { pivotIntoAction, pivotIntoPreset } from './pivotIntoAction';
@@ -24,6 +25,9 @@ function menuTargets({ api, node }: GetContextMenuItemsParams): IRowNode[] {
 }
 
 const values = (node: IRowNode) => (node.data as RunRow | undefined)?.data ?? {};
+
+/** A target's `id` under the grid's Id column, `null` when it has none. */
+const rowIdOf = (node: IRowNode) => (node.data as LabelledRow | undefined)?.id ?? null;
 
 /**
  * `getContextMenuItems` provider for the grid of the action tab `parentUuid`: Pivot ▸ into the
@@ -47,7 +51,9 @@ export function useActionPivotMenu(
   return useMemo(
     () => (params) => {
       if (!instance) return [];
-      const rows = menuTargets(params).map(values);
+      const targets = menuTargets(params);
+      const rows = targets.map(values);
+      const pivotRowIds = targets.map(rowIdOf);
       const column = params.column?.getColId();
       const clicked = params.node ? values(params.node) : {};
       const goTo = (uuid: string) => void navigate(`/view/${uuid}`);
@@ -66,6 +72,7 @@ export function useActionPivotMenu(
             rows,
             cell: column && column in clicked ? { column, value: clicked[column] } : null,
             connections: instance.connections,
+            pivotRowIds,
             notify,
             goTo,
             run,
@@ -73,7 +80,16 @@ export function useActionPivotMenu(
         },
         onPivotPreset: (preset, action, resolved) => {
           record(recentPivotKey(preset));
-          pivotIntoPreset({ preset, action, resolved, parentUuid, notify, goTo, run });
+          pivotIntoPreset({
+            preset,
+            action,
+            resolved,
+            pivotRowIds,
+            parentUuid,
+            notify,
+            goTo,
+            run,
+          });
         },
       });
     },

@@ -62,6 +62,7 @@ def _sink(sink: Sink) -> CatalogueAction:
         connections=list(sink.connections()),
         params=[],
         pivot=CataloguePivot(rows="rows", columns=[]),
+        find_pivot_rows=False,
         action_file=False,
     )
 
@@ -85,6 +86,7 @@ def _action(action: Action | Sink) -> CatalogueAction:
         pivot=pivot,
         columns=None if action.columns is None else [_column(c) for c in action.columns],
         id_column=action.id,
+        find_pivot_rows=action.find_pivot_rows,
         action_file=action.has_preset_file,
     )
 

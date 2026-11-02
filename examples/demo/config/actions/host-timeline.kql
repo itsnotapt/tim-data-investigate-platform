@@ -1,6 +1,9 @@
 declare query_parameters(host: string, around: datetime, window: timespan);
+// The events the host's alerts name, by EventId, whichever host logged them.
+let alerted = Alerts() | where Host =~ host | project EventId;
 Events
-| where Host =~ host and Timestamp between ((around - window) .. (around + window))
+| where Timestamp between ((around - window) .. (around + window))
+| where Host =~ host or EventId in (alerted)
 | order by abs(Timestamp - around) asc
 | take 10000
 | project Timestamp, Host, SourceType, Source, Raw, EventId

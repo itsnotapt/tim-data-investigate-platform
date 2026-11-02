@@ -179,6 +179,7 @@ From the rows, an analyst pivots:
 - **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
   - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
+  - **Pivot rows.** Both pivots store the `id` of each pivot row on the child tab's state as `pivotRowIds` ([Go to pivot row](#go-to-pivot-row)).
 
 ### Share links
 
@@ -364,11 +365,28 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
   - Otherwise the tab waits, with `pivotMissing` set (cleared when a run starts), and the toast says "Opened <action>: needs <params>".
   - Both toasts have a **Go to** button that focuses the child tab.
   - A refused resolve shows the toast "Couldn't pivot into <action>: <reason>" and creates no tab.
+- **Pivot rows.** The child tab's state keeps `pivotRowIds`, the `id` of each pivot row under the parent's Id column at the time of the pivot, `null` for a row with none. Reruns of the child, with edited params too, keep them. A tab without `pivotRowIds` shows no **Go to pivot row**.
 - **Waiting tab.**
   - Each needed pill is dashed, warning-coloured and labelled "<Title>: needed".
   - A warning note says "Fill in <params> to run this pivot", with the reasons.
   - The first needed pill's popover opens when the tab is first shown.
   - The analyst presses Run once the params are filled.
+
+#### Go to pivot row
+
+The results grid of a tab shows **Go to pivot row** when the tab has `pivotRowIds` and the action's `findPivotRows` is true ([actions.md](actions.md#action-files)).
+
+- **Look.** A pill floating over the bottom centre of the grid, above the status bar. Its arrow points up or down toward the next match.
+- **Matching.** A child row matches when its `id`, under the child's current [Id column](#the-id-column), equals a stored `id`. Matching is by `id` only, never by time.
+- **Click.** It goes to the next matching row in the grid's order.
+  - It expands the row's groups, scrolls the row to the middle, focuses its first data cell and flashes it.
+  - It doesn't open Row detail or change the selection.
+- **Several matches.** Repeated clicks cycle through the matches the filters let through, wrapping after the last. With more than one match, the label reads "Go to pivot row (2 of 5)" after the first click. The cycle restarts when the number of matches changes.
+- **Disabled.** With nowhere to go, the pill is disabled and its tooltip gives the first reason that holds:
+  1. "The pivot rows have no id."
+  2. "No row here has a pivot row's id."
+  3. "The pivot row is hidden by the grid's filters."
+- **Before rows arrive.** The pill is disabled, with no tooltip.
 
 ### Presets and column views
 
@@ -556,6 +574,7 @@ A row's `id` is computed in the browser, from one column of its results: the **I
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
   - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter). Clearing it goes back to the action's Id column.
   - A toast says "Id column set to Host: labels now follow Host". Switching back shows the earlier annotations again, as they follow the `id`s.
+- **Pivot rows.** [Go to pivot row](#go-to-pivot-row) matches by the tab's current Id column, so switching it changes what matches.
 - **No `id`.** A row without one can't be annotated. Row detail and the disabled items say "No id: right-click a cell and use its column as the Id column".
 
 ### Grid annotating
@@ -749,7 +768,7 @@ Then the route runs. Its dependencies resolve the caller (`get_current_principal
 Actions come from providers ([ADR-0017](adr/0017-actions-from-providers.md)):
 
 - An **action type** is a Python subclass of `tim_actions.Action` (a query action, which yields rows) or `tim_actions.Sink` ([Sinks](#sinks)) that implements `run`.
-- An **action** is a configured instance of one, with a `key`, `name`, `menu` and `description`. A query action also has `params`, `pivot`, `columns` and `id`.
+- An **action** is a configured instance of one, with a `key`, `name`, `menu` and `description`. A query action also has `params`, `pivot`, `columns`, `id` and `find_pivot_rows`.
 - A **provider** is a callable that a package exposes in the `tim.actions` entry-point group. It returns `Provider(actions, action_types, hooks)`.
 
 TIM's built-in provider (`tim_actions.builtin`, in the `tim-actions` distribution) registers the same way.

@@ -12,6 +12,7 @@ const action = (
   key,
   kind: 'query',
   actionFile: false,
+  findPivotRows: false,
   name,
   menuPath,
   connections: [],

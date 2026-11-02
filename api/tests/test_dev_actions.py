@@ -78,6 +78,7 @@ def test_the_catalogue_lists_the_dev_actions(auth: AuthKit, dev_env: Path) -> No
             },
         ],
         "pivot": {"rows": "rows", "columns": []},
+        "findPivotRows": False,
         "actionFile": False,
     }
 

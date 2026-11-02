@@ -88,16 +88,20 @@ class ActionBase(BaseModel, ABC):
         try:
             template = _TITLES.parse(self.title)
         except TemplateSyntaxError as exc:
-            raise _title_error(self.title, f"not a valid template: {exc.message}") from None
+            raise _field_error(
+                "title", self.title, f"not a valid template: {exc.message}"
+            ) from None
         unknown = sorted(meta.find_undeclared_variables(template) - self._title_names())
         if len(unknown) == 1:
-            raise _title_error(
-                self.title, f"names {unknown[0]}, which is neither a param nor {_ACTION_NAME}"
+            raise _field_error(
+                "title",
+                self.title,
+                f"names {unknown[0]}, which is neither a param nor {_ACTION_NAME}",
             )
         if unknown:
             names = ", ".join(unknown)
-            raise _title_error(
-                self.title, f"names {names}, which are neither params nor {_ACTION_NAME}"
+            raise _field_error(
+                "title", self.title, f"names {names}, which are neither params nor {_ACTION_NAME}"
             )
         return self
 
@@ -123,12 +127,11 @@ class ActionBase(BaseModel, ABC):
         return {}
 
 
-def _title_error(title: str, message: str) -> ValidationError:
-    """A validation error of the ``title`` field, which a model validator raises to report it
-    there."""
-    error = PydanticCustomError("title", "{message}", {"message": message})
+def _field_error(field: str, value: Any, message: str) -> ValidationError:
+    """A validation error of ``field``, which a model validator raises to report it there."""
+    error = PydanticCustomError(field, "{message}", {"message": message})
     return ValidationError.from_exception_data(
-        "title", [InitErrorDetails(type=error, loc=("title",), input=title)]
+        field, [InitErrorDetails(type=error, loc=(field,), input=value)]
     )
 
 
@@ -138,7 +141,8 @@ class Action(ActionBase):
 
     ``pivot``, which has no default, says whether the action is offered on one row, several rows
     or not at all in the grid's context menu. ``id`` is the Id column its results open with:
-    the column whose value is each row's ``id``.
+    the column whose value is each row's ``id``. ``find_pivot_rows`` offers Go to pivot row on
+    the tabs pivoted into the action, which needs a ``pivot`` and an ``id``.
     """
 
     File: ClassVar[type[ActionDocument] | None] = None
@@ -148,6 +152,7 @@ class Action(ActionBase):
     pivot: Pivot
     columns: Sequence[Column] | None = None
     id: NonBlankStr | None = None
+    find_pivot_rows: bool = False
 
     @field_validator("params")
     @classmethod
@@ -165,6 +170,22 @@ class Action(ActionBase):
 
     def _title_names(self) -> set[str]:
         return {_ACTION_NAME, *(param.name for param in self.params)}
+
+    @model_validator(mode="after")
+    def _find_pivot_rows(self) -> Self:
+        if not self.find_pivot_rows:
+            return self
+        if self.pivot == "none":
+            raise _field_error(
+                "find_pivot_rows",
+                True,
+                f"{self.key} has pivot: none, so no tab is pivoted into it",
+            )
+        if self.id is None:
+            raise _field_error(
+                "find_pivot_rows", True, f"{self.key} has no id to match the pivot rows by"
+            )
+        return self
 
     @field_validator("columns")
     @classmethod

@@ -252,6 +252,7 @@ const sink = (key: string, name: string): CatalogueAction => ({
   key,
   kind: 'sink',
   actionFile: false,
+  findPivotRows: false,
   name,
   menuPath: [],
   connections: [],

@@ -66,6 +66,8 @@ class CatalogueAction(ApiModel):
     id_column: str | None = omitted()
     """The Id column the action's results open with: the column whose value is each row's
     ``id``. A preset's ``idColumn`` takes its place."""
+    find_pivot_rows: bool
+    """Whether the tabs pivoted into the action offer Go to pivot row."""
     action_file: bool
     """Whether a preset of this action has an action file, from
     ``GET /api/presets/{presetId}/actionFile``."""

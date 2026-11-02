@@ -13,6 +13,7 @@ const runKql: CatalogueAction = {
   key: 'tim.run_kql',
   kind: 'query',
   actionFile: true,
+  findPivotRows: false,
   name: 'Run KQL',
   menuPath: [],
   connections: [],

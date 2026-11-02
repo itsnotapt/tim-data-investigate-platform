@@ -41,6 +41,7 @@ import {
 import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
+import { GoToPivotRow } from './GoToPivotRow';
 import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
 
 const NO_LABELS: readonly InstanceLabel[] = [];
@@ -82,6 +83,10 @@ export type ActionResultsGridProps = Omit<
   linkedRow?: number | null;
   /** Called once the linked row is focused. */
   onLinkedRowShown?: () => void;
+  /** The `id`s of the pivot rows the tab was pivoted from, each `null` for a row without one. */
+  pivotRowIds?: readonly (string | null)[] | null;
+  /** Whether the action finds pivot rows: with `pivotRowIds`, the grid shows Go to pivot row. */
+  findPivotRows?: boolean;
 };
 
 /** Whether `next` is `shown` with more rows after it (pages append; a reload gives new objects). */
@@ -101,6 +106,7 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
  * side bar, with the view's name in the status bar.
  * The row a share link named is focused, with Row detail open on it, once it has arrived.
+ * A tab pivoted into an action that finds pivot rows shows Go to pivot row over the grid.
  * A `number` column's header warns when it holds whole numbers beyond ±(2^53 − 1), which round.
  */
 export function ActionResultsGrid({
@@ -116,6 +122,8 @@ export function ActionResultsGrid({
   linkIdColumn = null,
   linkedRow = null,
   onLinkedRowShown,
+  pivotRowIds = null,
+  findPivotRows = false,
   ...rest
 }: ActionResultsGridProps) {
   const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
@@ -158,7 +166,9 @@ export function ActionResultsGrid({
   const [given, setGiven] = useState(() => withIds(rows, idColumn));
   const shown = useRef({ rows, idColumn });
   const api = useRef<GridApi<GridRowWithId> | null>(null);
-  const [gridReady, setGridReady] = useState(false);
+  /** The grid's api once it is ready, for what renders from it. */
+  const [readyApi, setReadyApi] = useState<GridApi<GridRowWithId> | null>(null);
+  const gridReady = readyApi !== null;
   const [index] = useState<RowsById>(() => {
     const byId: RowsById = new Map();
     indexRows(byId, given);
@@ -208,7 +218,7 @@ export function ActionResultsGrid({
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
       api.current = e.api;
-      setGridReady(true);
+      setReadyApi(e.api);
       void start(e.api);
       void showStoredAnnotations();
       onGridReady?.(e);
@@ -364,6 +374,7 @@ export function ActionResultsGrid({
           onGridReady={ready}
         />
       </RoundedColumnsContext>
+      {findPivotRows && pivotRowIds && <GoToPivotRow api={readyApi} pivotRowIds={pivotRowIds} />}
       {rowDetail}
       {dialog}
     </Box>

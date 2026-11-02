@@ -212,6 +212,10 @@
             ],
             "title": "Description"
           },
+          "findPivotRows": {
+            "title": "Findpivotrows",
+            "type": "boolean"
+          },
           "idColumn": {
             "anyOf": [
               {
@@ -272,6 +276,7 @@
           "connections",
           "params",
           "pivot",
+          "findPivotRows",
           "actionFile"
         ],
         "title": "CatalogueAction",

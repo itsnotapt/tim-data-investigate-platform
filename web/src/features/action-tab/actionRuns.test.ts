@@ -92,6 +92,7 @@ beforeEach(async () => {
           key: 'dev-sign-ins',
           kind: 'query',
           actionFile: false,
+          findPivotRows: false,
           name: 'Sign-ins',
           menuPath: [],
           connections: [],

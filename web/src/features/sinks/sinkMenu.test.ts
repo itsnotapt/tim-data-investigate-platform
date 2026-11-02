@@ -7,6 +7,7 @@ const sink = (key: string, name: string, menuPath: string[]): CatalogueAction =>
   key,
   kind: 'sink',
   actionFile: false,
+  findPivotRows: false,
   name,
   menuPath,
   connections: [],

@@ -120,6 +120,10 @@ The YAML file that lists the instance's labels. Each entry gives a label's key, 
 Running an action or a preset from a grid row's context menu, with its params filled from the clicked or selected rows. It opens a child tab under the tab it came from.
 _Avoid_: drill-down
 
+**Pivot rows**:
+The rows of the parent tab that a pivot took its params from: the clicked row, or the selected rows. The child tab keeps their `id`s.
+_Avoid_: source row, origin row, related event
+
 **Run**:
 One execution of an action by the server for the analyst who started it. It ends succeeded, in error, timed out or cancelled.
 _Avoid_: action run, query run, job, execution

@@ -21,6 +21,7 @@ from pydantic import (
     ConfigDict,
     Field,
     GetJsonSchemaHandler,
+    StrictBool,
     TypeAdapter,
     ValidationError,
     create_model,
@@ -101,6 +102,7 @@ class ActionDocument(DocumentBase):
 
     ``id`` is the Id column the results open with; leaving it out opens them with none. ``title``
     is a Jinja template of its runs' titles; leaving it out titles them with ``name``.
+    ``find_pivot_rows`` offers Go to pivot row on the tabs pivoted into the action.
     """
 
     title: NonBlankStr | None = None
@@ -108,6 +110,7 @@ class ActionDocument(DocumentBase):
     params: tuple[Param, ...] = ()
     columns: tuple[Column, ...] | None = None
     id: Annotated[NonBlankStr, Field(min_length=1)] | None = None
+    find_pivot_rows: StrictBool = False
 
 
 class SinkDocument(DocumentBase):

@@ -62,6 +62,7 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
                 },
             ],
             "pivot": {"rows": "rows", "columns": [["UserPrincipalName", "Upn"]]},
+            "findPivotRows": False,
             "actionFile": False,
         }
     ]
@@ -112,6 +113,12 @@ def test_an_actions_id_column_is_in_the_catalogue(auth: AuthKit) -> None:
         auth, [Provider(actions=[Rows(key="a", name="A", pivot="none", id="EventId")])]
     )["actions"]
     assert action["idColumn"] == "EventId"
+
+
+def test_an_action_that_finds_pivot_rows_says_so_in_the_catalogue(auth: AuthKit) -> None:
+    action = Rows(key="a", name="A", pivot="row", id="EventId", find_pivot_rows=True)
+    [entry] = get_instance(auth, [Provider(actions=[action])])["actions"]
+    assert entry["findPivotRows"] is True
 
 
 def test_an_actions_declared_columns_are_in_the_catalogue(auth: AuthKit) -> None:
@@ -215,6 +222,7 @@ def test_a_sink_is_in_the_catalogue_on_any_rows_and_resolves_nothing(auth: AuthK
         {
             "key": "acme.save_event",
             "kind": "sink",
+            "findPivotRows": False,
             "actionFile": False,
             "name": "Save event",
             "menuPath": ["Kusto", "Events"],
