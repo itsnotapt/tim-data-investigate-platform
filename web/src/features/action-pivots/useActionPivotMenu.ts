@@ -84,6 +84,7 @@ export function useActionPivotMenu(
             preset,
             action,
             resolved,
+            rows,
             pivotRowIds,
             parentUuid,
             notify,

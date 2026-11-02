@@ -35,11 +35,13 @@ class SinkInput(ApiModel):
 
 class StartRun(ApiModel):
     """Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is
-    for a sink, and only a sink."""
+    for a sink, and only a sink. ``pivotRows`` are the rows a query action's run was pivoted
+    from, for its title."""
 
     action: str
     params: dict[str, JsonValue] = Field(default_factory=dict)
     input: SinkInput | None = None
+    pivot_rows: list[dict[str, JsonValue]] = Field(default_factory=list)
 
 
 class RunAction(ApiModel):

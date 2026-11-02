@@ -163,7 +163,7 @@ All numeric values must be greater than 0. See [ADR-0012](adr/0012-query-run-lim
 | `TIM_MAX_RESULT_BYTES`      | `536870912` (512 MiB) | Size cap for a run's result, as compact JSON per row, summed.                                  |
 | `TIM_RUN_TIMEOUT_SECONDS`   | `600`                 | Execution time limit of a run, counted once it has a concurrency slot.                                                                 |
 | `TIM_RUN_RETENTION_SECONDS` | `86400` (24 h)        | How long a run stays readable after it last changed.                                                                                   |
-| `TIM_MAX_PIVOT_ROWS`        | `100`                 | Most selected rows a pivot into an action accepts (`POST /api/actions/{key}/resolve`); more gets 422.                                               |
+| `TIM_MAX_PIVOT_ROWS`        | `100`                 | Most selected rows a pivot into an action accepts (`POST /api/actions/{key}/resolve`), and most `pivotRows` of `POST /api/runs`; more gets 422.                                            |
 | `TIM_MAX_CONCURRENT_RUNS`   | `16`                  | Runs executing at once per api process; further runs wait as `running`.                          |
 | `TIM_ROWS_PAGE_SIZE`        | `10000`               | Most rows per page of `GET /api/runs/{runId}/rows`.                                                                                                 |
 

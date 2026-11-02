@@ -242,6 +242,18 @@ describe('ActionTab', () => {
     expect(screen.queryByRole('textbox', { name: 'Filter rows' })).not.toBeInTheDocument();
   });
 
+  it('drops the rows the tab was pivoted from when a param is edited', async () => {
+    const { uuid } = setup();
+    act(() => useTabsStore.getState().updateParams(uuid, { pivotRows: [{ App: 'Teams' }] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
+    await userEvent.keyboard('{Escape}');
+    expect(useTabsStore.getState().tabs[uuid]?.params).toEqual({
+      action: 'dev-sign-ins',
+      params: { users: ['alice', 'bob'] },
+    });
+  });
+
   it('keeps the params edited in a pill on the tab, and runs from them', async () => {
     const { uuid, onRun } = setup();
     await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
@@ -405,6 +417,14 @@ describe('ActionTab', () => {
     expect(screen.getByRole('status', { name: 'Location' })).toHaveTextContent(
       `/view/${copy?.componentUuid}`,
     );
+  });
+
+  it('clones the tab with the rows it was pivoted from', async () => {
+    const { uuid } = setup(withResults);
+    act(() => useTabsStore.getState().updateParams(uuid, { pivotRows: [{ App: 'Teams' }] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clone' }));
+    const copy = Object.values(useTabsStore.getState().tabs).find((t) => t.componentUuid !== uuid);
+    expect(copy?.params.pivotRows).toEqual([{ App: 'Teams' }]);
   });
 
   it('clones the tab with its Id column', async () => {

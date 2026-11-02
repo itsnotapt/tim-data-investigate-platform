@@ -60,12 +60,14 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def _run_title(action: Action | Sink, params: Mapping[str, Any]) -> str:
-    """The title of a run of ``action`` with ``params``: ``action.title_for(params)``, or the
-    action's name when that raises, which is logged, or is blank. Past
-    ``MAX_TITLE_CHARACTERS`` it is cut off with "…"."""
+def _run_title(
+    action: Action | Sink, params: Mapping[str, Any], pivot_rows: Sequence[Mapping[str, Any]]
+) -> str:
+    """The title of a run of ``action`` with ``params``, pivoted from ``pivot_rows``:
+    ``action.title_for(params, pivot_rows)``, or the action's name when that raises, which is
+    logged, or is blank. Past ``MAX_TITLE_CHARACTERS`` it is cut off with "…"."""
     try:
-        title = action.title_for(params)
+        title = action.title_for(params, pivot_rows)
     except Exception:
         logger.exception("The title of a run of %s failed to render", action.key)
         title = action.name
@@ -392,18 +394,19 @@ class Runner:
         params: Mapping[str, Any],
         *,
         run_input: RunInput | None = None,
+        pivot_rows: Sequence[Mapping[str, Any]] = (),
         analyst: Analyst,
         owner: str,
         connections: RunConnections,
         trace_id: str,
     ) -> Run:
         """Store the run, execute it, and return the run as it is after the race. A sink's run
-        writes ``run_input``."""
+        writes ``run_input``; a query action's run is titled from ``pivot_rows`` too."""
         run = Run(
             run_id=uuid4(),
             status=RunStatus.RUNNING,
             action=RunAction(key=action.key, name=action.name),
-            title=_run_title(action, params),
+            title=_run_title(action, params, pivot_rows),
             params=sanitise_nul(to_json_value(params)),
             owner=owner,
             started_at=self.clock(),

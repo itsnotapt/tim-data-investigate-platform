@@ -266,6 +266,20 @@
                 "type": "null"
               }
             ]
+          },
+          "titleColumns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Titlecolumns"
           }
         },
         "required": [
@@ -1878,7 +1892,7 @@
         "type": "object"
       },
       "StartRun": {
-        "description": "Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is\nfor a sink, and only a sink.",
+        "description": "Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is\nfor a sink, and only a sink. ``pivotRows`` are the rows a query action's run was pivoted\nfrom, for its title.",
         "properties": {
           "action": {
             "title": "Action",
@@ -1900,6 +1914,16 @@
             },
             "title": "Params",
             "type": "object"
+          },
+          "pivotRows": {
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Pivotrows",
+            "type": "array"
           }
         },
         "required": [

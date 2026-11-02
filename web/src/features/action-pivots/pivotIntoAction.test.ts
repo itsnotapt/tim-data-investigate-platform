@@ -56,7 +56,7 @@ const resolving = (body: PivotResolution) =>
     return HttpResponse.json(body);
   });
 
-function setup(preset: Preset = FAILURES) {
+function setup(preset: Preset = FAILURES, action: CatalogueAction = SIGN_INS) {
   const store = newTestStore();
   const parent = store.getState().createTab({
     componentName: 'ActionResult',
@@ -73,7 +73,7 @@ function setup(preset: Preset = FAILURES) {
     pivotRowIds: (string | null)[] = [],
   ) =>
     pivotIntoAction({
-      action: SIGN_INS,
+      action,
       parentUuid: parent,
       rows,
       cell,
@@ -90,12 +90,14 @@ function setup(preset: Preset = FAILURES) {
       missing: Record<string, string | null>;
     },
     pivotRowIds: (string | null)[] = [],
+    rows: Record<string, unknown>[] = [],
   ) =>
     pivotIntoPreset({
       preset,
-      action: SIGN_INS,
+      action,
       resolved,
       pivotRowIds,
+      rows,
       parentUuid: parent,
       store,
       run,
@@ -155,6 +157,38 @@ describe('pivotIntoAction', () => {
     expect(notified.map((n) => n.message)).toEqual(['Running Sign-ins']);
     notified[0]!.action!.onClick();
     expect(goTo).toHaveBeenCalledWith(uuid);
+  });
+
+  it('keeps the rows trimmed to the columns the action’s title names in the child tab', async () => {
+    server.use(
+      resolving({
+        params: { users: ['alice', 'bob'], result: 'Failure' },
+        missing: [],
+        reasons: {},
+      }),
+    );
+    const { store, pivot } = setup(FAILURES, { ...SIGN_INS, titleColumns: ['App', 'Host'] });
+
+    const uuid = await pivot([
+      { User: 'alice', Result: 'Failure', App: 'Teams', Secret: 's' },
+      { User: 'bob', Result: 'Failure', App: 'Outlook', Host: 'BGIST-L' },
+    ]);
+
+    expect(store.getState().tabs[uuid!]?.params.pivotRows).toEqual([
+      { App: 'Teams' },
+      { App: 'Outlook', Host: 'BGIST-L' },
+    ]);
+  });
+
+  it('keeps no rows in the child tab when the action’s title names no columns', async () => {
+    server.use(
+      resolving({ params: { users: ['alice'], result: 'Failure' }, missing: [], reasons: {} }),
+    );
+    const { store, pivot } = setup();
+
+    const uuid = await pivot([{ User: 'alice', Result: 'Failure' }]);
+
+    expect(store.getState().tabs[uuid!]?.params).not.toHaveProperty('pivotRows');
   });
 
   it('opens a child tab that waits for the params still missing, with their reasons', async () => {
@@ -240,6 +274,21 @@ describe('pivotIntoAction', () => {
     expect(goTo).toHaveBeenCalledWith(uuid);
   });
 
+  it('keeps the rows trimmed to the columns the action’s title names in a preset pivot', () => {
+    const { store, pivotPreset } = setup(FAILURES, { ...SIGN_INS, titleColumns: ['App'] });
+
+    const uuid = pivotPreset(
+      {
+        params: { connection: 'kusto-dev', users: ['alice'], result: 'Failure', limit: 10 },
+        missing: {},
+      },
+      [],
+      [{ User: 'alice', App: 'Teams' }],
+    );
+
+    expect(store.getState().tabs[uuid]?.params.pivotRows).toEqual([{ App: 'Teams' }]);
+  });
+
   it('opens a preset pivot with the preset’s Id column', () => {
     const { store, pivotPreset } = setup({ ...FAILURES, idColumn: 'Host' });
 
@@ -299,6 +348,7 @@ describe('pivotIntoAction', () => {
         missing: { 'parameters.Upn': null },
       },
       pivotRowIds: [],
+      rows: [],
       parentUuid: parent,
       store,
       run,

@@ -32,7 +32,7 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         "hash": "9f86d081",
     }
     titles = {
-        key: action.title_for({p.name: row.get(p.name) for p in action.params})
+        key: action.title_for({p.name: row.get(p.name) for p in action.params}, [])
         for key, action in actions.items()
         if action.pivot != "none"
     }

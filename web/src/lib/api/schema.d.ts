@@ -533,6 +533,8 @@ export interface components {
             /** Params */
             params: components["schemas"]["CatalogueParam"][];
             pivot: components["schemas"]["CataloguePivot"] | null;
+            /** Titlecolumns */
+            titleColumns?: string[] | null;
         };
         /**
          * CatalogueColumn
@@ -1244,7 +1246,8 @@ export interface components {
         /**
          * StartRun
          * @description Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is
-         *     for a sink, and only a sink.
+         *     for a sink, and only a sink. ``pivotRows`` are the rows a query action's run was pivoted
+         *     from, for its title.
          */
         StartRun: {
             /** Action */
@@ -1254,6 +1257,10 @@ export interface components {
             params?: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
+            /** Pivotrows */
+            pivotRows?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
         };
         /**
          * TagSuggestions

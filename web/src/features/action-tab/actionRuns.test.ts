@@ -159,6 +159,24 @@ describe('runActionTab', () => {
     expect(tab().rowDataTrigger).not.toBeNull();
   });
 
+  it('sends the rows the tab was pivoted from, for the run’s title', async () => {
+    let body: unknown;
+    server.use(
+      http.post(apiUrl('/api/runs'), async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(succeeded(3));
+      }),
+      rowsHandler([]),
+    );
+    store.getState().updateParams('a', { pivotRows: [{ App: 'Teams' }] });
+    await runActionTab('a', { store, sleep });
+    expect(body).toEqual({
+      action: 'dev-sign-ins',
+      params: { users: ['alice'] },
+      pivotRows: [{ App: 'Teams' }],
+    });
+  });
+
   it('shows each page of rows as it arrives, before every page is stored', async () => {
     let releaseSecondPage = () => {};
     const secondPage = new Promise<void>((resolve) => (releaseSecondPage = resolve));

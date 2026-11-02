@@ -87,6 +87,7 @@ def _action(action: Action | Sink) -> CatalogueAction:
         columns=None if action.columns is None else [_column(c) for c in action.columns],
         id_column=action.id,
         find_pivot_rows=action.find_pivot_rows,
+        title_columns=list(action.title_columns) or None,
         action_file=action.has_preset_file,
     )
 
