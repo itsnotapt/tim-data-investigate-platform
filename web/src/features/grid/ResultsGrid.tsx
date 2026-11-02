@@ -16,7 +16,6 @@ import type {
   StateUpdatedEvent,
   StatusPanelDef,
 } from 'ag-grid-community';
-import { useTabColumnState } from './useTabColumnState';
 import { initAgGridFromConfig } from './agGridSetup';
 import { buildColumnDefs } from './columns';
 import type { GridRowWithId } from './columns';
@@ -66,11 +65,6 @@ export interface ResultsGridProps {
   quickFilterText?: string;
   /** CSS height of the grid. */
   height?: string | number;
-  /**
-   * Identifies the grid (the tab uuid) so its column state survives the tab being hidden or
-   * re-created. Without it column state is not kept.
-   */
-  stateKey?: string;
   /** Row class rules. */
   rowClassRules?: RowClassRules<GridRowWithId>;
   /** The selection column's symbol, beside the checkbox. */
@@ -96,7 +90,6 @@ export function ResultsGrid({
   onGridReady,
   quickFilterText,
   height = 'calc(100vh - 200px)',
-  stateKey,
   rowClassRules,
   selectionSymbol,
   onCellKeyDown,
@@ -107,7 +100,7 @@ export function ResultsGrid({
   onStateUpdated,
 }: ResultsGridProps) {
   const apiRef = useRef<GridApi<GridRowWithId> | null>(null);
-  const { containerRef, attach, save } = useTabColumnState(stateKey);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const statusBar = useMemo(
     () =>
@@ -161,13 +154,11 @@ export function ResultsGrid({
           sideBar={sideBar ?? staticGridOptions.sideBar}
           statusBar={statusBar ?? staticGridOptions.statusBar}
           onStateUpdated={(e) => {
-            save();
             const el = containerRef.current;
             if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) onStateUpdated?.(e);
           }}
           onGridReady={(e) => {
             apiRef.current = e.api;
-            attach(e.api);
             onGridReady?.(e);
           }}
         />

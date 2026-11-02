@@ -57,6 +57,7 @@ Each test gets a fresh browser context, so IndexedDB starts empty.
   - Each light `NN-name.png` gets a dark copy, `NN-name-dark.png`, beside it.
   - There are no `toHaveScreenshot` baselines.
 - Reports go to `test-results/` and `playwright-report/` (gitignored).
+- `e2e/flows/tab-switching.spec.ts` checks that a hidden tab keeps its grid's scroll position, focused cell, selection and column state, and that switching tabs and resizing the window stay quick with 20 tabs mounted.
 - `e2e/flows/theme.spec.ts` checks the colour scheme.
   - It picks the scheme from **Settings › Appearance**, or seeds `localStorage['tim-theme-mode']` with `page.addInitScript`.
   - It emulates the OS scheme with `page.emulateMedia`.
@@ -265,6 +266,7 @@ One more piece lives beside it.
 `TabHost` keeps visited tabs mounted, hidden with `display:none`.
 
 - It keeps up to 100. The least recently visited are dropped.
+- It renders them in a fixed order, by uuid, so React never moves a tab's node and its scroll positions stay.
 - An unknown uuid redirects to `/`, but only once the tabs have loaded.
 
 ## Tab store (`src/features/tabs`)
@@ -333,7 +335,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - Without a key, the grid runs as a trial, with a watermark.
   - `ResultsGrid` calls `initAgGridFromConfig()` when it is imported, so the grid works in tests without extra setup.
   - `src/app/main.tsx` must not import AG Grid.
-- `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows, and `stateKey` keeps per-tab column state (see below).
+- `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows.
 - `useRowResults(uuid, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
 - Columns: the union of all row keys.
 - Row id: the row's row number, `row`.
@@ -345,7 +347,6 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 - Built-in features: a side bar with columns and filters (an action tab adds Views), multi filters, row grouping with a `dcount` aggregation, and a status bar.
   - The status bar shows execution time, CPU, memory in MB, and total, filtered and selected counts. An action tab adds "View: name" after the execution stats.
   - `ResultsGrid` takes `sideBar`, `statusPanels`, `context` and `onStateUpdated` for that. `onStateUpdated` is not called while the tab is hidden.
-- Per-tab column state: pass `stateKey`, the tab uuid. The state is kept in memory only, in `tabColumnState`.
 
 ### Column views of action tabs (`src/features/action-column-views`)
 
