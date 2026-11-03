@@ -5,6 +5,7 @@ import { stubBootstrap } from '../test/stubBootstrap';
 import { SnackbarHost } from '../components/SnackbarHost';
 import { AuthProvider, type AuthClient } from '../lib/auth';
 import { useTabsStore } from '../features/tabs';
+import { tab } from '../test/tabsTestUtils';
 import { resetConfigCache } from '../lib/config/runtimeConfig';
 import { AppThemeProvider } from './AppThemeProvider';
 import { routes } from './routes';
@@ -54,19 +55,13 @@ describe('routes', () => {
     expect(screen.getByRole('button', { name: 'New query' })).toBeInTheDocument();
   });
 
-  it('/view/:uuid renders the action tab', async () => {
-    useTabsStore.getState().createTab({
-      componentUuid: 'abc-123',
-      componentName: 'ActionResult',
-      parentUuid: null,
-      title: 'My tab',
-      params: { action: 'acme.sign_ins', params: {} },
-    });
+  it('/view/:tabId renders the action tab', async () => {
+    useTabsStore.getState().createTab(tab('abc-123', null, { title: 'My tab' }));
     renderAt('/view/abc-123');
     expect(await screen.findByText('This action is no longer available.')).toBeInTheDocument();
   });
 
-  it('/view/:uuid with an unknown uuid redirects to /', async () => {
+  it('/view/:tabId with an unknown tabId redirects to /', async () => {
     const router = renderAt('/view/unknown');
     expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/');

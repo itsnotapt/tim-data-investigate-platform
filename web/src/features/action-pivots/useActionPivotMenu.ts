@@ -30,13 +30,13 @@ const values = (node: IRowNode) => (node.data as RunRow | undefined)?.data ?? {}
 const rowIdOf = (node: IRowNode) => (node.data as LabelledRow | undefined)?.id ?? null;
 
 /**
- * `getContextMenuItems` provider for the grid of the action tab `parentUuid`: Pivot ▸ into the
+ * `getContextMenuItems` provider for the grid of the action tab `parentTabId`: Pivot ▸ into the
  * actions and with the presets, which it loads unless they are already. `run` runs a child tab
  * that needs nothing.
  */
 export function useActionPivotMenu(
-  parentUuid: string,
-  run: (uuid: string) => void,
+  parentTabId: string,
+  run: (tabId: string) => void,
 ): GetExtraContextMenuItems {
   const instance = useInstanceStore((s) => s.instance);
   const recent = useRecentPivots((s) => s.keys);
@@ -56,7 +56,7 @@ export function useActionPivotMenu(
       const pivotRowIds = targets.map(rowIdOf);
       const column = params.column?.getColId();
       const clicked = params.node ? values(params.node) : {};
-      const goTo = (uuid: string) => void navigate(`/view/${uuid}`);
+      const goTo = (tabId: string) => void navigate(`/view/${tabId}`);
       return buildActionPivotMenu({
         actions: instance.actions,
         presets,
@@ -68,7 +68,7 @@ export function useActionPivotMenu(
           record(recentPivotKey(action));
           void pivotIntoAction({
             action,
-            parentUuid,
+            parentTabId,
             rows,
             cell: column && column in clicked ? { column, value: clicked[column] } : null,
             connections: instance.connections,
@@ -86,7 +86,7 @@ export function useActionPivotMenu(
             resolved,
             rows,
             pivotRowIds,
-            parentUuid,
+            parentTabId,
             notify,
             goTo,
             run,
@@ -94,6 +94,6 @@ export function useActionPivotMenu(
         },
       });
     },
-    [instance, presets, recent, record, notify, navigate, parentUuid, run],
+    [instance, presets, recent, record, notify, navigate, parentTabId, run],
   );
 }

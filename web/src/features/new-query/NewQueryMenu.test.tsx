@@ -98,10 +98,9 @@ describe('NewQueryMenu', () => {
     await userEvent.click(screen.getByText('Entra'));
     await userEvent.click(screen.getByText('Sign-ins'));
     const [tab] = Object.values(store.getState().tabs);
-    expect(tab?.componentName).toBe('ActionResult');
     expect(tab?.title).toBe('Sign-ins');
-    expect(tab?.params).toEqual({ action: 'dev-sign-ins', params: { since: 'PT1H' } });
-    expect(screen.getByTestId('loc')).toHaveTextContent(`/view/${tab?.componentUuid}`);
+    expect(tab?.toRun).toEqual({ action: 'dev-sign-ins', params: { since: 'PT1H' } });
+    expect(screen.getByTestId('loc')).toHaveTextContent(`/view/${tab?.id}`);
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
@@ -128,7 +127,7 @@ describe('NewQueryMenu', () => {
     await userEvent.click(screen.getByText('Actions and presets'));
     await userEvent.click(screen.getByText('Run KQL'));
     const [tab] = Object.values(store.getState().tabs);
-    expect(tab?.params).toEqual({ action: 'tim.run_kql', params: { connection: 'security' } });
+    expect(tab?.toRun).toEqual({ action: 'tim.run_kql', params: { connection: 'security' } });
   });
 
   it('search finds actions by name and folder', async () => {

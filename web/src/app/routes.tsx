@@ -9,7 +9,7 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     children: [
       { index: true, element: <Welcome /> },
-      { path: 'view/:uuid', element: <ViewPage /> },
+      { path: 'view/:tabId', element: <ViewPage /> },
       { path: 'runs/:runId', element: <ShareLinkPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],

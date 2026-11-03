@@ -159,13 +159,13 @@ describe('NewQueryMenu presets', () => {
     await userEvent.click(screen.getByText('My bookmark'));
     const [tab] = Object.values(tabs.getState().tabs);
     expect(tab?.title).toBe('My bookmark');
-    expect(tab?.params).toEqual({
+    expect(tab?.toRun).toEqual({
       action: 'dev-sign-ins',
       params: { limit: 5, users: ['alice'] },
       presetId: 'p-mine',
       titleInputs: [],
     });
-    expect(tab?.state.pivotMissing ?? null).toBeNull();
+    expect(tab?.status.pivotMissing).toBeNull();
   });
 
   it('opens a preset whose inputs have no columns asking for them', async () => {
@@ -173,13 +173,13 @@ describe('NewQueryMenu presets', () => {
     await openFolder();
     await userEvent.click(screen.getByText('Bob asks'));
     const [tab] = Object.values(tabs.getState().tabs);
-    expect(tab?.params).toEqual({
+    expect(tab?.toRun).toEqual({
       action: 'dev-sign-ins',
       params: { limit: 10 },
       presetId: 'p-bob',
       titleInputs: [{ source: 'param', name: 'users' }],
     });
-    expect(tab?.state.pivotMissing).toEqual({ users: null });
+    expect(tab?.status.pivotMissing).toEqual({ users: null });
   });
 
   it("offers the owner's items on your own presets and read-only ones on others'", async () => {

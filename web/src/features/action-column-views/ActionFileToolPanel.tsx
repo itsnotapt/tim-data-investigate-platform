@@ -16,10 +16,10 @@ import { useTabColumnView } from './useTabColumnView';
  */
 export function ActionFileToolPanel(props: CustomToolPanelProps) {
   const { columnViews, actionFile } = props.context as {
-    columnViews: Pick<ColumnViewController, 'uuid'>;
+    columnViews: Pick<ColumnViewController, 'tabId'>;
     actionFile: ActionFileOf;
   };
-  const { gridState } = useTabColumnView(columnViews.uuid);
+  const { gridState } = useTabColumnView(columnViews.tabId);
   const notify = useContext(NotifyContext);
   const text = useMemo(() => (gridState ? actionFile(gridState) : null), [gridState, actionFile]);
   return (

@@ -25,43 +25,43 @@ import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
 import type { EditorLanguage } from '../../lib/monaco';
 import { useInstanceStore } from '../instance';
 import { NewQueryMenu } from '../new-query';
-import {
-  PresetsLoadErrorDialog,
-  presetTitleInputs,
-  SavePresetDialog,
-  usePresetsStore,
-} from '../presets';
+import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
 import { copyShareLink } from '../share-links';
-import type { TabComponentProps } from '../tabs/tabRegistry';
+import type { Transition } from '../tabs';
 import { useTabsStore } from '../tabs/tabStore';
 import { useActionPivotMenu } from '../action-pivots';
 import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
-import { cloneActionTab } from './cloneActionTab';
 import { useDeclareStatement } from './declareStatement';
-import { actionIdColumn, resultsIdColumn, shareLinkIdColumn, switchedText } from './idColumn';
 import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
 import { applyEditorSchema, claimEditorSchema, setEditorParameters } from './editorSchemaAdapters';
-import { datetimeText, hasPill, paramTitles, sameParams, stillMissing } from './paramValues';
-import { PillsBar } from './PillsBar';
 import {
-  pills,
-  queryParameters,
-  setPill,
-  takesQueryParameters,
-  withPresetQueryParameters,
-} from './queryParameters';
+  cloneOf,
+  idColumnOf,
+  idColumnSwitched,
+  linkedRowShown as linkedRowWasShown,
+  isEdited,
+  linkIdColumnOf,
+  paramEdited,
+  paramsReset,
+  savedAsPreset,
+  stillNeeded,
+  titleOf,
+} from './model';
+import { datetimeText, hasPill, paramTitles } from './paramValues';
+import { PillsBar } from './PillsBar';
+import { pills, queryParameters } from './queryParameters';
 import { RunPanel } from './RunPanel';
 import { useRunRows } from './runRows';
 import { durationText, outcomeText } from './runText';
-import { tabTitle } from './tabTitle';
 import { useElapsed } from './useElapsed';
 
-export interface ActionTabProps extends TabComponentProps {
+export interface ActionTabProps {
+  tabId: string;
   /** Overrides the run (default `runActionTab`). */
-  onRun?: (uuid: string) => void;
+  onRun?: (tabId: string) => void;
   /** Overrides the cancel (default `cancelActionTab`). */
-  onCancel?: (uuid: string) => void;
+  onCancel?: (tabId: string) => void;
 }
 
 type InnerTab = 'query' | 'results' | 'run';
@@ -74,8 +74,14 @@ const EDITOR_LANGUAGES: Partial<Record<CatalogueParam['kind'], EditorLanguage>> 
 };
 /** The results grid's height: the window below the app bar, the tab's rows and the status bar. */
 const GRID_HEIGHT = 'calc(100vh - 156px)';
-const defaultRun = (uuid: string) => void runActionTab(uuid);
-const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
+const defaultRun = (tabId: string) => void runActionTab(tabId);
+const defaultCancel = (tabId: string) => void cancelActionTab(tabId);
+
+/** What the toast says after switching the Id column to `column`. */
+const switchedText = (column: string | null) =>
+  column === null
+    ? 'Id column cleared: the rows have no id'
+    : `Id column set to ${column}: labels now follow ${column}`;
 
 /**
  * The editor of a `kql` or `sql` param, completing from the schema of its `schemaFrom` params, and
@@ -83,7 +89,7 @@ const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
  * query parameters shows above the query, outside its text.
  */
 function QueryEditor({
-  uuid,
+  tabId,
   actionKey,
   param,
   params,
@@ -92,7 +98,7 @@ function QueryEditor({
   onChange,
   onRun,
 }: {
-  uuid: string;
+  tabId: string;
   /** The tab's action, whose declare statement for its query parameters shows above the query. */
   actionKey: string;
   param: CatalogueParam;
@@ -142,7 +148,7 @@ function QueryEditor({
   useEditorSchema(param, params, values, applySchema);
   const declareStatement = useDeclareStatement(actionKey, declared);
   const value = values[param.name];
-  const captionId = `${uuid}-${param.name}-caption`;
+  const captionId = `${tabId}-${param.name}-caption`;
   const caption = error ?? param.help;
   return (
     <Box
@@ -168,7 +174,7 @@ function QueryEditor({
       >
         <CodeEditor
           language={EDITOR_LANGUAGES[param.kind] ?? 'plaintext'}
-          path={`${uuid}.${param.name}.${param.kind}`}
+          path={`${tabId}.${param.name}.${param.kind}`}
           ariaLabel={param.title}
           value={typeof value === 'string' ? value : ''}
           onChange={(text) => onChange(text === '' ? undefined : text)}
@@ -223,109 +229,93 @@ function TooltipButton({
  * left params missing waits for them, with its reasons. A share link's row is shown on the Results
  * tab.
  */
-export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
-  const tab = useTabsStore((s) => s.tabs[uuid]);
+export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
+  const tab = useTabsStore((s) => s.tabs[tabId]);
   const navigate = useNavigate();
-  const pivotMenu = useActionPivotMenu(uuid, onRun);
+  const pivotMenu = useActionPivotMenu(tabId, onRun);
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
-  const shown = useRunRows(uuid);
+  const shown = useRunRows(tabId);
   const notify = useContext(NotifyContext);
-  const actionState = tab?.componentName === 'ActionResult' ? tab.state : undefined;
+  const latestRun = tab?.latest.run;
+  const executing = tab?.status.executing ?? false;
   const elapsed = useElapsed(
-    actionState?.isExecuting && actionState.run?.status === 'running'
-      ? actionState.run.startedAt
-      : null,
+    executing && latestRun?.status === 'running' ? latestRun.startedAt : null,
   );
   // The inner tab the analyst picked, held until the run changes: a run starts, gets its id or ends.
-  const runKey = `${actionState?.run?.runId ?? ''}:${String(actionState?.isExecuting ?? false)}`;
+  const runKey = `${latestRun?.runId ?? ''}:${String(executing)}`;
   const [picked, setPicked] = useState<{ tab: InnerTab; runKey: string } | null>(null);
   // Save…: the preset the tab came from or was saved as, once the presets are fresh, or why they
   // couldn't be loaded.
   const [saving, setSaving] = useState<{ source?: Preset } | { error: string } | null>(null);
   const [quickFilter, setQuickFilter] = useState('');
-  const onShow = useParams().uuid === uuid;
+  const onShow = useParams().tabId === tabId;
 
-  if (tab?.componentName !== 'ActionResult') return null;
-  const { state, params } = tab;
-  const action = actions?.find((a) => a.key === params.action);
+  if (!tab) return null;
+  const { toRun, latest, results, status } = tab;
+  const run = latest.run;
+  const apply = (transition: Transition) => useTabsStore.getState().apply(tabId, transition);
+  const action = actions?.find((a) => a.key === toRun.action);
   const queryParam = action?.params.find((p) => !hasPill(p));
-  const actionName = action?.name ?? state.run?.action.name ?? params.action;
-  const hasResults = state.resultsRunId != null && state.rowCount !== null;
+  const actionName = action?.name ?? run?.action.name ?? toRun.action;
   // Rows loaded in this session, as each page arrives; else the stored rows of the last run.
-  const rowCount = shown ? shown.rows.length : state.rowCount;
+  const rowCount = shown ? shown.rows.length : (results?.rowCount ?? null);
   const resultsLabel = shown
     ? `Results · ${shown.rows.length}${shown.done ? '' : ` of ${shown.total}`}`
-    : hasResults
-      ? `Results · ${state.rowCount}`
+    : results
+      ? `Results · ${results.rowCount}`
       : 'Results';
 
-  const duration = state.run?.details?.duration;
+  const duration = run?.details?.duration;
   const runLabel =
-    state.run?.status !== 'running' && typeof duration === 'number'
+    run?.status !== 'running' && typeof duration === 'number'
       ? `Run · ${durationText(duration)}`
       : 'Run';
   const inner: InnerTab =
-    state.linkedRow != null
+    status.linkedRow != null
       ? 'results'
       : picked?.runKey === runKey
         ? picked.tab
         : queryParam
           ? 'query'
-          : state.error
+          : status.error
             ? 'run'
             : 'results';
   const pick = (value: InnerTab) => setPicked({ tab: value, runKey });
   // Rows of the run going load into `shown`; any other rows on show are from an earlier run.
-  const showingPrevious = state.isExecuting && !(shown && !shown.done);
-  const resultsFrom = state.resultsStartedAt
-    ? `the run from ${datetimeText(state.resultsStartedAt)}`
+  const showingPrevious = status.executing && !(shown && !shown.done);
+  const resultsFrom = results?.startedAt
+    ? `the run from ${datetimeText(results.startedAt)}`
     : 'the previous run';
-  const edited = state.runParams != null && !sameParams(state.runParams, params.params);
   // Query parameters have a pill each in place of the `parameters` param's.
-  const pillsBar = pills(action?.params ?? [], params.params);
-  const needed = stillMissing(state.pivotMissing, pillsBar.values);
-  const neededReasons = needed.flatMap((name) => state.pivotMissing?.[name] ?? []);
+  const pillsBar = pills(action?.params ?? [], toRun.params);
+  const needed = stillNeeded(tab);
+  const neededReasons = needed.flatMap((name) => status.pivotMissing?.[name] ?? []);
 
-  const setParam = (name: string, value: unknown) => {
-    const tabs = useTabsStore.getState();
-    // Editing a param drops the pivot rows, so they stop titling its runs.
-    tabs.updateParams(uuid, { params: setPill(params.params, name, value), pivotRows: undefined });
-    if (state.paramErrors?.[name] !== undefined) {
-      const paramErrors = { ...state.paramErrors };
-      delete paramErrors[name];
-      tabs.updateState(uuid, { paramErrors });
-    }
-  };
-  // The results' Id column, and the one a link carries when it isn't the action's.
-  const idColumn = resultsIdColumn(action, state);
-  const linkIdColumn = shareLinkIdColumn(action, state);
-  // Clearing goes back to the action's Id column.
+  const setParam = (name: string, value: unknown) => apply(paramEdited(name, value));
+  const idColumn = idColumnOf(tab, action);
+  const linkIdColumn = linkIdColumnOf(tab, action);
   const switchTo = (column: string | null) => {
-    useTabsStore.getState().updateState(uuid, { idColumn: column ?? undefined });
-    notify?.(switchedText(column ?? actionIdColumn(action)));
+    apply(idColumnSwitched(column));
+    // Clearing goes back to the action's Id column.
+    notify?.(switchedText(column ?? action?.idColumn ?? null));
   };
-  const resultColumns = (shown?.columns ?? state.resultColumns ?? []).map((c) => c.name);
-  const reset = () => {
-    if (!state.runParams) return;
-    useTabsStore.getState().updateParams(uuid, { params: state.runParams });
-    useTabsStore.getState().updateState(uuid, { paramErrors: null });
-  };
+  const resultColumns = (shown?.columns ?? results?.columns ?? []).map((c) => c.name);
   // The run going, else the one whose results show.
   const linkRunId =
-    state.run?.status === 'running' || state.run?.status === 'succeeded'
-      ? state.run.runId
-      : (state.resultsRunId ?? null);
+    run?.status === 'running' || run?.status === 'succeeded' ? run.runId : (results?.runId ?? null);
   const linkedRowShown = () => {
     pick('results');
-    useTabsStore.getState().updateState(uuid, { linkedRow: null });
+    apply(linkedRowWasShown);
   };
   const clone = () => {
-    const copy = cloneActionTab(uuid);
-    if (copy) void navigate(`/view/${copy}`);
+    const copy = useTabsStore
+      .getState()
+      .createTab({ parentId: tab.parentId, content: cloneOf(tab) });
+    void navigate(`/view/${copy}`);
   };
   const openSave = async () => {
-    const { presetId } = params;
+    const { presetId } = toRun;
     if (!presetId) {
       setSaving({});
       return;
@@ -334,30 +324,17 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     const { error, presets } = usePresetsStore.getState();
     setSaving(error ? { error } : { source: presets.find((p) => p.presetId === presetId) });
   };
-  const saved = (preset: Preset) => {
-    // The query parameters declared in Save… are the tab's from now on.
-    const declared =
-      action && takesQueryParameters(action)
-        ? { params: withPresetQueryParameters(params.params, preset.inputs ?? []) }
-        : {};
-    useTabsStore.getState().updateParams(uuid, {
-      presetId: preset.presetId,
-      titleInputs: presetTitleInputs(preset),
-      ...declared,
-    });
-    useTabsStore.getState().updateTitle(uuid, preset.name);
-  };
+  const saved = (preset: Preset) => apply(savedAsPreset(preset, action));
 
   const runNow = () => {
-    if (action && !state.isExecuting) onRun(uuid);
+    if (action && !status.executing) onRun(tabId);
   };
   const succeededWithResults =
-    !state.isExecuting &&
-    !state.error &&
-    state.run?.status === 'succeeded' &&
-    state.run.runId === state.resultsRunId &&
-    state.rowCount !== null;
-  const queryStatus = state.isExecuting ? null : state.error ? (
+    !status.executing &&
+    !status.error &&
+    run?.status === 'succeeded' &&
+    run.runId === results?.runId;
+  const queryStatus = status.executing ? null : status.error ? (
     <Alert
       severity="error"
       variant="outlined"
@@ -368,14 +345,14 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         </Button>
       }
     >
-      <span>{state.error.message}</span>
+      <span>{status.error.message}</span>
     </Alert>
   ) : succeededWithResults ? (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
       <Typography variant="body2">
         {[
           'Succeeded',
-          `${state.rowCount} ${state.rowCount === 1 ? 'row' : 'rows'}`,
+          `${results.rowCount} ${results.rowCount === 1 ? 'row' : 'rows'}`,
           ...(typeof duration === 'number' ? [durationText(duration)] : []),
         ].join(' · ')}
       </Typography>
@@ -385,17 +362,17 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     </Box>
   ) : null;
 
-  const run = state.isExecuting ? (
+  const runButton = status.executing ? (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       <CircularProgress size={16} aria-label="Running" />
       <Typography variant="body2" sx={{ minWidth: 48 }}>
-        {state.cancelling ? 'Cancelling…' : elapsed !== null ? durationText(elapsed) : 'Starting…'}
+        {status.cancelling ? 'Cancelling…' : elapsed !== null ? durationText(elapsed) : 'Starting…'}
       </Typography>
       <Button
         size="small"
         variant="outlined"
-        disabled={state.cancelling === true || state.run?.status !== 'running'}
-        onClick={() => onCancel(uuid)}
+        disabled={status.cancelling || run?.status !== 'running'}
+        onClick={() => onCancel(tabId)}
       >
         Cancel
       </Button>
@@ -414,7 +391,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
     </Button>
   );
 
-  const title = tabTitle(tab);
+  const title = titleOf(tab);
   return (
     <Box>
       {onShow && (
@@ -470,15 +447,15 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           New
         </NewQueryMenu>
         <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
-        <Box sx={{ flexShrink: 0 }}>{run}</Box>
+        <Box sx={{ flexShrink: 0 }}>{runButton}</Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <PillsBar
             params={pillsBar.params}
             values={pillsBar.values}
             connections={connections}
             onChange={setParam}
-            errors={state.paramErrors}
-            onReset={edited ? reset : undefined}
+            errors={status.paramErrors}
+            onReset={isEdited(tab) ? () => apply(paramsReset) : undefined}
             needed={needed}
             idColumn={{ current: idColumn, columns: resultColumns, onChange: switchTo }}
           />
@@ -494,7 +471,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
       {saving && !('error' in saving) && action && (
         <SavePresetDialog
           action={action}
-          params={params.params}
+          params={toRun.params}
           source={saving.source}
           idColumn={linkIdColumn}
           onClose={() => setSaving(null)}
@@ -508,7 +485,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         </Alert>
       )}
 
-      {needed.length > 0 && !state.isExecuting && (
+      {needed.length > 0 && !status.executing && (
         <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
           <div>Fill in {paramTitles(pillsBar.params, needed)} to run this pivot</div>
           {neededReasons.map((reason) => (
@@ -527,7 +504,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
           <Tab value="results" label={resultsLabel} sx={{ minHeight: 36, py: 0 }} />
           <Tab value="run" label={runLabel} sx={{ minHeight: 36, py: 0 }} />
         </Tabs>
-        {inner === 'results' && (shown || hasResults) && rowCount !== 0 && (
+        {inner === 'results' && (shown || results) && rowCount !== 0 && (
           <TextField
             size="small"
             placeholder="Filter rows"
@@ -556,39 +533,39 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         <Box role="tabpanel" aria-label="Query" hidden={inner !== 'query'} sx={{ px: 1 }}>
           {queryStatus}
           <QueryEditor
-            uuid={uuid}
-            actionKey={params.action}
+            tabId={tabId}
+            actionKey={toRun.action}
             param={queryParam}
             params={action?.params ?? []}
-            values={params.params}
-            error={state.paramErrors?.[queryParam.name]}
+            values={toRun.params}
+            error={status.paramErrors?.[queryParam.name]}
             onChange={(value) => setParam(queryParam.name, value)}
             onRun={runNow}
           />
         </Box>
       )}
       <Box role="tabpanel" aria-label={runLabel} hidden={inner !== 'run'} sx={{ px: 1 }}>
-        <RunPanel run={state.run ?? null} error={state.error?.message ?? null} />
+        <RunPanel run={run} error={status.error?.message ?? null} />
       </Box>
-      {inner === 'results' && hasResults && showingPrevious && (
+      {inner === 'results' && results && showingPrevious && (
         <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 0.5 }}>
           Showing {resultsFrom}
         </Typography>
       )}
-      {inner === 'results' && hasResults && !state.isExecuting && state.error && (
+      {inner === 'results' && results && !status.executing && status.error && (
         <Alert severity="warning" variant="outlined" role="status" sx={{ mx: 1, mb: 0.5 }}>
-          {outcomeText(state.run)} Showing {resultsFrom}
+          {outcomeText(run)} Showing {resultsFrom}
         </Alert>
       )}
       <Box
         data-slot="results-grid"
         role="tabpanel"
         aria-label={resultsLabel}
-        aria-busy={hasResults && showingPrevious ? true : undefined}
+        aria-busy={results && showingPrevious ? true : undefined}
         hidden={inner !== 'results'}
-        sx={{ px: 1, opacity: hasResults && showingPrevious ? 0.5 : 1 }}
+        sx={{ px: 1, opacity: results && showingPrevious ? 0.5 : 1 }}
       >
-        {(shown?.done ?? hasResults) && rowCount === 0 && (
+        {(shown?.done ?? results !== null) && rowCount === 0 && (
           <Typography color="text.secondary" sx={{ p: 2 }}>
             The run succeeded with no rows.
           </Typography>
@@ -596,7 +573,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         {shown && rowCount !== 0 && (
           <ActionResultsGrid
             key={shown.runId}
-            uuid={uuid}
+            tabId={tabId}
             idColumn={idColumn}
             onIdColumnChange={switchTo}
             linkIdColumn={linkIdColumn}
@@ -605,28 +582,28 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
             declaredColumns={action?.columns}
             runColumns={shown.columns}
             getContextMenuItems={pivotMenu}
-            linkedRow={state.linkedRow}
+            linkedRow={status.linkedRow}
             onLinkedRowShown={linkedRowShown}
-            pivotRowIds={state.pivotRowIds}
+            pivotRowIds={toRun.pivotRowIds}
             findPivotRows={action?.findPivotRows}
             quickFilterText={quickFilter}
             height={GRID_HEIGHT}
           />
         )}
-        {!shown && hasResults && rowCount !== 0 && (
+        {!shown && results && rowCount !== 0 && (
           <StoredActionResultsGrid
-            uuid={uuid}
+            tabId={tabId}
             idColumn={idColumn}
             onIdColumnChange={switchTo}
             linkIdColumn={linkIdColumn}
-            runId={state.resultsRunId}
+            runId={results.runId}
             rowDataTrigger={tab.rowDataTrigger}
             declaredColumns={action?.columns}
-            runColumns={state.resultColumns}
+            runColumns={results.columns}
             getContextMenuItems={pivotMenu}
-            linkedRow={state.linkedRow}
+            linkedRow={status.linkedRow}
             onLinkedRowShown={linkedRowShown}
-            pivotRowIds={state.pivotRowIds}
+            pivotRowIds={toRun.pivotRowIds}
             findPivotRows={action?.findPivotRows}
             quickFilterText={quickFilter}
             height={GRID_HEIGHT}

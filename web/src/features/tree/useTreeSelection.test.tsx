@@ -42,7 +42,7 @@ describe('toggleChecked', () => {
     expect(ids(c)).toEqual(['d', 'e']);
   });
 
-  it('ignores unknown uuids', () => {
+  it('ignores unknown tab ids', () => {
     expect(toggleChecked(data(tree()), new Set(['a']), 'zzz', true).size).toBe(1);
   });
 });
@@ -72,7 +72,7 @@ describe('useTreeSelection.removeSelected', () => {
     const { store, hook } = setup('/');
     act(() => hook.result.current.toggle('b', true));
     await act(() => hook.result.current.removeSelected());
-    expect(selectAllInOrder(store.getState()).map((t) => t.componentUuid)).toEqual(['a', 'd', 'e']);
+    expect(selectAllInOrder(store.getState()).map((t) => t.id)).toEqual(['a', 'd', 'e']);
     expect(hook.result.current.checked.size).toBe(0);
   });
 

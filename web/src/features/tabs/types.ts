@@ -1,49 +1,21 @@
 /**
- * Tab model. Same shape as the exported/imported JSON; `children` is derived by selectors, never stored.
+ * A tab is a node of the investigation tree plus its content. The content belongs to the action
+ * tab module (`features/action-tab/model.ts`); the tabs store only places, stores and removes tabs.
  * The shapes are shared with the IndexedDB layer (`src/lib/storage`).
  */
-import type {
-  ActionDisplayComponent,
-  ActionParams,
-  DisplayComponentName,
-  DisplayComponentState,
-  ParamErrors,
-  StoredError,
-  TitleInput,
-} from '../../lib/storage';
+import type { Tab, TabContent } from '../../lib/storage';
 
-export type {
-  ActionParams,
-  TitleInput,
-  DisplayComponentName as TabKind,
-  DisplayComponentState as TabState,
-  ParamErrors,
-  StoredError,
-};
+export type { StoredError, Tab, TabContent } from '../../lib/storage';
 
-export type ActionTab = ActionDisplayComponent;
-export type Tab = ActionTab;
+/** A change to a tab's content. Pure: no store, React, MSW or IndexedDB. */
+export type Transition = (tab: TabContent) => TabContent;
 
-interface CreateTabInput {
+export interface CreateTabArgs {
   /** Generated when omitted. */
-  componentUuid?: string;
-  parentUuid: string | null;
-  title: string;
-  state?: Partial<DisplayComponentState>;
+  id?: string;
+  parentId: string | null;
+  content: TabContent;
 }
-export type CreateTabArgs = CreateTabInput & {
-  componentName: 'ActionResult';
-  params: ActionParams;
-};
 
-/** Partial state update. `error` may be anything thrown; it is reduced to `{message, code?}`. */
-export type TabStateUpdate = Partial<Omit<DisplayComponentState, 'error'>> & {
-  error?: unknown;
-};
-
-export const DEFAULT_TAB_STATE: DisplayComponentState = {
-  isVisited: false,
-  error: null,
-  rowCount: null,
-  isExecuting: false,
-};
+/** The fields the store owns: where the tab sits in the tree, its visited mark and row trigger. */
+export type TabTreeFields = Pick<Tab, 'id' | 'parentId' | 'index' | 'visited' | 'rowDataTrigger'>;

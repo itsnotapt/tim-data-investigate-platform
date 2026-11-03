@@ -5,6 +5,8 @@ import type { GridState } from 'ag-grid-community';
 import type { CustomToolPanelProps } from 'ag-grid-react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { NotifyContext, type NotifyOptions } from '../../components/notifyContext';
+import { content } from '../../test/tabsTestUtils';
+import { gridStateChanged } from '../action-tab/model';
 import { useTabsStore } from '../tabs';
 import { ActionFileToolPanel } from './ActionFileToolPanel';
 
@@ -21,22 +23,22 @@ let clipboard: string | null;
 let notes: (NotifyOptions | string)[];
 
 function renderPanel() {
-  const uuid = useTabsStore.getState().createTab({
-    componentName: 'ActionResult',
-    parentUuid: null,
-    title: 'Sign-ins',
-    params: { action: 'dev.sign_ins', params: {} },
+  const tabId = useTabsStore.getState().createTab({
+    parentId: null,
+    content: content('Sign-ins', {
+      toRun: { action: 'dev.sign_ins' },
+      grid: { gridState: stateWith('User', 'Host') },
+    }),
   });
-  useTabsStore.getState().updateState(uuid, { gridState: stateWith('User', 'Host') });
   const props = {
-    context: { columnViews: { uuid }, actionFile },
+    context: { columnViews: { tabId }, actionFile },
   } as unknown as CustomToolPanelProps;
   render(
     <NotifyContext.Provider value={(n) => notes.push(n)}>
       <ActionFileToolPanel {...props} />
     </NotifyContext.Provider>,
   );
-  return uuid;
+  return tabId;
 }
 
 beforeEach(() => {
@@ -58,9 +60,9 @@ const block = () => screen.getByTestId('action-file-tool-panel').querySelector('
 
 describe('ActionFileToolPanel', () => {
   it("shows the tab's columns: block, as the tab's columns change", () => {
-    const uuid = renderPanel();
+    const tabId = renderPanel();
     expect(block()).toBe('columns:\n  - name: User\n  - name: Host\n');
-    act(() => useTabsStore.getState().updateState(uuid, { gridState: stateWith('Host') }));
+    act(() => useTabsStore.getState().apply(tabId, gridStateChanged(stateWith('Host'))));
     expect(block()).toBe('columns:\n  - name: Host\n');
   });
 

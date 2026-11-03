@@ -2,41 +2,39 @@ import Box from '@mui/material/Box';
 import { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { touchLru } from './lru';
-import { tabRegistry as defaultRegistry, type TabRegistry } from './tabRegistry';
+import { ActionTab } from '../action-tab/ActionTab';
 import { useTabsStore } from './tabStore';
 
 /**
- * Renders the tab at `/view/:uuid`. Visited tabs stay mounted (hidden with display:none) so
- * their grids keep their scroll position, focused cell, selection and column state. Unknown uuids
+ * Renders the tab at `/view/:tabId`. Visited tabs stay mounted (hidden with display:none) so
+ * their grids keep their scroll position, focused cell, selection and column state. Unknown tab ids
  * redirect home, but only after tabs finished loading (a hard load must not bounce before
  * IndexedDB is read).
  */
-export function TabHost({ registry = defaultRegistry }: { registry?: TabRegistry }) {
-  const { uuid = '' } = useParams();
+export function TabHost() {
+  const { tabId = '' } = useParams();
   const tabs = useTabsStore((s) => s.tabs);
   const loaded = useTabsStore((s) => s.loaded);
   const [mounted, setMounted] = useState<string[]>([]);
 
-  const known = uuid in tabs;
+  const known = tabId in tabs;
   // Adjust state during render so the active tab is in the first committed output.
-  if (known && mounted[mounted.length - 1] !== uuid) setMounted(touchLru(mounted, uuid));
+  if (known && mounted[mounted.length - 1] !== tabId) setMounted(touchLru(mounted, tabId));
 
   useEffect(() => {
-    if (known) useTabsStore.getState().markVisited(uuid);
-  }, [known, uuid]);
+    if (known) useTabsStore.getState().markVisited(tabId);
+  }, [known, tabId]);
 
   if (loaded && !known) return <Navigate to="/" replace />;
 
   return (
     <>
-      {/* In a fixed order, by uuid, so a visit never moves a tab's node (docs/architecture.md). */}
+      {/* In a fixed order, by tabId, so a visit never moves a tab's node (docs/architecture.md). */}
       {[...mounted].sort().map((id) => {
-        const tab = tabs[id];
-        if (!tab) return null; // removed since it was visited
-        const Component = registry[tab.componentName];
+        if (!tabs[id]) return null; // removed since it was visited
         return (
-          <Box key={id} sx={{ display: id === uuid ? 'block' : 'none' }}>
-            <Component uuid={id} />
+          <Box key={id} sx={{ display: id === tabId ? 'block' : 'none' }}>
+            <ActionTab tabId={id} />
           </Box>
         );
       })}

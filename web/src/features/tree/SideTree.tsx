@@ -10,7 +10,7 @@ import IconButton from '@mui/material/IconButton';
 import ListItemButton from '@mui/material/ListItemButton';
 import { useEffect, useMemo, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router';
-import { tabTitle } from '../action-tab/tabTitle';
+import { titleOf } from '../action-tab/model';
 import { NewQueryMenu } from '../new-query';
 import { selectAncestors, selectRoots, useTabsStore, type Tab, type TabsStore } from '../tabs';
 import { TreeNodeIcon } from './TreeNodeIcon';
@@ -27,25 +27,25 @@ export interface SideTreeProps {
 
 /**
  * Query tree drawer (mini variant, expands on hover). The active node comes straight from the
- * route (`/view/:uuid`) on every render, so it is highlighted after a hard load too.
+ * route (`/view/:tabId`) on every render, so it is highlighted after a hard load too.
  */
 export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const navigate = useNavigate();
-  const activeUuid = useMatch('/view/:uuid')?.params.uuid;
+  const activeTabId = useMatch('/view/:tabId')?.params.tabId;
   const tabs = store((s) => s.tabs);
   const order = store((s) => s.order);
   const lastCreated = store((s) => s.lastCreated);
   const [hover, setHover] = useState(false);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const selection = useTreeSelection(activeUuid, store);
+  const selection = useTreeSelection(activeTabId, store);
 
   const { roots, children } = useMemo(() => {
     const data = { tabs, order };
     const byParent = new Map<string, Tab[]>();
     for (const id of order) {
       const t = tabs[id];
-      if (t?.parentUuid != null && t.parentUuid in tabs) {
-        byParent.set(t.parentUuid, [...(byParent.get(t.parentUuid) ?? []), t]);
+      if (t?.parentId != null && t.parentId in tabs) {
+        byParent.set(t.parentId, [...(byParent.get(t.parentId) ?? []), t]);
       }
     }
     return { roots: selectRoots(data), children: byParent };
@@ -55,26 +55,26 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const [seenSeq, setSeenSeq] = useState(lastCreated?.seq ?? 0);
   if (lastCreated && lastCreated.seq !== seenSeq) {
     setSeenSeq(lastCreated.seq);
-    const ancestors = selectAncestors({ tabs, order }, lastCreated.uuid);
-    if (ancestors.some((a) => collapsed.has(a.componentUuid))) {
+    const ancestors = selectAncestors({ tabs, order }, lastCreated.id);
+    if (ancestors.some((a) => collapsed.has(a.id))) {
       const next = new Set(collapsed);
-      for (const a of ancestors) next.delete(a.componentUuid);
+      for (const a of ancestors) next.delete(a.id);
       setCollapsed(next);
     }
   }
 
   // Results arriving on the active tab count as seen, and
   // opening a tab by URL marks it visited.
-  const active = activeUuid ? tabs[activeUuid] : undefined;
+  const active = activeTabId ? tabs[activeTabId] : undefined;
   useEffect(() => {
-    if (active && !active.state.isVisited && active.state.rowCount !== null) {
-      store.getState().markVisited(active.componentUuid);
+    if (active && !active.visited && active.results !== null) {
+      store.getState().markVisited(active.id);
     }
   }, [active, store]);
 
   const open = (t: Tab) => {
-    store.getState().markVisited(t.componentUuid);
-    if (t.componentUuid !== activeUuid) void navigate(`/view/${t.componentUuid}`);
+    store.getState().markVisited(t.id);
+    if (t.id !== activeTabId) void navigate(`/view/${t.id}`);
   };
 
   // mouseleave is lost when the pointer was over a portalled menu item that closed under it
@@ -93,15 +93,15 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const width = expanded ? SIDE_TREE_EXPANDED_WIDTH : SIDE_TREE_COLLAPSED_WIDTH;
 
   const renderNode = (t: Tab, depth: number) => {
-    const kids = children.get(t.componentUuid) ?? [];
-    const isOpen = kids.length > 0 && !collapsed.has(t.componentUuid);
-    const isActive = t.componentUuid === activeUuid;
+    const kids = children.get(t.id) ?? [];
+    const isOpen = kids.length > 0 && !collapsed.has(t.id);
+    const isActive = t.id === activeTabId;
     return (
-      <li key={t.componentUuid} style={{ listStyle: 'none' }}>
+      <li key={t.id} style={{ listStyle: 'none' }}>
         <ListItemButton
           dense
           selected={isActive}
-          data-testid={`tree-node-${t.componentUuid}`}
+          data-testid={`tree-node-${t.id}`}
           aria-current={isActive ? 'page' : undefined}
           onClick={() => open(t)}
           sx={{
@@ -120,8 +120,8 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
                 e.stopPropagation();
                 setCollapsed((prev) => {
                   const next = new Set(prev);
-                  if (next.has(t.componentUuid)) next.delete(t.componentUuid);
-                  else next.add(t.componentUuid);
+                  if (next.has(t.id)) next.delete(t.id);
+                  else next.add(t.id);
                   return next;
                 });
               }}
@@ -132,10 +132,10 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
           {expanded && (
             <Checkbox
               size="small"
-              checked={selection.checked.has(t.componentUuid)}
+              checked={selection.checked.has(t.id)}
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) => selection.toggle(t.componentUuid, e.target.checked)}
-              slotProps={{ input: { 'aria-label': `Select ${tabTitle(t)}` } }}
+              onChange={(e) => selection.toggle(t.id, e.target.checked)}
+              slotProps={{ input: { 'aria-label': `Select ${titleOf(t)}` } }}
             />
           )}
           <Box sx={{ display: 'flex', mr: 1 }}>

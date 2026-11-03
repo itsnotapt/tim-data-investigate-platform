@@ -45,7 +45,7 @@ function renderAt(url: string) {
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="runs/:runId" element={<ShareLinkPage />} />
-        <Route path="view/:uuid" element={<Loc />} />
+        <Route path="view/:tabId" element={<Loc />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -81,20 +81,16 @@ describe('ShareLinkPage', () => {
 
     const loc = await screen.findByTestId('loc');
     const tab = onlyTab();
-    expect(loc).toHaveTextContent(`/view/${tab.componentUuid}`);
+    expect(loc).toHaveTextContent(`/view/${tab.id}`);
     expect(tab).toMatchObject({
-      componentName: 'ActionResult',
-      parentUuid: null,
+      parentId: null,
       title: 'Sign-ins',
-      params: { action: 'dev-sign-ins', params: { users: ['alice'] } },
+      toRun: { action: 'dev-sign-ins', params: { users: ['alice'] } },
+      latest: { params: { users: ['alice'] }, title: 'Sign-ins alice' },
+      status: { linkedRow: 1 },
     });
-    expect(tab.state).toMatchObject({
-      linkedRow: 1,
-      runParams: { users: ['alice'] },
-      runTitle: 'Sign-ins alice',
-    });
-    await waitFor(() => expect(onlyTab().state.resultsRunId).toBe(RUN_ID));
-    expect(onlyTab().state.rowCount).toBe(2);
+    await waitFor(() => expect(onlyTab().results?.runId).toBe(RUN_ID));
+    expect(onlyTab().results?.rowCount).toBe(2);
     expect(started).toBe(0);
   });
 
@@ -106,7 +102,7 @@ describe('ShareLinkPage', () => {
     renderAt(`/runs/${RUN_ID}`);
 
     await screen.findByTestId('loc');
-    expect(onlyTab().state.linkedRow ?? null).toBeNull();
+    expect(onlyTab().status.linkedRow).toBeNull();
   });
 
   it('fills in a run still going when it ends', async () => {
@@ -124,12 +120,12 @@ describe('ShareLinkPage', () => {
     renderAt(`/runs/${RUN_ID}`);
 
     await screen.findByTestId('loc');
-    expect(onlyTab().state).toMatchObject({
-      isExecuting: true,
-      run: { runId: RUN_ID, status: 'running' },
+    expect(onlyTab()).toMatchObject({
+      status: { executing: true },
+      latest: { run: { runId: RUN_ID, status: 'running' } },
     });
-    await waitFor(() => expect(onlyTab().state.resultsRunId).toBe(RUN_ID), { timeout: 3000 });
-    expect(onlyTab().state).toMatchObject({ isExecuting: false, rowCount: 2 });
+    await waitFor(() => expect(onlyTab().results?.runId).toBe(RUN_ID), { timeout: 3000 });
+    expect(onlyTab()).toMatchObject({ status: { executing: false }, results: { rowCount: 2 } });
     expect(started).toBe(0);
   });
 

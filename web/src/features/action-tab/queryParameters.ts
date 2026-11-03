@@ -100,6 +100,14 @@ const PILL_KINDS: Record<QueryParameterType, Pick<CatalogueParam, 'kind' | 'many
   dynamic: { kind: 'string', many: true },
 };
 
+/** The tab's values keyed by pill name: its params, and each query parameter's value by its pill's. */
+export function pillValues(values: Record<string, unknown>): Record<string, unknown> {
+  const pillValues = { ...values };
+  for (const entry of queryParameters(values.parameters))
+    pillValues[pillName(entry.name)] = entry.value;
+  return pillValues;
+}
+
 /**
  * The tab's pills: each param but `parameters`, which gives one pill per query parameter in its
  * place, with the values keyed by pill name. A query parameter bound by position says which.
@@ -109,10 +117,8 @@ export function pills(
   values: Record<string, unknown>,
 ): { params: CatalogueParam[]; values: Record<string, unknown> } {
   const entries = queryParameters(values.parameters);
-  const pillValues = { ...values };
   const bound = bindsByPosition(params);
   const position = (i: number) => (bound ? ` ${positionLabel(i, true)}` : '');
-  for (const entry of entries) pillValues[pillName(entry.name)] = entry.value;
   return {
     params: params.flatMap((p) =>
       isParametersParam(p)
@@ -125,7 +131,7 @@ export function pills(
           }))
         : [p],
     ),
-    values: pillValues,
+    values: pillValues(values),
   };
 }
 

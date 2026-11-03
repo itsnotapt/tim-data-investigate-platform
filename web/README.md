@@ -78,7 +78,7 @@ The source has four parts:
 
 ## Routes (hash)
 
-`#/`, `#/view/:uuid` (tab), `#/runs/:runId` (a share link to a run).
+`#/`, `#/view/:tabId` (tab), `#/runs/:runId` (a share link to a run).
 
 ## Runtime config
 
@@ -178,7 +178,7 @@ The entrypoint also honours three variables, for testing without Docker:
 
 `src/lib/storage` owns the IndexedDB database `tim`; its stores are in [architecture.md](../docs/architecture.md#indexeddb).
 
-- Use the DAOs: `displayComponentsDao`, `rowResultsDao`, `defaultViewsDao`, `annotationsDao` and `annotationSyncDao`.
+- Use the DAOs: `tabsDao`, `rowResultsDao`, `defaultViewsDao`, `annotationsDao` and `annotationSyncDao`.
 - Annotations are kept in `annotationsDao`, never in `rowResultsDao`. The code that applies and polls them is in `src/lib/annotations` ([architecture.md](../docs/architecture.md#annotations-in-the-browser)).
 - `rowResultsDao.get` returns `[]` when nothing is stored.
 - Tests reset the singleton with `resetTimDb()`.
@@ -261,25 +261,28 @@ Once loaded, the instance is refetched on window focus (`refreshInstanceOnFocus`
 
 One more piece lives beside it.
 
-- `TabHost` (`src/features/tabs/TabHost.tsx`): renders the active tab at `/view/:uuid` through `tabRegistry`, which maps each tab kind to a component that takes `{uuid}`.
+- `TabHost` (`src/features/tabs/TabHost.tsx`): renders the active tab at `/view/:tabId` with `ActionTab`.
 
 `TabHost` keeps visited tabs mounted, hidden with `display:none`.
 
 - It keeps up to 100. The least recently visited are dropped.
-- It renders them in a fixed order, by uuid, so React never moves a tab's node and its scroll positions stay.
-- An unknown uuid redirects to `/`, but only once the tabs have loaded.
+- It renders them in a fixed order, by tab id, so React never moves a tab's node and its scroll positions stay.
+- An unknown tab id redirects to `/`, but only once the tabs have loaded.
 
 ## Tab store (`src/features/tabs`)
 
 `useTabsStore` holds the open tabs; see [architecture.md](../docs/architecture.md#state-and-tab-model). Tests use `createTabsStore({persistence, debounceMs})` and call `store.reset()` to empty it.
 
-- State: normalised tabs `{[uuid]: Tab}` plus `order`. `Tab` is an `ActionResult`.
-- `selectors.ts`: `children` is derived, never stored. The selectors are `selectRoots`, `selectChildrenOf`, `selectAncestors` and `selectSubtreeUuids`.
-- `load()`: reads IndexedDB sorted by `displayComponentIndex`, renumbers, and saves again. A tab whose parent is missing becomes a root.
+- State: normalised tabs `{[id]: Tab}` plus `order`. A `Tab` is a `TabContent` (`title`, `toRun`, `latest`, `results`, `grid`, `status`) plus its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`). The store keeps the tree and its persistence; the action tab module (`features/action-tab/model.ts`) is the only writer of a tab's content.
+- `selectors.ts`: `children` is derived, never stored. The selectors are `selectRoots`, `selectChildrenOf`, `selectAncestors` and `selectSubtreeIds`.
+- `load()`: reads IndexedDB sorted by `index`, renumbers, and saves again. A tab whose parent is missing becomes a root.
 - Writes: create, update, trigger and visited changes are debounced per tab (300 ms) and serialised with deletes. `flush()` forces them.
-- `removeTab(uuid)`: removes the whole subtree and the `row_results` of every removed tab.
+- `createTab({id?, parentId, content})`: adds a tab under `parentId` with the given content, and returns its id.
+- `apply(id, transition)`: changes a tab's content with a transition of the action tab module. The tab's `id`, `parentId`, `index`, `visited` and `rowDataTrigger` stay.
+- `markVisited(id)` and `markUnvisited(id)`: set the tab's `visited`.
+- `removeTab(id)`: removes the whole subtree and the `row_results` of every removed tab.
 - Errors: reduced to `{message, code?}` on write and on load.
-- `triggerRowData(uuid)`: sets a strictly increasing `rowDataTrigger`. Grids subscribe to it.
+- `triggerRowData(id)`: sets a strictly increasing `rowDataTrigger`. Grids subscribe to it.
 - `lastCreated`: records the most recently created tab.
 
 ## Query tree and New menu
@@ -288,20 +291,20 @@ One more piece lives beside it.
 
 - `SideTree`: `<SideTree store? />` is the permanent left drawer.
   - It is 56 px wide, and 700 px while hovered.
-  - It reads the tab store, and takes the active node from the route with `useMatch('/view/:uuid')`.
-  - Clicking a node marks the tab visited, and navigates to `/view/:uuid`.
-- Node labels: `[draft]` and `[new]` prefixes, then the tab's title from `tabTitle`, cut to two lines with the full title in a tooltip.
+  - It reads the tab store, and takes the active node from the route with `useMatch('/view/:tabId')`.
+  - Clicking a node marks the tab visited, and navigates to `/view/:tabId`.
+- Node labels: `[draft]` and `[new]` prefixes, then the tab's title from the action tab module's `title`, cut to two lines with the full title in a tooltip.
 - Node icons: a spinner, an error, a ringed 0, a row-count badge ("9+" above nine) or a faded folder. The ringed 0 is an action tab whose run succeeded with no rows (`nodeStatus.ts`).
 - Header: the New menu and "Remove selected".
-- `useTreeSelection(activeUuid)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
+- `useTreeSelection(activeTabId)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
 - Remove selected: calls `removeTab`, which cascades, then navigates to `/` with replace if the active tab is gone.
 
 `features/new-query` holds the New menu: `<NewQueryMenu actions? ariaLabel? store? presetsStore? analyst?>label</NewQueryMenu>`. Choosing an entry creates a root tab and navigates to it.
 
 - Actions and presets submenu: one tree of folders (`buildNewMenuTree`), where each folder shows its item count.
-  - An action makes a root `ActionResult` tab (`createFromAction`), nested by its `menuPath`. The title is the action's name and the params are the defaults. It is not run.
-  - A preset makes a root `ActionResult` tab (`createFromPreset`), nested by its `menuPath`. The title is the preset's name, and the params keep `presetId` and `titleInputs`, the inputs shown in the title (`presetTitleInputs`). It is not run.
-  - `presetTabParams` (`features/presets`) builds the params: the action's defaults, then the preset's `params`, then its fixed values. Each From row input still unset goes in `state.pivotMissing`; the query parameters become the `parameters` value, with From row ones left needed.
+  - An action makes a root tab (`fromAction`), nested by its `menuPath`. The title is the action's name and the params are the defaults. It is not run.
+  - A preset makes a root tab (`fromPreset`), nested by its `menuPath`. The title is the preset's name, and its `toRun` keeps `presetId` and `titleInputs`, the inputs shown in the title (`presetTitleInputs`). It is not run.
+  - `presetTabParams` (`features/presets`) builds the params: the action's defaults, then the preset's `params`, then its fixed values. Each From row input still unset goes in `status.pivotMissing`; the query parameters become the `parameters` value, with From row ones left needed.
   - A filter shows All (with the actions), Mine, Others' or Hidden presets (`NewMenuFilter`). "Mine" shows the presets whose `owned` is true; the server sets it for the caller.
   - `entryCaption` gives the line under a preset: "Bookmark · owner" when every input is fixed, or "<action> · pivot on <columns> · asks for <params>".
   - `PresetMoreMenu` is a preset's ⋯: Open, Copy as action file (when the action's `actionFile` is true; it copies the YAML of `GET /api/presets/{presetId}/actionFile` to the clipboard), Edit… (owner; the dialog starts from `presetValues`, the preset's params and fixed values, not the action's defaults), Duplicate, Share with everyone or Make private (owner), Delete… with a confirm (owner), Hide or Unhide (others).
@@ -336,7 +339,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - `ResultsGrid` calls `initAgGridFromConfig()` when it is imported, so the grid works in tests without extra setup.
   - `src/app/main.tsx` must not import AG Grid.
 - `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows.
-- `useRowResults(uuid, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
+- `useRowResults(tabId, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
 - Columns: the union of all row keys.
 - Row id: the row's row number, `row`.
 - Extension points:
@@ -353,7 +356,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 [architecture.md](../docs/architecture.md#column-views) describes the behaviour.
 
 - `columnViewState.ts`: `columnViewStateOf` takes the column and filter sections of a `GridState`. `fitColumnView` fits a column view to a result. `isModified` and `sameColumnView` compare states.
-- `useActionColumnView(uuid)`: `ActionResultsGrid` calls it. `start` puts the tab's state, the default view or the built-in view on the grid when it is ready. `keep` stores the grid's state in the tab's `gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
+- `useActionColumnView(tabId)`: `ActionResultsGrid` calls it. `start` puts the tab's column view, the default view or the built-in view on the grid when it is ready. `keep` stores the grid's state in the tab's `grid.gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
 - `ColumnViewsToolPanel` is the Views panel, with `SaveColumnViewDialog`, `RenameColumnViewDialog` and `ColumnViewMoreMenu`. `ColumnViewStatusPanel` is the status bar panel. `gridParts.ts` has the side bar and status panel definitions.
 - `ranking.ts`: `rankColumnViews` orders the list by how many of the tab's columns a column view matches.
 - `savedColumnViewsStore.ts`: the column views from `GET /api/columnViews` (client: `src/lib/api/columnViews.ts`). `defaultViewsStore.ts`: the default views, through `defaultViewsDao`.
@@ -374,11 +377,11 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 
 The tab that runs an action. How it behaves is in [architecture.md](../docs/architecture.md#the-tab-and-new-menu); this is where the code is.
 
-- `ActionTab.tsx`: the tab, registered for `ActionResult`.
+- `ActionTab.tsx`: the tab, rendered by `TabHost`.
   - It has a header with Save…, Clone and Copy link, and a pills bar with Run, or the running spinner with Cancel.
   - Its inner tabs are "Query" (for a `kql` or `sql` param), "Results · N" and "Run · duration".
   - It picks the inner tab, and shows the previous results during a run.
-  - It finds its action in `useInstanceStore` by `params.action`. The param values are plain values, in `params.params`.
+  - It finds its action in `useInstanceStore` by `toRun.action`. The param values are plain values, in `toRun.params`.
 - `PillsBar.tsx`: one pill per param except `kql`/`sql`, each edited in a popover.
   - `DatetimeEditor.tsx` (MUI X date pickers with dayjs, in UTC) and `TimespanEditor.tsx` (preset chips, or an amount and a unit) edit those kinds.
   - `paramValues.ts` parses and shows values.
@@ -386,17 +389,20 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - A pill shows the server's reason for a refused param.
   - An Edited chip resets the params to the latest run's, and clears the marks.
 - `RunPanel.tsx`: the Run tab: status, start, duration, run id, the tab's error, details, columns and params. `runText.ts` words the status and durations.
-- `tabTitle.ts`: `tabTitle` is the title a tab shows, in the tree and the app bar (one line, full title in a tooltip). Until the tab runs it is the stored title. A tab with `params.titleInputs` shows its title, then its latest run's values for those inputs, a list as up to two values joined by ", " then " +N", unset ones left out. Any other tab shows `state.runTitle`, its latest run's `title`.
-- `cloneActionTab.ts`: `cloneActionTab` adds the sibling "Copy of <title>" with the same params.
+- `model.ts`: the action tab module. It is the only writer of a tab's content, with pure transitions `(tab: TabContent) => TabContent` and questions about a tab; [architecture.md](../docs/architecture.md#state-and-tab-model) lists them.
+  - `title` is the title a tab shows, in the tree and the app bar (one line, full title in a tooltip). Until the tab runs it is the stored title. A tab with `toRun.titleInputs` shows its title, then its latest run's values for those inputs, a list as up to two values joined by ", " then " +N", unset ones left out. Any other tab shows `latest.title`, its latest run's title.
+  - `cloneOf` makes the sibling "Copy of <title>" with the same params.
+  - `stillNeeded` lists the params a pivot or preset left missing that are still unset on the pills.
 - `actionRuns.ts`:
+  - It applies the module's run transitions through the tabs store.
   - `runActionTab` starts a run, polls it (every second for 10 s, then every 3 s) and loads its rows.
-  - A 422's `params.<name>` error goes to the tab's `paramErrors` when the action declares that param. Otherwise it goes into the "Couldn't start: …" message, as `name: reason`.
+  - A 422's `params.<name>` error goes to the tab's `status.paramErrors` when the action declares that param. Otherwise it goes into the "Couldn't start: …" message, as `name: reason`.
   - `cancelActionTab` cancels a run, with `cancelRun` from `lib/api/runs.ts`.
   - `resumeActionRuns` picks runs up again after a reload.
-  - `openRunTab` opens a root action tab holding a given run, with its `linkedRow`, and follows the run; see Share links.
+  - `openRunTab` opens a root action tab holding a given run, with its `status.linkedRow`, and follows the run; see Share links.
 - `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
 - `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
-  - Given `linkedRow`, it focuses that row and opens Row detail on it once the row has arrived, then calls `onLinkedRowShown`.
+  - Given `status.linkedRow`, it focuses that row and opens Row detail on it once the row has arrived, then calls `onLinkedRowShown`.
 - `StoredActionResultsGrid` (same file) reads `row_results` instead, after a reload.
 - `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.
   - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.
@@ -421,5 +427,5 @@ A share link opens a run; see the glossary entry for Share link.
 - The action tab's header Copy link button is disabled before the tab has a run. The row context menu's Copy link is its last group of items.
 - `ShareLinkPage`: routed at `#/runs/:runId`. It waits until the tabs are loaded. It reads the run with `getRun`, and a succeeded run with rows also its first rows page.
   - A `404` or `410` shows only "This result is no longer available".
-  - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<uuid>`.
+  - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<tabId>`.
   - For an action the instance doesn't know, the rows still show and Run is disabled.

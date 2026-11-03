@@ -10,7 +10,22 @@ import {
 } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
 import { useInstanceStore } from '../instance';
-import { useTabsStore, type ParamErrors, type TabsStore } from '../tabs';
+import type { ParamErrors } from '../../lib/storage';
+import { useTabsStore, type TabsStore } from '../tabs';
+import {
+  cancelFailed,
+  cancelRequested,
+  fromShareLink,
+  resumed,
+  runFailed,
+  runRefused,
+  runStarted,
+  runStarting,
+  runSucceeded,
+  runUpdated,
+  stalled,
+  type Refusal,
+} from './model';
 import { pills } from './queryParameters';
 import { runRowsStore } from './runRows';
 
@@ -47,23 +62,13 @@ function abortSleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Stops the tab executing and shows `message` as its error; a linked row is dropped. */
-function showError(store: TabsStore, uuid: string, message: string): void {
-  store.getState().updateState(uuid, {
-    isExecuting: false,
-    cancelling: false,
-    error: { message },
-    linkedRow: null,
-  });
-}
-
 /** The tab each run is followed for; a new run of the tab stops following the old one. */
 const following = new Map<string, AbortController>();
 
-function follow(uuid: string): AbortSignal {
-  following.get(uuid)?.abort();
+function follow(tabId: string): AbortSignal {
+  following.get(tabId)?.abort();
   const controller = new AbortController();
-  following.set(uuid, controller);
+  following.set(tabId, controller);
   return controller.signal;
 }
 
@@ -92,11 +97,7 @@ const PARAM_KEY = /^params\.(.+)$/;
  * shows, in a pill or the editor (`params.<name>`, a query parameter's `params.parameters.<name>`),
  * and a message for any other reason, or `null` when there is none.
  */
-function startErrors(
-  e: unknown,
-  action: string,
-  values: Record<string, unknown>,
-): { paramErrors: ParamErrors | null; message: string | null } {
+function startErrors(e: unknown, action: string, values: Record<string, unknown>): Refusal {
   if (!isApiError(e) || !e.errors || Object.keys(e.errors).length === 0) {
     return { paramErrors: null, message: `Couldn't start: ${reasonOf(e)}` };
   }
@@ -122,16 +123,16 @@ function startErrors(
  * Every row of a succeeded run, page by page (the server returns at most its page size). Each page
  * is shown in the tab's grid as it arrives.
  */
-async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<RunRow[]> {
+async function loadRows(tabId: string, run: Run, signal: AbortSignal): Promise<RunRow[]> {
   const rowCount = run.rowCount ?? 0;
   const shown = runRowsStore.getState();
-  shown.start(uuid, run.runId, run.columns ?? null, rowCount);
+  shown.start(tabId, run.runId, run.columns ?? null, rowCount);
   const rows: RunRow[] = [];
   while (rows.length < rowCount) {
     const page = await getRunRows(run.runId, rows.length, rowCount, { signal });
     if (page.rows.length === 0) break;
     rows.push(...page.rows);
-    shown.append(uuid, run.runId, page.rows);
+    shown.append(tabId, run.runId, page.rows);
   }
   return rows;
 }
@@ -142,14 +143,12 @@ async function loadRows(uuid: string, run: Run, signal: AbortSignal): Promise<Ru
  * rejects.
  */
 async function followRun(
-  uuid: string,
+  tabId: string,
   first: Run,
   signal: AbortSignal,
   { store = useTabsStore, sleep = abortSleep }: ActionRunOptions,
 ): Promise<void> {
-  const tabs = store.getState();
-  const update = (run: Run) => tabs.updateState(uuid, { run });
-  const fail = (message: string) => showError(store, uuid, message);
+  const fail = (message: string) => store.getState().apply(tabId, runFailed(message));
   let run = first;
   /** The run whose rows are being shown as they load; dropped unless they all load. */
   let loading: string | null = null;
@@ -158,29 +157,18 @@ async function followRun(
       await sleep(runPollDelay(n), signal);
       run = await getRun(run.runId, { signal });
       if (signal.aborted) return;
-      update(run);
+      store.getState().apply(tabId, runUpdated(run));
     }
     const message = endMessage(run);
     if (message !== null) return fail(message);
     loading = run.runId;
-    const rows = await loadRows(uuid, run, signal);
+    const rows = await loadRows(tabId, run, signal);
     if (signal.aborted) return;
-    await rowResultsDao.put(uuid, rows);
-    runRowsStore.getState().finish(uuid, run.runId);
-    const linkedRow = store.getState().tabs[uuid]?.state.linkedRow ?? null;
-    store.getState().updateState(uuid, {
-      isExecuting: false,
-      cancelling: false,
-      error: null,
-      rowCount: rows.length,
-      resultsRunId: run.runId,
-      resultColumns: run.columns ?? null,
-      resultsStartedAt: run.startedAt,
-      // A linked row the run doesn't have is never shown.
-      linkedRow: rows.some((r) => r.row === linkedRow) ? linkedRow : null,
-    });
-    store.getState().markUnvisited(uuid);
-    store.getState().triggerRowData(uuid);
+    await rowResultsDao.put(tabId, rows);
+    runRowsStore.getState().finish(tabId, run.runId);
+    store.getState().apply(tabId, runSucceeded(run, rows));
+    store.getState().markUnvisited(tabId);
+    store.getState().triggerRowData(tabId);
     await store.getState().flush();
   } catch (e) {
     if (signal.aborted) return;
@@ -188,9 +176,9 @@ async function followRun(
     if (isApiError(e) && e.status === 404) return fail(RUN_GONE);
     fail(reasonOf(e));
   } finally {
-    const shown = runRowsStore.getState().byTab[uuid];
-    if (shown && shown.runId === loading && !shown.done) runRowsStore.getState().drop(uuid);
-    if (following.get(uuid)?.signal === signal) following.delete(uuid);
+    const shown = runRowsStore.getState().byTab[tabId];
+    if (shown && shown.runId === loading && !shown.done) runRowsStore.getState().drop(tabId);
+    if (following.get(tabId)?.signal === signal) following.delete(tabId);
   }
 }
 
@@ -198,76 +186,55 @@ async function followRun(
  * Runs an action tab from its plain params, never re-resolving them, and follows the run until
  * its rows are stored. Never rejects.
  */
-export async function runActionTab(uuid: string, options: ActionRunOptions = {}): Promise<void> {
+export async function runActionTab(tabId: string, options: ActionRunOptions = {}): Promise<void> {
   const store = options.store ?? useTabsStore;
-  const tab = store.getState().tabs[uuid];
-  if (tab?.componentName !== 'ActionResult') return;
-  const signal = follow(uuid);
-  store.getState().updateState(uuid, {
-    isExecuting: true,
-    cancelling: false,
-    error: null,
-    paramErrors: null,
-    run: null,
-    linkedRow: null,
-  });
+  const tab = store.getState().tabs[tabId];
+  if (!tab) return;
+  const { action, params, pivotRows } = tab.toRun;
+  const signal = follow(tabId);
+  store.getState().apply(tabId, runStarting);
   let run: Run;
   try {
-    run = await startRun(tab.params.action, tab.params.params, {
-      signal,
-      pivotRows: tab.params.pivotRows,
-    });
+    run = await startRun(action, params, { signal, pivotRows });
   } catch (e) {
     if (signal.aborted) return;
-    following.delete(uuid);
-    const { paramErrors, message } = startErrors(e, tab.params.action, tab.params.params);
-    store.getState().updateState(uuid, {
-      isExecuting: false,
-      error: message === null ? null : { message },
-      paramErrors,
-      // Refused params alone leave the latest run as it was.
-      run: message === null ? tab.state.run : null,
-    });
+    following.delete(tabId);
+    store.getState().apply(tabId, runRefused(startErrors(e, action, params), tab));
     return;
   }
   if (signal.aborted) return;
-  store.getState().updateState(uuid, {
-    run,
-    runParams: tab.params.params,
-    runTitle: run.title,
-    pivotMissing: null,
-  });
+  store.getState().apply(tabId, runStarted(run, params));
   // Saved at once, so a reload picks the run up by its id.
   await store.getState().flush();
-  await followRun(uuid, run, signal, options);
+  await followRun(tabId, run, signal, options);
 }
 
 /**
  * Asks the server to cancel the tab's run. The tab shows it cancelling until it ends; when the
  * answer is that it has already ended, the tab shows so at once. Never rejects.
  */
-export async function cancelActionTab(uuid: string, options: ActionRunOptions = {}): Promise<void> {
+export async function cancelActionTab(
+  tabId: string,
+  options: ActionRunOptions = {},
+): Promise<void> {
   const store = options.store ?? useTabsStore;
-  const tab = store.getState().tabs[uuid];
-  const runId = tab?.state.run?.status === 'running' ? tab.state.run.runId : null;
-  if (tab?.componentName !== 'ActionResult' || !tab.state.isExecuting || runId === null) return;
-  store.getState().updateState(uuid, { cancelling: true });
+  const tab = store.getState().tabs[tabId];
+  const runId = tab?.latest.run?.status === 'running' ? tab.latest.run.runId : null;
+  if (!tab?.status.executing || runId === null) return;
+  store.getState().apply(tabId, cancelRequested);
   let run: Run;
   try {
     run = await cancelRun(runId);
   } catch (e) {
-    store.getState().updateState(uuid, {
-      cancelling: false,
-      error: { message: `Couldn't cancel: ${reasonOf(e)}` },
-    });
+    store.getState().apply(tabId, cancelFailed(`Couldn't cancel: ${reasonOf(e)}`));
     return;
   }
-  const current = store.getState().tabs[uuid]?.state;
+  const current = store.getState().tabs[tabId];
   // A succeeded run's rows are left to the poll that is following it.
   if (run.status === 'running' || run.status === 'succeeded') return;
-  if (!current?.isExecuting || current.run?.runId !== runId) return;
-  store.getState().updateState(uuid, { run });
-  await followRun(uuid, run, follow(uuid), options);
+  if (!current?.status.executing || current.latest.run?.runId !== runId) return;
+  store.getState().apply(tabId, runUpdated(run));
+  await followRun(tabId, run, follow(tabId), options);
 }
 
 /**
@@ -279,18 +246,17 @@ export async function cancelActionTab(uuid: string, options: ActionRunOptions = 
 export async function resumeActionRuns(options: ActionRunOptions = {}): Promise<void> {
   const store = options.store ?? useTabsStore;
   const pending = Object.values(store.getState().tabs).flatMap((tab) => {
-    if (tab.componentName !== 'ActionResult' || following.has(tab.componentUuid)) return [];
-    const run = tab.state.run;
+    if (following.has(tab.id)) return [];
+    const run = tab.latest.run;
     const unfinished =
       run?.status === 'running' ||
-      (run?.status === 'succeeded' && tab.state.resultsRunId !== run.runId);
+      (run?.status === 'succeeded' && tab.results?.runId !== run.runId);
     if (!run || !unfinished) {
-      if (tab.state.isExecuting)
-        store.getState().updateState(tab.componentUuid, { isExecuting: false });
+      if (tab.status.executing) store.getState().apply(tab.id, stalled);
       return [];
     }
-    store.getState().updateState(tab.componentUuid, { isExecuting: true });
-    return [followRun(tab.componentUuid, run, follow(tab.componentUuid), options)];
+    store.getState().apply(tab.id, resumed);
+    return [followRun(tab.id, run, follow(tab.id), options)];
   });
   await Promise.all(pending);
 }
@@ -298,7 +264,7 @@ export async function resumeActionRuns(options: ActionRunOptions = {}): Promise<
 /**
  * Opens `run` in a new root action tab, as a share link does: the tab holds the run's action and
  * params, `linkedRow` when the link names a row, and `idColumn` when it names an Id column. Starts no
- * run; follows `run` until its rows are stored. Returns the tab's uuid.
+ * run; follows `run` until its rows are stored. Returns the tab's id.
  */
 export function openRunTab(
   run: Run,
@@ -307,20 +273,10 @@ export function openRunTab(
   options: ActionRunOptions = {},
 ): string {
   const store = options.store ?? useTabsStore;
-  const uuid = store.getState().createTab({
-    componentName: 'ActionResult',
-    parentUuid: null,
-    title: run.action.name,
-    params: { action: run.action.key, params: run.params },
-    state: {
-      run,
-      runParams: run.params,
-      runTitle: run.title,
-      isExecuting: true,
-      linkedRow,
-      ...(idColumn !== null && { idColumn }),
-    },
+  const tabId = store.getState().createTab({
+    parentId: null,
+    content: fromShareLink(run, linkedRow, idColumn),
   });
-  void followRun(uuid, run, follow(uuid), options);
-  return uuid;
+  void followRun(tabId, run, follow(tabId), options);
+  return tabId;
 }

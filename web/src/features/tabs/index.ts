@@ -3,4 +3,4 @@ export type { TabsStore } from './tabStore';
 export * from './selectors';
 export { toStoredError } from './errors';
 export type { TabPersistence } from './persistence';
-export * from './types';
+export type * from './types';

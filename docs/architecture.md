@@ -8,10 +8,10 @@ TIM is an investigation platform. Analysts:
 
 An investigation is a tree of tabs. Each pivot creates a child tab.
 
-| Part | Location | Stack |
-|---|---|---|
-| Web | `web/` | React SPA served by nginx |
-| API | `api/` | Python 3.12, FastAPI |
+| Part        | Location   | Stack                                                                                        |
+| ----------- | ---------- | -------------------------------------------------------------------------------------------- |
+| Web         | `web/`     | React SPA served by nginx                                                                    |
+| API         | `api/`     | Python 3.12, FastAPI                                                                         |
 | Persistence | PostgreSQL | presets, column views, runs and annotations ([ADR-0004](adr/0004-postgresql-persistence.md)) |
 
 Related docs:
@@ -67,26 +67,26 @@ Key points:
 
 ### Source layout
 
-| Path | Contents |
-|---|---|
-| `web/src/app/` | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme |
-| `web/src/components/` | Shared UI: code editor, dialogs, snackbar |
-| `web/src/features/` | One folder per feature: `tabs`, `tree`, `action-tab`, `analyst`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `action-column-views`, `share-links` |
-| `web/src/lib/api/` | Typed API client, problem handling, run polling, `GET /api/me`, `GET /api/instance` and runs; `schema.d.ts` is generated |
-| `web/src/lib/annotations/` | The annotation store and the change-feed poller |
-| `web/src/lib/auth/` | MSAL client, auth provider, redirect bridge |
-| `web/src/lib/config/` | Runtime config loader |
-| `web/src/lib/storage/` | IndexedDB database and DAOs |
-| `web/src/lib/monaco/` | Editor setup |
-| `web/src/lib/isEmpty.ts` | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects |
-| `web/src/lib/uuid.ts` | `generateUuid` (v4 UUID via `crypto.randomUUID`) |
-| `web/src/test/` | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities |
-| `web/e2e/` | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `editor.ts` (`waitForEditor`), screenshot helper |
+| Path                       | Contents                                                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web/src/app/`             | Entry (`main.tsx`), router, app shell, auth gate, bootstrap, theme                                                                                                                                          |
+| `web/src/components/`      | Shared UI: code editor, dialogs, snackbar                                                                                                                                                                   |
+| `web/src/features/`        | One folder per feature: `tabs`, `tree`, `action-tab`, `analyst`, `instance`, `new-query`, `presets`, `action-pivots`, `sinks`, `grid`, `labels`, `annotate`, `action-column-views`, `share-links`           |
+| `web/src/lib/api/`         | Typed API client, problem handling, run polling, `GET /api/me`, `GET /api/instance` and runs; `schema.d.ts` is generated                                                                                    |
+| `web/src/lib/annotations/` | The annotation store and the change-feed poller                                                                                                                                                             |
+| `web/src/lib/auth/`        | MSAL client, auth provider, redirect bridge                                                                                                                                                                 |
+| `web/src/lib/config/`      | Runtime config loader                                                                                                                                                                                       |
+| `web/src/lib/storage/`     | IndexedDB database and DAOs                                                                                                                                                                                 |
+| `web/src/lib/monaco/`      | Editor setup                                                                                                                                                                                                |
+| `web/src/lib/isEmpty.ts`   | `isEmpty`: true for `''`, `undefined`, `null`, empty arrays and empty plain objects                                                                                                                         |
+| `web/src/lib/uuid.ts`      | `generateUuid` (v4 UUID via `crypto.randomUUID`)                                                                                                                                                            |
+| `web/src/test/`            | Unit-test helpers: MSW server and handlers, bootstrap stub, tabs store utilities                                                                                                                            |
+| `web/e2e/`                 | Playwright e2e tests: `flows/` specs, `realApi.ts` (fixtures for flows against a real api), `api_server.py` (that api), `actions/` (its dev action files), `editor.ts` (`waitForEditor`), screenshot helper |
 
 Features import `lib/*` and `components/*`. Between features:
 
 - **Public `index.ts`:** every feature has one. Most imports between features go through it.
-- **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `tabs/tabRegistry` and `grid/rowUpdates`.
+- **Direct imports:** about twenty imports reach into another feature's modules. Examples are `tabs/tabStore`, `tabs/types`, `action-tab/model` and `grid/rowUpdates`.
 - **Startup code:** code outside `features/grid` imports `features/grid/rowUpdates` directly. The `index.ts` of `features/grid` pulls in AG Grid (see [Bundle](#bundle)).
 - **Lazy pages:** `app/lazyPages.ts` imports the page components of `tabs` and `share-links` directly.
 
@@ -94,11 +94,11 @@ Features import `lib/*` and `components/*`. Between features:
 
 Routes are hash routes. Unknown hashes redirect to `#/`. Pages are lazy-loaded.
 
-| Route | Page |
-|---|---|
-| `#/` | Welcome |
-| `#/view/:uuid` | A tab (`uuid` is the tab's component uuid) |
-| `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row number). It opens an action tab holding the run and replaces the URL with `#/view/<uuid>` ([Share links](#share-links)) |
+| Route                   | Page                                                                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#/`                    | Welcome                                                                                                                                                                                           |
+| `#/view/:tabId`         | A tab (`tabId` is the tab's id)                                                                                                                                                                   |
+| `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row number). It opens an action tab holding the run and replaces the URL with `#/view/<tabId>` ([Share links](#share-links)) |
 
 ### Bundle
 
@@ -113,17 +113,18 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 
 ### State and tab model
 
-- **`tabStore`** (zustand) holds `tabs` by uuid, and an ordered uuid list where parents precede children.
+- **`tabStore`** (zustand) holds the tree of tabs and its persistence: `tabs` by id, and an ordered id list where parents precede children.
+  - It sets a tab's place in the tree (`id`, `parentId`, `index`), whether it was `visited` and its `rowDataTrigger`. It changes a tab's content only through `apply`; on load it only makes a stored error serialisable.
+  - `apply(id, transition)` changes a tab's content with a transition of the action tab module, and keeps the tab's place, visited mark and row trigger.
   - `children` is derived by selectors, never stored.
   - Changes are written to IndexedDB through a debounced, serialised queue.
   - Removing a tab removes its whole subtree, and the row results of every removed tab.
   - Visited tabs stay mounted up to a cap of 100. The least recently visited are evicted.
   - A hidden tab keeps its grid's scroll position, focused cell, selection and column state.
     - `TabHost` hides an inactive tab with `display: none`. It does not unmount it.
-    - It renders the mounted tabs in a fixed order, by uuid, not in visit order.
+    - It renders the mounted tabs in a fixed order, by id, not in visit order.
     - React moves a node whose place among its siblings changes, and a move resets every scroll position inside it.
     - A tab that was evicted and is opened again gets its column state from its stored `gridState` and `columnView`.
-  - On load, a stored tab of an unknown kind is dropped, with its rows.
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.
 - **`defaultViewsStore`** holds the analyst's default views, from IndexedDB `applied_views` ([Column views](#column-views)). Bootstrap loads it right after `instanceStore`.
@@ -135,23 +136,46 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - A refetch on every window focus replaces it only when its `version` differs. So a rolling update shows up without a reload.
   - A failed refetch keeps the instance already loaded.
 
-A tab has the kind `ActionResult`, named by `componentName`.
+**The action tab module** (`features/action-tab/model.ts`) owns what is inside a tab, and is the only code that writes it. A transition is a pure function from a tab's content to its next content. The module also answers questions about a tab.
 
-An action tab's params are `{action, params, presetId?}`: the action's key, the param values as plain values, as the browser sends them, and the preset the tab was opened from or saved as. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
+- **Openers** make a tab's content: `fromAction`, `fromPreset`, `fromPivot`, `fromShareLink` and `cloneOf`.
+- **Transitions:**
+  - `paramEdited`, `paramsReset`, `idColumnSwitched` and `savedAsPreset`;
+  - the run's `runStarting`, `runRefused`, `runStarted`, `runUpdated`, `runSucceeded` and `runFailed`;
+  - `cancelRequested`, `cancelFailed`, `resumed`, `stalled` and `linkedRowShown`;
+  - `columnViewPicked`, `gridStateChanged` and `columnViewRenamed`.
+- **Questions:** `isEdited`, `idColumnOf`, `linkIdColumnOf`, `titleOf` and `stillNeeded`.
+- `actionRuns.ts` runs the run's lifecycle and applies the module's transitions through the tabs store.
 
-Besides the common fields, an action tab's state holds:
+A stored tab is its content plus its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`). Its content is:
 
-| Field | Holds |
-|---|---|
-| `run` | The envelope of the latest run. Cleared when a run starts, so `null` until its envelope arrives. Kept if the server refuses only params |
-| `cancelling` | A cancel was asked for and the run has not ended |
-| `paramErrors` | Why each param was refused, by name |
-| `runParams` | The plain params the latest run started with |
-| `resultsRunId` | The run whose rows are stored |
-| `resultColumns` | That run's columns |
-| `resultsStartedAt` | When that run started |
-| `gridState` | The column and filter sections of the tab's grid, as the analyst last left them |
-| `columnView` | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the built-in view), and the grid state just after it was put on |
+| Field     | Holds                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------- |
+| `title`   | The title the tab was opened with, before any run                                             |
+| `toRun`   | What the tab runs: `{action, params, presetId?, titleInputs?, pivotRows?, pivotRowIds?}`      |
+| `latest`  | The latest run: `{run, params, title}`                                                        |
+| `results` | The run whose rows are stored, `{runId, columns, startedAt, rowCount}`, or `null`             |
+| `grid`    | How the tab shows its results: `{gridState, columnView, idColumn?}`                           |
+| `status`  | What the tab is doing: `{executing, cancelling, error, paramErrors, linkedRow, pivotMissing}` |
+
+`toRun` holds the action's key, the param values as plain values, as the browser sends them, and the preset the tab was opened from or saved as. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
+
+`latest`:
+
+| Field    | Holds                                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `run`    | The envelope of the latest run. Cleared when a run starts, so `null` until its envelope arrives. Kept if the server refuses only params |
+| `params` | The plain params the latest run started with                                                                                            |
+| `title`  | The latest run's title, kept while the next run starts                                                                                  |
+
+`grid` and `status`:
+
+| Field                | Holds                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid.gridState`     | The column and filter sections of the tab's grid, as the analyst last left them                                                                                         |
+| `grid.columnView`    | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the built-in view), and the grid state just after it was put on |
+| `status.cancelling`  | A cancel was asked for and the run has not ended                                                                                                                        |
+| `status.paramErrors` | Why each param was refused, by name                                                                                                                                     |
 
 ### Data flow: run, poll, pivot
 
@@ -168,7 +192,7 @@ Besides the common fields, an action tab's state holds:
    - Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load.
    - Until they all have, the tab shows "Results · 20000 of 85000".
    - The grid gives each row its `id` from the results' Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
-   - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `resultsRunId`, `resultColumns` and row count are written with them.
+   - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `results` (`runId`, `columns`, `startedAt` and `rowCount`) is written with them.
    - A failed or abandoned load shows none of its rows.
    - A tab whose rows are stored needs no API call. So it still shows them after the run has expired on the server.
 5. **Resume.** After a reload, bootstrap calls `resumeActionRuns` once the tabs are loaded.
@@ -183,8 +207,8 @@ From the rows, an analyst pivots:
 
 - **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
-  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `{action, params}`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It keeps `pivotRows` too. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
-  - **Pivot rows.** Both pivots store the `id` of each pivot row on the child tab's state as `pivotRowIds` ([Go to pivot row](#go-to-pivot-row)).
+  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `toRun`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It keeps `pivotRows` too. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
+  - **Pivot rows.** Both pivots store the `id` of each pivot row on the child tab's `toRun` as `pivotRowIds` ([Go to pivot row](#go-to-pivot-row)).
 
 ### Share links
 
@@ -193,7 +217,7 @@ A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` f
 - **Copy link.** The action tab's button in the app bar copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
 - **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
   - A `404` (unknown or expired run) or a `410` (results gone) shows only "This result is no longer available".
-  - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<uuid>`. A run still going is followed, and the tab fills in when it ends.
+  - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<tabId>`. A run still going is followed, and the tab fills in when it ends.
   - The link's `idColumn`, when it has one, becomes the tab's Id column ([The Id column](#the-id-column)).
   - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens Row detail on it, and `linkedRow` is cleared. It is also cleared when the run ends without success, when the stored rows don't have that row, and when a new run of the tab starts.
 - **Run.** Run starts a new run as the recipient, with the tab's params. For an action the instance does not know, the rows still show and Run is disabled.
@@ -202,17 +226,19 @@ One run is followed per tab. Starting another run stops following the previous o
 
 ### IndexedDB
 
-Database `tim` (version 5):
+Database `tim` (version 6):
 
-| Store | Key | Value |
-|---|---|---|
-| `display_components` | `componentUuid` | Tab: name (`ActionResult`), title, `parentUuid`, `rowDataTrigger`, `displayComponentIndex`, state, params |
-| `row_results` | tab uuid (out-of-line) | Array of raw result rows; for an action tab, `{row, data}` rows of its run |
-| `applied_views` | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the default view an analyst chose. `scope` is `preset:<presetId>` or `action:<key>` |
-| `annotations` | `id` | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
-| `annotation_sync` | `cursor` (out-of-line) | The change feed version read up to; `0` before the first read |
+| Store             | Key                                     | Value                                                                                                                                                                                              |
+| ----------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tabs`            | `id`                                    | Tab: its content (`title`, `toRun`, `latest`, `results`, `grid`, `status`) and its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`)                                      |
+| `row_results`     | tab id (out-of-line)                    | Array of raw result rows; for an action tab, `{row, data}` rows of its run                                                                                                                         |
+| `applied_views`   | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the default view an analyst chose. `scope` is `preset:<presetId>` or `action:<key>`                                                                              |
+| `annotations`     | `id`                                    | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
+| `annotation_sync` | `cursor` (out-of-line)                  | The change feed version read up to; `0` before the first read                                                                                                                                      |
 
 Annotations and `id`s are never stored in `row_results`.
+
+Opening a database from before version 6 drops its tabs and their row results; its annotations and default views stay.
 
 ### The tab and New menu
 
@@ -250,17 +276,17 @@ Opening a preset creates a root action tab in the same way, titled with the pres
 - then the preset's `params`;
 - then the preset's fixed values.
 
-A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` in its params, and `titleInputs`, the preset's inputs with Show in title on.
+A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` and `titleInputs` in its `toRun`. `titleInputs` are the preset's inputs with Show in title on.
 
-**Tab titles.** An action tab shows a title that `tabTitle` (`features/action-tab/tabTitle.ts`) chooses, in the tree and in the app bar.
+**Tab titles.** An action tab shows a title that `title` of the action tab module chooses, in the tree and in the app bar.
 
 - Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone.
-- After a run, a tab with no `titleInputs` shows `state.runTitle`, the title of its latest run, which the server made from the action's `title` template ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
-- A preset tab, opened from a preset, pivoted into one or saved as one, has `params.titleInputs`, its inputs that show in the title. After a run it shows the preset's name, then its latest run's values for those inputs, separated by spaces.
+- After a run, a tab with no `titleInputs` shows `latest.title`, the title of its latest run, which the server made from the action's `title` template ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
+- A preset tab, opened from a preset, pivoted into one or saved as one, has `toRun.titleInputs`, its inputs that show in the title. After a run it shows the preset's name, then its latest run's values for those inputs, separated by spaces.
   - A list shows its first two values joined by ", ", then " +N" for the rest.
   - An unset or empty value is left out.
 - An action's template can name the rows the tab was pivoted from as `row` and `cols`.
-  - An action or preset pivot keeps the selected rows in the tab's `params.pivotRows`, trimmed to the action's `titleColumns`, or none when it has none.
+  - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed to the action's `titleColumns`, or none when it has none.
   - Each run sends them as `pivotRows`, a plain rerun included.
   - Clone copies them.
   - Editing any param drops them.
@@ -276,16 +302,16 @@ The action tab has a header in the app bar, a pills bar and inner tabs.
 - A `connection` param whose type has exactly one connection is filled in when the tab opens from the New menu. Its pill is greyed out.
 - A pill shows the param's title and value. It opens a popover that edits the param by kind:
 
-  | Param | Popover |
-  |---|---|
-  | `boolean` | A switch |
-  | Many-valued | Chips. Pasted text is split on newlines, tabs, commas and semicolons |
-  | With `choices` | A pick list |
-  | `connection` | A pick list of the instance's connections of the param's `connectionType` |
-  | `string`, `number` | Text. A `number` typed beyond ±(2^53 − 1) is kept as its digits, not rounded |
-  | `datetime` | A field, calendar and clock in UTC (Kusto's timezone). Pasting an ISO datetime from a result row sets it |
-  | `timespan` | Preset chips for common lookbacks (15 minutes to 30 days), and an amount with a unit. Stored as an ISO 8601 duration |
-  | `json` | JSON text |
+  | Param              | Popover                                                                                                              |
+  | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+  | `boolean`          | A switch                                                                                                             |
+  | Many-valued        | Chips. Pasted text is split on newlines, tabs, commas and semicolons                                                 |
+  | With `choices`     | A pick list                                                                                                          |
+  | `connection`       | A pick list of the instance's connections of the param's `connectionType`                                            |
+  | `string`, `number` | Text. A `number` typed beyond ±(2^53 − 1) is kept as its digits, not rounded                                         |
+  | `datetime`         | A field, calendar and clock in UTC (Kusto's timezone). Pasting an ISO datetime from a result row sets it             |
+  | `timespan`         | Preset chips for common lookbacks (15 minutes to 30 days), and an amount with a unit. Stored as an ISO 8601 duration |
+  | `json`             | JSON text                                                                                                            |
 
   A many-valued `datetime` or `timespan` param uses chips like any other.
 
@@ -295,7 +321,7 @@ The action tab has a header in the app bar, a pills bar and inner tabs.
   - Cancel is disabled until the run has an id.
   - The tab says "Cancelling…" until the run ends.
   - A failed cancel shows "Couldn't cancel: …".
-- When the params differ from those the latest run started with (`runParams`), an **Edited** chip shows. Clicking it resets them and clears the pill marks.
+- When the params differ from those the latest run started with (`latest.params`), an **Edited** chip shows. Clicking it resets them and clears the pill marks.
 - A param the server refused is marked on its pill until the pill is edited. The pill takes the error colour, with the reason as its description.
 - An action that is not in the catalogue shows a warning and cannot be run.
 
@@ -352,7 +378,7 @@ The tree shows an action tab's status like any tab's:
 - a red alert on error;
 - a row-count badge;
 - a ringed 0 for a succeeded run with no rows ("Succeeded, no rows");
-- a "Needs input" icon for a tab waiting on the params a pivot left missing (`pivotMissing`).
+- a "Needs input" icon for a tab waiting on the params a pivot left missing (`pivotMissing`). It goes once each is filled in on its pill, a From row query parameter by its `parameters.<name>` pill included.
 
 #### Action pivots
 
@@ -376,7 +402,7 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
   - Otherwise the tab waits, with `pivotMissing` set (cleared when a run starts), and the toast says "Opened <action>: needs <params>".
   - Both toasts have a **Go to** button that focuses the child tab.
   - A refused resolve shows the toast "Couldn't pivot into <action>: <reason>" and creates no tab.
-- **Pivot rows.** The child tab's state keeps `pivotRowIds`, the `id` of each pivot row under the parent's Id column at the time of the pivot, `null` for a row with none. Reruns of the child, with edited params too, keep them. A tab without `pivotRowIds` shows no **Go to pivot row**.
+- **Pivot rows.** The child tab's `toRun` keeps `pivotRowIds`, the `id` of each pivot row under the parent's Id column at the time of the pivot, `null` for a row with none. Reruns of the child, with edited params too, keep them. A tab without `pivotRowIds` shows no **Go to pivot row**.
 - **Waiting tab.**
   - Each needed pill is dashed, warning-coloured and labelled "<Title>: needed".
   - A warning note says "Fill in <params> to run this pivot", with the reasons.
@@ -578,8 +604,8 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 A row's `id` is computed in the browser, from one column of its results: the **Id column** ([GLOSSARY.md](../GLOSSARY.md)). The server stores and sends no `id`s.
 
 - **The `id`.** `rowId` (`web/src/features/labels/labelRows.ts`) takes the value of the Id column: a string as it is, anything else as its JSON. A missing or `null` value, `""`, and a value over `MAX_ID_LENGTH` (512) characters give no `id`.
-- **Where it starts.** `actionIdColumn` (`web/src/features/action-tab/idColumn.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
-- **The tab's Id column.** `resultsIdColumn` is the tab's `state.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
+- **Where it starts.** `idColumnOf` of the action tab module (`web/src/features/action-tab/model.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
+- **The tab's Id column.** `idColumn` of the module gives the tab's `grid.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
 - **In the grid.** `ActionResultsGrid.tsx` gives each row its `id` with `withIds`, and its annotations from the annotation store. A switch recomputes both in place and keeps the selection, filters, sort and scroll.
 - **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
@@ -676,14 +702,14 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - `web/public/config.js` is the development version.
 - Values are validated at load. An invalid or missing key shows a configuration error page.
 
-| Key | Meaning |
-|---|---|
-| `auth.clientId`, `auth.authority` | Entra app registration and authority (`https://login.microsoftonline.com/<tenant>`). Absent with `stubSignIn` |
-| `redirectUri` | MSAL redirect page (`/blank.html`). Absent with `stubSignIn` |
-| `stubSignIn` | `true` replaces Entra with the "Who are you?" screen. The web container renders it only when `TIM_ENVIRONMENT=development` |
-| `apiEndpoint` | API origin; empty means same origin |
-| `agGridLicenseKey` | AG Grid Enterprise key; empty runs in trial mode |
-| `wikiUri`, `issueUri` | Help links |
+| Key                               | Meaning                                                                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `auth.clientId`, `auth.authority` | Entra app registration and authority (`https://login.microsoftonline.com/<tenant>`). Absent with `stubSignIn`              |
+| `redirectUri`                     | MSAL redirect page (`/blank.html`). Absent with `stubSignIn`                                                               |
+| `stubSignIn`                      | `true` replaces Entra with the "Who are you?" screen. The web container renders it only when `TIM_ENVIRONMENT=development` |
+| `apiEndpoint`                     | API origin; empty means same origin                                                                                        |
+| `agGridLicenseKey`                | AG Grid Enterprise key; empty runs in trial mode                                                                           |
+| `wikiUri`, `issueUri`             | Help links                                                                                                                 |
 
 `/config.js` and `index.html` are served uncached. Hashed assets under `/assets/` are cached for a year.
 
@@ -718,47 +744,47 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 
 ### Module layout (`api/src/tim_api`)
 
-| Module | Responsibility |
-|---|---|
-| `main.py` | App factory, lifespan (provider loading included), health routes, middleware order |
-| `config.py` | Settings from `TIM_*` environment variables |
-| `errors.py` | Problem-details body and exception handlers |
-| `deps.py` | FastAPI dependencies returning the storage and its preset, column-view, run and annotation stores |
-| `models_common.py` | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings |
-| `observability.py` | Trace ids, logging, body-size limit, request logging, CORS |
-| `actions/` | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance`, `POST /api/actions/{key}/resolve` and `POST /api/actions/{key}/declareStatement` (`router.py`) |
-| `cli.py` | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check` |
-| `annotations/` | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models |
-| `auth/` | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`), and the endpoint `GET /api/me` (`router.py`) |
-| `connections/` | `POST /api/connections/{name}/schema` (`router.py`) and its models |
-| `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
-| `presets/` | `/api/presets` routes (`router.py`) and models |
-| `column_views/` | `/api/columnViews` routes (`router.py`) and models |
-| `storage/` | `PostgresStorage` and its stores, retention loop |
-| `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export |
+| Module                                 | Responsibility                                                                                                                                                                                                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.py`                              | App factory, lifespan (provider loading included), health routes, middleware order                                                                                                                                                                                           |
+| `config.py`                            | Settings from `TIM_*` environment variables                                                                                                                                                                                                                                  |
+| `errors.py`                            | Problem-details body and exception handlers                                                                                                                                                                                                                                  |
+| `deps.py`                              | FastAPI dependencies returning the storage and its preset, column-view, run and annotation stores                                                                                                                                                                            |
+| `models_common.py`                     | Shared Pydantic building blocks: camelCase `ApiModel`, UTC datetimes, non-blank strings                                                                                                                                                                                      |
+| `observability.py`                     | Trace ids, logging, body-size limit, request logging, CORS                                                                                                                                                                                                                   |
+| `actions/`                             | Provider discovery, action-file loading and startup validation (`registry.py`), the instance description (`instance.py`, `models.py`), and the endpoints `GET /api/instance`, `POST /api/actions/{key}/resolve` and `POST /api/actions/{key}/declareStatement` (`router.py`) |
+| `cli.py`                               | The `tim-api` command: `schema actions`, `schema connections`, `schema labels` and `check`                                                                                                                                                                                   |
+| `annotations/`                         | `/api/annotations` and `/api/tags/suggestions` routes (`router.py`) and the `Annotations` models                                                                                                                                                                             |
+| `auth/`                                | Token validation (`jwt.py`), caller resolution (`dependencies.py`), OBO (`obo.py`), and the endpoint `GET /api/me` (`router.py`)                                                                                                                                             |
+| `connections/`                         | `POST /api/connections/{name}/schema` (`router.py`) and its models                                                                                                                                                                                                           |
+| `runs/`                                | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks)                                                    |
+| `presets/`                             | `/api/presets` routes (`router.py`) and models                                                                                                                                                                                                                               |
+| `column_views/`                        | `/api/columnViews` routes (`router.py`) and models                                                                                                                                                                                                                           |
+| `storage/`                             | `PostgresStorage` and its stores, retention loop                                                                                                                                                                                                                             |
+| `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export                                                                                                                                                                                                                                      |
 
 Database migrations are in `api/migrations` (Alembic).
 
 `tim-actions` (`api/tim-actions/src/tim_actions`) is a separate distribution that providers depend on instead of `tim-api` ([ADR-0021](adr/0021-tim-actions-and-derived-images.md)):
 
-| Module | Responsibility |
-|---|---|
-| `action.py` | `Action`, the base of query action types, with its menu path, title template (`title_for`), pivot columns and `resolve()` |
-| `pivots.py` | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()` |
-| `params.py` | `Param` and `validate_params`: declaration checks, then validation and conversion of values |
-| `columns.py` | `Column` |
-| `connections.py` | `Connection`, the base of a connection type's entries in the connections file |
-| `connections_file.py` | The connections file: the loader (`load_connections_file`) and the JSON Schema (`connections_file_schema`) |
-| `labels_file.py` | The labels file: `Label`, the default labels, the loader (`load_labels_file`) and the JSON Schema (`labels_file_schema`) |
-| `hooks.py` | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema` |
-| `run.py` | `RunContext`, the protocol `run` is given, `Analyst` and `RunError` |
-| `provider.py` | `Provider` and the `tim.actions` entry-point group |
-| `files.py` | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`) |
+| Module                | Responsibility                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action.py`           | `Action`, the base of query action types, with its menu path, title template (`title_for`), pivot columns and `resolve()`                                                                                                                                                                                                                                                     |
+| `pivots.py`           | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()`                                                                                                                                                                                                                                                                                          |
+| `params.py`           | `Param` and `validate_params`: declaration checks, then validation and conversion of values                                                                                                                                                                                                                                                                                   |
+| `columns.py`          | `Column`                                                                                                                                                                                                                                                                                                                                                                      |
+| `connections.py`      | `Connection`, the base of a connection type's entries in the connections file                                                                                                                                                                                                                                                                                                 |
+| `connections_file.py` | The connections file: the loader (`load_connections_file`) and the JSON Schema (`connections_file_schema`)                                                                                                                                                                                                                                                                    |
+| `labels_file.py`      | The labels file: `Label`, the default labels, the loader (`load_labels_file`) and the JSON Schema (`labels_file_schema`)                                                                                                                                                                                                                                                      |
+| `hooks.py`            | `Hook`, the base of a connection type's access, with its `Connection` model and `editor`, and `EditorSchema`                                                                                                                                                                                                                                                                  |
+| `run.py`              | `RunContext`, the protocol `run` is given, `Analyst` and `RunError`                                                                                                                                                                                                                                                                                                           |
+| `provider.py`         | `Provider` and the `tim.actions` entry-point group                                                                                                                                                                                                                                                                                                                            |
+| `files.py`            | Action files: `ActionDocument`, `Sidecar`, the loader (`load_action_files`), `add_file_actions`, which adds the loaded actions and reports duplicate keys and the reserved `tim.` prefix, and the JSON Schema (`action_files_schema`)                                                                                                                                         |
 | `query_parameters.py` | What Run KQL and Run SQL share: `TakesQueryParameters`, the base of an action with a `parameters` param, `checked_parameters`, which checks it, `declared_query_parameters` and `declare_statement`, which check and write the declare statement of a tab's query parameters, and `preset_file_params`, which makes a preset's query parameters the params of its action file |
-| `kusto.py` | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra |
-| `snowflake.py` | The `snowflake` connection type (`SnowflakeConnection`, `SnowflakeHook`), the built-in Run SQL action and the `snowflake_query` action type, and how values are bound (`bind_value`, `bind_values`); needs the `snowflake` extra |
-| `builtin.py` | TIM's built-in provider |
-| `testing/` | `tim_actions.testing`: `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`, and `plugin.py`, the `pytest11` plugin with the `tim_analyst`, `tim_connections`, `tim_kusto` and `tim_snowflake` fixtures ([actions.md](actions.md#testing)) |
+| `kusto.py`            | The `kusto` connection type (`KustoConnection`, `KustoHook`) and the built-in Run KQL action and `kql_query` action type; needs the `kusto` extra                                                                                                                                                                                                                             |
+| `snowflake.py`        | The `snowflake` connection type (`SnowflakeConnection`, `SnowflakeHook`), the built-in Run SQL action and the `snowflake_query` action type, and how values are bound (`bind_value`, `bind_values`); needs the `snowflake` extra                                                                                                                                              |
+| `builtin.py`          | TIM's built-in provider                                                                                                                                                                                                                                                                                                                                                       |
+| `testing/`            | `tim_actions.testing`: `run_action`, `run_sink`, `resolve_pivot`, `load_actions` and `Connections`, and `plugin.py`, the `pytest11` plugin with the `tim_analyst`, `tim_connections`, `tim_kusto` and `tim_snowflake` fixtures ([actions.md](actions.md#testing))                                                                                                             |
 
 ### Request flow and middleware
 
@@ -1210,19 +1236,19 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - `TIM_DATABASE_URL` is a PostgreSQL URL (`postgresql+asyncpg://`) in every environment.
 - Alembic migrations create the schema (`alembic upgrade head`).
 
-| Table | Key | Notes |
-|---|---|---|
-| `presets` | `preset_id` | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)` |
-| `preset_hidden` | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE` |
-| `column_views` | `view_id` | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)` |
-| `column_view_hidden` | `(view_id, analyst)` | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE` |
-| `runs` | `run_id` | `owner`, `status`, `action` (JSONB), `title`, `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`, `heartbeat_at`; indexes on expiry and `running` runs, none on `heartbeat_at` so its updates can be HOT |
-| `run_rows` | `(run_id, row_number)` | `UNLOGGED`. `row_number`, `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs |
-| `annotation_clock` | `one` | A single row, checked to be the only one: `version`, the feed's counter |
-| `id_state` | `id` | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared |
-| `label_changes` | `(id, version)` | `label` (null for a clear), `changed_by`, `changed_at` |
-| `tags` | `(id, tag)` | `added_by`, `added_at` |
-| `comments` | `(id, author)` | `saved_at`, `text`, `version` |
+| Table                | Key                    | Notes                                                                                                                                                                                                                                                                                                                               |
+| -------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `presets`            | `preset_id`            | `owner`, `name`, `visibility` (`private` or `shared`), `action`, `menu_path`, `params` and `inputs` (JSONB), `created_at`, `updated_at`; index on `(created_at, preset_id)`                                                                                                                                                         |
+| `preset_hidden`      | `(preset_id, analyst)` | The presets an analyst hid; `preset_id` references `presets` `ON DELETE CASCADE`                                                                                                                                                                                                                                                    |
+| `column_views`       | `view_id`              | `owner`, `name`, `visibility` (`private` or `shared`), `saved_from_action`, `saved_from_preset_id` (null without a preset), `state` (JSONB), `created_at`, `updated_at`; index on `(created_at, view_id)`                                                                                                                           |
+| `column_view_hidden` | `(view_id, analyst)`   | The column views an analyst hid; `view_id` references `column_views` `ON DELETE CASCADE`                                                                                                                                                                                                                                            |
+| `runs`               | `run_id`               | `owner`, `status`, `action` (JSONB), `title`, `params` (JSONB), `details` (JSON, which keeps the order of its keys), `columns` (JSONB), `row_count`, `error`, `started_at`, `finished_at`, `expires_at`, `cancel_requested`, `heartbeat_at`; indexes on expiry and `running` runs, none on `heartbeat_at` so its updates can be HOT |
+| `run_rows`           | `(run_id, row_number)` | `UNLOGGED`. `row_number`, `data` (JSON, which keeps the order of its keys); `run_id` references `runs` `ON DELETE CASCADE`. Kept only for succeeded runs                                                                                                                                                                            |
+| `annotation_clock`   | `one`                  | A single row, checked to be the only one: `version`, the feed's counter                                                                                                                                                                                                                                                             |
+| `id_state`           | `id`                   | `label`, `labelled_by`, `labelled_at` and `version`; index on `version`. Kept when its label is cleared                                                                                                                                                                                                                             |
+| `label_changes`      | `(id, version)`        | `label` (null for a clear), `changed_by`, `changed_at`                                                                                                                                                                                                                                                                              |
+| `tags`               | `(id, tag)`            | `added_by`, `added_at`                                                                                                                                                                                                                                                                                                              |
+| `comments`           | `(id, author)`         | `saved_at`, `text`, `version`                                                                                                                                                                                                                                                                                                       |
 
 `run_rows` is `UNLOGGED`, so it is not written to the WAL.
 

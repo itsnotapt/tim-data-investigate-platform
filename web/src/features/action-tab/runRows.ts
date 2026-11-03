@@ -15,14 +15,14 @@ export interface RunRows {
 }
 
 interface RunRowsState {
-  /** By tab uuid. */
+  /** By tab id. */
   byTab: Record<string, RunRows>;
   /** Starts the tab's rows for a run, replacing any it had. */
-  start(uuid: string, runId: string, columns: RunColumn[] | null, total: number): void;
+  start(tabId: string, runId: string, columns: RunColumn[] | null, total: number): void;
   /** Adds a page to the tab's rows of `runId`; ignored once another run has started. */
-  append(uuid: string, runId: string, page: readonly RunRow[]): void;
-  finish(uuid: string, runId: string): void;
-  drop(uuid: string): void;
+  append(tabId: string, runId: string, page: readonly RunRow[]): void;
+  finish(tabId: string, runId: string): void;
+  drop(tabId: string): void;
   clear(): void;
 }
 
@@ -31,36 +31,37 @@ interface RunRowsState {
  * reload loses them; the tab then reads its rows from `row_results`.
  */
 export const runRowsStore = create<RunRowsState>()((set) => {
-  const update = (uuid: string, runId: string, change: (r: RunRows) => Partial<RunRows>) =>
+  const update = (tabId: string, runId: string, change: (r: RunRows) => Partial<RunRows>) =>
     set((s) => {
-      const current = s.byTab[uuid];
+      const current = s.byTab[tabId];
       if (current?.runId !== runId) return s;
-      return { byTab: { ...s.byTab, [uuid]: { ...current, ...change(current) } } };
+      return { byTab: { ...s.byTab, [tabId]: { ...current, ...change(current) } } };
     });
   return {
     byTab: {},
-    start: (uuid, runId, columns, total) =>
+    start: (tabId, runId, columns, total) =>
       set((s) => ({
-        byTab: { ...s.byTab, [uuid]: { runId, columns, total, rows: [], done: false } },
+        byTab: { ...s.byTab, [tabId]: { runId, columns, total, rows: [], done: false } },
       })),
-    append: (uuid, runId, page) => update(uuid, runId, (r) => ({ rows: [...r.rows, ...page] })),
-    finish: (uuid, runId) => update(uuid, runId, () => ({ done: true })),
-    drop: (uuid) =>
+    append: (tabId, runId, page) => update(tabId, runId, (r) => ({ rows: [...r.rows, ...page] })),
+    finish: (tabId, runId) => update(tabId, runId, () => ({ done: true })),
+    drop: (tabId) =>
       set((s) => {
-        if (!(uuid in s.byTab)) return s;
+        if (!(tabId in s.byTab)) return s;
         const byTab = { ...s.byTab };
-        delete byTab[uuid];
+        delete byTab[tabId];
         return { byTab };
       }),
     clear: () => set({ byTab: {} }),
   };
 });
 
-export const useRunRows = (uuid: string): RunRows | undefined => runRowsStore((s) => s.byTab[uuid]);
+export const useRunRows = (tabId: string): RunRows | undefined =>
+  runRowsStore((s) => s.byTab[tabId]);
 
 // A closed tab's rows are let go.
 useTabsStore.subscribe(({ tabs }) => {
-  for (const uuid of Object.keys(runRowsStore.getState().byTab)) {
-    if (!(uuid in tabs)) runRowsStore.getState().drop(uuid);
+  for (const tabId of Object.keys(runRowsStore.getState().byTab)) {
+    if (!(tabId in tabs)) runRowsStore.getState().drop(tabId);
   }
 });

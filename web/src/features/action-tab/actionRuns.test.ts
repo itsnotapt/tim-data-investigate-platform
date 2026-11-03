@@ -6,10 +6,11 @@ import { rowResultsDao } from '../../lib/storage';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
-import { newTestStore } from '../../test/tabsTestUtils';
+import { newTestStore, tab as newTab, type ContentOverrides } from '../../test/tabsTestUtils';
 import { useInstanceStore } from '../instance';
-import { createTabsStore, type Tab, type TabState } from '../tabs';
+import { createTabsStore, type Tab } from '../tabs';
 import { cancelActionTab, resumeActionRuns, runActionTab } from './actionRuns';
+import { paramEdited } from './model';
 import { runRowsStore } from './runRows';
 
 const server = setupMswServer();
@@ -70,17 +71,17 @@ const sleep = (ms: number) => {
   return Promise.resolve();
 };
 
-function createActionTab(uuid: string, state: Partial<TabState> = {}) {
-  store.getState().createTab({
-    componentName: 'ActionResult',
-    componentUuid: uuid,
-    parentUuid: null,
-    title: 'Sign-ins',
-    params: { action: 'dev-sign-ins', params: { users: ['alice'] } },
-    state,
-  });
+/** A root tab `id` of Sign-ins for alice, with `over` merged on. */
+function createActionTab(id: string, over: ContentOverrides = {}) {
+  store.getState().createTab(
+    newTab(id, null, {
+      ...over,
+      title: 'Sign-ins',
+      toRun: { action: 'dev-sign-ins', params: { users: ['alice'] }, ...over.toRun },
+    }),
+  );
 }
-const tab = (uuid = 'a') => store.getState().tabs[uuid]!;
+const tab = (id = 'a') => store.getState().tabs[id]!;
 
 beforeEach(async () => {
   configureTestApp();
@@ -143,18 +144,19 @@ describe('runActionTab', () => {
       rowsHandler(pages),
     );
     const running = runActionTab('a', { store, sleep });
-    expect(tab().state.isExecuting).toBe(true);
+    expect(tab().status.executing).toBe(true);
     await running;
     expect(body).toEqual({ action: 'dev-sign-ins', params: { users: ['alice'] } });
     expect(pages).toEqual(['?startRow=0&endRow=3', '?startRow=2&endRow=3']);
     expect(await rowResultsDao.get('a')).toEqual(rows);
-    expect(tab().state).toMatchObject({
-      isExecuting: false,
-      error: null,
-      rowCount: 3,
-      resultsRunId: RUN_ID,
-      resultColumns: [{ name: 'User', type: 'string', declared: true }],
-      run: { runId: RUN_ID, status: 'succeeded' },
+    expect(tab()).toMatchObject({
+      status: { executing: false, error: null },
+      results: {
+        runId: RUN_ID,
+        rowCount: 3,
+        columns: [{ name: 'User', type: 'string', declared: true }],
+      },
+      latest: { run: { runId: RUN_ID, status: 'succeeded' } },
     });
     expect(tab().rowDataTrigger).not.toBeNull();
   });
@@ -168,8 +170,8 @@ describe('runActionTab', () => {
       }),
       rowsHandler([]),
     );
-    store.getState().updateParams('a', { pivotRows: [{ App: 'Teams' }] });
-    await runActionTab('a', { store, sleep });
+    createActionTab('b', { toRun: { pivotRows: [{ App: 'Teams' }] } });
+    await runActionTab('b', { store, sleep });
     expect(body).toEqual({
       action: 'dev-sign-ins',
       params: { users: ['alice'] },
@@ -223,7 +225,7 @@ describe('runActionTab', () => {
     );
     await runActionTab('a', { store, sleep });
     expect(runRowsStore.getState().byTab.a).toBeUndefined();
-    expect(tab().state.error).toEqual({ message: 'Results are no longer available; run again' });
+    expect(tab().status.error).toEqual({ message: 'Results are no longer available; run again' });
   });
 
   it('counts only the rows it stored when the server runs out of rows early', async () => {
@@ -233,7 +235,7 @@ describe('runActionTab', () => {
     );
     await runActionTab('a', { store, sleep });
     expect(await rowResultsDao.get('a')).toEqual(rows);
-    expect(tab().state.rowCount).toBe(3);
+    expect(tab().results?.rowCount).toBe(3);
   });
 
   it('polls every second for ten seconds, then every three, until the run ends', async () => {
@@ -244,7 +246,10 @@ describe('runActionTab', () => {
     );
     await runActionTab('a', { store, sleep });
     expect(delays).toEqual([...Array<number>(10).fill(1000), 3000, 3000, 3000]);
-    expect(tab().state).toMatchObject({ isExecuting: false, rowCount: 0, error: null });
+    expect(tab()).toMatchObject({
+      status: { executing: false, error: null },
+      results: { rowCount: 0 },
+    });
   });
 
   it('keeps the run on the tab while it runs, so a reload can pick it up', async () => {
@@ -256,7 +261,7 @@ describe('runActionTab', () => {
     await runActionTab('a', {
       store,
       sleep: (ms) => {
-        seen = tab().state.run;
+        seen = tab().latest.run;
         return sleep(ms);
       },
     });
@@ -269,17 +274,11 @@ describe('runActionTab', () => {
       debounceMs: 60_000,
       persistence: {
         loadAll: () => Promise.resolve([]),
-        save: (t) => Promise.resolve(void saved.set(t.componentUuid, t)),
+        save: (t) => Promise.resolve(void saved.set(t.id, t)),
         remove: () => Promise.resolve(),
       },
     });
-    slow.getState().createTab({
-      componentName: 'ActionResult',
-      componentUuid: 'a',
-      parentUuid: null,
-      title: 'Sign-ins',
-      params: { action: 'dev-sign-ins', params: {} },
-    });
+    slow.getState().createTab(newTab('a', null, { toRun: { action: 'dev-sign-ins' } }));
     let savedWhileRunning: Run | null | undefined;
     server.use(
       http.post(apiUrl('/api/runs'), () => HttpResponse.json(makeRun(), { status: 202 })),
@@ -288,10 +287,10 @@ describe('runActionTab', () => {
     );
     await runActionTab('a', {
       store: slow,
-      sleep: () => Promise.resolve(void (savedWhileRunning = saved.get('a')?.state.run)),
+      sleep: () => Promise.resolve(void (savedWhileRunning = saved.get('a')?.latest.run)),
     });
     expect(savedWhileRunning).toMatchObject({ runId: RUN_ID, status: 'running' });
-    expect(saved.get('a')?.state).toMatchObject({ resultsRunId: RUN_ID, rowCount: 3 });
+    expect(saved.get('a')?.results).toMatchObject({ runId: RUN_ID, rowCount: 3 });
   });
 
   it('marks each invalid param with its reasons instead of showing an error', async () => {
@@ -306,15 +305,15 @@ describe('runActionTab', () => {
       ),
     );
     await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({
-      isExecuting: false,
+    expect(tab().status).toMatchObject({
+      executing: false,
       error: null,
       paramErrors: { users: 'Value 1: Must be a string' },
     });
   });
 
   it('keeps the latest run on the tab when the server refuses a param', async () => {
-    createActionTab('b', { run: succeeded(3) });
+    createActionTab('b', { latest: { run: succeeded(3) } });
     server.use(
       http.post(apiUrl('/api/runs'), () =>
         problemResponse(422, {
@@ -324,7 +323,7 @@ describe('runActionTab', () => {
       ),
     );
     await runActionTab('b', { store, sleep });
-    expect(tab('b').state.run).toEqual(succeeded(3));
+    expect(tab('b').latest.run).toEqual(succeeded(3));
   });
 
   it('marks a refused query param, which the editor shows', async () => {
@@ -337,12 +336,12 @@ describe('runActionTab', () => {
       ),
     );
     await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({ error: null, paramErrors: { query: 'Not valid KQL' } });
+    expect(tab().status).toMatchObject({ error: null, paramErrors: { query: 'Not valid KQL' } });
   });
 
   it('marks a refused query parameter on its pill', async () => {
-    store.getState().updateParams('a', {
-      params: { parameters: [{ name: 'Since', type: 'datetime', value: 'yesterday' }] },
+    createActionTab('b', {
+      toRun: { params: { parameters: [{ name: 'Since', type: 'datetime', value: 'yesterday' }] } },
     });
     server.use(
       http.post(apiUrl('/api/runs'), () =>
@@ -352,8 +351,8 @@ describe('runActionTab', () => {
         }),
       ),
     );
-    await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({
+    await runActionTab('b', { store, sleep });
+    expect(tab('b').status).toMatchObject({
       error: null,
       paramErrors: { 'parameters.Since': 'Must be an ISO 8601 datetime' },
     });
@@ -369,7 +368,7 @@ describe('runActionTab', () => {
       ),
     );
     await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({
+    expect(tab().status).toMatchObject({
       error: { message: "Couldn't start: extra: Unknown param" },
       paramErrors: { users: 'Required' },
     });
@@ -391,16 +390,13 @@ describe('runActionTab', () => {
   ])('shows any other reason a run could not start %#', async (response, message) => {
     server.use(http.post(apiUrl('/api/runs'), () => response));
     await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({ isExecuting: false, error: { message } });
+    expect(tab().status).toMatchObject({ executing: false, error: { message } });
   });
 
   it('clears the marks and the latest run when the next run starts', async () => {
     createActionTab('b', {
-      run: makeRun({ status: 'error' }),
-      error: { message: 'Failed' },
-      paramErrors: { users: 'Required' },
-      linkedRow: 1,
-      runTitle: 'Sign-ins bob',
+      latest: { run: makeRun({ status: 'error' }), title: 'Sign-ins bob' },
+      status: { error: { message: 'Failed' }, paramErrors: { users: 'Required' }, linkedRow: 1 },
     });
     let release = () => {};
     const started = new Promise<void>((resolve) => (release = resolve));
@@ -411,13 +407,9 @@ describe('runActionTab', () => {
       }),
     );
     const running = runActionTab('b', { store, sleep });
-    expect(tab('b').state).toMatchObject({
-      isExecuting: true,
-      error: null,
-      paramErrors: null,
-      run: null,
-      linkedRow: null,
-      runTitle: 'Sign-ins bob',
+    expect(tab('b')).toMatchObject({
+      status: { executing: true, error: null, paramErrors: null, linkedRow: null },
+      latest: { run: null, title: 'Sign-ins bob' },
     });
     release();
     await running;
@@ -426,11 +418,10 @@ describe('runActionTab', () => {
   it('keeps the params and title of the latest run and when the stored results’ run started', async () => {
     server.use(http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(0))));
     await runActionTab('a', { store, sleep });
-    store.getState().updateParams('a', { params: { users: ['bob'] } });
-    expect(tab().state).toMatchObject({
-      runParams: { users: ['alice'] },
-      runTitle: 'Sign-ins alice',
-      resultsStartedAt: '2026-10-20T10:00:00Z',
+    store.getState().apply('a', paramEdited('users', ['bob']));
+    expect(tab()).toMatchObject({
+      latest: { params: { users: ['alice'] }, title: 'Sign-ins alice' },
+      results: { startedAt: '2026-10-20T10:00:00Z' },
     });
   });
 
@@ -444,8 +435,8 @@ describe('runActionTab', () => {
   ])('shows a run that ended %#', async (ended, message) => {
     server.use(http.post(apiUrl('/api/runs'), () => HttpResponse.json(ended)));
     await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({ isExecuting: false, error: { message } });
-    expect(tab().state.run?.status).toBe(ended.status);
+    expect(tab().status).toMatchObject({ executing: false, error: { message } });
+    expect(tab().latest.run?.status).toBe(ended.status);
   });
 
   it('says to run again when the results are gone', async () => {
@@ -456,8 +447,8 @@ describe('runActionTab', () => {
       ),
     );
     await runActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({
-      isExecuting: false,
+    expect(tab().status).toMatchObject({
+      executing: false,
       error: { message: 'Results are no longer available; run again' },
     });
   });
@@ -489,17 +480,15 @@ describe('cancelActionTab', () => {
     );
     const { sleep, wake } = wakeableSleep();
     const running = runActionTab('a', { store, sleep });
-    await vi.waitFor(() => expect(tab().state.run?.runId).toBe(RUN_ID));
+    await vi.waitFor(() => expect(tab().latest.run?.runId).toBe(RUN_ID));
     await cancelActionTab('a', { store, sleep });
     expect(cancelled).toBe(true);
-    expect(tab().state).toMatchObject({ isExecuting: true, cancelling: true });
+    expect(tab().status).toMatchObject({ executing: true, cancelling: true });
     wake();
     await running;
-    expect(tab().state).toMatchObject({
-      isExecuting: false,
-      cancelling: false,
-      error: { message: 'The run was cancelled' },
-      run: { status: 'cancelled' },
+    expect(tab()).toMatchObject({
+      status: { executing: false, cancelling: false, error: { message: 'The run was cancelled' } },
+      latest: { run: { status: 'cancelled' } },
     });
   });
 
@@ -512,14 +501,12 @@ describe('cancelActionTab', () => {
     );
     const { sleep } = wakeableSleep();
     const running = runActionTab('a', { store, sleep });
-    await vi.waitFor(() => expect(tab().state.run?.runId).toBe(RUN_ID));
+    await vi.waitFor(() => expect(tab().latest.run?.runId).toBe(RUN_ID));
     await cancelActionTab('a', { store, sleep });
     await running;
-    expect(tab().state).toMatchObject({
-      isExecuting: false,
-      cancelling: false,
-      error: { message: 'The run was cancelled' },
-      run: { status: 'cancelled' },
+    expect(tab()).toMatchObject({
+      status: { executing: false, cancelling: false, error: { message: 'The run was cancelled' } },
+      latest: { run: { status: 'cancelled' } },
     });
   });
 
@@ -533,84 +520,90 @@ describe('cancelActionTab', () => {
     );
     const { sleep, wake } = wakeableSleep();
     const running = runActionTab('a', { store, sleep });
-    await vi.waitFor(() => expect(tab().state.run?.runId).toBe(RUN_ID));
+    await vi.waitFor(() => expect(tab().latest.run?.runId).toBe(RUN_ID));
     await cancelActionTab('a', { store, sleep });
-    expect(tab().state).toMatchObject({
-      isExecuting: true,
+    expect(tab().status).toMatchObject({
+      executing: true,
       cancelling: false,
       error: { message: "Couldn't cancel: Try again" },
     });
     wake();
     await running;
-    expect(tab().state).toMatchObject({ isExecuting: false, error: null, rowCount: 0 });
+    expect(tab()).toMatchObject({
+      status: { executing: false, error: null },
+      results: { rowCount: 0 },
+    });
   });
 });
 
 describe('resumeActionRuns', () => {
   it('picks up a running run by its id, and the rows of a run that ended meanwhile', async () => {
-    createActionTab('b', { isExecuting: true, run: makeRun() });
+    createActionTab('b', { status: { executing: true }, latest: { run: makeRun() } });
     server.use(pollHandler(makeRun(), succeeded(3)), rowsHandler());
     await resumeActionRuns({ store, sleep });
     expect(await rowResultsDao.get('b')).toEqual(rows);
-    expect(store.getState().tabs['b']!.state).toMatchObject({
-      isExecuting: false,
-      rowCount: 3,
-      resultsRunId: RUN_ID,
+    expect(tab('b')).toMatchObject({
+      status: { executing: false },
+      results: { rowCount: 3, runId: RUN_ID },
     });
   });
 
   it('loads the rows of a succeeded run that were not stored yet', async () => {
-    createActionTab('b', { isExecuting: true, run: succeeded(3) });
+    createActionTab('b', { status: { executing: true }, latest: { run: succeeded(3) } });
     server.use(rowsHandler());
     await resumeActionRuns({ store, sleep });
     expect(await rowResultsDao.get('b')).toEqual(rows);
   });
 
   it('leaves a tab whose rows are stored alone, even once its run has expired', async () => {
-    createActionTab('b', { run: succeeded(3), resultsRunId: RUN_ID, rowCount: 3 });
+    createActionTab('b', {
+      latest: { run: succeeded(3) },
+      results: { runId: RUN_ID, columns: null, startedAt: '2026-10-20T10:00:00Z', rowCount: 3 },
+    });
     // Any request fails the test: the server has no handlers.
     await resumeActionRuns({ store, sleep });
-    expect(store.getState().tabs['b']!.state).toMatchObject({ rowCount: 3, error: null });
+    expect(tab('b')).toMatchObject({ status: { error: null }, results: { rowCount: 3 } });
   });
 
   it('stops showing a run going when the reload came before the run had an id', async () => {
-    createActionTab('b', { isExecuting: true, run: null });
-    createActionTab('c', { isExecuting: true, run: succeeded(3), resultsRunId: RUN_ID });
+    createActionTab('b', { status: { executing: true } });
+    createActionTab('c', {
+      status: { executing: true },
+      latest: { run: succeeded(3) },
+      results: { runId: RUN_ID, columns: null, startedAt: '2026-10-20T10:00:00Z', rowCount: 3 },
+    });
     await resumeActionRuns({ store, sleep });
-    expect(store.getState().tabs['b']!.state.isExecuting).toBe(false);
-    expect(store.getState().tabs['c']!.state.isExecuting).toBe(false);
+    expect(tab('b').status.executing).toBe(false);
+    expect(tab('c').status.executing).toBe(false);
   });
 
   it.each([
     [1, 1],
     [7, null],
   ])('keeps a linked row %i only when the stored rows have it', async (linkedRow, kept) => {
-    createActionTab('b', { isExecuting: true, run: succeeded(3), linkedRow });
+    createActionTab('b', { status: { executing: true, linkedRow }, latest: { run: succeeded(3) } });
     server.use(rowsHandler());
     await resumeActionRuns({ store, sleep });
-    expect(store.getState().tabs['b']!.state).toMatchObject({ rowCount: 3, linkedRow: kept });
+    expect(tab('b')).toMatchObject({ status: { linkedRow: kept }, results: { rowCount: 3 } });
   });
 
   it('drops the linked row of a run that ends without rows', async () => {
-    createActionTab('b', { isExecuting: true, run: makeRun(), linkedRow: 1 });
+    createActionTab('b', { status: { executing: true, linkedRow: 1 }, latest: { run: makeRun() } });
     server.use(pollHandler(makeRun({ status: 'error', error: 'Failed' })));
     await resumeActionRuns({ store, sleep });
-    expect(store.getState().tabs['b']!.state).toMatchObject({
-      error: { message: 'Failed' },
-      linkedRow: null,
-    });
+    expect(tab('b').status).toMatchObject({ error: { message: 'Failed' }, linkedRow: null });
   });
 
   it('says so when the run being picked up has expired', async () => {
-    createActionTab('b', { isExecuting: true, run: makeRun() });
+    createActionTab('b', { status: { executing: true }, latest: { run: makeRun() } });
     server.use(
       http.get(apiUrl(`/api/runs/${RUN_ID}`), () =>
         problemResponse(404, { type: 'urn:tim:problem:not-found', detail: 'Run not found' }),
       ),
     );
     await resumeActionRuns({ store, sleep });
-    expect(store.getState().tabs['b']!.state).toMatchObject({
-      isExecuting: false,
+    expect(tab('b').status).toMatchObject({
+      executing: false,
       error: { message: 'The run is no longer available; run again' },
     });
   });
