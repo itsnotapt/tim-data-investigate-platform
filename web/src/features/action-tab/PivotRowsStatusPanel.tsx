@@ -137,6 +137,7 @@ function PivotRowControls({
         control={
           <Checkbox
             size="small"
+            color="default"
             checked={highlight}
             onChange={(e) => setHighlight(e.target.checked)}
             sx={{ p: 0, '& svg': { fontSize: 16 } }}
