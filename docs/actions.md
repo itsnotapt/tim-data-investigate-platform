@@ -147,7 +147,6 @@ A `bigint` column holds whole numbers that a `number` column would round.
 - Only an action file declares it; Kusto and Snowflake columns are never `bigint`.
 - The API serves its whole-number values as strings of digits, such as `"12345678901234567890"`, and other values as they are.
 - The grid shows `BigInt` values, and sorts, copies and filters them exactly. A value that isn't a whole number shows as "Invalid BigInt".
-- The browser rounds a whole number beyond ±(2^53 − 1) in a `number` column. Such a column shows a warning icon in its header, whose tooltip suggests declaring it `bigint`.
 
 A `calculated` column isn't in the result.
 

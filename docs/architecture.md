@@ -377,7 +377,7 @@ The results grid is AG Grid with its client-side row model, keyed by each row's 
 - The action's declared `columns` become `initial*` settings, so a restored column state wins over them.
 - Its declared `calculated` columns become AG Grid calculated columns ([actions.md](actions.md#columns)).
 - Analysts can add their own calculated columns from the column menu.
-- A `bigint` column shows `BigInt` values, with the text, bigint and set filters in its multi filter. A `number` column with a whole number beyond ±(2^53 − 1) has a warning icon in its header ([actions.md](actions.md#columns)).
+- A `bigint` column shows `BigInt` values, with the text, bigint and set filters in its multi filter.
 - A succeeded run with no rows shows "The run succeeded with no rows." instead of a grid.
 - CSV and Excel export are AG Grid's own.
 

@@ -47,7 +47,6 @@ import {
   type Results,
   type ResultsChange,
 } from './results';
-import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
 
 const NO_LABELS: readonly InstanceLabel[] = [];
 /** `maxAnnotationIds` until the instance says otherwise. */
@@ -103,7 +102,6 @@ export type ActionResultsGridProps = Omit<
  * side bar, with the view's name in the status bar.
  * The row a share link named is focused, with Row detail open on it, once it has arrived.
  * A tab pivoted into an action that finds pivot rows shows Go to pivot row over the grid.
- * A `number` column's header warns when it holds whole numbers beyond ±(2^53 − 1), which round.
  */
 export function ActionResultsGrid({
   tabId,
@@ -143,12 +141,6 @@ export function ActionResultsGrid({
     () => buildActionColumnDefs(declaredColumns, runColumns, own),
     [declaredColumns, runColumns, own],
   );
-  const numberColumns = useMemo(
-    () =>
-      (runColumns ?? declaredColumns ?? []).filter((c) => c.type === 'number').map((c) => c.name),
-    [runColumns, declaredColumns],
-  );
-  const rounded = useMemo(() => roundedColumns(rows, numberColumns), [rows, numberColumns]);
   /** The `columns:` block of the grid's `state`, for the Action file panel and Copy column settings. */
   const actionFile = useCallback(
     (state: GridState) => actionFileColumns({ state, declared: declaredColumns, runColumns, own }),
@@ -325,24 +317,22 @@ export function ActionResultsGrid({
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
-      <RoundedColumnsContext value={rounded}>
-        <ResultsGrid
-          {...rest}
-          sideBar={ACTION_SIDE_BAR}
-          statusPanels={ACTION_STATUS_PANELS}
-          context={context}
-          onStateUpdated={keep}
-          rows={given}
-          columnDefs={columnDefs}
-          getContextMenuItems={menu}
-          getMainMenuItems={getMainMenuItems}
-          rowClassRules={rowClassRules}
-          selectionSymbol={LabelSymbol}
-          onCellKeyDown={onCellKeyDown}
-          onCellFocused={onCellFocused}
-          onGridReady={ready}
-        />
-      </RoundedColumnsContext>
+      <ResultsGrid
+        {...rest}
+        sideBar={ACTION_SIDE_BAR}
+        statusPanels={ACTION_STATUS_PANELS}
+        context={context}
+        onStateUpdated={keep}
+        rows={given}
+        columnDefs={columnDefs}
+        getContextMenuItems={menu}
+        getMainMenuItems={getMainMenuItems}
+        rowClassRules={rowClassRules}
+        selectionSymbol={LabelSymbol}
+        onCellKeyDown={onCellKeyDown}
+        onCellFocused={onCellFocused}
+        onGridReady={ready}
+      />
       {findPivotRows && pivotRowIds && (
         <GoToPivotRow tabId={tabId} grid={view} pivotRowIds={pivotRowIds} />
       )}

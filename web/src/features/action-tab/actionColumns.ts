@@ -1,6 +1,5 @@
 import type { ColDef } from 'ag-grid-community';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
-import { NumberHeader } from './NumberHeader';
 
 /** A `tim:` column is one of TIM's own grid columns, never a result column. */
 const isTimColumn = (name: string): boolean => name.startsWith('tim:');
@@ -44,24 +43,21 @@ function toBigInt(value: unknown): unknown {
 }
 
 /**
- * Settings by column type: a `bigint` column holds `BigInt`s, with the bigint filter in place of
- * the number and date filters; a `number` column's header warns of rounded whole numbers.
+ * A `bigint` column's settings: it holds `BigInt`s, with the bigint filter in place of the number
+ * and date filters.
  */
-const TYPE_SETTINGS: Partial<Record<RunColumn['type'], (name: string) => ColDef>> = {
-  bigint: (name) => ({
-    cellDataType: 'bigint',
-    valueGetter: (p) => toBigInt((p.data as RunRow | undefined)?.data[name]),
-    filter: 'agMultiColumnFilter',
-    filterParams: {
-      filters: [
-        { filter: 'agTextColumnFilter', display: 'subMenu' },
-        { filter: 'agBigIntColumnFilter', display: 'subMenu' },
-        { filter: 'agSetColumnFilter' },
-      ],
-    },
-  }),
-  number: () => ({ headerComponentParams: { innerHeaderComponent: NumberHeader } }),
-};
+const bigintSettings = (name: string): ColDef => ({
+  cellDataType: 'bigint',
+  valueGetter: (p) => toBigInt((p.data as RunRow | undefined)?.data[name]),
+  filter: 'agMultiColumnFilter',
+  filterParams: {
+    filters: [
+      { filter: 'agTextColumnFilter', display: 'subMenu' },
+      { filter: 'agBigIntColumnFilter', display: 'subMenu' },
+      { filter: 'agSetColumnFilter' },
+    ],
+  },
+});
 
 /** A declared column's settings, as AG Grid `initial*` settings. */
 const initialSettings = (column: CatalogueColumn) =>
@@ -80,7 +76,7 @@ const initialSettings = (column: CatalogueColumn) =>
  * AG Grid calculated column, and a declared `tim:` column gives its settings to that column of
  * `own`: each is placed after the declared column before it, and the rest of `own` come last.
  * Declared settings are AG Grid `initial*` settings, so a restored column state wins over them.
- * A column's type (the run's, else the declared one) may add settings (`TYPE_SETTINGS`).
+ * A column whose type (the run's, else the declared one) is `bigint` gets `bigintSettings`.
  */
 export function buildActionColumnDefs(
   declaredColumns: readonly CatalogueColumn[] | null | undefined,
@@ -116,7 +112,7 @@ export function buildActionColumnDefs(
         ? { calculatedExpression: column.calculated }
         : {
             valueGetter: (p) => (p.data as RunRow | undefined)?.data[name],
-            ...TYPE_SETTINGS[types.get(name) ?? 'string']?.(name),
+            ...(types.get(name) === 'bigint' && bigintSettings(name)),
           }),
       ...(column && initialSettings(column)),
     } satisfies ColDef;
