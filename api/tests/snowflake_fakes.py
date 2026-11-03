@@ -14,7 +14,6 @@ from kusto_fakes import ALICE, FakeObo
 from snowflake.connector import errors as sf_errors
 
 from tim_api.auth.dependencies import get_obo_provider
-from tim_api.storage import MemoryStorage
 
 SCOPE = "api://snowflake/session:role-any"
 CONNECTIONS = f"""\
@@ -126,9 +125,7 @@ async def open_client(
     path.write_text(connections)
     monkeypatch.setenv("TIM_CONNECTIONS_FILE", str(path))
     monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "60")
-    app = create_test_app(
-        storage_factory=lambda _s: MemoryStorage(), race_seconds=0.5, providers=None
-    )
+    app = create_test_app(race_seconds=0.5, providers=None)
     if auth is not None:
         auth.install(app)
     if obo is not None:

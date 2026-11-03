@@ -5,21 +5,12 @@ from fastapi.testclient import TestClient
 
 from tim_api.config import Settings, SettingsError, get_settings
 from tim_api.deps import get_run_store
-from tim_api.storage import (
-    MemoryStorage,
-    PostgresStorage,
-    RunStore,
-    build_storage,
-)
+from tim_api.storage import PostgresRunStore, PostgresStorage, build_storage
 
 
-def test_memory_url_selects_memory(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TIM_ENVIRONMENT", "development")
-    monkeypatch.setenv("TIM_DATABASE_URL", "memory://")
-    assert isinstance(build_storage(get_settings()), MemoryStorage)
-
-
-def test_memory_url_rejected_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("environment", ["development", "production"])
+def test_memory_url_is_refused(monkeypatch: pytest.MonkeyPatch, environment: str) -> None:
+    monkeypatch.setenv("TIM_ENVIRONMENT", environment)
     monkeypatch.setenv("TIM_DATABASE_URL", "memory://")
     with pytest.raises(SettingsError, match="TIM_DATABASE_URL"):
         get_settings()
@@ -36,10 +27,10 @@ def test_dependencies_resolve_from_lifespan() -> None:
 
     @app.get("/_probe")
     def probe(
-        runs: RunStore = Depends(get_run_store),  # noqa: B008
+        runs: PostgresRunStore = Depends(get_run_store),  # noqa: B008
     ) -> dict[str, bool]:
         return {
-            "runs": isinstance(runs, RunStore),
+            "runs": isinstance(runs, PostgresRunStore),
         }
 
     with TestClient(app) as client:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints
@@ -107,4 +109,56 @@ class AnnotationChangesPage(ApiModel):
 
     changes: list[Annotations]
     next: int
+    has_more: bool
+
+
+@dataclass(frozen=True)
+class AnnotationEdit:
+    """What one change does to every id it names.
+
+    - With ``set_label``, set the label to ``label``, or clear it when that is ``None``.
+    - Add ``add_tags``, then remove ``remove_tags``; or, when ``set_tags`` isn't ``None``, make
+      the tags exactly ``set_tags``.
+    - With ``set_comment``, set the author's comment to ``comment``, or clear it when that is
+      ``None`` (ADR-0023).
+    """
+
+    set_label: bool = False
+    label: str | None = None
+    add_tags: frozenset[str] = frozenset()
+    remove_tags: frozenset[str] = frozenset()
+    set_tags: frozenset[str] | None = None
+    set_comment: bool = False
+    comment: str | None = None
+
+    def tags_after(self, tags: Collection[str]) -> set[str]:
+        """The tags an id with ``tags`` has after this edit."""
+        if self.set_tags is not None:
+            return set(self.set_tags)
+        return (set(tags) | self.add_tags) - self.remove_tags
+
+
+@dataclass(frozen=True)
+class AnnotationsChanged:
+    """The ids a change changed, as they now are, and the version: the change's own, or the
+    current one when nothing changed."""
+
+    changes: list[Annotations]
+    version: int
+
+
+@dataclass(frozen=True)
+class AnnotationsOf:
+    """The annotations of those ids that have any, and the version they are current as of."""
+
+    annotations: dict[str, Annotations]
+    version: int
+
+
+@dataclass(frozen=True)
+class AnnotationChanges:
+    """A page of the change feed: the ids changed after ``since``, as they now are, in version
+    order. ``has_more`` when later changes are left for the next page."""
+
+    changes: list[Annotations]
     has_more: bool

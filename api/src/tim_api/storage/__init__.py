@@ -1,39 +1,29 @@
-"""Persistence ports and implementations (ADR-0004)."""
+"""PostgreSQL storage and its retention sweep (ADR-0004)."""
 
-from tim_api.storage.base import (
+from tim_api.storage.errors import (
     AlreadyExistsError,
-    AnnotationChanges,
-    AnnotationEdit,
-    AnnotationsChanged,
-    AnnotationsOf,
-    AnnotationStore,
-    ColumnViewStore,
     NotFoundError,
-    PresetStore,
-    RunStore,
-    Storage,
     StorageError,
     StorageUnavailableError,
 )
 from tim_api.storage.factory import build_storage
-from tim_api.storage.memory import MemoryStorage
-from tim_api.storage.postgres import PostgresStorage
+from tim_api.storage.postgres import (
+    PostgresAnnotationStore,
+    PostgresColumnViewStore,
+    PostgresPresetStore,
+    PostgresRunStore,
+    PostgresStorage,
+)
 from tim_api.storage.retention import start_retention_loop, sweep_expired
 
 __all__ = [
     "AlreadyExistsError",
-    "AnnotationChanges",
-    "AnnotationEdit",
-    "AnnotationStore",
-    "AnnotationsChanged",
-    "AnnotationsOf",
-    "ColumnViewStore",
-    "MemoryStorage",
     "NotFoundError",
+    "PostgresAnnotationStore",
+    "PostgresColumnViewStore",
+    "PostgresPresetStore",
+    "PostgresRunStore",
     "PostgresStorage",
-    "PresetStore",
-    "RunStore",
-    "Storage",
     "StorageError",
     "StorageUnavailableError",
     "build_storage",

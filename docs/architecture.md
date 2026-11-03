@@ -729,7 +729,7 @@ The SPA uses the MSAL popup flow with a `localStorage` token cache ([ADR-0005](a
 | `runs/` | `/api/runs` routes (`router.py`), models, the run lifecycle (`runner.py`), rows, columns and caps (`results.py`), and the connections a run reaches (`connections.py`: the instance's `Connections`, and one run's hooks) |
 | `presets/` | `/api/presets` routes (`router.py`) and models |
 | `column_views/` | `/api/columnViews` routes (`router.py`) and models |
-| `storage/` | Storage interfaces, PostgreSQL and in-memory implementations, retention loop |
+| `storage/` | `PostgresStorage` and its stores, retention loop |
 | `openapi_meta.py`, `openapi_export.py` | OpenAPI post-processing and spec export |
 
 Database migrations are in `api/migrations` (Alembic).
@@ -1125,7 +1125,7 @@ The run follows the lifecycle above, with these differences:
 
 ### Presets
 
-Presets are stored in PostgreSQL (`presets`, `preset_hidden`) behind `PresetStore`. The models are in `presets/models.py`.
+Presets are stored in PostgreSQL (`presets`, `preset_hidden`) behind `PostgresPresetStore`. The models are in `presets/models.py`.
 
 The routes, under `/api/presets`:
 
@@ -1189,7 +1189,6 @@ A change that changes nothing rolls back. It takes no version, writes no history
 - Within one version, the label change comes before the comment.
 - Tags are not in it, and it has no paging.
 - An `id` that was never changed gives `entries: []`.
-- The memory store keeps a history list per `id`.
 
 **Tag suggestions.** `GET /api/tags/suggestions?prefix=` reads `tags`, matching the prefix ignoring case.
 
@@ -1201,10 +1200,9 @@ A change that changes nothing rolls back. It takes no version, writes no history
 
 ### Persistence
 
-`storage/` defines `PresetStore`, `ColumnViewStore`, `RunStore`, `AnnotationStore` and a `Storage` bundle (health, close).
+`storage/postgres.py` defines `PostgresPresetStore`, `PostgresColumnViewStore`, `PostgresRunStore`, `PostgresAnnotationStore` and the `PostgresStorage` bundle (health, close). Callers use these classes directly.
 
-- `TIM_DATABASE_URL` selects PostgreSQL (`postgresql+asyncpg://`).
-- In development only, `memory://` selects an in-memory store. Production refuses it.
+- `TIM_DATABASE_URL` is a PostgreSQL URL (`postgresql+asyncpg://`) in every environment.
 - Alembic migrations create the schema (`alembic upgrade head`).
 
 | Table | Key | Notes |
@@ -1245,7 +1243,7 @@ Every non-2xx response is `application/problem+json` ([api.md](api.md#errors)). 
   - Hooks get a `token_for(scope)` callable and never see the analyst's token.
   - `GET /api/instance` shows a connection's name, title, type, editor and databases. It never shows its cluster, auth or scope.
 - **Connections run as the user** (OBO).
-- **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`), the development actions (`TIM_DEV_ACTIONS`) and the in-memory store. The SPA's `VITE_AUTH_STUB` throws in a production build, and the web container refuses `STUB_SIGN_IN=true`.
+- **Development modes fail startup in production:** the auth bypass (`TIM_AUTH_DISABLED`) and the development actions (`TIM_DEV_ACTIONS`). The SPA's `VITE_AUTH_STUB` throws in a production build, and the web container refuses `STUB_SIGN_IN=true`.
 - **Request bodies are capped:**
   - `TIM_MAX_REQUEST_BYTES` on the API (default 64 MiB, `413`);
   - `client_max_body_size 64m` on nginx;

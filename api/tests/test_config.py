@@ -74,6 +74,7 @@ def test_removed_variable_has_no_effect(
 
 def test_secrets_not_leaked(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TIM_AUTH_CLIENT_SECRET", "super-secret-value")
+    monkeypatch.setenv("TIM_DATABASE_URL", "postgresql+asyncpg://tim:s3cret-pw@localhost:5432/tim")
     s = make()
     for text in (repr(s), str(s), str(s.model_dump()), s.model_dump_json()):
         assert "super-secret-value" not in text

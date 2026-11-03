@@ -1,6 +1,6 @@
-"""Runs the storage contract suite against every implementation (memory and PostgreSQL).
+"""Runs the tests of the storage's interface in ``storage_contract.py``.
 
-The parametrised ``storage`` fixture lives in ``conftest.py``.
+The ``storage`` fixture lives in ``conftest.py``.
 """
 
 from storage_contract import (

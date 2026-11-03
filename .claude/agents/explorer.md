@@ -17,7 +17,7 @@ Under 400 words unless the prompt asks for more:
 
 - **Where the change lands:** each relevant file as `path:line`, with one line on what it holds and why it matters to the task.
 - **Patterns to copy:** the closest existing example of what the task builds (a similar endpoint, action type, test file, fixture or doc section).
-- **Tests:** the test files and fixtures covering the area, and how they reach it (through `create_app`, a store contract suite, a Playwright fixture).
+- **Tests:** the test files and fixtures covering the area, and how they reach it (through `create_app`, the storage tests, a Playwright fixture).
 - **Docs:** every doc that describes the behaviour, so it can be updated in the same change.
 - **Open questions:** anything ambiguous or contradictory between docs, ADRs and code. Report it; don't resolve it.
 

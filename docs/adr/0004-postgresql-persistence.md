@@ -7,11 +7,11 @@ date: 2026-09-29
 
 TIM persists runs (with their rows), presets, column views and annotations, so it uses **one store: PostgreSQL**. The previous backend switched between Couchbase, Mongo/Cosmos and Redis via `DATABASE_TYPE`, each with different TTL handling and some broken; that switch is not carried over.
 
-- Access goes through a small repository interface (`api/src/tim_api/storage/`), with a Postgres implementation plus an in-memory one for unit tests.
+- Access goes through `PostgresStorage` and its stores (`api/src/tim_api/storage/`). There is no in-memory implementation.
 - Tooling:
   - SQLAlchemy 2.x async with the `asyncpg` driver
   - Alembic migrations
-  - tests against a real Postgres, set with `TIM_TEST_DATABASE_URL` (or a temporary `pgserver` instance)
+  - every api test runs against a real Postgres: the server in `TIM_TEST_DATABASE_URL`, or a temporary `pgserver` instance
 - Schema:
   - `presets`: `preset_id` PK, `owner` (from the token), `name`, `visibility` (`private` or `shared`), `action`, JSON columns `menu_path`, `params` and `inputs`, `created_at`, `updated_at`; index on `(created_at, preset_id)`.
   - `preset_hidden`: PK `(preset_id, analyst)`, `preset_id` references `presets` `ON DELETE CASCADE`. A row means the analyst hid the preset.
@@ -29,7 +29,14 @@ TIM persists runs (with their rows), presets, column views and annotations, so i
 
 Decided by the user.
 
+## Considered Options
+
+| Option | Pros | Cons |
+|---|---|---|
+| An in-memory adapter for tests | Tests need no server | Every storage rule had to be written twice, and the two could differ |
+
 ## Consequences
 
 - Compose has a `postgres` service; there is no Couchbase, Redis or Mongo configuration.
+- A second kind of store, such as Redis or Cassandra, brings back an interface over what differs between the stores.
 - JSON field names on the wire are camelCase. Mapping column names to JSON happens in the Pydantic layer.

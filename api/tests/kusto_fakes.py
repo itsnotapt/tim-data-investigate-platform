@@ -16,7 +16,6 @@ from azure.kusto.data import exceptions as kusto_exc
 
 from tim_api.auth.dependencies import get_obo_provider
 from tim_api.auth.principal import Principal
-from tim_api.storage import MemoryStorage
 
 ALICE = "alice@example.com"
 CLUSTER = "https://help.kusto.windows.net"
@@ -178,9 +177,7 @@ async def open_client(
     monkeypatch.setenv("TIM_RUN_TIMEOUT_SECONDS", "60")
     if actions_dir is not None:
         monkeypatch.setenv("TIM_ACTIONS_DIR", str(actions_dir))
-    app = create_test_app(
-        storage_factory=lambda _s: MemoryStorage(), race_seconds=0.5, providers=None
-    )
+    app = create_test_app(race_seconds=0.5, providers=None)
     auth.install(app)
     app.dependency_overrides[get_obo_provider] = lambda: obo
     async with app.router.lifespan_context(app):

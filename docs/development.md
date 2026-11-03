@@ -26,7 +26,6 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
 - **`TIM_ENVIRONMENT` defaults to `production`.** These dev-only switches are refused or silently ignored unless it is `development` ([ADR-0011](adr/0011-development-only-modes.md)):
   - `TIM_AUTH_DISABLED`;
   - `TIM_DEV_ACTIONS`;
-  - `TIM_DATABASE_URL=memory://`;
   - a kusto connection with `auth: none`.
 
   `api/.env.example` sets it to `development`.
@@ -72,7 +71,7 @@ The commands are the `scripts` in `web/package.json` and the tool settings in `a
     - The fixture keeps only the databases `SNOWFLAKE`, `SNOWFLAKE_SAMPLE_DATA` (one schema), `TIM_RECORDING` and `TIM_RECORDING_HIDDEN`.
     - The same run records `fixtures/snowflake_binds.json`: statements whose values `SnowflakeHook.query` binds, in the hook's session, including the values `bind_values` makes of a `snowflake_query`'s params. The replay answers a bound statement only from a recording in the login's `TIMEZONE`.
     - Query IDs in error messages are replaced with `<query id>`. Check both fixtures for other account-specific data, such as names, users and URLs, before you commit them.
-  - **PostgreSQL tests** use `TIM_TEST_DATABASE_URL`. Without it they use a temporary `pgserver`, which needs no Docker. They skip if neither works.
+  - **Every api test runs against PostgreSQL**: the server in `TIM_TEST_DATABASE_URL`, or else a temporary `pgserver`, which needs no Docker. With neither, the tests fail with a message naming both.
 - **`pytest` fails below 80 % coverage**, even when every test passes.
 - **Playwright fails if its ports are busy.** It never reuses a running server, so a stray server on its ports (default 5180 and 5181) stops the run.
   - Set `E2E_PORT` to move the ports. See [e2e tests](#e2e-tests).

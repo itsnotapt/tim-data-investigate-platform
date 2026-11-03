@@ -35,12 +35,17 @@ from tim_api.runs.runner import (
     STALE_SWEEP_SECONDS,
     Runner,
 )
-from tim_api.storage import Storage, StorageUnavailableError, build_storage, start_retention_loop
+from tim_api.storage import (
+    PostgresStorage,
+    StorageUnavailableError,
+    build_storage,
+    start_retention_loop,
+)
 
 logger = logging.getLogger("tim_api")
 
 
-StorageFactory = Callable[[Settings], Storage]
+StorageFactory = Callable[[Settings], PostgresStorage]
 
 
 @asynccontextmanager
@@ -134,7 +139,7 @@ def create_app(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get("/api/healthChecks/readiness", status_code=status.HTTP_204_NO_CONTENT)
-    async def readiness(storage: Annotated[Storage, Depends(get_storage)]) -> Response:
+    async def readiness(storage: Annotated[PostgresStorage, Depends(get_storage)]) -> Response:
         # Store only; Kusto reachability is deliberately not part of readiness.
         try:
             healthy = await storage.health()

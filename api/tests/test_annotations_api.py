@@ -14,7 +14,7 @@ import pytest
 from app_factory import AuthKit, create_test_app
 from tim_actions import Provider
 
-from tim_api.storage import Storage
+from tim_api.storage import PostgresStorage
 
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
@@ -52,7 +52,7 @@ class Env:
 
 @asynccontextmanager
 async def open_env(
-    storage: Storage, auth: AuthKit, actions: Sequence[Any] = ()
+    storage: PostgresStorage, auth: AuthKit, actions: Sequence[Any] = ()
 ) -> AsyncIterator[Env]:
     app = create_test_app(storage_factory=lambda _s: storage, providers=[Provider(actions=actions)])
     auth.install(app)
@@ -70,7 +70,7 @@ def label_of(change: dict[str, Any]) -> tuple[str, str | None, str | None]:
 
 
 async def test_labelling_ids_sets_the_label_on_each_under_one_version(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         body = await env.label(["c-2", "c-1", "c-2"], "malicious")
@@ -84,7 +84,7 @@ async def test_labelling_ids_sets_the_label_on_each_under_one_version(
     datetime.fromisoformat(first["label"]["at"])
 
 
-async def test_the_author_comes_from_the_token(storage: Storage, auth: AuthKit) -> None:
+async def test_the_author_comes_from_the_token(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         env.as_user(BOB, "oid-b")
         response = await env.patch({"ids": ["c-1"], "label": "benign", "by": ALICE})
@@ -92,7 +92,7 @@ async def test_the_author_comes_from_the_token(storage: Storage, auth: AuthKit) 
 
 
 async def test_a_null_label_clears_it_and_the_feed_carries_the_removal(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.label(["c-1", "c-2"], "suspicious")
@@ -105,7 +105,7 @@ async def test_a_null_label_clears_it_and_the_feed_carries_the_removal(
 
 
 async def test_a_change_that_changes_nothing_takes_no_version(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.label(["c-1"], "benign")
@@ -144,7 +144,7 @@ async def test_a_change_that_changes_nothing_takes_no_version(
     ],
 )
 async def test_an_invalid_change_is_a_422(
-    storage: Storage, auth: AuthKit, body: dict[str, Any], errors: dict[str, list[str]]
+    storage: PostgresStorage, auth: AuthKit, body: dict[str, Any], errors: dict[str, list[str]]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.patch(body)
@@ -169,7 +169,7 @@ async def test_an_invalid_change_is_a_422(
     ],
 )
 async def test_a_change_with_bad_ids_is_a_422(
-    storage: Storage, auth: AuthKit, body: dict[str, Any], errors: dict[str, list[str]]
+    storage: PostgresStorage, auth: AuthKit, body: dict[str, Any], errors: dict[str, list[str]]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.patch(body)
@@ -178,7 +178,7 @@ async def test_a_change_with_bad_ids_is_a_422(
 
 
 async def test_more_distinct_ids_than_max_annotation_ids_is_a_422(
-    storage: Storage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TIM_MAX_ANNOTATION_IDS", "3")
     async with open_env(storage, auth) as env:
@@ -194,7 +194,7 @@ def tags_of(body: dict[str, Any]) -> list[tuple[str, list[str]]]:
 
 
 async def test_tags_are_trimmed_added_and_removed_in_one_change(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "addTags": ["c2", "Beacon"]})
@@ -219,7 +219,7 @@ async def test_tags_are_trimmed_added_and_removed_in_one_change(
     ]
 
 
-async def test_set_tags_overrides_each_id_s_tags(storage: Storage, auth: AuthKit) -> None:
+async def test_set_tags_overrides_each_id_s_tags(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1", "c-2"], "addTags": ["c2", "beacon"]})
         replaced = (await env.patch({"ids": ["c-1", "c-2"], "setTags": ["beacon", "tor"]})).json()
@@ -229,7 +229,7 @@ async def test_set_tags_overrides_each_id_s_tags(storage: Storage, auth: AuthKit
 
 
 async def test_tag_changes_that_change_nothing_take_no_version(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "addTags": ["c2"]})
@@ -249,7 +249,7 @@ def comments_of(body: dict[str, Any]) -> dict[str, list[tuple[str, str]]]:
 
 
 async def test_a_comment_sets_the_callers_comment_on_every_id(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "comment": "first look"})
@@ -264,7 +264,7 @@ async def test_a_comment_sets_the_callers_comment_on_every_id(
 
 
 async def test_a_comment_replaces_the_callers_own_and_leaves_the_others(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "comment": "first look"})
@@ -277,7 +277,9 @@ async def test_a_comment_replaces_the_callers_own_and_leaves_the_others(
     }
 
 
-async def test_a_null_comment_clears_the_callers_own(storage: Storage, auth: AuthKit) -> None:
+async def test_a_null_comment_clears_the_callers_own(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1", "c-2"], "comment": "first look"})
         env.as_user(BOB, "oid-b")
@@ -288,7 +290,7 @@ async def test_a_null_comment_clears_the_callers_own(storage: Storage, auth: Aut
     assert body["version"] == 3
 
 
-async def test_leaving_the_comment_out_keeps_it(storage: Storage, auth: AuthKit) -> None:
+async def test_leaving_the_comment_out_keeps_it(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "comment": "first look"})
         body = (await env.patch({"ids": ["c-1"], "label": "benign"})).json()
@@ -296,7 +298,7 @@ async def test_leaving_the_comment_out_keeps_it(storage: Storage, auth: AuthKit)
 
 
 async def test_setting_the_same_comment_or_clearing_none_changes_nothing(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "comment": "first look"})
@@ -310,7 +312,7 @@ async def test_setting_the_same_comment_or_clearing_none_changes_nothing(
 
 
 async def test_the_labels_file_decides_the_keys(
-    storage: Storage, auth: AuthKit, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+    storage: PostgresStorage, auth: AuthKit, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     labels = tmp_path / "labels.yaml"
     labels.write_text("- key: tp\n  name: True positive\n  colour: red\n")
@@ -323,7 +325,7 @@ async def test_the_labels_file_decides_the_keys(
 
 
 async def test_the_feed_gives_each_id_changed_after_since_as_it_now_is(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.label(["a", "b"], "malicious")
@@ -345,7 +347,7 @@ async def test_the_feed_gives_each_id_changed_after_since_as_it_now_is(
 
 @pytest.mark.parametrize("params", [{}, {"since": -1}, {"since": "latest"}])
 async def test_a_feed_request_without_a_version_to_start_after_is_a_422(
-    storage: Storage, auth: AuthKit, params: dict[str, Any]
+    storage: PostgresStorage, auth: AuthKit, params: dict[str, Any]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.client.get("/api/annotations/changes", params=params)
@@ -353,7 +355,7 @@ async def test_a_feed_request_without_a_version_to_start_after_is_a_422(
     assert list(response.json()["errors"]) == ["since"]
 
 
-async def test_the_feed_pages_by_whole_changes(storage: Storage, auth: AuthKit) -> None:
+async def test_the_feed_pages_by_whole_changes(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         for n in range(3):
             await env.label([f"v{n}-{i:03}" for i in range(600)], "benign")
@@ -364,7 +366,7 @@ async def test_the_feed_pages_by_whole_changes(storage: Storage, auth: AuthKit) 
 
 
 async def test_concurrent_changes_take_gapless_versions_in_commit_order(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         bodies = await asyncio.gather(
@@ -387,7 +389,7 @@ async def test_concurrent_changes_take_gapless_versions_in_commit_order(
 
 
 async def test_the_history_gives_an_id_s_label_changes_newest_first(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.label(["c-1"], "malicious")
@@ -406,7 +408,7 @@ async def test_the_history_gives_an_id_s_label_changes_newest_first(
 
 
 async def test_the_history_gives_each_author_s_comment_with_the_label_changes_newest_first(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["c-1"], "comment": "first look"})
@@ -426,7 +428,7 @@ async def test_the_history_gives_each_author_s_comment_with_the_label_changes_ne
     datetime.fromisoformat(entries[0]["at"])
 
 
-async def test_an_id_never_changed_has_no_history(storage: Storage, auth: AuthKit) -> None:
+async def test_an_id_never_changed_has_no_history(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         await env.label(["c-1"], "benign")
         entries = await env.history("c-2")
@@ -434,7 +436,7 @@ async def test_an_id_never_changed_has_no_history(storage: Storage, auth: AuthKi
 
 
 async def test_an_id_with_special_characters_round_trips_through_the_query_string(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     id = "a&id=b #1 %20+/?é"
     async with open_env(storage, auth) as env:
@@ -445,7 +447,7 @@ async def test_an_id_with_special_characters_round_trips_through_the_query_strin
 
 @pytest.mark.parametrize("params", [{}, {"id": ""}, {"id": "x" * 513}])
 async def test_a_history_request_without_a_valid_id_is_a_422(
-    storage: Storage, auth: AuthKit, params: dict[str, Any]
+    storage: PostgresStorage, auth: AuthKit, params: dict[str, Any]
 ) -> None:
     async with open_env(storage, auth) as env:
         response = await env.client.get("/api/annotations/history", params=params)
@@ -453,7 +455,9 @@ async def test_a_history_request_without_a_valid_id_is_a_422(
     assert list(response.json()["errors"]) == ["id"]
 
 
-async def test_annotations_need_a_signed_in_analyst(storage: Storage, auth: AuthKit) -> None:
+async def test_annotations_need_a_signed_in_analyst(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
     async with open_env(storage, auth) as env:
         env.client.headers.pop("Authorization")
         patched = await env.patch({"ids": ["a"], "label": "benign"})
@@ -463,7 +467,7 @@ async def test_annotations_need_a_signed_in_analyst(storage: Storage, auth: Auth
 
 
 async def test_suggestions_are_the_caller_s_recent_tags_then_the_most_used(
-    storage: Storage, auth: AuthKit
+    storage: PostgresStorage, auth: AuthKit
 ) -> None:
     async with open_env(storage, auth) as env:
         env.as_user(BOB, "oid-b")
@@ -476,14 +480,14 @@ async def test_suggestions_are_the_caller_s_recent_tags_then_the_most_used(
     assert response.json() == {"recent": ["Bad"], "mostUsed": ["beacon", "botnet"]}
 
 
-async def test_without_a_prefix_every_tag_matches(storage: Storage, auth: AuthKit) -> None:
+async def test_without_a_prefix_every_tag_matches(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         await env.patch({"ids": ["a"], "addTags": ["c2", "beacon"]})
         response = await env.client.get("/api/tags/suggestions")
     assert response.json() == {"recent": ["beacon", "c2"], "mostUsed": []}
 
 
-async def test_suggestions_need_a_signed_in_caller(storage: Storage, auth: AuthKit) -> None:
+async def test_suggestions_need_a_signed_in_caller(storage: PostgresStorage, auth: AuthKit) -> None:
     async with open_env(storage, auth) as env:
         del env.client.headers["Authorization"]
         response = await env.client.get("/api/tags/suggestions", params={"prefix": "b"})

@@ -17,7 +17,7 @@ from tim_api.column_views.models import (
 )
 from tim_api.deps import get_column_view_store
 from tim_api.errors import problem_exception
-from tim_api.storage import ColumnViewStore
+from tim_api.storage import PostgresColumnViewStore
 
 router = APIRouter(
     prefix="/api/columnViews",
@@ -25,7 +25,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_principal)],
 )
 
-Store = Annotated[ColumnViewStore, Depends(get_column_view_store)]
+Store = Annotated[PostgresColumnViewStore, Depends(get_column_view_store)]
 Caller = Annotated[Principal, Depends(get_current_principal)]
 ViewId = Annotated[UUID, Path(alias="viewId")]
 
@@ -36,14 +36,16 @@ def _now() -> datetime:
     return now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
-async def _visible(store: ColumnViewStore, view_id: UUID, principal: Principal) -> ColumnView:
+async def _visible(
+    store: PostgresColumnViewStore, view_id: UUID, principal: Principal
+) -> ColumnView:
     view = await store.get(view_id, principal.name)
     if view is None or (view.owner != principal.name and view.visibility == "private"):
         raise problem_exception(404, "Column view not found")
     return view
 
 
-async def _owned(store: ColumnViewStore, view_id: UUID, principal: Principal) -> ColumnView:
+async def _owned(store: PostgresColumnViewStore, view_id: UUID, principal: Principal) -> ColumnView:
     view = await _visible(store, view_id, principal)
     if view.owner != principal.name:
         raise problem_exception(403, "Only the owner can change a column view")

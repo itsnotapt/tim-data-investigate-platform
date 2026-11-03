@@ -32,7 +32,7 @@ from tim_api.config import Settings
 from tim_api.runs.connections import RunConnections
 from tim_api.runs.models import Run, RunAction, RunRow, RunStatus
 from tim_api.runs.results import ResultBuilder, ResultLimitError, sanitise_nul, to_json_value
-from tim_api.storage import RunStore
+from tim_api.storage import PostgresRunStore
 
 logger = logging.getLogger("tim_api.runs")
 
@@ -364,7 +364,7 @@ class Runner:
 
     def __init__(
         self,
-        store: RunStore,
+        store: PostgresRunStore,
         settings: Settings,
         *,
         slots: asyncio.Semaphore,

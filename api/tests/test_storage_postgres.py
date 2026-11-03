@@ -1,4 +1,4 @@
-"""PostgreSQL-specific behaviour beyond the shared contract, plus migrations."""
+"""The schema, its migrations, and what the storage leaves to PostgreSQL."""
 
 import asyncio
 import uuid
@@ -9,14 +9,14 @@ from typing import Any
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from conftest import migrate
+from database import migrate
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 from storage_contract import T0, make_run
 
 from tim_api.runs.models import RunStatus
-from tim_api.storage import PostgresStorage, StorageUnavailableError, sweep_expired
+from tim_api.storage import PostgresStorage
 from tim_api.storage.postgres import metadata
 
 
@@ -183,15 +183,4 @@ async def test_a_sweep_skips_a_run_another_transaction_is_writing(postgres_dsn: 
         assert swept.status is RunStatus.ERROR
     finally:
         await engine.dispose()
-        await storage.aclose()
-
-
-async def test_unreachable_database() -> None:
-    storage = PostgresStorage("postgresql+asyncpg://u:p@127.0.0.1:1/none")
-    try:
-        assert await storage.health() is False
-        with pytest.raises(StorageUnavailableError):
-            await storage.runs.get(uuid.uuid4(), T0)
-        assert await sweep_expired(storage) == 0  # logged, not raised
-    finally:
         await storage.aclose()

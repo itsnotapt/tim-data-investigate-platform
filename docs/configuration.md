@@ -28,7 +28,7 @@ How values are read:
 
 | Variable          | Default      | Required | Description                                                                                                |
 | ----------------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
-| `TIM_ENVIRONMENT` | `production` | no       | `development` or `production`. Production refuses `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true`, a `memory://` database URL and a connection with `auth: none`. |
+| `TIM_ENVIRONMENT` | `production` | no       | `development` or `production`. Production refuses `TIM_AUTH_DISABLED=true`, `TIM_DEV_ACTIONS=true` and a connection with `auth: none`. |
 | `TIM_LOG_LEVEL`   | `INFO`       | no       | `CRITICAL`, `ERROR`, `WARNING`, `INFO` or `DEBUG`. Applies to the `tim_api` logger.                        |
 
 ### Authentication
@@ -148,7 +148,7 @@ See [ADR-0004](adr/0004-postgresql-persistence.md).
 
 | Variable                          | Default | Required | Description                                                                                                            |
 | --------------------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `TIM_DATABASE_URL`                | none    | yes      | `postgresql+asyncpg://user:password@host:5432/db`. `memory://` (data lost on restart) is accepted only in development. |
+| `TIM_DATABASE_URL`                | none    | yes      | `postgresql+asyncpg://user:password@host:5432/db`. Any other scheme is refused. |
 | `TIM_RUN_RETENTION_SWEEP_SECONDS` | `300`   | no       | Interval of the sweep that deletes expired runs. Must be greater than 0.                                |
 
 ### HTTP and run limits
