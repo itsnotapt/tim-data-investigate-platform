@@ -30,7 +30,7 @@ Reference for the TIM API (`api/`). System context: [architecture.md](architectu
 | GET | `/api/healthChecks/readiness` | 204 | 503 | Storage is reachable. Kusto is not checked; no auth. |
 | GET | `/api/me` | 200 | 401 | The caller's name, as the API knows them. |
 | GET | `/api/instance` | 200 | 401 | The instance's actions, connections, labels and limits. |
-| POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected result rows, for a pivot. |
+| POST | `/api/actions/{key}/resolve` | 200 | 400, 401, 404, 422 | Resolve an action's params from selected rows, for a pivot. |
 | POST | `/api/actions/{key}/declareStatement` | 200 or 204 | 401, 404, 422 | The declare statement of an action tab's query parameters. |
 | POST | `/api/runs` | 200 or 202 | 400, 401, 403, 422, 502, 503 | Start a run of an action. |
 | GET | `/api/runs/{runId}` | 200 | 401, 404, 422 | Read a run (any signed-in analyst with the `runId`). |
@@ -135,7 +135,7 @@ Keys marked `?` are left out when they have no value.
 
 ### POST /api/actions/{key}/resolve
 
-The params of a pivot into an action, resolved from result rows the analyst selected ([actions.md](actions.md#params)).
+The params of a pivot into an action, resolved from rows the analyst selected ([actions.md](actions.md#params)).
 
 Body: `{"pivot": {"rows": [{"<column>": <value>}], "cell": {"column": "<column>", "value": <value>}}}`.
 

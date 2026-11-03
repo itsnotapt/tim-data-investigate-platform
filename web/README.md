@@ -273,16 +273,15 @@ One more piece lives beside it.
 
 `useTabsStore` holds the open tabs; see [architecture.md](../docs/architecture.md#state-and-tab-model). Tests use `createTabsStore({persistence, debounceMs})` and call `store.reset()` to empty it.
 
-- State: normalised tabs `{[id]: Tab}` plus `order`. A `Tab` is a `TabContent` (`title`, `toRun`, `latest`, `results`, `grid`, `status`) plus its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`). The store keeps the tree and its persistence; the action tab module (`features/action-tab/model.ts`) is the only writer of a tab's content.
+- State: normalised tabs `{[id]: Tab}` plus `order`. A `Tab` is a `TabContent` (`title`, `toRun`, `latest`, `results`, `grid`, `status`) plus its place in the tree (`id`, `parentId`, `index`, `visited`). The store keeps the tree and its persistence; the action tab module (`features/action-tab/model.ts`) is the only writer of a tab's content.
 - `selectors.ts`: `children` is derived, never stored. The selectors are `selectRoots`, `selectChildrenOf`, `selectAncestors` and `selectSubtreeIds`.
 - `load()`: reads IndexedDB sorted by `index`, renumbers, and saves again. A tab whose parent is missing becomes a root.
-- Writes: create, update, trigger and visited changes are debounced per tab (300 ms) and serialised with deletes. `flush()` forces them.
+- Writes: create, update and visited changes are debounced per tab (300 ms) and serialised with deletes. `flush()` forces them.
 - `createTab({id?, parentId, content})`: adds a tab under `parentId` with the given content, and returns its id.
-- `apply(id, transition)`: changes a tab's content with a transition of the action tab module. The tab's `id`, `parentId`, `index`, `visited` and `rowDataTrigger` stay.
+- `apply(id, transition)`: changes a tab's content with a transition of the action tab module. The tab's `id`, `parentId`, `index` and `visited` stay.
 - `markVisited(id)` and `markUnvisited(id)`: set the tab's `visited`.
 - `removeTab(id)`: removes the whole subtree and the `row_results` of every removed tab.
 - Errors: reduced to `{message, code?}` on write and on load.
-- `triggerRowData(id)`: sets a strictly increasing `rowDataTrigger`. Grids subscribe to it.
 - `lastCreated`: records the most recently created tab.
 
 ## Query tree and New menu
@@ -339,7 +338,6 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - `ResultsGrid` calls `initAgGridFromConfig()` when it is imported, so the grid works in tests without extra setup.
   - `src/app/main.tsx` must not import AG Grid.
 - `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows.
-- `useRowResults(tabId, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
 - Columns: the union of all row keys.
 - Row id: the row's row number, `row`.
 - Extension points:
@@ -400,10 +398,14 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - `cancelActionTab` cancels a run, with `cancelRun` from `lib/api/runs.ts`.
   - `resumeActionRuns` picks runs up again after a reload.
   - `openRunTab` opens a root action tab holding a given run, with its `status.linkedRow`, and follows the run; see Share links.
-- `runRows.ts`: the rows loading in this session, page by page, so the grid fills before the rest arrive. They are written to `row_results` once all have loaded.
-- `ActionResultsGrid.tsx`: the grid, keyed by `row`. New pages go in by AG Grid transaction. Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
+- `results.ts`: a tab's Results: the rows of the run loading as its pages arrive, else those of the tab's last succeeded run, read back from `row_results`. It gives each row its `id` under the tab's Id column and its annotations.
+  - `runLoading`, `pageLoaded`, `runLoaded` and `loadAbandoned` are called by `actionRuns.ts`. A failed or cancelled rerun drops its rows, and the last succeeded run's are read back.
+  - `useResults(tabId, {idColumn, stored})` holds the Results while the component is mounted and returns them. They are let go when no grid holds them and no run of the tab is loading, and when the tab is closed.
+- `ActionResultsGrid.tsx`: the grid, keyed by `row`, for loading and stored Results alike. It applies the changes `results.ts` tells.
+  - New rows go in by AG Grid transaction.
+  - Replaced rows and updated annotations are set, with a flash for changes from the feed.
+  - Its context menu has Copy link as the last group before the grid's Copy, Copy with Headers and Export, after the sinks and Copy column settings.
   - Given `status.linkedRow`, it focuses that row and opens Row detail on it once the row has arrived, then calls `onLinkedRowShown`.
-- `StoredActionResultsGrid` (same file) reads `row_results` instead, after a reload.
 - `editorSchema.ts`: `useEditorSchema` loads the schema of the Query editor's `schemaFrom` params, with `getEditorSchema` from `lib/api/connections.ts`.
   - It loads once the editor has mounted, and each param has a value that has stayed unchanged for 400 ms.
   - Schemas are cached per connection and scope. A failure is not cached.

@@ -5,7 +5,7 @@ import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
 import { useAnalyst } from '../analyst';
 import type { GetExtraContextMenuItems, GridRowWithId } from '../grid';
-import { targetIds, type LabelledRow, type RowsById } from '../labels';
+import { targetIds, type LabelledRow } from '../labels';
 import { whyNoSink, type Sinks } from '../sinks';
 import { AnnotateDialog } from './AnnotateDialog';
 import { reachOf, savedMessage, type AnnotateMode, type Reach } from './annotateLogic';
@@ -15,8 +15,8 @@ export interface AnnotatingOptions {
   labels: readonly InstanceLabel[];
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
-  /** The grid's rows of each `id`. */
-  rowsById: RowsById;
+  /** The grid row ids of each `id`. */
+  rowsById: ReadonlyMap<string, readonly string[]>;
   /** The sinks Annotate… offers to run on the rows after tagging. */
   sinks?: Sinks;
 }

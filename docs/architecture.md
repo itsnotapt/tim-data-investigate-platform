@@ -3,7 +3,7 @@
 TIM is an investigation platform. Analysts:
 
 - run actions against an instance's connections (Kusto, Snowflake);
-- pivot from result rows into other actions;
+- pivot from rows into other actions;
 - annotate rows by `id`.
 
 An investigation is a tree of tabs. Each pivot creates a child tab.
@@ -50,7 +50,7 @@ Related docs:
 
 Key points:
 
-- Investigation state (tabs, cached result rows, the default views per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
+- Investigation state (tabs, the rows of each tab's Results, the default views per analyst) lives only in the browser. The API never receives it. Column views are saved to the API, so analysts can share them ([Column views](#column-views)).
 - Actions run on the API. It exchanges the caller's token for each connection's token (OBO), runs the action's hook and stores the result as a run. The SPA polls the run and loads its rows.
 - Labels, tags and comments are stored in PostgreSQL by `id`, and reach every open browser through a change feed ([Annotations and the change feed](#annotations-and-the-change-feed)).
 
@@ -114,12 +114,19 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 ### State and tab model
 
 - **`tabStore`** (zustand) holds the tree of tabs and its persistence: `tabs` by id, and an ordered id list where parents precede children.
-  - It sets a tab's place in the tree (`id`, `parentId`, `index`), whether it was `visited` and its `rowDataTrigger`. It changes a tab's content only through `apply`; on load it only makes a stored error serialisable.
-  - `apply(id, transition)` changes a tab's content with a transition of the action tab module, and keeps the tab's place, visited mark and row trigger.
+  - It sets a tab's place in the tree (`id`, `parentId`, `index`), and whether it was `visited`. It changes a tab's content only through `apply`; on load it only makes a stored error serialisable.
+  - `apply(id, transition)` changes a tab's content with a transition of the action tab module, and keeps the tab's place and visited mark.
   - `children` is derived by selectors, never stored.
   - Changes are written to IndexedDB through a debounced, serialised queue.
   - Removing a tab removes its whole subtree, and the row results of every removed tab.
   - Visited tabs stay mounted up to a cap of 100. The least recently visited are evicted.
+  - A tab's Results ([GLOSSARY.md](../GLOSSARY.md)) are in memory only while needed.
+    - They are held while a grid holds them, which is while the tab is mounted.
+    - They are held while a run of the tab is loading.
+    - They are let go otherwise, and when the tab is closed.
+    - Only the rows of the tab's last succeeded run are stored, in IndexedDB `row_results`.
+    - A mounted tab reads them back when it has no other Results to show.
+    - The cap on mounted tabs bounds how many tabs' Results are held.
   - A hidden tab keeps its grid's scroll position, focused cell, selection and column state.
     - `TabHost` hides an inactive tab with `display: none`. It does not unmount it.
     - It renders the mounted tabs in a fixed order, by id, not in visit order.
@@ -147,7 +154,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 - **Questions:** `isEdited`, `idColumnOf`, `linkIdColumnOf`, `titleOf` and `stillNeeded`.
 - `actionRuns.ts` runs the run's lifecycle and applies the module's transitions through the tabs store.
 
-A stored tab is its content plus its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`). Its content is:
+A stored tab is its content plus its place in the tree (`id`, `parentId`, `index`, `visited`). Its content is:
 
 | Field     | Holds                                                                                         |
 | --------- | --------------------------------------------------------------------------------------------- |
@@ -191,9 +198,9 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 4. **Store.** For a succeeded run, the rows are loaded page by page from `GET /api/runs/{runId}/rows`.
    - Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load.
    - Until they all have, the tab shows "Results · 20000 of 85000".
-   - The grid gives each row its `id` from the results' Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
+   - Results (`features/action-tab/results.ts`) give each row its `id` from the tab's Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
    - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `results` (`runId`, `columns`, `startedAt` and `rowCount`) is written with them.
-   - A failed or abandoned load shows none of its rows.
+   - A failed or abandoned load shows none of its rows. When a rerun fails or is cancelled while its rows load, its rows go and the rows of the tab's last succeeded run are shown again, read back from `row_results`.
    - A tab whose rows are stored needs no API call. So it still shows them after the run has expired on the server.
 5. **Resume.** After a reload, bootstrap calls `resumeActionRuns` once the tabs are loaded.
    - It follows again a run still `running`, by its `runId`.
@@ -230,8 +237,8 @@ Database `tim` (version 6):
 
 | Store             | Key                                     | Value                                                                                                                                                                                              |
 | ----------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tabs`            | `id`                                    | Tab: its content (`title`, `toRun`, `latest`, `results`, `grid`, `status`) and its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`)                                      |
-| `row_results`     | tab id (out-of-line)                    | Array of raw result rows; for an action tab, `{row, data}` rows of its run                                                                                                                         |
+| `tabs`            | `id`                                    | Tab: its content (`title`, `toRun`, `latest`, `results`, `grid`, `status`) and its place in the tree (`id`, `parentId`, `index`, `visited`)                                                        |
+| `row_results`     | tab id (out-of-line)                    | The rows of the tab's last succeeded run, as `{row, data}` rows                                                                                                                                    |
 | `applied_views`   | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the default view an analyst chose. `scope` is `preset:<presetId>` or `action:<key>`                                                                              |
 | `annotations`     | `id`                                    | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line)                  | The change feed version read up to; `0` before the first read                                                                                                                                      |
@@ -606,7 +613,7 @@ A row's `id` is computed in the browser, from one column of its results: the **I
 - **The `id`.** `rowId` (`web/src/features/labels/labelRows.ts`) takes the value of the Id column: a string as it is, anything else as its JSON. A missing or `null` value, `""`, and a value over `MAX_ID_LENGTH` (512) characters give no `id`.
 - **Where it starts.** `idColumnOf` of the action tab module (`web/src/features/action-tab/model.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
 - **The tab's Id column.** `idColumn` of the module gives the tab's `grid.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
-- **In the grid.** `ActionResultsGrid.tsx` gives each row its `id` with `withIds`, and its annotations from the annotation store. A switch recomputes both in place and keeps the selection, filters, sort and scroll.
+- **In Results.** `results.ts` gives each row its `id` with `withIds`, and its annotations from the annotation store, not the grid. A switch recomputes both in place, and the grid applies the change and keeps the selection, filters, sort and scroll.
 - **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
   - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter). Clearing it goes back to the action's Id column.

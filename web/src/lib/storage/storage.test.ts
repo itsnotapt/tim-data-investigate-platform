@@ -10,7 +10,6 @@ function makeTab(id: string, parentId: string | null = null): Tab {
     parentId,
     index: 0,
     visited: false,
-    rowDataTrigger: null,
     title: `t-${id}`,
     toRun: { action: 'acme.sign_ins', params: {} },
     latest: { run: null, params: null, title: null },

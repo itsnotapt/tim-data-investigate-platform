@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppBarSlot, AppBarSlotProvider } from '../../components/AppBarSlot';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CatalogueAction, Instance, Run } from '../../lib/api';
+import { rowResultsDao } from '../../lib/storage';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
@@ -15,7 +16,7 @@ import { content, results, type ContentOverrides } from '../../test/tabsTestUtil
 import { useTabsStore } from '../tabs/tabStore';
 import { ActionTab } from './ActionTab';
 import { paramEdited, runStarted, runStarting } from './model';
-import { runRowsStore } from './runRows';
+import { clearResults, pageLoaded, runLoaded, runLoading } from './results';
 
 // Monaco cannot run in jsdom.
 vi.mock('../../components/CodeEditor', async () =>
@@ -132,7 +133,8 @@ function setup(
     params = { users: ['alice'] },
     run = true,
     shown = true,
-  }: { params?: object; run?: boolean; shown?: boolean } = {},
+    stored = true,
+  }: { params?: object; run?: boolean; shown?: boolean; stored?: boolean } = {},
 ) {
   const tabId = useTabsStore.getState().createTab({
     parentId: null,
@@ -141,6 +143,12 @@ function setup(
       toRun: { action: key, params: params as Record<string, unknown>, ...over.toRun },
     }),
   });
+  // The rows of the tab's last good run, as `row_results` has them; without `stored`, it has none.
+  const rowCount = stored ? (over.results?.rowCount ?? 0) : 0;
+  void rowResultsDao.put(
+    tabId,
+    Array.from({ length: rowCount }, (_, row) => ({ row, data: { User: `user-${row}` } })),
+  );
   // Without `run`, Run and Cancel go to the server (msw).
   const onRun = run ? vi.fn() : undefined;
   const onCancel = run ? vi.fn() : undefined;
@@ -194,7 +202,7 @@ const selectedTab = () => screen.getByRole('tab', { selected: true });
 beforeEach(() => {
   useTabsStore.reset();
   useInstanceStore.setState({ instance });
-  runRowsStore.getState().clear();
+  clearResults();
 });
 
 describe('ActionTab', () => {
@@ -302,6 +310,13 @@ describe('ActionTab', () => {
     expect(screen.getByRole('tab', { name: 'Results · 0' })).toBeInTheDocument();
     expect(screen.getByText('The run succeeded with no rows.')).toBeInTheDocument();
     expect(screen.queryByTestId('results-grid')).not.toBeInTheDocument();
+  });
+
+  it('counts the rows its last good run returned, though the browser no longer has them', async () => {
+    setup(withResults, undefined, { stored: false });
+    expect(await screen.findByTestId('results-grid')).toBeInTheDocument();
+    expect(selectedTab()).toHaveAccessibleName('Results · 2');
+    expect(screen.queryByText('The run succeeded with no rows.')).not.toBeInTheDocument();
   });
 
   it('shows the Results tab after a run that succeeded', () => {
@@ -459,10 +474,12 @@ describe('ActionTab', () => {
       status: { executing: true },
     });
     act(() => {
-      runRowsStore
-        .getState()
-        .start(tabId, 'r1', [{ name: 'User', type: 'string', declared: false }], 3);
-      runRowsStore.getState().append(tabId, 'r1', [
+      runLoading(
+        tabId,
+        { runId: 'r1', columns: [{ name: 'User', type: 'string', declared: false }], rowCount: 3 },
+        null,
+      );
+      pageLoaded(tabId, 'r1', [
         { row: 0, data: { User: 'alice' } },
         { row: 1, data: { User: 'bob' } },
       ]);
@@ -470,8 +487,8 @@ describe('ActionTab', () => {
     expect(screen.getByRole('tab', { name: 'Results · 2 of 3' })).toBeInTheDocument();
     expect(await screen.findByText('bob')).toBeInTheDocument();
     act(() => {
-      runRowsStore.getState().append(tabId, 'r1', [{ row: 2, data: { User: 'carol' } }]);
-      runRowsStore.getState().finish(tabId, 'r1');
+      pageLoaded(tabId, 'r1', [{ row: 2, data: { User: 'carol' } }]);
+      runLoaded(tabId, 'r1');
     });
     expect(screen.getByRole('tab', { name: 'Results · 3' })).toBeInTheDocument();
     expect(await screen.findByText('carol')).toBeInTheDocument();

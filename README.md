@@ -1,6 +1,6 @@
 # TIM
 
-TIM is an investigation platform. Analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id` so findings are shared with the team.
+TIM is an investigation platform. Analysts run actions against an instance's connections (Kusto, Snowflake), pivot from rows into other actions, and annotate rows by `id` so findings are shared with the team.
 
 - **`web/`**: React single-page app (TypeScript, Vite, AG Grid Enterprise, Monaco), served by nginx.
 - **`api/`**: FastAPI service (Python 3.12) that runs actions against connections on behalf of the signed-in user, stores presets, runs and annotations in PostgreSQL.

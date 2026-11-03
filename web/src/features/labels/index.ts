@@ -6,7 +6,6 @@ export {
   labelClassRules,
   labelColumnDef,
   rowLabelKey,
-  updateRowAnnotations,
   withIds,
   LABEL_COLUMN_ID,
 } from './labelRows';

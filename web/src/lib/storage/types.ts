@@ -123,8 +123,6 @@ export interface Tab extends TabContent {
   /** Load-order counter; parents sort before children. */
   index: number;
   visited: boolean;
-  /** Bumped when the tab's stored rows change; grids reload them from IndexedDB. */
-  rowDataTrigger: number | null;
 }
 
 /** One stored row: a row of the tab's run, `{row, id, data}`. */

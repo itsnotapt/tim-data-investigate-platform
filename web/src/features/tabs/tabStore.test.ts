@@ -59,7 +59,7 @@ describe('create', () => {
     expect(selectTab(st, b)?.parentId).toBe(a);
     expect(selectSubtreeIds(st, a)).toEqual([a, b]);
     expect(st.lastCreated?.id).toBe(c);
-    expect(st.tabs[a]).toMatchObject({ title: 'a', visited: false, rowDataTrigger: null });
+    expect(st.tabs[a]).toMatchObject({ title: 'a', visited: false });
   });
 
   it('keeps the id it is given', () => {
@@ -77,17 +77,16 @@ describe('create', () => {
 });
 
 describe('apply', () => {
-  it("changes a tab's content and keeps its place in the tree, visited mark and row trigger", () => {
+  it("changes a tab's content and keeps its place in the tree and visited mark", () => {
     const a = create(null);
     const b = create(a, 'b');
     store.getState().markVisited(b);
-    store.getState().triggerRowData(b);
     const before = store.getState().tabs[b]!;
 
     store.getState().apply(b, (t) => ({
       ...retitled('changed')(t),
       // A transition cannot move or re-id the tab.
-      ...({ id: 'x', parentId: null, index: 99, visited: false, rowDataTrigger: 1 } as object),
+      ...({ id: 'x', parentId: null, index: 99, visited: false } as object),
     }));
 
     expect(store.getState().tabs[b]).toEqual({ ...before, title: 'changed' });
@@ -151,7 +150,6 @@ describe('persistence', () => {
       parentId,
       index,
       visited: false,
-      rowDataTrigger: null,
     });
     await tabsDao.put(stored('late', 'early', 9));
     await tabsDao.put(stored('early', null, 1));
@@ -236,19 +234,7 @@ describe('errors', () => {
   });
 });
 
-describe('trigger, visited, reset', () => {
-  it('triggerRowData strictly increases and persists', async () => {
-    const a = create(null);
-    const seen: Array<number | null> = [];
-    const unsub = store.subscribe((s) => seen.push(s.tabs[a]?.rowDataTrigger ?? null));
-    store.getState().triggerRowData(a);
-    store.getState().triggerRowData(a);
-    unsub();
-    expect(seen[1]!).toBeGreaterThan(seen[0]!);
-    await store.getState().flush();
-    expect((await tabsDao.get(a))?.rowDataTrigger).toBe(seen[1]);
-  });
-
+describe('visited, reset', () => {
   it('marks visited and unvisited, skipping no-op writes', () => {
     const a = create(null);
     store.getState().markVisited(a);

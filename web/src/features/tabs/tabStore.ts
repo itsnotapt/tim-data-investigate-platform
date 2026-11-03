@@ -23,10 +23,8 @@ interface TabsState {
   load(): Promise<void>;
   /** Adds a tab under `parentId` and returns its id. */
   createTab(args: CreateTabArgs): string;
-  /** Changes the tab's content; its place in the tree, visited mark and row trigger stay. */
+  /** Changes the tab's content; its place in the tree and visited mark stay. */
   apply(id: string, transition: Transition): void;
-  /** Bump the tab's `rowDataTrigger`; grids subscribe to it and reload rows from IndexedDB. */
-  triggerRowData(id: string): void;
   markVisited(id: string): void;
   markUnvisited(id: string): void;
   /** Removes the tab, its whole subtree and all their row results. Returns the removed ids. */
@@ -60,14 +58,13 @@ function sanitize(tab: Tab): Tab {
 }
 
 function treeFields(tab: Tab): TabTreeFields {
-  const { id, parentId, index, visited, rowDataTrigger } = tab;
-  return { id, parentId, index, visited, rowDataTrigger };
+  const { id, parentId, index, visited } = tab;
+  return { id, parentId, index, visited };
 }
 
 export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
   const persistence = options.persistence ?? indexedDbTabPersistence;
   let seq = 0;
-  let lastTrigger = 0;
 
   const queue = new PersistQueue(
     persistence,
@@ -123,7 +120,6 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
           parentId,
           index: state.nextIndex,
           visited: false,
-          rowDataTrigger: null,
         };
         set({
           tabs: { ...state.tabs, [id]: tab },
@@ -137,14 +133,6 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
 
       apply(id, transition) {
         patch(id, (tab) => ({ ...transition(tab), ...treeFields(tab) }));
-      },
-
-      triggerRowData(id) {
-        patch(id, (tab) => {
-          // Strictly increasing even within the same millisecond.
-          lastTrigger = Math.max(Date.now(), lastTrigger + 1, (tab.rowDataTrigger ?? 0) + 1);
-          return { ...tab, rowDataTrigger: lastTrigger };
-        });
       },
 
       markVisited(id) {

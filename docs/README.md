@@ -1,6 +1,6 @@
 # TIM documentation
 
-TIM is an investigation platform: analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id`. It consists of a React single-page app (`web/`) and a FastAPI service (`api/`) backed by PostgreSQL.
+TIM is an investigation platform: analysts run actions against an instance's connections (Kusto, Snowflake), pivot from rows into other actions, and annotate rows by `id`. It consists of a React single-page app (`web/`) and a FastAPI service (`api/`) backed by PostgreSQL.
 
 **Contributors and agents: read [CODING_STANDARDS.md](../CODING_STANDARDS.md) before writing or reviewing code, and [RULES.md](RULES.md) for git and PR flow.**
 

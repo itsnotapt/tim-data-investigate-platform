@@ -17,5 +17,5 @@ export interface CreateTabArgs {
   content: TabContent;
 }
 
-/** The fields the store owns: where the tab sits in the tree, its visited mark and row trigger. */
-export type TabTreeFields = Pick<Tab, 'id' | 'parentId' | 'index' | 'visited' | 'rowDataTrigger'>;
+/** The fields the store owns: where the tab sits in the tree, and its visited mark. */
+export type TabTreeFields = Pick<Tab, 'id' | 'parentId' | 'index' | 'visited'>;
