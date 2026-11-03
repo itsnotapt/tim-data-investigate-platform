@@ -12,15 +12,14 @@ import { BUILT_IN_NAME } from './useActionColumnView';
  */
 export function useTabColumnView(uuid: string) {
   const tab = useTabsStore((s) => s.tabs[uuid]);
-  const params = tab?.componentName === 'ActionResult' ? tab.params : undefined;
-  const action = params?.action;
-  const presetId = params?.presetId;
+  const action = tab?.toRun.action;
+  const presetId = tab?.toRun.presetId;
   const scope = useMemo<ColumnViewScope | null>(
     () => (action === undefined ? null : scopeOf({ action, presetId })),
     [action, presetId],
   );
-  const columnView = tab?.state.columnView ?? null;
-  const gridState = tab?.state.gridState ?? null;
+  const columnView = tab?.view.columnView ?? null;
+  const gridState = tab?.view.gridState ?? null;
   const defaultView = useDefaultViewsStore((s) =>
     scope ? s.defaults[scopeKey(scope)] : undefined,
   );

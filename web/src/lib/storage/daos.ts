@@ -1,40 +1,40 @@
 import type { Annotations } from '../api/annotations';
 import { openTimDb, STORE } from './db';
-import type { DefaultView, DisplayComponent, RowResult } from './types';
+import type { DefaultView, RowResult, Tab } from './types';
 
-export const displayComponentsDao = {
-  async getAll(): Promise<DisplayComponent[]> {
-    return (await openTimDb()).getAll(STORE.displayComponents);
+export const tabsDao = {
+  async getAll(): Promise<Tab[]> {
+    return (await openTimDb()).getAll(STORE.tabs);
   },
-  async get(componentUuid: string): Promise<DisplayComponent | undefined> {
-    return (await openTimDb()).get(STORE.displayComponents, componentUuid);
+  async get(id: string): Promise<Tab | undefined> {
+    return (await openTimDb()).get(STORE.tabs, id);
   },
-  async put(component: DisplayComponent): Promise<void> {
+  async put(tab: Tab): Promise<void> {
     // `children` is in-memory only; never persist it.
-    const record: Record<string, unknown> = { ...component };
+    const record: Record<string, unknown> = { ...tab };
     delete record.children;
-    await (await openTimDb()).put(STORE.displayComponents, record as unknown as DisplayComponent);
+    await (await openTimDb()).put(STORE.tabs, record as unknown as Tab);
   },
-  async deleteMany(componentUuids: readonly string[]): Promise<void> {
-    const tx = (await openTimDb()).transaction(STORE.displayComponents, 'readwrite');
-    await Promise.all([...componentUuids.map((id) => tx.store.delete(id)), tx.done]);
+  async deleteMany(ids: readonly string[]): Promise<void> {
+    const tx = (await openTimDb()).transaction(STORE.tabs, 'readwrite');
+    await Promise.all([...ids.map((id) => tx.store.delete(id)), tx.done]);
   },
 };
 
 export const rowResultsDao = {
   /** Returns `[]` when nothing is stored. */
-  async get(componentUuid: string): Promise<RowResult[]> {
-    return (await (await openTimDb()).get(STORE.rowResults, componentUuid)) ?? [];
+  async get(tabId: string): Promise<RowResult[]> {
+    return (await (await openTimDb()).get(STORE.rowResults, tabId)) ?? [];
   },
-  async put(componentUuid: string, rows: RowResult[]): Promise<void> {
-    await (await openTimDb()).put(STORE.rowResults, rows, componentUuid);
+  async put(tabId: string, rows: RowResult[]): Promise<void> {
+    await (await openTimDb()).put(STORE.rowResults, rows, tabId);
   },
-  async delete(componentUuid: string): Promise<void> {
-    await (await openTimDb()).delete(STORE.rowResults, componentUuid);
+  async delete(tabId: string): Promise<void> {
+    await (await openTimDb()).delete(STORE.rowResults, tabId);
   },
-  async deleteMany(componentUuids: readonly string[]): Promise<void> {
+  async deleteMany(tabIds: readonly string[]): Promise<void> {
     const tx = (await openTimDb()).transaction(STORE.rowResults, 'readwrite');
-    await Promise.all([...componentUuids.map((id) => tx.store.delete(id)), tx.done]);
+    await Promise.all([...tabIds.map((id) => tx.store.delete(id)), tx.done]);
   },
 };
 

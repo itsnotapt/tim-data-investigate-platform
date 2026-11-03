@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   selectAncestors,
-  selectSubtreeUuids,
+  selectSubtreeIds,
   useTabsStore,
   type TabsData,
   type TabsStore,
@@ -24,10 +24,10 @@ export function toggleChecked(
   const next = new Set(checked);
   if (!(uuid in data.tabs)) return next;
   if (value) {
-    for (const id of selectSubtreeUuids(data, uuid)) next.add(id);
+    for (const id of selectSubtreeIds(data, uuid)) next.add(id);
   } else {
-    for (const id of selectSubtreeUuids(data, uuid)) next.delete(id);
-    for (const a of selectAncestors(data, uuid)) next.delete(a.componentUuid);
+    for (const id of selectSubtreeIds(data, uuid)) next.delete(id);
+    for (const a of selectAncestors(data, uuid)) next.delete(a.id);
   }
   return next;
 }

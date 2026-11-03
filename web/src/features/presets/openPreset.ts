@@ -1,7 +1,7 @@
 import type { CatalogueAction, InstanceConnection, Preset } from '../../lib/api';
 import { initialParams, stillMissing } from '../action-tab/paramValues';
 import { pillName, presetQueryParameters } from '../action-tab/queryParameters';
-import type { TitleInput } from '../tabs';
+import type { TitleInput } from '../../lib/storage';
 
 /** The inputs of `preset` that a tab opened from it shows in its title, in order. */
 export const presetTitleInputs = (preset: Pick<Preset, 'inputs'>): TitleInput[] =>

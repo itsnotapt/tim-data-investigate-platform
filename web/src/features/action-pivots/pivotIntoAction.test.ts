@@ -4,7 +4,7 @@ import type { CatalogueAction, InstanceConnection, PivotResolution, Preset } fro
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
-import { newTestStore } from '../../test/tabsTestUtils';
+import { newTestStore, tab } from '../../test/tabsTestUtils';
 import type { NotifyOptions } from '../../components/notifyContext';
 import { pivotIntoAction, pivotIntoPreset } from './pivotIntoAction';
 
@@ -58,12 +58,9 @@ const resolving = (body: PivotResolution) =>
 
 function setup(preset: Preset = FAILURES, action: CatalogueAction = SIGN_INS) {
   const store = newTestStore();
-  const parent = store.getState().createTab({
-    componentName: 'ActionResult',
-    parentUuid: null,
-    title: 'Parent',
-    params: { action: 'parent', params: {} },
-  });
+  const parent = store
+    .getState()
+    .createTab(tab('parent', null, { title: 'Parent', toRun: { action: 'parent' } }));
   const run = vi.fn();
   const notified: NotifyOptions[] = [];
   const goTo = vi.fn();
@@ -145,10 +142,9 @@ describe('pivotIntoAction', () => {
     expect(bodies).toEqual([{ pivot: { rows: [{ User: 'alice', Result: 'Failure' }] } }]);
     const tab = store.getState().tabs[uuid!];
     expect(tab).toMatchObject({
-      componentName: 'ActionResult',
-      parentUuid: parent,
+      parentId: parent,
       title: 'Sign-ins',
-      params: {
+      toRun: {
         action: 'sign-ins',
         params: { connection: 'kusto-dev', users: ['alice'], result: 'Failure', limit: 10 },
       },
@@ -174,7 +170,7 @@ describe('pivotIntoAction', () => {
       { User: 'bob', Result: 'Failure', App: 'Outlook', Host: 'BGIST-L' },
     ]);
 
-    expect(store.getState().tabs[uuid!]?.params.pivotRows).toEqual([
+    expect(store.getState().tabs[uuid!]?.toRun.pivotRows).toEqual([
       { App: 'Teams' },
       { App: 'Outlook', Host: 'BGIST-L' },
     ]);
@@ -188,7 +184,7 @@ describe('pivotIntoAction', () => {
 
     const uuid = await pivot([{ User: 'alice', Result: 'Failure' }]);
 
-    expect(store.getState().tabs[uuid!]?.params).not.toHaveProperty('pivotRows');
+    expect(store.getState().tabs[uuid!]?.toRun).not.toHaveProperty('pivotRows');
   });
 
   it('opens a child tab that waits for the params still missing, with their reasons', async () => {
@@ -215,7 +211,7 @@ describe('pivotIntoAction', () => {
       },
     ]);
     const tab = store.getState().tabs[uuid!];
-    expect(tab?.state.pivotMissing).toEqual({
+    expect(tab?.status.pivotMissing).toEqual({
       result: 'The 2 selected rows have different Result values',
     });
     expect(run).not.toHaveBeenCalled();
@@ -228,7 +224,7 @@ describe('pivotIntoAction', () => {
 
     const uuid = await pivot([{ User: 'alice' }, { User: 'bob' }], undefined, ['e-1', null]);
 
-    expect(store.getState().tabs[uuid!]?.state.pivotRowIds).toEqual(['e-1', null]);
+    expect(store.getState().tabs[uuid!]?.toRun.pivotRowIds).toEqual(['e-1', null]);
   });
 
   it('says why when the server refuses the pivot, and opens no tab', async () => {
@@ -258,10 +254,9 @@ describe('pivotIntoAction', () => {
 
     expect(bodies).toEqual([]);
     expect(store.getState().tabs[uuid]).toMatchObject({
-      componentName: 'ActionResult',
-      parentUuid: parent,
+      parentId: parent,
       title: 'Failures of users',
-      params: {
+      toRun: {
         action: 'sign-ins',
         params: { connection: 'kusto-dev', users: ['alice'], result: 'Failure', limit: 10 },
         presetId: 'p-1',
@@ -286,7 +281,7 @@ describe('pivotIntoAction', () => {
       [{ User: 'alice', App: 'Teams' }],
     );
 
-    expect(store.getState().tabs[uuid]?.params.pivotRows).toEqual([{ App: 'Teams' }]);
+    expect(store.getState().tabs[uuid]?.toRun.pivotRows).toEqual([{ App: 'Teams' }]);
   });
 
   it('opens a preset pivot with the preset’s Id column', () => {
@@ -294,7 +289,7 @@ describe('pivotIntoAction', () => {
 
     const uuid = pivotPreset({ params: { connection: 'kusto-dev' }, missing: {} });
 
-    expect(store.getState().tabs[uuid]?.state).toMatchObject({ idColumn: 'Host' });
+    expect(store.getState().tabs[uuid]?.view.idColumn).toBe('Host');
   });
 
   it('keeps the pivot rows’ ids on a preset pivot’s child tab, beside the preset’s Id column', () => {
@@ -302,9 +297,9 @@ describe('pivotIntoAction', () => {
 
     const uuid = pivotPreset({ params: { connection: 'kusto-dev' }, missing: {} }, [null, 'e-2']);
 
-    expect(store.getState().tabs[uuid]?.state).toMatchObject({
-      idColumn: 'Host',
-      pivotRowIds: [null, 'e-2'],
+    expect(store.getState().tabs[uuid]).toMatchObject({
+      view: { idColumn: 'Host' },
+      toRun: { pivotRowIds: [null, 'e-2'] },
     });
   });
 
@@ -313,7 +308,7 @@ describe('pivotIntoAction', () => {
 
     const uuid = pivotPreset({ params: { connection: 'kusto-dev' }, missing: { users: null } });
 
-    expect(store.getState().tabs[uuid]?.state.pivotMissing).toEqual({ users: null });
+    expect(store.getState().tabs[uuid]?.status.pivotMissing).toEqual({ users: null });
     expect(run).not.toHaveBeenCalled();
     expect(notified.map((n) => n.message)).toEqual(['Opened Failures of users: needs Users']);
   });

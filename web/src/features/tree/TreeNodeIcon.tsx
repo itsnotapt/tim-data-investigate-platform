@@ -74,7 +74,7 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
     );
   }
   if (status === 'results') {
-    const count = tab.state.rowCount ?? 0;
+    const count = tab.results?.rowCount ?? 0;
     const tone = badgeTone(tab);
     return (
       <Badge

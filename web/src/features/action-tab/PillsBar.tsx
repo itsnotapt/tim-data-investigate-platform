@@ -13,7 +13,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
-import type { ParamErrors } from '../tabs/types';
+import type { ParamErrors } from '../../lib/storage';
 import { DatetimeEditor } from './DatetimeEditor';
 import {
   connectionChoices,

@@ -3,19 +3,19 @@ import type { Tab } from './types';
 /** The slice of store state the selectors need. */
 export interface TabsData {
   tabs: Record<string, Tab>;
-  /** All uuids in load/creation order (parents before children). */
+  /** All ids in load/creation order (parents before children). */
   order: string[];
 }
 
-export const selectTab = (s: TabsData, uuid: string): Tab | undefined => s.tabs[uuid];
+export const selectTab = (s: TabsData, id: string): Tab | undefined => s.tabs[id];
 
-export function selectChildrenOf(s: TabsData, uuid: string): Tab[] {
-  return selectAllInOrder(s).filter((t) => t.parentUuid === uuid);
+export function selectChildrenOf(s: TabsData, id: string): Tab[] {
+  return selectAllInOrder(s).filter((t) => t.parentId === id);
 }
 
 /** Roots in order; a tab whose parent is missing counts as a root. */
 export function selectRoots(s: TabsData): Tab[] {
-  return selectAllInOrder(s).filter((t) => t.parentUuid === null || !(t.parentUuid in s.tabs));
+  return selectAllInOrder(s).filter((t) => t.parentId === null || !(t.parentId in s.tabs));
 }
 
 export function selectAllInOrder(s: TabsData): Tab[] {
@@ -28,14 +28,14 @@ export function selectAllInOrder(s: TabsData): Tab[] {
 }
 
 /** Ancestors from the root down to the direct parent (excludes the tab itself). Cycle safe. */
-export function selectAncestors(s: TabsData, uuid: string): Tab[] {
+export function selectAncestors(s: TabsData, id: string): Tab[] {
   const path: Tab[] = [];
-  const seen = new Set<string>([uuid]);
-  let current = s.tabs[uuid];
-  while (current?.parentUuid != null && !seen.has(current.parentUuid)) {
-    const parent = s.tabs[current.parentUuid];
+  const seen = new Set<string>([id]);
+  let current = s.tabs[id];
+  while (current?.parentId != null && !seen.has(current.parentId)) {
+    const parent = s.tabs[current.parentId];
     if (!parent) break;
-    seen.add(parent.componentUuid);
+    seen.add(parent.id);
     path.unshift(parent);
     current = parent;
   }
@@ -43,24 +43,24 @@ export function selectAncestors(s: TabsData, uuid: string): Tab[] {
 }
 
 /** The tab and all its descendants (pre-order, tab first). */
-export function selectSubtreeUuids(s: TabsData, uuid: string): string[] {
-  if (!(uuid in s.tabs)) return [];
+export function selectSubtreeIds(s: TabsData, id: string): string[] {
+  if (!(id in s.tabs)) return [];
   const byParent = new Map<string, string[]>();
   for (const t of selectAllInOrder(s)) {
-    if (t.parentUuid === null) continue;
-    const list = byParent.get(t.parentUuid) ?? [];
-    list.push(t.componentUuid);
-    byParent.set(t.parentUuid, list);
+    if (t.parentId === null) continue;
+    const list = byParent.get(t.parentId) ?? [];
+    list.push(t.id);
+    byParent.set(t.parentId, list);
   }
   const out: string[] = [];
-  const stack = [uuid];
+  const stack = [id];
   const seen = new Set<string>();
   while (stack.length) {
-    const id = stack.pop()!;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-    stack.push(...[...(byParent.get(id) ?? [])].reverse());
+    const next = stack.pop()!;
+    if (seen.has(next)) continue;
+    seen.add(next);
+    out.push(next);
+    stack.push(...[...(byParent.get(next) ?? [])].reverse());
   }
   return out;
 }

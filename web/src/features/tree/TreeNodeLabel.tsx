@@ -1,6 +1,6 @@
 import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
-import { tabTitle } from '../action-tab/tabTitle';
+import { titleOf } from '../action-tab/model';
 import type { Tab } from '../tabs';
 import { isNew, labelPrefix } from './nodeStatus';
 
@@ -9,7 +9,7 @@ import { isNew, labelPrefix } from './nodeStatus';
  * medium weight while new.
  */
 export function TreeNodeLabel({ tab }: { tab: Tab }) {
-  const title = tabTitle(tab);
+  const title = titleOf(tab);
   return (
     <Tooltip title={title} placement="right">
       <Box

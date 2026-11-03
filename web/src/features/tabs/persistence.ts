@@ -1,4 +1,4 @@
-import { displayComponentsDao, rowResultsDao } from '../../lib/storage';
+import { rowResultsDao, tabsDao } from '../../lib/storage';
 import type { Tab } from './types';
 
 /** Storage boundary of the tab store; swap it in tests or for import/export. */
@@ -6,15 +6,15 @@ export interface TabPersistence {
   loadAll(): Promise<Tab[]>;
   save(tab: Tab): Promise<void>;
   /** Removes the tabs and their row results. */
-  remove(uuids: readonly string[]): Promise<void>;
+  remove(ids: readonly string[]): Promise<void>;
 }
 
 export const indexedDbTabPersistence: TabPersistence = {
-  loadAll: () => displayComponentsDao.getAll(),
-  save: (tab) => displayComponentsDao.put(tab),
-  async remove(uuids) {
+  loadAll: () => tabsDao.getAll(),
+  save: (tab) => tabsDao.put(tab),
+  async remove(ids) {
     // Row results of every removed tab go too.
-    await Promise.all([displayComponentsDao.deleteMany(uuids), rowResultsDao.deleteMany(uuids)]);
+    await Promise.all([tabsDao.deleteMany(ids), rowResultsDao.deleteMany(ids)]);
   },
 };
 
@@ -29,14 +29,14 @@ export class PersistQueue {
 
   constructor(
     private readonly persistence: TabPersistence,
-    private readonly getTab: (uuid: string) => Tab | undefined,
+    private readonly getTab: (id: string) => Tab | undefined,
     private readonly debounceMs: number,
     private readonly onError: (error: unknown) => void = (e) =>
       console.error('Tab persistence failed', e),
   ) {}
 
-  schedule(uuid: string): void {
-    this.dirty.add(uuid);
+  schedule(id: string): void {
+    this.dirty.add(id);
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), this.debounceMs);
   }
@@ -57,9 +57,9 @@ export class PersistQueue {
     });
   }
 
-  remove(uuids: readonly string[]): Promise<void> {
-    for (const id of uuids) this.dirty.delete(id);
-    return this.enqueue(() => this.persistence.remove(uuids));
+  remove(ids: readonly string[]): Promise<void> {
+    for (const id of ids) this.dirty.delete(id);
+    return this.enqueue(() => this.persistence.remove(ids));
   }
 
   /** Drop pending (unwritten) saves. */

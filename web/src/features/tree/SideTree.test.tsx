@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { SideTree } from './SideTree';
-import { newTestStore, tab } from '../../test/tabsTestUtils';
+import { newTestStore, results, tab } from '../../test/tabsTestUtils';
 
 const Loc = () => <div data-testid="loc">{useLocation().pathname}</div>;
 
@@ -26,10 +26,11 @@ describe('SideTree', () => {
     const store = newTestStore();
     const s = store.getState();
     s.createTab(tab('draft'));
-    s.createTab(tab('exec', null, { state: { isExecuting: true } }));
-    s.createTab(tab('err', null, { state: { error: { message: 'boom' } } }));
-    s.createTab(tab('new', null, { state: { rowCount: 3 } }));
-    s.createTab(tab('many', null, { state: { rowCount: 50, isVisited: true } }));
+    s.createTab(tab('exec', null, { status: { executing: true } }));
+    s.createTab(tab('err', null, { status: { error: { message: 'boom' } } }));
+    s.createTab(tab('new', null, { results: results(3) }));
+    s.createTab(tab('many', null, { results: results(50) }));
+    s.markVisited('many');
     renderTree(store);
     await expand();
     const status = (id: string) => within(node(id)).getByTestId('tree-icon');
@@ -49,15 +50,8 @@ describe('SideTree', () => {
 
   it('shows a ringed 0 for an action tab whose run succeeded with no rows', async () => {
     const store = newTestStore();
-    const action = (componentUuid: string, rowCount: number) =>
-      store.getState().createTab({
-        componentName: 'ActionResult',
-        componentUuid,
-        parentUuid: null,
-        title: componentUuid,
-        params: { action: 'dev-slow', params: {} },
-        state: { rowCount },
-      });
+    const action = (id: string, rowCount: number) =>
+      store.getState().createTab(tab(id, null, { results: results(rowCount) }));
     action('none', 0);
     action('some', 2);
     renderTree(store);
@@ -71,29 +65,37 @@ describe('SideTree', () => {
 
   it('shows Needs input for an action tab whose pivot still waits for a param', async () => {
     const store = newTestStore();
-    const pivot = (componentUuid: string, params: Record<string, unknown>) =>
-      store.getState().createTab({
-        componentName: 'ActionResult',
-        componentUuid,
-        parentUuid: null,
-        title: componentUuid,
-        params: { action: 'dev-slow', params },
-        state: { pivotMissing: { result: 'The 2 selected rows have different Result values' } },
-      });
+    const pivot = (id: string, params: Record<string, unknown>, missing = 'result') =>
+      store.getState().createTab(
+        tab(id, null, {
+          toRun: { action: 'dev-slow', params },
+          status: {
+            pivotMissing: { [missing]: 'The 2 selected rows have different Result values' },
+          },
+        }),
+      );
     pivot('waiting', {});
     pivot('filled', { result: 'Failure' });
+    const parameter = (value: string | null) => ({
+      parameters: [{ name: 'Result', type: 'string', value }],
+    });
+    pivot('waitingParameter', parameter(null), 'parameters.Result');
+    pivot('filledParameter', parameter('Failure'), 'parameters.Result');
     renderTree(store);
     await expand();
     const status = (id: string) => within(node(id)).getByTestId('tree-icon');
     expect(status('waiting')).toHaveAttribute('data-status', 'needsInput');
     expect(status('waiting')).toHaveAccessibleName('Needs input');
     expect(status('filled')).toHaveAttribute('data-status', 'draft');
+    expect(status('waitingParameter')).toHaveAttribute('data-status', 'needsInput');
+    expect(status('filledParameter')).toHaveAttribute('data-status', 'draft');
   });
 
   it("titles a tab that has run by its latest run, in full in a tooltip and the checkbox's name", async () => {
     const store = newTestStore();
     const title = `Host timeline ${'BGIST-L '.repeat(20).trim()}`;
-    store.getState().createTab(tab('ran', null, { state: { runTitle: title, isVisited: true } }));
+    store.getState().createTab(tab('ran', null, { latest: { title } }));
+    store.getState().markVisited('ran');
     renderTree(store);
     await expand();
     expect(node('ran')).toHaveTextContent(title);
@@ -106,11 +108,11 @@ describe('SideTree', () => {
 
   it('click marks visited and navigates', async () => {
     const store = newTestStore();
-    store.getState().createTab(tab('a', null, { state: { rowCount: 2 } }));
+    store.getState().createTab(tab('a', null, { results: results(2) }));
     renderTree(store);
     await expand();
     await userEvent.click(node('a'));
-    expect(store.getState().tabs['a']?.state.isVisited).toBe(true);
+    expect(store.getState().tabs['a']?.visited).toBe(true);
     expect(screen.getByTestId('loc')).toHaveTextContent('/view/a');
     expect(node('a')).toHaveTextContent(/^2T-a$/);
   });
@@ -129,8 +131,8 @@ describe('SideTree', () => {
     const store = newTestStore();
     store.getState().createTab(tab('a'));
     renderTree(store, '/view/a');
-    act(() => store.getState().updateState('a', { rowCount: 4 }));
-    expect(store.getState().tabs['a']?.state.isVisited).toBe(true);
+    act(() => store.getState().apply('a', (t) => ({ ...t, results: results(4) })));
+    expect(store.getState().tabs['a']?.visited).toBe(true);
   });
 
   it('nests children, collapses, and Remove selected cascades', async () => {

@@ -24,6 +24,7 @@ import { NotifyContext } from '../../components/notifyContext';
 import type { ColumnView, ColumnViewFields } from '../../lib/api';
 import { useInstanceStore } from '../instance';
 import { usePresetsStore } from '../presets';
+import { columnViewPicked, columnViewRenamed } from '../action-tab/model';
 import { useTabsStore } from '../tabs';
 import { ColumnViewMoreMenu, type ColumnViewMenuItem } from './ColumnViewMoreMenu';
 import { useDefaultViewsStore } from './defaultViewsStore';
@@ -133,10 +134,9 @@ export function ColumnViewsToolPanel(props: CustomToolPanelProps) {
     const saved = over
       ? await store.replace(over.viewId, { ...fields, state })
       : await store.create({ ...fields, state, savedFrom: scope });
-    useTabsStore.getState().updateState(uuid, {
-      gridState: state,
-      columnView: { viewId: saved.viewId, name: saved.name, baseline: state },
-    });
+    useTabsStore
+      .getState()
+      .apply(uuid, columnViewPicked({ viewId: saved.viewId, name: saved.name }, state));
     if (asDefault) makeDefault(saved);
   };
 
@@ -145,10 +145,7 @@ export function ColumnViewsToolPanel(props: CustomToolPanelProps) {
     const renamed = await useSavedColumnViewsStore
       .getState()
       .replace(view.viewId, { ...fields, state: view.state });
-    const shown = useTabsStore.getState().tabs[uuid]?.state.columnView;
-    if (shown?.viewId === renamed.viewId) {
-      useTabsStore.getState().updateState(uuid, { columnView: { ...shown, name: renamed.name } });
-    }
+    useTabsStore.getState().apply(uuid, columnViewRenamed(renamed.viewId, renamed.name));
     if (scope && defaultView?.viewId === renamed.viewId) {
       await useDefaultViewsStore.getState().makeDefault(scope, renamed);
     }

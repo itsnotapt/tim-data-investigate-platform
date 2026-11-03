@@ -2,46 +2,42 @@ import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { generateUuid } from '../../lib/uuid';
 import { toStoredError } from './errors';
 import { indexedDbTabPersistence, PersistQueue, type TabPersistence } from './persistence';
-import { selectSubtreeUuids } from './selectors';
-import {
-  DEFAULT_TAB_STATE,
-  type ActionParams,
-  type CreateTabArgs,
-  type Tab,
-  type TabKind,
-  type TabState,
-  type TabStateUpdate,
-} from './types';
+import { selectSubtreeIds } from './selectors';
+import type { CreateTabArgs, Tab, TabTreeFields, Transition } from './types';
 
+/**
+ * The tree of tabs and its persistence. What is inside a tab is the action tab module's
+ * (`features/action-tab/model.ts`); the store changes it only through `apply`.
+ */
 interface TabsState {
   tabs: Record<string, Tab>;
-  /** Uuids in load/creation order; parents always precede children. */
+  /** Tab ids in load/creation order; parents always precede children. */
   order: string[];
-  /** Next `displayComponentIndex` (renumbered on every load). */
+  /** Next `index` (renumbered on every load). */
   nextIndex: number;
   loaded: boolean;
   loadError: string | null;
   /** Signal: bumps whenever a tab is created. */
-  lastCreated: { uuid: string; seq: number } | null;
+  lastCreated: { id: string; seq: number } | null;
 
   load(): Promise<void>;
+  /** Adds a tab under `parentId` and returns its id. */
   createTab(args: CreateTabArgs): string;
-  updateState(uuid: string, update: TabStateUpdate): void;
-  updateParams(uuid: string, params: Partial<ActionParams>): void;
-  updateTitle(uuid: string, title: string): void;
+  /** Changes the tab's content; its place in the tree, visited mark and row trigger stay. */
+  apply(id: string, transition: Transition): void;
   /** Bump the tab's `rowDataTrigger`; grids subscribe to it and reload rows from IndexedDB. */
-  triggerRowData(uuid: string): void;
-  markVisited(uuid: string): void;
-  markUnvisited(uuid: string): void;
-  /** Removes the tab, its whole subtree and all their row results. Returns the removed uuids. */
-  removeTab(uuid: string): Promise<string[]>;
+  triggerRowData(id: string): void;
+  markVisited(id: string): void;
+  markUnvisited(id: string): void;
+  /** Removes the tab, its whole subtree and all their row results. Returns the removed ids. */
+  removeTab(id: string): Promise<string[]>;
   /** Write pending changes now. */
   flush(): Promise<void>;
 }
 
 export interface TabsStoreOptions {
   persistence?: TabPersistence;
-  /** Debounce for state/param/title writes. Default 300 ms. */
+  /** Debounce for writes. Default 300 ms. */
   debounceMs?: number;
 }
 
@@ -59,13 +55,13 @@ const initialData = {
   lastCreated: null,
 };
 
-/** Tab kinds this build can show; stored tabs of any other kind are dropped on load. */
-const TAB_KINDS: Record<TabKind, true> = {
-  ActionResult: true,
-};
-
 function sanitize(tab: Tab): Tab {
-  return { ...tab, state: { ...tab.state, error: toStoredError(tab.state.error) } };
+  return { ...tab, status: { ...tab.status, error: toStoredError(tab.status.error) } };
+}
+
+function treeFields(tab: Tab): TabTreeFields {
+  const { id, parentId, index, visited, rowDataTrigger } = tab;
+  return { id, parentId, index, visited, rowDataTrigger };
 }
 
 export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
@@ -80,12 +76,12 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
   );
 
   const useStore: UseBoundStore<StoreApi<TabsState>> = create<TabsState>()((set, get) => {
-    /** Shallow-patch a tab, keeping the discriminated union intact, then schedule a save. */
-    const patch = (uuid: string, fn: (tab: Tab) => Tab): void => {
-      const tab = get().tabs[uuid];
+    /** Replace a tab, then schedule a save. */
+    const patch = (id: string, fn: (tab: Tab) => Tab): void => {
+      const tab = get().tabs[id];
       if (!tab) return;
-      set({ tabs: { ...get().tabs, [uuid]: fn(tab) } });
-      queue.schedule(uuid);
+      set({ tabs: { ...get().tabs, [id]: fn(tab) } });
+      queue.schedule(id);
     };
 
     return {
@@ -94,28 +90,24 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
       async load() {
         try {
           await queue.flush();
-          const all = await persistence.loadAll();
-          const stored = all.filter((t) => t.componentName in TAB_KINDS);
-          const unknown = all.filter((t) => !(t.componentName in TAB_KINDS));
+          const stored = await persistence.loadAll();
           // Parents before children, as stored.
-          stored.sort((a, b) => a.displayComponentIndex - b.displayComponentIndex);
-          const ids = new Set(stored.map((t) => t.componentUuid));
+          stored.sort((a, b) => a.index - b.index);
+          const ids = new Set(stored.map((t) => t.id));
           const tabs: Record<string, Tab> = {};
           const order: string[] = [];
           stored.forEach((raw, index) => {
-            if (raw.componentUuid in tabs) return;
+            if (raw.id in tabs) return;
             const tab = sanitize(raw);
-            tabs[tab.componentUuid] = {
+            tabs[tab.id] = {
               ...tab,
               // A missing parent makes the tab a root.
-              parentUuid:
-                tab.parentUuid !== null && ids.has(tab.parentUuid) ? tab.parentUuid : null,
-              displayComponentIndex: index,
+              parentId: tab.parentId !== null && ids.has(tab.parentId) ? tab.parentId : null,
+              index,
             };
-            order.push(tab.componentUuid);
+            order.push(tab.id);
           });
           set({ tabs, order, nextIndex: order.length, loaded: true, loadError: null });
-          if (unknown.length > 0) void queue.remove(unknown.map((t) => t.componentUuid));
           // Indexes were renumbered; persist them.
           for (const id of order) queue.schedule(id);
         } catch (e) {
@@ -123,76 +115,53 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
         }
       },
 
-      createTab(args) {
-        const uuid = args.componentUuid ?? generateUuid();
+      createTab({ id = generateUuid(), parentId, content }) {
         const state = get();
-        const base = {
-          componentUuid: uuid,
-          parentUuid: args.parentUuid,
-          title: args.title,
+        const tab: Tab = {
+          ...content,
+          id,
+          parentId,
+          index: state.nextIndex,
+          visited: false,
           rowDataTrigger: null,
-          displayComponentIndex: state.nextIndex,
-          state: {
-            ...DEFAULT_TAB_STATE,
-            ...args.state,
-            error: toStoredError(args.state?.error),
-          },
         };
-        const tab: Tab = { ...base, componentName: 'ActionResult', params: args.params };
         set({
-          tabs: { ...state.tabs, [uuid]: tab },
-          order: [...state.order.filter((id) => id !== uuid), uuid],
+          tabs: { ...state.tabs, [id]: tab },
+          order: [...state.order.filter((other) => other !== id), id],
           nextIndex: state.nextIndex + 1,
-          lastCreated: { uuid, seq: ++seq },
+          lastCreated: { id, seq: ++seq },
         });
-        queue.schedule(uuid);
-        return uuid;
+        queue.schedule(id);
+        return id;
       },
 
-      updateState(uuid, update) {
-        patch(uuid, (tab) => {
-          const { error, ...rest } = update;
-          const next: TabState = { ...tab.state, ...rest };
-          if ('error' in update) next.error = toStoredError(error);
-          return { ...tab, state: next };
-        });
+      apply(id, transition) {
+        patch(id, (tab) => ({ ...transition(tab), ...treeFields(tab) }));
       },
 
-      updateParams(uuid, params) {
-        patch(uuid, (tab) => ({ ...tab, params: { ...tab.params, ...params } }));
-      },
-
-      updateTitle(uuid, title) {
-        patch(uuid, (tab) => ({ ...tab, title }));
-      },
-
-      triggerRowData(uuid) {
-        patch(uuid, (tab) => {
+      triggerRowData(id) {
+        patch(id, (tab) => {
           // Strictly increasing even within the same millisecond.
           lastTrigger = Math.max(Date.now(), lastTrigger + 1, (tab.rowDataTrigger ?? 0) + 1);
           return { ...tab, rowDataTrigger: lastTrigger };
         });
       },
 
-      markVisited(uuid) {
-        if (get().tabs[uuid]?.state.isVisited === false) {
-          patch(uuid, (tab) => ({ ...tab, state: { ...tab.state, isVisited: true } }));
-        }
+      markVisited(id) {
+        if (get().tabs[id]?.visited === false) patch(id, (tab) => ({ ...tab, visited: true }));
       },
 
-      markUnvisited(uuid) {
-        if (get().tabs[uuid]?.state.isVisited === true) {
-          patch(uuid, (tab) => ({ ...tab, state: { ...tab.state, isVisited: false } }));
-        }
+      markUnvisited(id) {
+        if (get().tabs[id]?.visited === true) patch(id, (tab) => ({ ...tab, visited: false }));
       },
 
-      async removeTab(uuid) {
-        const removed = selectSubtreeUuids(get(), uuid);
+      async removeTab(id) {
+        const removed = selectSubtreeIds(get(), id);
         if (removed.length === 0) return [];
         const gone = new Set(removed);
         const tabs = { ...get().tabs };
-        for (const id of removed) delete tabs[id];
-        set({ tabs, order: get().order.filter((id) => !gone.has(id)) });
+        for (const other of removed) delete tabs[other];
+        set({ tabs, order: get().order.filter((other) => !gone.has(other)) });
         await queue.remove(removed);
         return removed;
       },

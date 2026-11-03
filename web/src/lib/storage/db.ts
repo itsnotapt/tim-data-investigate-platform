@@ -1,13 +1,13 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Annotations } from '../api/annotations';
-import type { DefaultView, DisplayComponent, RowResult } from './types';
+import type { DefaultView, RowResult, Tab } from './types';
 
 /** The app's IndexedDB database. */
 const TIM_DB_NAME = 'tim';
-const TIM_DB_VERSION = 5;
+const TIM_DB_VERSION = 6;
 
 export const STORE = {
-  displayComponents: 'display_components',
+  tabs: 'tabs',
   rowResults: 'row_results',
   annotations: 'annotations',
   annotationSync: 'annotation_sync',
@@ -16,8 +16,8 @@ export const STORE = {
 } as const;
 
 interface TimDbSchema extends DBSchema {
-  display_components: { key: string; value: DisplayComponent };
-  /** Key = display component uuid; out-of-line key, value is the row array. */
+  tabs: { key: string; value: Tab };
+  /** Key = tab id; out-of-line key, value is the row array. */
   row_results: { key: string; value: RowResult[] };
   /**
    * Each `id`'s annotations, keyed by `id`. An `id` whose annotations were all removed stays, as a
@@ -38,10 +38,9 @@ let dbPromise: Promise<TimDb> | null = null;
 export function openTimDb(): Promise<TimDb> {
   if (!dbPromise) {
     const opening = openDB<TimDbSchema>(TIM_DB_NAME, TIM_DB_VERSION, {
-      upgrade(db, oldVersion) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         // Forward-only: add `if (oldVersion < N)` blocks for later versions.
         if (oldVersion < 1) {
-          db.createObjectStore(STORE.displayComponents, { keyPath: 'componentUuid' });
           db.createObjectStore(STORE.rowResults);
         }
         if (oldVersion < 2) {
@@ -67,6 +66,16 @@ export function openTimDb(): Promise<TimDb> {
           if (untyped.objectStoreNames.contains('column_views')) {
             untyped.deleteObjectStore('column_views');
           }
+        }
+        if (oldVersion < 6) {
+          // Versions 1 to 5 kept tabs in a `display_components` store, in a shape no longer read:
+          // those tabs and their rows are dropped.
+          const untyped = db as unknown as IDBPDatabase;
+          if (untyped.objectStoreNames.contains('display_components')) {
+            untyped.deleteObjectStore('display_components');
+            void transaction.objectStore(STORE.rowResults).clear();
+          }
+          db.createObjectStore(STORE.tabs, { keyPath: 'id' });
         }
       },
       terminated() {

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import type { CatalogueAction, Preset } from '../../lib/api';
 import { initialParams } from '../action-tab/paramValues';
 import { useInstanceStore } from '../instance';
-import { presetTabParams, presetTitleInputs } from '../presets';
+import { fromAction, fromPreset } from '../action-tab/model';
+import { presetTabParams } from '../presets';
 import { useTabsStore, type TabsStore } from '../tabs';
 
 export interface NewQueryActions {
@@ -26,12 +27,9 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
     (action: CatalogueAction) => {
       const connections = useInstanceStore.getState().instance?.connections ?? [];
       const params = initialParams(action, connections);
-      const uuid = store.getState().createTab({
-        componentName: 'ActionResult',
-        parentUuid: null,
-        title: action.name,
-        params: { action: action.key, params },
-      });
+      const uuid = store
+        .getState()
+        .createTab({ parentId: null, content: fromAction(action, params) });
       void navigate(`/view/${uuid}`);
       return uuid;
     },
@@ -40,21 +38,11 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
   const createFromPreset = useCallback(
     (preset: Preset, action: CatalogueAction) => {
       const connections = useInstanceStore.getState().instance?.connections ?? [];
-      const { params, missing } = presetTabParams(preset, action, connections);
+      const opening = presetTabParams(preset, action, connections);
       const uuid = store.getState().createTab({
-        componentName: 'ActionResult',
-        parentUuid: null,
-        title: preset.name,
-        params: {
-          action: action.key,
-          params,
-          presetId: preset.presetId,
-          titleInputs: presetTitleInputs(preset),
-        },
-        ...(preset.idColumn ? { state: { idColumn: preset.idColumn } } : {}),
+        parentId: null,
+        content: fromPreset(preset, action, opening),
       });
-      if (Object.keys(missing).length > 0)
-        store.getState().updateState(uuid, { pivotMissing: missing });
       void navigate(`/view/${uuid}`);
       return uuid;
     },

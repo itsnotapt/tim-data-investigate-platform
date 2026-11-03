@@ -16,7 +16,9 @@ import { getAnnotationStore } from '../../lib/annotations';
 import { annotated } from '../../test/annotationFakes';
 import { useAnalystStore } from '../analyst';
 import type { LabelledRow } from '../labels';
+import { content } from '../../test/tabsTestUtils';
 import { useTabsStore } from '../tabs';
+import { gridStateChanged } from './model';
 import { ActionResultsGrid } from './ActionResultsGrid';
 
 const server = setupMswServer();
@@ -164,22 +166,20 @@ describe('ActionResultsGrid', () => {
   });
 
   it("puts the tab's own grid state over the declared settings", async () => {
-    const uuid = useTabsStore.getState().createTab({
-      componentName: 'ActionResult',
-      parentUuid: null,
-      title: 'Sign-ins',
-      params: { action: 'dev.sign_ins', params: {} },
-    });
-    useTabsStore.getState().updateState(uuid, {
-      gridState: {
+    const uuid = useTabsStore
+      .getState()
+      .createTab({ parentId: null, content: content('Sign-ins') });
+    useTabsStore.getState().apply(
+      uuid,
+      gridStateChanged({
         partialColumnState: true,
         columnOrder: { orderedColIds: ['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes'] },
         columnVisibility: { hiddenColIds: [] },
         columnPinning: { leftColIds: [], rightColIds: [] },
         columnSizing: { columnSizingModel: [{ colId: 'Timestamp', width: 90 }] },
         sort: { sortModel: [] },
-      },
-    });
+      }),
+    );
     const api = await gridOf(uuid);
     await waitFor(() => expect(stateOf(api, 'Raw')).toMatchObject({ hide: false }));
     expect(stateOf(api, 'Timestamp')).toMatchObject({ width: 90, pinned: null, sort: null });

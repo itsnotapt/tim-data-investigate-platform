@@ -14,6 +14,8 @@ import { setupMswServer } from '../../test/msw/server';
 import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { useInstanceStore } from '../instance';
 import { usePresetsStore } from '../presets';
+import { content } from '../../test/tabsTestUtils';
+import { columnViewPicked, gridStateChanged } from '../action-tab/model';
 import { useTabsStore } from '../tabs';
 import { ColumnViewsToolPanel } from './ColumnViewsToolPanel';
 import { useDefaultViewsStore } from './defaultViewsStore';
@@ -76,12 +78,9 @@ let notes: (NotifyOptions | string)[];
  * view's for `null`.
  */
 function controllerFor(uuid: string): ColumnViewController {
-  const tab = () => useTabsStore.getState().tabs[uuid]!.state;
+  const tab = () => useTabsStore.getState().tabs[uuid]!.view;
   const put = (state: GridState, columnView: { viewId: string | null; name: string }) =>
-    useTabsStore.getState().updateState(uuid, {
-      gridState: state,
-      columnView: { ...columnView, baseline: state },
-    });
+    useTabsStore.getState().apply(uuid, columnViewPicked(columnView, state));
   return {
     uuid,
     pick: (v) =>
@@ -90,7 +89,7 @@ function controllerFor(uuid: string): ColumnViewController {
         : put(BUILT_IN_STATE, { viewId: null, name: 'Built-in' }),
     revert: () => {
       const picked = tab().columnView;
-      if (picked) useTabsStore.getState().updateState(uuid, { gridState: picked.baseline });
+      if (picked) useTabsStore.getState().apply(uuid, gridStateChanged(picked.baseline));
     },
     current: () => tab().gridState ?? null,
   };
@@ -98,12 +97,9 @@ function controllerFor(uuid: string): ColumnViewController {
 
 /** Renders the panel of a Sign-ins tab showing `showing` (the Built-in view for `null`). */
 function renderPanel(showing: ColumnView | null = null) {
-  const uuid = useTabsStore.getState().createTab({
-    componentName: 'ActionResult',
-    parentUuid: null,
-    title: 'Sign-ins',
-    params: { action: SIGN_INS, params: {} },
-  });
+  const uuid = useTabsStore
+    .getState()
+    .createTab({ parentId: null, content: content('Sign-ins', { toRun: { action: SIGN_INS } }) });
   const controller = controllerFor(uuid);
   controller.pick(showing);
   const props = { context: { columnViews: controller } } as unknown as CustomToolPanelProps;
@@ -115,10 +111,10 @@ function renderPanel(showing: ColumnView | null = null) {
   return uuid;
 }
 
-const tabOf = (uuid: string) => useTabsStore.getState().tabs[uuid]!.state;
+const tabOf = (uuid: string) => useTabsStore.getState().tabs[uuid]!.view;
 /** Edits the tab's columns, so it no longer matches its column view. */
 const edit = (uuid: string) =>
-  act(() => useTabsStore.getState().updateState(uuid, { gridState: EDITED }));
+  act(() => useTabsStore.getState().apply(uuid, gridStateChanged(EDITED)));
 
 const saveDialog = () => screen.getByRole('dialog', { name: 'Save column view' });
 

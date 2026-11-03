@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTimDb } from '../../lib/storage';
 import { MAX_MOUNTED_TABS, touchLru } from './lru';
 import { TabHost } from './TabHost';
-import type { TabComponentProps, TabRegistry } from './tabRegistry';
+import { tab } from '../../test/tabsTestUtils';
 import { useTabsStore } from './tabStore';
 
 const mounts = vi.fn<(kind: string, uuid: string) => void>();
@@ -23,15 +23,13 @@ function useMountLog(kind: string, uuid: string) {
     mounts(kind, uuid);
   }, [kind, uuid]);
 }
-const registry: TabRegistry = {
-  ActionResult: (p: TabComponentProps) => <Probe kind="action" uuid={p.uuid} />,
-};
+const ProbeTab = ({ uuid }: { uuid: string }) => <Probe kind="action" uuid={uuid} />;
 
 function renderAt(entry: string) {
   const router = createMemoryRouter(
     [
       { path: '/', element: <p>home</p> },
-      { path: '/view/:uuid', element: <TabHost registry={registry} /> },
+      { path: '/view/:uuid', element: <TabHost component={ProbeTab} /> },
     ],
     { initialEntries: [entry] },
   );
@@ -39,14 +37,7 @@ function renderAt(entry: string) {
   return router;
 }
 
-const action = (componentUuid: string, title = componentUuid) =>
-  ({
-    componentUuid,
-    componentName: 'ActionResult',
-    parentUuid: null,
-    title,
-    params: { action: 'acme.sign_ins', params: {} },
-  }) as const;
+const action = (id: string, title = id) => tab(id, null, { title });
 
 beforeEach(async () => {
   globalThis.indexedDB = new IDBFactory();
@@ -82,7 +73,7 @@ describe('TabHost', () => {
     });
     expect(await screen.findByText('action:Alpha')).toBeVisible();
     expect(router.state.location.pathname).toBe('/view/a');
-    expect(useTabsStore.getState().tabs['a']?.state.isVisited).toBe(true);
+    expect(useTabsStore.getState().tabs['a']?.visited).toBe(true);
   });
 
   it('redirects an unknown uuid to / only after load finished', async () => {

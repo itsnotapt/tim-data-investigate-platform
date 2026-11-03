@@ -9,8 +9,8 @@ import {
 import { isApiError } from '../../lib/api/errors';
 import { initialParams, paramTitles, stillMissing } from '../action-tab/paramValues';
 import { pills } from '../action-tab/queryParameters';
-import { presetTitleInputs } from '../presets';
-import { useTabsStore, type TabsStore, type TitleInput } from '../tabs';
+import { fromPivot, type OpeningParams, type Pivot } from '../action-tab/model';
+import { useTabsStore, type TabsStore } from '../tabs';
 
 interface ChildTabInput {
   /** The tab the rows are in; the child tab opens under it. */
@@ -38,53 +38,26 @@ export interface PivotIntoPresetInput extends ChildTabInput {
   preset: Preset;
   action: CatalogueAction;
   /** The preset's params resolved from the rows (`presetPivot`). */
-  resolved: Pick<ChildTab, 'params' | 'missing'>;
+  resolved: OpeningParams;
   /** The targets' values by column, as in `PivotIntoActionInput`. */
   rows: readonly Record<string, unknown>[];
 }
 
-/** A child tab of an action to open: its title, params and the params it waits for. */
-interface ChildTab {
-  action: CatalogueAction;
-  title: string;
-  params: Record<string, unknown>;
-  /** By param, why it is missing, if known. */
-  missing: Record<string, string | null>;
-  /** The preset it was opened from. */
-  presetId?: string;
-  /** The preset's inputs shown in the tab's title. */
-  titleInputs?: TitleInput[];
-  /** The preset's Id column, over the action's. */
-  idColumn?: string | null;
-  /** The rows pivoted from, trimmed to the columns the action's title names. */
-  pivotRows?: Record<string, unknown>[];
-}
-
 /**
- * Opens a child tab of `parentUuid` in the background, titled `title`, and says so with Go to.
- * It runs at once when no param is missing, and otherwise waits for them, with the reasons.
+ * Opens the child tab of `parentUuid` that `pivot` opens, in the background, and says so with Go
+ * to. It runs at once when no param is missing, and otherwise waits for them, with the reasons.
  */
 function openChildTab(
   { parentUuid, notify, goTo, run, pivotRowIds, store = useTabsStore }: ChildTabInput,
-  { action, title, params, missing, presetId, titleInputs, idColumn, pivotRows }: ChildTab,
+  pivot: Omit<Pivot, 'pivotRowIds'>,
 ): string {
-  const uuid = store.getState().createTab({
-    componentName: 'ActionResult',
-    parentUuid,
-    title,
-    params: {
-      action: action.key,
-      params,
-      ...(presetId ? { presetId } : {}),
-      ...(titleInputs ? { titleInputs } : {}),
-      ...(pivotRows ? { pivotRows } : {}),
-    },
-    state: { pivotRowIds: [...pivotRowIds], ...(idColumn ? { idColumn } : {}) },
-  });
+  const { action, params, missing } = pivot;
+  const content = fromPivot({ ...pivot, pivotRowIds });
+  const { title } = content;
+  const uuid = store.getState().createTab({ parentId: parentUuid, content });
   const needed = Object.keys(missing);
   const goToChild = { label: 'Go to', onClick: () => goTo(uuid) };
   if (needed.length > 0) {
-    store.getState().updateState(uuid, { pivotMissing: missing });
     notify({
       message: `Opened ${title}: needs ${paramTitles(pills(action.params, params).params, needed)}`,
       action: goToChild,
@@ -155,13 +128,7 @@ export async function pivotIntoAction({
       (name) => [name, resolved.reasons[name] ?? null],
     ),
   );
-  return openChildTab(child, {
-    action,
-    title: action.name,
-    params,
-    missing,
-    pivotRows: pivotRowsFor(action, rows),
-  });
+  return openChildTab(child, { action, params, missing, pivotRows: pivotRowsFor(action, rows) });
 }
 
 /**
@@ -178,11 +145,8 @@ export function pivotIntoPreset({
 }: PivotIntoPresetInput): string {
   return openChildTab(child, {
     action,
-    title: preset.name,
+    preset,
     ...resolved,
-    presetId: preset.presetId,
-    titleInputs: presetTitleInputs(preset),
-    idColumn: preset.idColumn,
     pivotRows: pivotRowsFor(action, rows),
   });
 }

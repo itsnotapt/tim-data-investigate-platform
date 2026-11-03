@@ -4,7 +4,8 @@ import { useContext, useEffect, useMemo, useRef } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import type { ColumnView } from '../../lib/api';
 import type { TabColumnView } from '../../lib/storage';
-import { useTabsStore, type TabStateUpdate } from '../tabs';
+import { columnViewPicked, gridStateChanged } from '../action-tab/model';
+import { useTabsStore, type Transition } from '../tabs';
 import { scopeKey, useDefaultViewsStore } from './defaultViewsStore';
 import { scopeOf, type ColumnViewScope } from './ranking';
 import {
@@ -32,17 +33,13 @@ export interface ColumnViewController {
   current(): ColumnViewState | null;
 }
 
-/**
- * The tab's preset and action, which default views are keyed by; `null` if it isn't an action
- * tab.
- */
+/** The tab's preset and action, which default views are keyed by; `null` if there is no tab. */
 export function tabScope(uuid: string): ColumnViewScope | null {
   const tab = useTabsStore.getState().tabs[uuid];
-  if (tab?.componentName !== 'ActionResult') return null;
-  return scopeOf(tab.params);
+  return tab ? scopeOf(tab.toRun) : null;
 }
 
-const tabState = (uuid: string) => useTabsStore.getState().tabs[uuid]?.state;
+const tabView = (uuid: string) => useTabsStore.getState().tabs[uuid]?.view;
 
 /**
  * Keeps an action tab's grid in step with its column view: when the grid is ready it gets the
@@ -59,7 +56,7 @@ export function useActionColumnView(uuid: string) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const controller = useMemo(() => {
-    const update = (state: TabStateUpdate) => useTabsStore.getState().updateState(uuid, state);
+    const apply = (transition: Transition) => useTabsStore.getState().apply(uuid, transition);
 
     /** Resets the grid to the Built-in view, then puts `view` (fitted) on it. */
     const putOn = (
@@ -79,11 +76,7 @@ export function useActionColumnView(uuid: string) {
       setTimeout(() => {
         if (api.isDestroyed()) return;
         const now = columnViewStateOf(api.getState());
-        update(
-          picked
-            ? { gridState: now, columnView: { ...picked, baseline: now } }
-            : { gridState: now },
-        );
+        apply(picked ? columnViewPicked(picked, now) : gridStateChanged(now));
         settled.current = true;
       }, 0);
     };
@@ -114,7 +107,7 @@ export function useActionColumnView(uuid: string) {
     const start = async (api: GridApi) => {
       apiRef.current = api;
       settled.current = false;
-      const own = tabState(uuid)?.gridState;
+      const own = tabView(uuid)?.gridState;
       if (own) {
         putOn(api, own, null);
         return;
@@ -132,8 +125,8 @@ export function useActionColumnView(uuid: string) {
         const api = apiRef.current;
         if (!settled.current || !api || api.isDestroyed()) return;
         const now = columnViewStateOf(api.getState());
-        const before = tabState(uuid)?.gridState;
-        if (!before || !sameColumnView(before, now)) update({ gridState: now });
+        const before = tabView(uuid)?.gridState;
+        if (!before || !sameColumnView(before, now)) apply(gridStateChanged(now));
       }, SETTLE_MS);
     };
 
@@ -146,7 +139,7 @@ export function useActionColumnView(uuid: string) {
       },
       revert() {
         const api = apiRef.current;
-        const picked = tabState(uuid)?.columnView;
+        const picked = tabView(uuid)?.columnView;
         if (!api || api.isDestroyed() || !picked) return;
         putOn(api, picked.baseline, null);
       },
