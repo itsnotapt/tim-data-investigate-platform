@@ -1029,7 +1029,7 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
   });
 });
 
-describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
+describe('ActionResultsGrid with a bigint column', () => {
   async function bigGrid(tabId: string, shown: readonly RunRow[], runColumns: RunColumn[]) {
     let api: GridApi | undefined;
     render(
@@ -1051,52 +1051,50 @@ describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
     return found;
   };
 
-  describe('in a bigint column', () => {
-    const hashes: RunRow[] = [
-      { row: 0, data: { Hash: '12345678901234567890' } },
-      { row: 1, data: { Hash: '5' } },
-      { row: 2, data: { Hash: '-9007199254740993' } },
-      { row: 3, data: { Hash: null } },
-    ];
-    const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'bigint', declared: true }];
+  const hashes: RunRow[] = [
+    { row: 0, data: { Hash: '12345678901234567890' } },
+    { row: 1, data: { Hash: '5' } },
+    { row: 2, data: { Hash: '-9007199254740993' } },
+    { row: 3, data: { Hash: null } },
+  ];
+  const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'bigint', declared: true }];
 
-    it('filters them exactly with the bigint filter', async () => {
-      const api = await bigGrid('bigint-filter', hashes, hashColumns);
+  it('filters them exactly with the bigint filter', async () => {
+    const api = await bigGrid('bigint-filter', hashes, hashColumns);
 
-      await act(async () => {
-        await api.setColumnFilterModel('Hash', {
-          filterType: 'multi',
-          filterModels: [
-            null,
-            { filterType: 'bigint', type: 'lessThan', filter: '-9007199254740992' },
-          ],
-        });
-        api.onFilterChanged();
+    await act(async () => {
+      await api.setColumnFilterModel('Hash', {
+        filterType: 'multi',
+        filterModels: [
+          null,
+          { filterType: 'bigint', type: 'lessThan', filter: '-9007199254740992' },
+        ],
       });
-
-      await waitFor(() => expect(values(api)).toEqual([-9007199254740993n]));
+      api.onFilterChanged();
     });
 
-    it('sorts them exactly', async () => {
-      const api = await bigGrid('bigint-sort', hashes, hashColumns);
+    await waitFor(() => expect(values(api)).toEqual([-9007199254740993n]));
+  });
 
-      act(() => {
-        api.applyColumnState({ state: [{ colId: 'Hash', sort: 'desc' }] });
-      });
+  it('sorts them exactly', async () => {
+    const api = await bigGrid('bigint-sort', hashes, hashColumns);
 
-      expect(values(api)).toEqual([12345678901234567890n, 5n, -9007199254740993n, null]);
+    act(() => {
+      api.applyColumnState({ state: [{ colId: 'Hash', sort: 'desc' }] });
     });
 
-    it('copies one exactly', async () => {
-      const api = await bigGrid('bigint-copy', hashes, hashColumns);
+    expect(values(api)).toEqual([12345678901234567890n, 5n, -9007199254740993n, null]);
+  });
 
-      act(() => {
-        api.setFocusedCell(0, 'Hash');
-        api.copyToClipboard();
-      });
+  it('copies one exactly', async () => {
+    const api = await bigGrid('bigint-copy', hashes, hashColumns);
 
-      await waitFor(() => expect(clipboard).toBe('12345678901234567890'));
+    act(() => {
+      api.setFocusedCell(0, 'Hash');
+      api.copyToClipboard();
     });
+
+    await waitFor(() => expect(clipboard).toBe('12345678901234567890'));
   });
 });
 
