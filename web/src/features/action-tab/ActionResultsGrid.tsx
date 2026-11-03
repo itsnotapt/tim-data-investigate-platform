@@ -7,6 +7,7 @@ import type {
   GetMainMenuItems,
   GridReadyEvent,
   GridState,
+  StatusPanelDef,
 } from 'ag-grid-community';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
@@ -38,8 +39,14 @@ import {
 import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
-import { GoToPivotRow } from './GoToPivotRow';
 import { gridView, type GridView } from './gridView';
+import {
+  pivotRowClassRules,
+  usePivotRowHighlight,
+  usePivotRows,
+  useShowPivotRows,
+} from './pivotRows';
+import { PivotRowsStatusPanel } from './PivotRowsStatusPanel';
 import {
   resultRows,
   resultsOf,
@@ -49,8 +56,14 @@ import {
 } from './results';
 
 const NO_LABELS: readonly InstanceLabel[] = [];
+const NO_IDS: ReadonlySet<string> = new Set();
 /** `maxAnnotationIds` until the instance says otherwise. */
 const DEFAULT_MAX_IDS = 10_000;
+/** The column view on the left, the pivot row controls in the centre. */
+const STATUS_PANELS: StatusPanelDef[] = [
+  ...ACTION_STATUS_PANELS,
+  { statusPanel: PivotRowsStatusPanel, align: 'center' },
+];
 
 export type ActionResultsGridProps = Omit<
   ResultsGridProps,
@@ -101,7 +114,7 @@ export type ActionResultsGridProps = Omit<
  * The columns, sorting, grouping and filters follow the tab's column view: the Views panel of the
  * side bar, with the view's name in the status bar.
  * The row a share link named is focused, with Row detail open on it, once it has arrived.
- * A tab pivoted into an action that finds pivot rows shows Go to pivot row over the grid.
+ * A tab pivoted into an action that finds pivot rows shows Go to pivot row in the status bar.
  */
 export function ActionResultsGrid({
   tabId,
@@ -164,7 +177,11 @@ export function ActionResultsGrid({
   /** The rows of the tab's Results with these row numbers, as they are when it's called. */
   const rowsOf = useCallback<RowsOf>((rowNumbers) => resultRows(tabId, rowNumbers), [tabId]);
   const { start, keep, columnViews } = useActionColumnView(tabId);
-  const context = useMemo(() => ({ columnViews, actionFile }), [columnViews, actionFile]);
+  useShowPivotRows(tabId, findPivotRows ? pivotRowIds : null);
+  const context = useMemo(
+    () => ({ tabId, columnViews, actionFile }),
+    [tabId, columnViews, actionFile],
+  );
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
       setView(gridView(e.api));
@@ -314,13 +331,21 @@ export function ActionResultsGrid({
     },
     [onRowFocused],
   );
-  const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
+  const [highlight] = usePivotRowHighlight(tabId);
+  const pivotRows = usePivotRows(tabId);
+  const rowClassRules = useMemo(
+    () => ({
+      ...labelClassRules(labels),
+      ...pivotRowClassRules(pivotRows?.ids ?? NO_IDS, highlight),
+    }),
+    [labels, pivotRows, highlight],
+  );
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>
       <ResultsGrid
         {...rest}
         sideBar={ACTION_SIDE_BAR}
-        statusPanels={ACTION_STATUS_PANELS}
+        statusPanels={STATUS_PANELS}
         context={context}
         onStateUpdated={keep}
         rows={given}
@@ -333,9 +358,6 @@ export function ActionResultsGrid({
         onCellFocused={onCellFocused}
         onGridReady={ready}
       />
-      {findPivotRows && pivotRowIds && (
-        <GoToPivotRow tabId={tabId} grid={view} pivotRowIds={pivotRowIds} />
-      )}
       {rowDetail}
       {dialog}
     </Box>

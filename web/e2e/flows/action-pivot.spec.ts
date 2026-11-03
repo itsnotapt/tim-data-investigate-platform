@@ -170,7 +170,7 @@ test('pivots are disabled, with the reason, for several rows into a one-row acti
   await expect(page.getByText('At most 100 rows; 2,500 selected')).toBeVisible();
 });
 
-test('Go to pivot row moves to the row the pivot came from, in view and focused', async ({
+test('Go to pivot row moves to the row the pivot came from, in view, focused and highlighted', async ({
   page,
 }) => {
   await runRows(page, 'Generated rows', 2500);
@@ -188,9 +188,13 @@ test('Go to pivot row moves to the row the pivot came from, in view and focused'
   const pivotRow = grid(page).locator('.ag-row[row-index="2499"]');
   await expect(pivotRow).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Go to pivot row' }).click();
+  // Go to pivot row and Highlight pivot rows sit in the centre of the grid's status bar.
+  const statusBar = grid(page).locator('.ag-status-bar-center');
+  await expect(statusBar.getByRole('checkbox', { name: 'Highlight pivot rows' })).toBeChecked();
+  await statusBar.getByRole('button', { name: 'Go to pivot row' }).click();
 
   await expect(pivotRow.locator('[col-id="Host"]')).toHaveText('Host-1');
   await expect(pivotRow).toBeInViewport();
   await expect(pivotRow.locator('.ag-cell-focus')).toHaveCount(1);
+  await expect(pivotRow).toHaveClass(/\btim-pivot-row\b/);
 });
