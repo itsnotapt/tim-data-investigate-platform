@@ -1,9 +1,15 @@
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Tooltip from '@mui/material/Tooltip';
 import { useEffect, useMemo, useState } from 'react';
+import { usePrototypeVariant } from '../../components/PrototypeSwitcher.prototype';
+import {
+  GO_TO_PIVOT_ROW_VARIANTS,
+  VariantA,
+  VariantB,
+  VariantC,
+  VariantC2,
+  VariantC3,
+  VariantCurrent,
+  type VariantProps,
+} from './GoToPivotRow.prototype';
 import type { GridView } from './gridView';
 import { rowNumbersOf } from './results';
 
@@ -86,43 +92,26 @@ export function GoToPivotRow({ tabId, grid, pivotRowIds }: GoToPivotRowProps) {
     grid.flash(next);
     setCursor({ count, at: nextAt });
   };
-  const label = `Go to pivot row${count > 1 && at !== null ? ` (${at + 1} of ${count})` : ''}`;
-  return (
-    <Box
-      sx={{
-        position: 'absolute',
-        bottom: 56,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 3,
-      }}
-    >
-      <Tooltip title={reason ?? ''}>
-        <span>
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={
-              grid && next !== undefined && grid.isAbove(next) ? (
-                <ArrowUpwardIcon />
-              ) : (
-                <ArrowDownwardIcon />
-              )
-            }
-            disabled={next === undefined}
-            onClick={onClick}
-            sx={{
-              borderRadius: 999,
-              boxShadow: 4,
-              textTransform: 'none',
-              px: 2,
-              '&.Mui-disabled': { bgcolor: 'background.paper', color: 'text.secondary' },
-            }}
-          >
-            {label}
-          </Button>
-        </span>
-      </Tooltip>
-    </Box>
-  );
+  // PROTOTYPE: render one of the variants in GoToPivotRow.prototype.tsx.
+  const variant = usePrototypeVariant(GO_TO_PIVOT_ROW_VARIANTS);
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed && variant !== 'current') return null;
+  const props: VariantProps = {
+    count,
+    at,
+    up: !!grid && next !== undefined && grid.isAbove(next),
+    inView: !!grid && next !== undefined && grid.isInView(next),
+    nextAt,
+    rows: matches.shown,
+    disabled: next === undefined,
+    reason,
+    onGo: onClick,
+    onDismiss: () => setDismissed(true),
+  };
+  if (variant === 'A') return <VariantA {...props} />;
+  if (variant === 'B') return <VariantB {...props} />;
+  if (variant === 'C') return <VariantC {...props} />;
+  if (variant === 'C2') return <VariantC2 {...props} />;
+  if (variant === 'C3') return <VariantC3 {...props} />;
+  return <VariantCurrent {...props} />;
 }

@@ -33,6 +33,8 @@ import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
 import { AuthGate } from './AuthGate';
+import { PrototypeSwitcher } from '../components/PrototypeSwitcher.prototype';
+import { GO_TO_PIVOT_ROW_VARIANTS } from '../features/action-tab/GoToPivotRow.prototype';
 import type { ThemeMode } from './themeKeys';
 
 interface ToolbarMenuProps {
@@ -255,6 +257,8 @@ export function AppShell() {
           <ShellContent />
         </AuthGate>
       </Box>
+      {/* PROTOTYPE: Go to pivot row variants. */}
+      <PrototypeSwitcher variants={GO_TO_PIVOT_ROW_VARIANTS} />
     </Box>
   );
 }

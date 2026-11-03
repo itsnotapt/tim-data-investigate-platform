@@ -65,3 +65,17 @@ find_pivot_rows: true
 generate: 2500
 columns:
   - { name: Host, type: string, sort: desc }
+---
+# PROTOTYPE (branch prototype/go-to-pivot-row): Host list from several rows, to see Go to pivot
+# row's "(x of y)". Select e.g. Host-1, Host-10, Host-100 and Host-2 in Generated rows.
+type: dev_rows
+key: dev-host-list-many
+name: Host list (many)
+menu: Development / Pivots
+description: Every generated host, from several rows, for Go to pivot row's count
+pivot: rows
+id: Host
+find_pivot_rows: true
+generate: 2500
+columns:
+  - { name: Host, type: string, sort: desc }

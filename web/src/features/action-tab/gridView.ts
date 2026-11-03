@@ -42,6 +42,8 @@ export interface GridView {
   flash(row: number): void;
   /** Whether `row`, or the closed group it is in, is above the viewport. */
   isAbove(row: number): boolean;
+  /** PROTOTYPE: whether `row`, or the closed group it is in, is wholly within the viewport. */
+  isInView(row: number): boolean;
   /** Calls `listener` when the rows shown change: rows, filters, sort or groups. Returns the unsubscribe. */
   onShownChange(listener: () => void): () => void;
   /** Calls `listener` when the grid scrolls. Returns the unsubscribe. */
@@ -111,6 +113,13 @@ export function gridView(api: GridApi): GridView {
       while (shown && (shown.rowTop === null || !shown.displayed)) shown = shown.parent;
       if (!shown || shown.rowTop === null) return false;
       return shown.rowTop + (shown.rowHeight ?? 0) <= api.getVerticalPixelRange().top;
+    },
+    isInView: (row) => {
+      let shown: IRowNode | null | undefined = node(row);
+      while (shown && (shown.rowTop === null || !shown.displayed)) shown = shown.parent;
+      if (!shown || shown.rowTop === null) return false;
+      const { top, bottom } = api.getVerticalPixelRange();
+      return shown.rowTop >= top && shown.rowTop + (shown.rowHeight ?? 0) <= bottom;
     },
     onShownChange: (listener) => listen('modelUpdated', listener),
     onScroll: (listener) => listen('bodyScroll', listener),
