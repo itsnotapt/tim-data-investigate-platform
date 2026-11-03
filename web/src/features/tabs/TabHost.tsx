@@ -7,8 +7,9 @@ import { useTabsStore } from './tabStore';
 
 /**
  * Renders the tab at `/view/:uuid`. Visited tabs stay mounted (hidden with display:none) so
- * their grids keep state. Unknown uuids redirect home, but only after tabs finished loading
- * (a hard load must not bounce before IndexedDB is read).
+ * their grids keep their scroll position, focused cell, selection and column state. Unknown uuids
+ * redirect home, but only after tabs finished loading (a hard load must not bounce before
+ * IndexedDB is read).
  */
 export function TabHost({ registry = defaultRegistry }: { registry?: TabRegistry }) {
   const { uuid = '' } = useParams();
@@ -28,7 +29,8 @@ export function TabHost({ registry = defaultRegistry }: { registry?: TabRegistry
 
   return (
     <>
-      {mounted.map((id) => {
+      {/* In a fixed order, by uuid, so a visit never moves a tab's node (docs/architecture.md). */}
+      {[...mounted].sort().map((id) => {
         const tab = tabs[id];
         if (!tab) return null; // removed since it was visited
         const Component = registry[tab.componentName];

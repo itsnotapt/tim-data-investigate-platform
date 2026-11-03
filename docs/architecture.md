@@ -118,6 +118,11 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - Changes are written to IndexedDB through a debounced, serialised queue.
   - Removing a tab removes its whole subtree, and the row results of every removed tab.
   - Visited tabs stay mounted up to a cap of 100. The least recently visited are evicted.
+  - A hidden tab keeps its grid's scroll position, focused cell, selection and column state.
+    - `TabHost` hides an inactive tab with `display: none`. It does not unmount it.
+    - It renders the mounted tabs in a fixed order, by uuid, not in visit order.
+    - React moves a node whose place among its siblings changes, and a move resets every scroll position inside it.
+    - A tab that was evicted and is opened again gets its column state from its stored `gridState` and `columnView`.
   - On load, a stored tab of an unknown kind is dropped, with its rows.
 - **`presetsStore`** holds the analyst's own presets and the shared ones, from `GET /api/presets`. The New menu refetches it each time it opens.
 - **`savedColumnViewsStore`** holds the analyst's own column views and the shared ones, from `GET /api/columnViews`. The Views panel refetches it each time it opens.

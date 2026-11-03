@@ -52,7 +52,6 @@ export type ActionResultsGridProps = Omit<
   ResultsGridProps,
   | 'rows'
   | 'columnDefs'
-  | 'stateKey'
   | 'sideBar'
   | 'statusPanels'
   | 'context'
