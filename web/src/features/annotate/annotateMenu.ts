@@ -13,7 +13,7 @@ export interface AnnotateMenuOptions {
 }
 
 /** Whether `key` is pressed with no Ctrl, Meta or Alt. */
-const plain = (key: KeyboardEvent) => !key.ctrlKey && !key.metaKey && !key.altKey;
+const unmodified = (key: KeyboardEvent) => !key.ctrlKey && !key.metaKey && !key.altKey;
 
 /**
  * Annotate… (T) and Comment… (C) for the selected rows. With targets that can't be annotated, the
@@ -50,7 +50,7 @@ const KEYS: Record<string, AnnotateMode> = { t: 'annotate', c: 'comment' };
  */
 export function makeAnnotateKeys({ max, rowsOf, open, notify }: AnnotateMenuOptions): RowsKeys {
   return (key, targets) => {
-    const mode = plain(key) && KEYS[key.key.toLowerCase()];
+    const mode = unmodified(key) && KEYS[key.key.toLowerCase()];
     if (!mode) return;
     const rows = rowsOf(targets.rows);
     if (rows.length === 0) return;
@@ -64,7 +64,7 @@ export function makeAnnotateKeys({ max, rowsOf, open, notify }: AnnotateMenuOpti
 /** D opens Row detail on the focused row, or closes it when it's open. */
 export function makeRowDetailKeys(toggle: (row: number) => void): RowsKeys {
   return (key, { row }) => {
-    if (!plain(key) || key.key.toLowerCase() !== 'd' || row === null) return;
+    if (!unmodified(key) || key.key.toLowerCase() !== 'd' || row === null) return;
     key.preventDefault();
     toggle(row);
   };

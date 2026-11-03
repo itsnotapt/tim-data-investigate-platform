@@ -297,7 +297,7 @@ export function ActionResultsGrid({
     (params) => [
       ...params.defaultItems,
       'separator',
-      copySettingsItem(() => params.api.getState()),
+      copySettingsItem(() => gridView(params.api).state()),
     ],
     [copySettingsItem],
   );

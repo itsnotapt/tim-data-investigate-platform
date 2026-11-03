@@ -30,7 +30,7 @@ export function useActionPivotMenu(parentTabId: string, run: (tabId: string) => 
     () => (targets) => {
       if (!instance) return [];
       /** The targets' rows, and the clicked cell, as the tab's Results have them now. */
-      const now = () => {
+      const fromResults = () => {
         const found = resultRows(parentTabId, targets.rows);
         const { row, column } = targets;
         const [clicked] = resultRows(parentTabId, row === null ? [] : [row]);
@@ -48,12 +48,12 @@ export function useActionPivotMenu(parentTabId: string, run: (tabId: string) => 
         actions: instance.actions,
         presets,
         connections: instance.connections,
-        rows: now().rows,
+        rows: fromResults().rows,
         maxPivotRows: instance.limits.maxPivotRows,
         recent,
         onPivot: (action) => {
           record(recentPivotKey(action));
-          const { rows, pivotRowIds, cell } = now();
+          const { rows, pivotRowIds, cell } = fromResults();
           void pivotIntoAction({
             action,
             parentTabId,
@@ -68,7 +68,7 @@ export function useActionPivotMenu(parentTabId: string, run: (tabId: string) => 
         },
         onPivotPreset: (preset, action, resolved) => {
           record(recentPivotKey(preset));
-          const { rows, pivotRowIds } = now();
+          const { rows, pivotRowIds } = fromResults();
           pivotIntoPreset({
             preset,
             action,
