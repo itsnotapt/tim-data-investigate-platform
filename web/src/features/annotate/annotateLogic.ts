@@ -99,10 +99,10 @@ export interface Reach {
   withoutId: number;
 }
 
-/** The reach of a change to `rows`, given the grid's rows of each `id`. */
+/** The reach of a change to `rows`, given the row numbers of each `id`. */
 export function reachOf(
   rows: readonly { id?: string | null }[],
-  rowsById: ReadonlyMap<string, readonly string[]>,
+  rowsById: ReadonlyMap<string, readonly number[]>,
 ): Reach {
   const withId = rows.flatMap((r) => (r.id ? [r.id] : []));
   const ids = new Set(withId);

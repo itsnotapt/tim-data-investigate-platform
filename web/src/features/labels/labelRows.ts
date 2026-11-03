@@ -1,7 +1,7 @@
 import type { ColDef, RowClassRules } from 'ag-grid-community';
 import { LABEL_COLOURS } from '../../app/theme';
 import type { Annotations, InstanceLabel, RunRow } from '../../lib/api';
-import { gridRowId, type GridRowWithId } from '../grid';
+import type { GridRowWithId } from '../grid';
 import { shownLabel } from './labels';
 
 /** An action grid's row: the run's row, its grid row id, its `id` and the `id`'s annotations. */
@@ -76,15 +76,15 @@ export function labelColumnDef(labels: readonly InstanceLabel[]): ColDef {
   };
 }
 
-/** The grid row ids of each `id`, so a change to an `id` updates every row that has it. */
-export type RowsById = Map<string, string[]>;
+/** The row numbers of each `id`, in order, so a change to an `id` updates every row that has it. */
+export type RowsById = Map<string, number[]>;
 
 /** Adds `rows` to `index`. */
 export function indexRows(index: RowsById, rows: readonly LabelledRow[]): void {
   for (const row of rows) {
     if (!row.id) continue;
     const ids = index.get(row.id);
-    if (ids) ids.push(gridRowId(row));
-    else index.set(row.id, [gridRowId(row)]);
+    if (ids) ids.push(row.row);
+    else index.set(row.id, [row.row]);
   }
 }

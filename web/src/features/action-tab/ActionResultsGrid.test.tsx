@@ -321,6 +321,14 @@ describe('ActionResultsGrid', () => {
     expect(api.getSelectedNodes().map((n) => n.id)).toEqual(['0']);
   });
 
+  it('adds the rows of a page that arrives before the grid is ready', async () => {
+    const grid = renderGrid('early', rows.slice(0, 1));
+    grid.page(rows.slice(1));
+    const api = await grid.api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    expect(api.getCellValue({ rowNode: api.getRowNode('1')!, colKey: 'User' })).toBe('bob');
+  });
+
   it('flashes the rows a change from the feed labels, and not those of the analyst’s own', async () => {
     const shown = [withId(rows[0]!, 'flash-feed'), withId(rows[1]!, 'flash-own')];
     const api = await renderGrid('flash', shown, []).api();

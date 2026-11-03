@@ -14,8 +14,8 @@ export interface AnnotatingOptions {
   labels: readonly InstanceLabel[];
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
-  /** The grid row ids of each `id`. */
-  rowsById: ReadonlyMap<string, readonly string[]>;
+  /** The row numbers of each `id`. */
+  rowsById: ReadonlyMap<string, readonly number[]>;
   /** The rows of the tab's Results, as they are now. */
   rowsOf: RowsOf;
   /** The sinks Annotate… offers to run on the rows after tagging. */

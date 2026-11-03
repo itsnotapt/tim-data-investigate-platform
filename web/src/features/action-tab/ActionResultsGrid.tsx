@@ -159,9 +159,10 @@ export function ActionResultsGrid({
     (state: GridState) => actionFileColumns({ state, declared: declaredColumns, runColumns, own }),
     [declaredColumns, runColumns, own],
   );
-  // The grid is given the rows it starts with as its row data, then each change by transaction, so
-  // a page doesn't make it take every row again.
+  // The grid is given the rows it starts with (`given`, flattened to `startRows`) as its row data,
+  // then each change by transaction, so a page doesn't make it take every row again.
   const [given] = useState(rows);
+  const [startRows] = useState(() => given.flat());
   /** The grid once it is ready. */
   const [view, setView] = useState<GridView | null>(null);
   useEffect(() => {
@@ -348,7 +349,7 @@ export function ActionResultsGrid({
         statusPanels={STATUS_PANELS}
         context={context}
         onStateUpdated={keep}
-        rows={given}
+        rows={startRows}
         columnDefs={columnDefs}
         getContextMenuItems={menu}
         getMainMenuItems={getMainMenuItems}

@@ -84,9 +84,9 @@ describe('tagChips', () => {
 
 describe('reachOf and reachLine', () => {
   const index = new Map([
-    ['h1', ['0', '1', '2']],
-    ['h2', ['3']],
-    ['h3', ['4', '5']],
+    ['h1', [0, 1, 2]],
+    ['h2', [3]],
+    ['h3', [4, 5]],
   ]);
 
   it('counts the rows, their ids, the other rows with those ids and the rows without one', () => {

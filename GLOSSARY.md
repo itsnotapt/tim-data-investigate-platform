@@ -156,6 +156,10 @@ _Avoid_: id field, key column
 A row's position in its run's results, unique within the run where `id` can repeat.
 _Avoid_: ordinal, row id
 
+**Page**:
+Up to the instance's rows page size of a run's rows, in row number order: the unit they arrive in and are kept in.
+_Avoid_: chunk, batch
+
 **Row detail**:
 The side panel showing one row's fields and, when the row has an `id`, its annotations and their history. It shows the row the analyst has moved to.
 _Avoid_: History panel, detail panel, Show details, Result Details
