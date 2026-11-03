@@ -1,11 +1,10 @@
-import type { CellKeyDownEvent } from 'ag-grid-community';
 import { useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
 import { useAnalyst } from '../analyst';
-import type { GetExtraContextMenuItems, GridRowWithId } from '../grid';
-import { targetIds, type LabelledRow } from '../labels';
+import type { RowsKeys, RowsMenu } from '../grid';
+import { targetIds, whyUnlabellable, type RowsOf } from '../labels';
 import { whyNoSink, type Sinks } from '../sinks';
 import { AnnotateDialog } from './AnnotateDialog';
 import { reachOf, savedMessage, type AnnotateMode, type Reach } from './annotateLogic';
@@ -17,15 +16,17 @@ export interface AnnotatingOptions {
   max: number;
   /** The grid row ids of each `id`. */
   rowsById: ReadonlyMap<string, readonly string[]>;
+  /** The rows of the tab's Results, as they are now. */
+  rowsOf: RowsOf;
   /** The sinks Annotate… offers to run on the rows after tagging. */
   sinks?: Sinks;
 }
 
 export interface Annotating {
   /** Annotate… and Comment…, for the grid's context menu. */
-  menu: GetExtraContextMenuItems;
+  menu: RowsMenu;
   /** T and C, for the grid's cell key handler. */
-  keys: (e: CellKeyDownEvent<GridRowWithId>) => void;
+  keys: RowsKeys;
   /** The open dialog, if any, to render beside the grid. */
   dialog: ReactNode;
 }
@@ -34,7 +35,7 @@ export interface Annotating {
 interface OpenDialog {
   mode: AnnotateMode;
   /** The rows it was opened on. */
-  rows: LabelledRow[];
+  rows: ReturnType<RowsOf>;
   targets: string[];
   reach: Reach;
   current: Annotations[];
@@ -45,16 +46,27 @@ interface OpenDialog {
  * change goes into the annotation store as the analyst's own, then a toast says what changed, and
  * the sink picked in Annotate… starts on the rows.
  */
-export function useAnnotating({ labels, max, rowsById, sinks }: AnnotatingOptions): Annotating {
+export function useAnnotating({
+  labels,
+  max,
+  rowsById,
+  rowsOf,
+  sinks,
+}: AnnotatingOptions): Annotating {
   const notify = useContext(NotifyContext);
   const analyst = useAnalyst();
   const [open, setOpen] = useState<OpenDialog | null>(null);
   const options = useMemo(
     () => ({
       max,
+      rowsOf,
       notify: (message: string) => notify?.(message),
-      open: (mode: AnnotateMode, rows: LabelledRow[]) => {
+      // The dialog opens on the `id`s the rows have when it opens.
+      open: (mode: AnnotateMode, rowNumbers: readonly number[]) => {
+        const rows = rowsOf(rowNumbers);
         const targets = targetIds(rows);
+        const reason = whyUnlabellable(targets, max);
+        if (reason !== null) return void notify?.(reason);
         void getAnnotationStore()
           .get(targets)
           .then((found) =>
@@ -68,7 +80,7 @@ export function useAnnotating({ labels, max, rowsById, sinks }: AnnotatingOption
           );
       },
     }),
-    [max, notify, rowsById],
+    [max, notify, rowsById, rowsOf],
   );
   const onSaved = useCallback(
     async (mode: AnnotateMode, changes: Annotations[]) => {

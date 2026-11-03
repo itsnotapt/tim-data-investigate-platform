@@ -4,9 +4,16 @@ import userEvent from '@testing-library/user-event';
 import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
 import { load } from 'js-yaml';
 import { HttpResponse, http } from 'msw';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import type { Annotations, CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
+import type {
+  Annotations,
+  CatalogueAction,
+  CatalogueColumn,
+  RunColumn,
+  RunRow,
+} from '../../lib/api';
 import { AuthProvider, createAuthClient, DEV_ACCOUNT } from '../../lib/auth';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
@@ -14,6 +21,7 @@ import { configureTestApp, resetTestApp } from '../../test/testApp';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import { getAnnotationStore } from '../../lib/annotations';
 import { annotated } from '../../test/annotationFakes';
+import { useActionPivotMenu } from '../action-pivots';
 import { useAnalystStore } from '../analyst';
 import { useInstanceStore } from '../instance';
 import type { LabelledRow } from '../labels';
@@ -806,6 +814,218 @@ describe('ActionResultsGrid Id column', () => {
 
     pick(api!, 'Host', 'Use Host as Id column');
     await waitFor(() => expect(shownId()).toBe('switch-h1'));
+  });
+});
+
+describe('ActionResultsGrid acting after the Id column changes', () => {
+  const sessions: RunRow[] = [
+    { row: 0, data: { User: 'acting-alice', Host: 'acting-h1' } },
+    { row: 1, data: { User: 'acting-bob', Host: 'acting-h1' } },
+    { row: 2, data: { User: 'acting-carol', Host: 'acting-h2' } },
+  ];
+  let patches: unknown[];
+  let api: GridApi | undefined;
+
+  function Switchable({ tabId, ...props }: Omit<TabGridProps, 'idColumn'>) {
+    const [idColumn, setIdColumn] = useState<string | null>('User');
+    return (
+      <TabGrid
+        tabId={tabId}
+        idColumn={idColumn}
+        onIdColumnChange={setIdColumn}
+        height={400}
+        onGridReady={(e) => (api = e.api)}
+        {...props}
+      />
+    );
+  }
+
+  const SINK: CatalogueAction = {
+    key: 'case',
+    kind: 'sink',
+    actionFile: false,
+    findPivotRows: false,
+    name: 'Add to case',
+    menuPath: [],
+    connections: [],
+    params: [],
+    pivot: { rows: 'rows', columns: [] },
+  };
+  const BY_HOST: CatalogueAction = {
+    key: 'by-host',
+    kind: 'query',
+    actionFile: false,
+    findPivotRows: true,
+    name: 'Sign-ins by host',
+    menuPath: [],
+    connections: [],
+    params: [
+      {
+        name: 'hosts',
+        title: 'Hosts',
+        kind: 'string',
+        required: true,
+        many: true,
+        fromColumns: ['Host'],
+      },
+    ],
+    pivot: { rows: 'rows', columns: [['Host']] },
+  };
+
+  /** The item named `name` anywhere in `items` and their submenus. */
+  const deepFind = (items: Item[], name: string): MenuItemDef | undefined => {
+    for (const item of items) {
+      if (typeof item !== 'object') continue;
+      if (item.name === name) return item;
+      const found = item.subMenu && deepFind(item.subMenu as Item[], name);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const pickFrom = (items: Item[], name: string) => {
+    const item = deepFind(items, name);
+    expect(item).toBeDefined();
+    act(() => (item!.action as () => void)());
+  };
+
+  beforeEach(() => {
+    configureTestApp();
+    useInstanceStore.setState({
+      instance: {
+        version: 'v1',
+        actions: [SINK, BY_HOST],
+        connections: [],
+        labels: [],
+        limits: {
+          maxResultRows: 1,
+          maxResultBytes: 1,
+          maxPivotRows: 100,
+          rowsPageSize: 1,
+          runTimeoutSeconds: 1,
+          maxAnnotationIds: 10_000,
+          annotationPollSeconds: 30,
+        },
+      },
+    });
+    patches = [];
+    server.use(
+      http.patch(apiUrl('/api/annotations'), async ({ request }) => {
+        patches.push(await request.json());
+        return HttpResponse.json({ changes: [], version: 1 });
+      }),
+    );
+  });
+  afterEach(() => {
+    useInstanceStore.setState({ instance: null });
+    resetTestApp();
+  });
+
+  /** The menu of row 1's `column` cell. */
+  const menuOf = (column: string) =>
+    (api!.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+      api,
+      node: api!.getRowNode('1'),
+      column: api!.getColumn(column),
+    });
+
+  /**
+   * The grid with rows 0 and 1 selected, keyed by User; returns the menu of row 1's User cell,
+   * opened before the Id column switches to Host.
+   */
+  async function menuThenSwitch(
+    wrap: (grid: (props: Partial<TabGridProps>) => ReactNode, tabId: string) => ReactNode = (
+      grid,
+    ) => grid({}),
+  ): Promise<Item[]> {
+    const tabId = loadingTab(
+      'acting',
+      sessions,
+      [
+        { name: 'User', type: 'string', declared: false },
+        { name: 'Host', type: 'string', declared: false },
+      ],
+      'User',
+    );
+    render(
+      <SnackbarHost>
+        {wrap(
+          (props) => (
+            <Switchable tabId={tabId} {...props} />
+          ),
+          tabId,
+        )}
+      </SnackbarHost>,
+    );
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
+    act(() =>
+      api!.setNodesSelected({
+        nodes: [api!.getRowNode('0')!, api!.getRowNode('1')!],
+        newValue: true,
+      }),
+    );
+    const items = menuOf('User');
+    const useHost = find(menuOf('Host'), 'Use Host as Id column');
+    act(() => (useHost!.action as () => void)());
+    return items;
+  }
+
+  it("Label ▸ labels the rows' ids as they are when it acts", async () => {
+    const items = await menuThenSwitch();
+    const clear = find(find(items, 'Label')!.subMenu as Item[], 'Clear label');
+    act(() => (clear!.action as () => void)());
+    await waitFor(() => expect(patches).toEqual([{ ids: ['acting-h1'], label: null }]));
+  });
+
+  it.each(['Annotate', 'Comment'])(
+    "%s… opens on the rows' ids as they are when it acts",
+    async (mode) => {
+      pickFrom(await menuThenSwitch(), `${mode}…`);
+      const dialog = await screen.findByRole('dialog', { name: mode });
+      expect(within(dialog).getByText('2 rows · 1 id', { exact: false })).toBeInTheDocument();
+    },
+  );
+
+  it('runs a sink on the rows as they are when it acts', async () => {
+    const runs: unknown[] = [];
+    server.use(
+      http.post(apiUrl('/api/runs'), async ({ request }) => {
+        runs.push(await request.json());
+        return problemResponse(503);
+      }),
+    );
+    pickFrom(await menuThenSwitch(), 'Add to case');
+    await waitFor(() => expect(runs).toHaveLength(1));
+    expect(runs[0]).toMatchObject({
+      action: 'case',
+      input: { rows: [sessions[0]!.data, sessions[1]!.data] },
+    });
+  });
+
+  it("pivots with the rows' ids as they are when it acts", async () => {
+    server.use(
+      http.get(apiUrl('/api/presets'), () => HttpResponse.json([])),
+      http.post(apiUrl('/api/actions/by-host/resolve'), () =>
+        HttpResponse.json({ params: { hosts: ['acting-h1'] }, missing: [], reasons: {} }),
+      ),
+    );
+    let parent = '';
+    function Pivoting({ grid }: { grid: (props: Partial<TabGridProps>) => ReactNode }) {
+      const pivotMenu = useActionPivotMenu(parent, () => undefined);
+      return grid({ getContextMenuItems: pivotMenu });
+    }
+    const items = await menuThenSwitch((grid, tabId) => {
+      parent = tabId;
+      return (
+        <MemoryRouter>
+          <Pivoting grid={grid} />
+        </MemoryRouter>
+      );
+    });
+    pickFrom(items, 'Sign-ins by host');
+    await waitFor(() => {
+      const child = Object.values(useTabsStore.getState().tabs).find((t) => t.parentId === parent);
+      expect(child).toMatchObject({ toRun: { pivotRowIds: ['acting-h1', 'acting-h1'] } });
+    });
   });
 });
 

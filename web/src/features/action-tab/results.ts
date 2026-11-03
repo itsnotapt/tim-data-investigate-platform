@@ -189,6 +189,23 @@ export function resultsOf(tabId: string): Results | null {
   return entries.get(tabId)?.shown ?? null;
 }
 
+/** The rows of the tab's Results with these row numbers, in their order; those it hasn't are left out. */
+export function resultRows(tabId: string, rowNumbers: readonly number[]): ResultRow[] {
+  const entry = entries.get(tabId);
+  const rows = entry?.shown?.rows;
+  if (!entry || !rows) return [];
+  return rowNumbers.flatMap((n) => {
+    const at = entry.positions.get(gridRowId({ row: n }));
+    const found = at === undefined ? undefined : rows[at];
+    return found ? [found] : [];
+  });
+}
+
+/** The row numbers of the rows of the tab's Results with `id`, in order. */
+export function rowNumbersOf(tabId: string, id: string): number[] {
+  return (entries.get(tabId)?.index.get(id) ?? []).map(Number);
+}
+
 /** Hears every change to the tab's Results. Returns the unsubscribe. */
 export function subscribeResults(tabId: string, listener: ResultsListener): () => void {
   let set = listeners.get(tabId);

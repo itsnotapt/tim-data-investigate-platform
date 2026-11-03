@@ -1,10 +1,9 @@
-import type { CellFocusedEvent, CellKeyDownEvent } from 'ag-grid-community';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
 import type { Annotations, InstanceLabel } from '../../lib/api';
 import { useAnalyst } from '../analyst';
-import type { DetailColumns, GetExtraContextMenuItems, GridRowWithId } from '../grid';
-import type { LabelledRow } from '../labels';
+import type { DetailColumns, RowsKeys, RowsMenu } from '../grid';
+import type { RowsOf } from '../labels';
 import { buildRowDetailMenu, makeRowDetailKeys } from './annotateMenu';
 import { RowDetail } from './RowDetail';
 
@@ -14,32 +13,33 @@ export interface RowDetailOptions {
   labels: readonly InstanceLabel[];
   /** The run's columns: the order of the fields. */
   columns?: DetailColumns | null;
+  /** The rows of the tab's Results, as they are now: the panel shows its row as they have it. */
+  rowsOf: RowsOf;
 }
 
 export interface RowDetailState {
   /** Row detail, for the grid's context menu. */
-  menu: GetExtraContextMenuItems;
+  menu: RowsMenu;
   /** For the grid's key handler: D opens the panel on the focused row, or closes it. */
-  keys: (e: CellKeyDownEvent<GridRowWithId>) => void;
-  /** For the grid's cell focus handler: the open panel follows the focused row. */
-  onCellFocused: (e: CellFocusedEvent<GridRowWithId>) => void;
+  keys: RowsKeys;
+  /** For the grid's cell focus handler, with the focused row: the open panel follows it. */
+  onRowFocused: (row: number) => void;
   /** The open panel, if any, to render in the grid's container. */
   panel: ReactNode;
-  /** Opens the panel on `row`. */
-  open: (row: LabelledRow) => void;
-  /** The open panel takes its row from `rows`, the grid's new row data, by row number. */
-  follow: (rows: readonly LabelledRow[]) => void;
+  /** Opens the panel on the row with this row number. */
+  open: (row: number) => void;
 }
 
 /**
  * Row detail (D) on a grid's rows: the menu item, the key and the side panel. The panel follows the
- * focused row and takes the annotations of its `id` from the annotation store, so a change from
+ * focused row, shows the row as the tab's Results have it now, and takes the annotations of its `id` from the annotation store, so a change from
  * the feed updates it. A comment saved from it goes into the store as the analyst's own.
  */
-export function useRowDetail({ labels, columns }: RowDetailOptions): RowDetailState {
-  // The row the panel shows; null while it's closed.
+export function useRowDetail({ labels, columns, rowsOf }: RowDetailOptions): RowDetailState {
   const analyst = useAnalyst();
-  const [row, setRow] = useState<LabelledRow | null>(null);
+  // The row number of the row the panel shows; null while it's closed.
+  const [shown, setShown] = useState<number | null>(null);
+  const row = shown === null ? null : (rowsOf([shown])[0] ?? null);
   // The annotations last read from the store; the shown row's only when the ids match. Until
   // the store answers for a new id, the row's own copy shows.
   const [stored, setStored] = useState<Annotations | null>(null);
@@ -66,19 +66,14 @@ export function useRowDetail({ labels, columns }: RowDetailOptions): RowDetailSt
 
   // Updates from the current row, not a captured one: the grid can call its handlers before it
   // has the ones from the latest render.
-  const close = useCallback(() => setRow(null), []);
-  const menu = useMemo(() => buildRowDetailMenu(setRow), []);
+  const close = useCallback(() => setShown(null), []);
+  const menu = useMemo(() => buildRowDetailMenu(setShown), []);
   const keys = useMemo(
-    () => makeRowDetailKeys((target) => setRow((current) => (current ? null : target))),
+    () => makeRowDetailKeys((target) => setShown((current) => (current === null ? target : null))),
     [],
   );
-  const onCellFocused = useCallback((e: CellFocusedEvent<GridRowWithId>) => {
-    if (e.rowIndex === null) return;
-    const data = e.api.getDisplayedRowAtIndex(e.rowIndex)?.data;
-    if (data) setRow((current) => current && data);
-  }, []);
-  const follow = useCallback((rows: readonly LabelledRow[]) => {
-    setRow((current) => (current && rows.find((r) => r.row === current.row)) ?? current);
+  const onRowFocused = useCallback((focused: number) => {
+    setShown((current) => (current === null ? null : focused));
   }, []);
   const onCommented = useCallback(async (changes: Annotations[]) => {
     await getAnnotationStore().apply(changes, 'own');
@@ -96,5 +91,5 @@ export function useRowDetail({ labels, columns }: RowDetailOptions): RowDetailSt
       onClose={close}
     />
   );
-  return { menu, keys, onCellFocused, panel, open: setRow, follow };
+  return { menu, keys, onRowFocused, panel, open: setShown };
 }

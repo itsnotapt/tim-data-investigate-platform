@@ -7,6 +7,9 @@ import { shownLabel } from './labels';
 /** An action grid's row: the run's row, its grid row id, its `id` and the `id`'s annotations. */
 export type LabelledRow = GridRowWithId & { id?: string | null; annotations?: Annotations };
 
+/** The rows of a tab's Results with these row numbers, as they are now. */
+export type RowsOf = (rowNumbers: readonly number[]) => (RunRow & LabelledRow)[];
+
 /** The longest `id` an annotation can have. */
 export const MAX_ID_LENGTH = 512;
 

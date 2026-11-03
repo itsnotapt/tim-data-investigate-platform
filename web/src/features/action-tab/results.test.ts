@@ -11,7 +11,9 @@ import {
   holdResults,
   loadAbandoned,
   pageLoaded,
+  resultRows,
   resultsOf,
+  rowNumbersOf,
   runLoaded,
   runLoading,
   setResultsInputs,
@@ -55,6 +57,27 @@ function hold(tabId: string, inputs: ResultsInputs): () => void {
 }
 
 describe('Results', () => {
+  it('gives the rows of row numbers, and the row numbers of an id, under the Id column as it is now', () => {
+    hold('lookup', { idColumn: 'User', stored: null });
+    runLoading('lookup', { runId: 'r1', columns, rowCount: 3 }, 'User');
+    pageLoaded('lookup', 'r1', [row(4, 'alice'), row(7, 'bob')]);
+    pageLoaded('lookup', 'r1', [{ row: 9, data: { User: 'alice', Host: 'h1' } }]);
+    expect(resultRows('lookup', [9, 3, 4]).map((r) => [r.row, r.id])).toEqual([
+      [9, 'alice'],
+      [4, 'alice'],
+    ]);
+    expect(rowNumbersOf('lookup', 'alice')).toEqual([4, 9]);
+
+    setResultsInputs('lookup', { idColumn: 'Host', stored: null });
+    expect(resultRows('lookup', [4, 9]).map((r) => [r.row, r.id, r.data])).toEqual([
+      [4, null, { User: 'alice' }],
+      [9, 'h1', { User: 'alice', Host: 'h1' }],
+    ]);
+    expect(rowNumbersOf('lookup', 'alice')).toEqual([]);
+    expect(rowNumbersOf('lookup', 'h1')).toEqual([9]);
+    expect(resultRows('other', [4])).toEqual([]);
+  });
+
   it('adds each page of the run loading after the rows so far, each row with its id', () => {
     const release = hold('pages', { idColumn: 'User', stored: null });
     const changes = changesOf('pages');

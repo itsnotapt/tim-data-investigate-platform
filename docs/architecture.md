@@ -199,6 +199,7 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
    - Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load.
    - Until they all have, the tab shows "Results · 20000 of 85000".
    - Results (`features/action-tab/results.ts`) give each row its `id` from the tab's Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
+   - The grid is given the rows as they arrive. It holds its own copy of them ([What the grid holds](#what-the-grid-holds)).
    - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `results` (`runId`, `columns`, `startedAt` and `rowCount`) is written with them.
    - A failed or abandoned load shows none of its rows. When a rerun fails or is cancelled while its rows load, its rows go and the rows of the tab's last succeeded run are shown again, read back from `row_results`.
    - A tab whose rows are stored needs no API call. So it still shows them after the run has expired on the server.
@@ -388,9 +389,26 @@ The tree shows an action tab's status like any tab's:
 - a ringed 0 for a succeeded run with no rows ("Succeeded, no rows");
 - a "Needs input" icon for a tab waiting on the params a pivot left missing (`pivotMissing`). It goes once each is filled in on its pill, a From row query parameter by its `parameters.<name>` pill included.
 
+#### What the grid holds
+
+AG Grid holds the analyst's view of the rows. Results hold the rows.
+
+- **The grid holds:** the selection, sort, filters, grouping, scroll and focus.
+- **Results hold:** each row's data, `id` and annotations (`features/action-tab/results.ts`).
+  - `resultRows(tabId, rowNumbers)` gives the rows with those row numbers.
+  - `rowNumbersOf(tabId, id)` gives the row numbers of the rows with that `id`.
+- **The grid's copy.** The grid also holds a copy of the row data, because label colours, filters and sorts read the annotations from it.
+  - The adapter is the only writer of that copy, and the copy shares its row objects with Results.
+  - Each change to Results is applied to the grid as one transaction, or as new row data for a replaced run.
+- **The adapter.** `ActionResultsGrid.tsx` and `gridView.ts` (`GridView`) are the only code that uses AG Grid's api for this: node lookups, transactions, `ensureNodeVisible` and the `ag-Grid-` column prefix of AG Grid's own columns.
+  - It turns a context menu or a key into `RowTargets` (`features/grid/rowTargets.ts`): the selected row numbers, else the clicked or focused row; the clicked or focused row; and the column.
+  - Everything else gets row numbers, never AG Grid nodes.
+- **Acting.** A menu item or key reads the rows and their `id`s from Results when the analyst acts, not when the menu opens. If the Id column changes between opening the menu and picking an item, the item acts on the new `id`s.
+  - This holds for **Label ▸**, **Annotate…**, **Comment…**, **Row detail**, the sinks, **Pivot ▸**, **Copy link** and **Use <column> as Id column**.
+
 #### Action pivots
 
-The results grid's right-click menu has **Pivot ▸**. Its targets are the selected rows. Right-clicking a row outside the selection selects just that row.
+The results grid's right-click menu has **Pivot ▸**. Its targets are the selected rows. Right-clicking a row outside the selection selects just that row. The rows come from Results when the analyst picks an item ([What the grid holds](#what-the-grid-holds)).
 
 - **Menu.**
   - A disabled "Recent" heading and the analyst's last three pivots come first, named by their full menu path. They are kept in localStorage under `tim-recent-pivots`: an action by its key, a preset as `preset:<presetId>`. A separator follows, then the actions and presets in one tree of folders, actions first in each folder, as in the New menu.
@@ -422,8 +440,8 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
 The results grid of a tab shows **Go to pivot row** when the tab has `pivotRowIds` and the action's `findPivotRows` is true ([actions.md](actions.md#action-files)).
 
 - **Look.** A pill floating over the bottom centre of the grid, above the status bar. Its arrow points up or down toward the next match.
-- **Matching.** A child row matches when its `id`, under the child's current [Id column](#the-id-column), equals a stored `id`. Matching is by `id` only, never by time.
-- **Click.** It goes to the next matching row in the grid's order.
+- **Matching.** A child row matches when its `id`, under the child's current [Id column](#the-id-column), equals a stored `id`. Matching is by `id` only, never by time. The row numbers of the matches come from Results (`rowNumbersOf`).
+- **Click.** The grid says which of those rows the filters show, in the grid's order. The click goes to the next of them.
   - It expands the row's groups, scrolls the row to the middle, focuses its first data cell and flashes it.
   - It doesn't open Row detail or change the selection.
 - **Several matches.** Repeated clicks cycle through the matches the filters let through, wrapping after the last. With more than one match, the label reads "Go to pivot row (2 of 5)" after the first click. The cycle restarts when the number of matches changes.
@@ -577,7 +595,7 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 
 `web/src/features/sinks/` runs sinks on selected rows without opening a tab.
 
-- **Input.** The full selected rows (every column) come from the tab's IndexedDB copy, with the run's columns as `{name, type}`. So a sink runs on rows of an expired run too.
+- **Input.** The full selected rows (every column) come from the tab's Results when the analyst picks the sink, with the run's columns as `{name, type}`. So a sink runs on rows of an expired run too.
 - **Polling.** The run is polled in the background: every second for ten polls, then every 3 s.
 - **Result.** It ends in a toast: "<Sink name>: N rows", or the error with **Retry**, which resends the snapshot kept in memory.
   - There is no Retry for a `413` ("Too much to send; select fewer rows"), a `422`, or a run the browser lost track of.
@@ -597,7 +615,7 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 - **Where annotations come from.** Each applied change has a source:
   - `own`: the answer to the analyst's own `PATCH`;
   - `feed`: the change feed.
-  - A run's rows carry none. The grid reads them from this store, so annotations show once the feed has been loaded.
+  - A run's rows carry none. Results read them from this store, so annotations show once the feed has been loaded.
 - **The poller.** One poller runs per browser: the tab that holds the Web Lock `tim-annotations-poller`. The other tabs queue for the lock, and take over when the holder closes.
   - It reads the feed from the cursor in `annotation_sync` when it starts, every `annotationPollSeconds` (30 by default), when its window gets focus, and when asked.
   - It is asked soon after the analyst's own change. A tab that doesn't hold the lock asks the holder through the channel.
@@ -615,6 +633,7 @@ A row's `id` is computed in the browser, from one column of its results: the **I
 - **Where it starts.** `idColumnOf` of the action tab module (`web/src/features/action-tab/model.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
 - **The tab's Id column.** `idColumn` of the module gives the tab's `grid.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
 - **In Results.** `results.ts` gives each row its `id` with `withIds`, and its annotations from the annotation store, not the grid. A switch recomputes both in place, and the grid applies the change and keeps the selection, filters, sort and scroll.
+- **Acting on a switch.** A menu or key that acts on a row's `id` reads it from Results when the analyst acts, so it uses the Id column then.
 - **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
   - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter). Clearing it goes back to the action's Id column.
@@ -658,6 +677,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
 - **Row detail.** The menu has **Row detail** (D) after **Annotate…** and **Comment…**, in the same group. It acts on the clicked or focused row only.
   - It is never disabled, also on a row without an `id`.
   - It opens Row detail on that row. D closes it.
+  - The panel holds the row's row number and shows the row as Results have it now. A change to the Id column or the annotations shows in it.
 - **Menu order.** In an action tab the menu lists:
   - **Label ▸**, **Annotate…**, **Comment…** and **Row detail**;
   - the action's extra items, such as pivots;
@@ -683,14 +703,14 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Delete comment** shows when the analyst has a comment, and deletes it.
   - The section folds, and the fold holds for every row while the page is open.
   - A comment draft is kept per `id` while the analyst moves between rows, and dropped when the panel closes.
-- **Following the row.** Row detail follows the focused row (`onCellFocused` and `onCellKeyDown` on `ResultsGrid`), and keyboard focus stays in the grid. It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it. The history comes from `GET /api/annotations/history`.
+- **Following the row.** Row detail follows the focused row (the grid adapter calls `onRowFocused` with its row number), and keyboard focus stays in the grid. It takes the `id`'s annotations from the browser annotation store, so a change from the feed, such as a teammate's comment after a poll, updates it. The history comes from `GET /api/annotations/history`.
 - **The Annotate dialog.**
   - **Label.** Keep, each label or Clear, with a "Now: …" line for the targets' current label.
   - **Tags.** A tag held by only some of the targets is dashed, with "n/total". Clicking it adds it to all. A removed tag is struck through, and clicking it undoes the removal.
   - **Suggestions.** From `GET /api/tags/suggestions`, in the groups "Your recent tags" and "Most used".
   - **Comment.** A text field. It replaces the analyst's comment on every target. An empty field leaves comments alone.
   - **Save.** Sends one `PATCH /api/annotations`. A failed save keeps the dialog open and shows the error.
-- **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`).
+- **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`). The adapter then passes the menu's builders the `RowTargets`.
 - **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. D opens or closes Row detail on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
 - **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
@@ -700,7 +720,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - "Already Malicious" or "No labels to clear" when nothing changed.
   - A failure shows "Couldn't label: …".
 - **Flash.** A change that arrives from the feed, such as a teammate's, flashes the rows it changes.
-- **Row updates.** The grid keeps a map from each `id` to its rows. A changed `id` updates all of them with one AG Grid transaction.
+- **Row updates.** Results keep a map from each `id` to its rows. A changed `id` updates all of them, and the adapter applies that to the grid with one AG Grid transaction.
 
 ### Runtime configuration
 
