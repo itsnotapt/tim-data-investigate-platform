@@ -18,35 +18,35 @@ import {
 export function toggleChecked(
   data: TabsData,
   checked: ReadonlySet<string>,
-  uuid: string,
+  tabId: string,
   value: boolean,
 ): Set<string> {
   const next = new Set(checked);
-  if (!(uuid in data.tabs)) return next;
+  if (!(tabId in data.tabs)) return next;
   if (value) {
-    for (const id of selectSubtreeIds(data, uuid)) next.add(id);
+    for (const id of selectSubtreeIds(data, tabId)) next.add(id);
   } else {
-    for (const id of selectSubtreeIds(data, uuid)) next.delete(id);
-    for (const a of selectAncestors(data, uuid)) next.delete(a.id);
+    for (const id of selectSubtreeIds(data, tabId)) next.delete(id);
+    for (const a of selectAncestors(data, tabId)) next.delete(a.id);
   }
   return next;
 }
 
-/** Drops uuids that no longer exist. */
+/** Drops tab ids that no longer exist. */
 function pruneChecked(data: TabsData, checked: ReadonlySet<string>): Set<string> {
   return new Set([...checked].filter((id) => id in data.tabs));
 }
 
 export interface TreeSelection {
   checked: ReadonlySet<string>;
-  toggle(uuid: string, value: boolean): void;
+  toggle(tabId: string, value: boolean): void;
   clear(): void;
   /** Removes every checked tab (the store cascades to descendants); `/` if the active tab went. */
   removeSelected(): Promise<void>;
 }
 
 export function useTreeSelection(
-  activeUuid: string | undefined,
+  activeTabId: string | undefined,
   store: TabsStore = useTabsStore,
 ): TreeSelection {
   const navigate = useNavigate();
@@ -56,9 +56,9 @@ export function useTreeSelection(
   const checked = useMemo(() => pruneChecked({ tabs, order }, raw), [tabs, order, raw]);
 
   const toggle = useCallback(
-    (uuid: string, value: boolean) => {
+    (tabId: string, value: boolean) => {
       setRaw((prev) =>
-        toggleChecked(store.getState(), pruneChecked(store.getState(), prev), uuid, value),
+        toggleChecked(store.getState(), pruneChecked(store.getState(), prev), tabId, value),
       );
     },
     [store],
@@ -69,10 +69,10 @@ export function useTreeSelection(
     const ids = [...pruneChecked(store.getState(), raw)];
     for (const id of ids) await store.getState().removeTab(id);
     setRaw(new Set());
-    if (activeUuid && !(activeUuid in store.getState().tabs)) {
+    if (activeTabId && !(activeTabId in store.getState().tabs)) {
       void navigate('/', { replace: true });
     }
-  }, [store, raw, activeUuid, navigate]);
+  }, [store, raw, activeTabId, navigate]);
 
   return { checked, toggle, clear, removeSelected };
 }

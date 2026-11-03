@@ -27,11 +27,11 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
     (action: CatalogueAction) => {
       const connections = useInstanceStore.getState().instance?.connections ?? [];
       const params = initialParams(action, connections);
-      const uuid = store
+      const tabId = store
         .getState()
         .createTab({ parentId: null, content: fromAction(action, params) });
-      void navigate(`/view/${uuid}`);
-      return uuid;
+      void navigate(`/view/${tabId}`);
+      return tabId;
     },
     [store, navigate],
   );
@@ -39,12 +39,12 @@ export function useNewQuery(store: TabsStore = useTabsStore): NewQueryActions {
     (preset: Preset, action: CatalogueAction) => {
       const connections = useInstanceStore.getState().instance?.connections ?? [];
       const opening = presetTabParams(preset, action, connections);
-      const uuid = store.getState().createTab({
+      const tabId = store.getState().createTab({
         parentId: null,
         content: fromPreset(preset, action, opening),
       });
-      void navigate(`/view/${uuid}`);
-      return uuid;
+      void navigate(`/view/${tabId}`);
+      return tabId;
     },
     [store, navigate],
   );

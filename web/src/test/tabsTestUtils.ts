@@ -4,7 +4,7 @@ import type {
   TabResults,
   TabStatus,
   TabToRun,
-  TabView,
+  TabGrid,
 } from '../lib/storage';
 import {
   createTabsStore,
@@ -29,7 +29,7 @@ export interface ContentOverrides {
   toRun?: Partial<TabToRun>;
   latest?: Partial<TabLatestRun>;
   results?: TabResults | null;
-  view?: Partial<TabView>;
+  grid?: Partial<TabGrid>;
   status?: Partial<TabStatus>;
 }
 
@@ -40,7 +40,7 @@ export function content(title: string, over: ContentOverrides = {}): TabContent 
     toRun: { action: 'acme.sign_ins', params: {}, ...over.toRun },
     latest: { run: null, params: null, title: null, ...over.latest },
     results: over.results ?? null,
-    view: { gridState: null, columnView: null, ...over.view },
+    grid: { gridState: null, columnView: null, ...over.grid },
     status: {
       executing: false,
       cancelling: false,

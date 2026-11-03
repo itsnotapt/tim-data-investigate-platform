@@ -57,11 +57,11 @@ import { durationText, outcomeText } from './runText';
 import { useElapsed } from './useElapsed';
 
 export interface ActionTabProps {
-  uuid: string;
+  tabId: string;
   /** Overrides the run (default `runActionTab`). */
-  onRun?: (uuid: string) => void;
+  onRun?: (tabId: string) => void;
   /** Overrides the cancel (default `cancelActionTab`). */
-  onCancel?: (uuid: string) => void;
+  onCancel?: (tabId: string) => void;
 }
 
 type InnerTab = 'query' | 'results' | 'run';
@@ -74,8 +74,8 @@ const EDITOR_LANGUAGES: Partial<Record<CatalogueParam['kind'], EditorLanguage>> 
 };
 /** The results grid's height: the window below the app bar, the tab's rows and the status bar. */
 const GRID_HEIGHT = 'calc(100vh - 156px)';
-const defaultRun = (uuid: string) => void runActionTab(uuid);
-const defaultCancel = (uuid: string) => void cancelActionTab(uuid);
+const defaultRun = (tabId: string) => void runActionTab(tabId);
+const defaultCancel = (tabId: string) => void cancelActionTab(tabId);
 
 /** What the toast says after switching the Id column to `column`. */
 const switchedText = (column: string | null) =>
@@ -89,7 +89,7 @@ const switchedText = (column: string | null) =>
  * query parameters shows above the query, outside its text.
  */
 function QueryEditor({
-  uuid,
+  tabId,
   actionKey,
   param,
   params,
@@ -98,7 +98,7 @@ function QueryEditor({
   onChange,
   onRun,
 }: {
-  uuid: string;
+  tabId: string;
   /** The tab's action, whose declare statement for its query parameters shows above the query. */
   actionKey: string;
   param: CatalogueParam;
@@ -148,7 +148,7 @@ function QueryEditor({
   useEditorSchema(param, params, values, applySchema);
   const declareStatement = useDeclareStatement(actionKey, declared);
   const value = values[param.name];
-  const captionId = `${uuid}-${param.name}-caption`;
+  const captionId = `${tabId}-${param.name}-caption`;
   const caption = error ?? param.help;
   return (
     <Box
@@ -174,7 +174,7 @@ function QueryEditor({
       >
         <CodeEditor
           language={EDITOR_LANGUAGES[param.kind] ?? 'plaintext'}
-          path={`${uuid}.${param.name}.${param.kind}`}
+          path={`${tabId}.${param.name}.${param.kind}`}
           ariaLabel={param.title}
           value={typeof value === 'string' ? value : ''}
           onChange={(text) => onChange(text === '' ? undefined : text)}
@@ -229,13 +229,13 @@ function TooltipButton({
  * left params missing waits for them, with its reasons. A share link's row is shown on the Results
  * tab.
  */
-export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
-  const tab = useTabsStore((s) => s.tabs[uuid]);
+export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel }: ActionTabProps) {
+  const tab = useTabsStore((s) => s.tabs[tabId]);
   const navigate = useNavigate();
-  const pivotMenu = useActionPivotMenu(uuid, onRun);
+  const pivotMenu = useActionPivotMenu(tabId, onRun);
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
-  const shown = useRunRows(uuid);
+  const shown = useRunRows(tabId);
   const notify = useContext(NotifyContext);
   const latestRun = tab?.latest.run;
   const executing = tab?.status.executing ?? false;
@@ -249,12 +249,12 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   // couldn't be loaded.
   const [saving, setSaving] = useState<{ source?: Preset } | { error: string } | null>(null);
   const [quickFilter, setQuickFilter] = useState('');
-  const onShow = useParams().uuid === uuid;
+  const onShow = useParams().tabId === tabId;
 
   if (!tab) return null;
   const { toRun, latest, results, status } = tab;
   const run = latest.run;
-  const apply = (transition: Transition) => useTabsStore.getState().apply(uuid, transition);
+  const apply = (transition: Transition) => useTabsStore.getState().apply(tabId, transition);
   const action = actions?.find((a) => a.key === toRun.action);
   const queryParam = action?.params.find((p) => !hasPill(p));
   const actionName = action?.name ?? run?.action.name ?? toRun.action;
@@ -327,7 +327,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
   const saved = (preset: Preset) => apply(savedAsPreset(preset, action));
 
   const runNow = () => {
-    if (action && !status.executing) onRun(uuid);
+    if (action && !status.executing) onRun(tabId);
   };
   const succeededWithResults =
     !status.executing &&
@@ -372,7 +372,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         size="small"
         variant="outlined"
         disabled={status.cancelling || run?.status !== 'running'}
-        onClick={() => onCancel(uuid)}
+        onClick={() => onCancel(tabId)}
       >
         Cancel
       </Button>
@@ -533,7 +533,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         <Box role="tabpanel" aria-label="Query" hidden={inner !== 'query'} sx={{ px: 1 }}>
           {queryStatus}
           <QueryEditor
-            uuid={uuid}
+            tabId={tabId}
             actionKey={toRun.action}
             param={queryParam}
             params={action?.params ?? []}
@@ -573,7 +573,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         {shown && rowCount !== 0 && (
           <ActionResultsGrid
             key={shown.runId}
-            uuid={uuid}
+            tabId={tabId}
             idColumn={idColumn}
             onIdColumnChange={switchTo}
             linkIdColumn={linkIdColumn}
@@ -592,7 +592,7 @@ export function ActionTab({ uuid, onRun = defaultRun, onCancel = defaultCancel }
         )}
         {!shown && results && rowCount !== 0 && (
           <StoredActionResultsGrid
-            uuid={uuid}
+            tabId={tabId}
             idColumn={idColumn}
             onIdColumnChange={switchTo}
             linkIdColumn={linkIdColumn}

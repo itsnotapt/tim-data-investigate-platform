@@ -70,8 +70,8 @@ export interface TabResults {
   rowCount: number;
 }
 
-/** How the tab shows its results. */
-export interface TabView {
+/** How the tab shows its results in the grid. */
+export interface TabGrid {
   /**
    * The column and filter sections of the tab's grid state, as the analyst last left them, in the
    * shape of a column view's state.
@@ -110,7 +110,7 @@ export interface TabContent {
   toRun: TabToRun;
   latest: TabLatestRun;
   results: TabResults | null;
-  view: TabView;
+  grid: TabGrid;
   status: TabStatus;
 }
 

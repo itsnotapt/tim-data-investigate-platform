@@ -55,13 +55,13 @@ describe('routes', () => {
     expect(screen.getByRole('button', { name: 'New query' })).toBeInTheDocument();
   });
 
-  it('/view/:uuid renders the action tab', async () => {
+  it('/view/:tabId renders the action tab', async () => {
     useTabsStore.getState().createTab(tab('abc-123', null, { title: 'My tab' }));
     renderAt('/view/abc-123');
     expect(await screen.findByText('This action is no longer available.')).toBeInTheDocument();
   });
 
-  it('/view/:uuid with an unknown uuid redirects to /', async () => {
+  it('/view/:tabId with an unknown tabId redirects to /', async () => {
     const router = renderAt('/view/unknown');
     expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/');

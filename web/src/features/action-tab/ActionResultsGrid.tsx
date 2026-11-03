@@ -61,7 +61,7 @@ export type ActionResultsGridProps = Omit<
   | 'onCellKeyDown'
   | 'onCellFocused'
 > & {
-  uuid: string;
+  tabId: string;
   /** The rows to show. Rows that continue the ones shown are added to them, as each page loads. */
   rows: readonly RunRow[];
   /** The Id column: the column whose value is each row's `id`. `null`: the rows have no id. */
@@ -109,7 +109,7 @@ const continues = (shown: readonly RunRow[], next: readonly RunRow[]) =>
  * A `number` column's header warns when it holds whole numbers beyond ±(2^53 − 1), which round.
  */
 export function ActionResultsGrid({
-  uuid,
+  tabId,
   rows,
   idColumn = null,
   onIdColumnChange,
@@ -212,7 +212,7 @@ export function ActionResultsGrid({
       }),
     [index],
   );
-  const { start, keep, columnViews } = useActionColumnView(uuid);
+  const { start, keep, columnViews } = useActionColumnView(tabId);
   const context = useMemo(() => ({ columnViews, actionFile }), [columnViews, actionFile]);
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
@@ -390,6 +390,6 @@ export function StoredActionResultsGrid({
   rowDataTrigger,
   ...props
 }: StoredActionResultsGridProps) {
-  const { rows } = useRowResults(props.uuid, rowDataTrigger);
+  const { rows } = useRowResults(props.tabId, rowDataTrigger);
   return <ActionResultsGrid {...props} rows={rows as unknown as RunRow[]} />;
 }

@@ -15,7 +15,7 @@ function makeTab(id: string, parentId: string | null = null): Tab {
     toRun: { action: 'acme.sign_ins', params: {} },
     latest: { run: null, params: null, title: null },
     results: null,
-    view: { gridState: null, columnView: null },
+    grid: { gridState: null, columnView: null },
     status: {
       executing: false,
       cancelling: false,

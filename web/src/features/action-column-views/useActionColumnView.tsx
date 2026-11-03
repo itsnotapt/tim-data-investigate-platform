@@ -24,7 +24,7 @@ const SETTLE_MS = 150;
 
 /** What the Views panel and the status bar do to the tab's grid, through the grid's context. */
 export interface ColumnViewController {
-  uuid: string;
+  tabId: string;
   /** Puts `view` on the tab's grid, or the Built-in view for `null`. */
   pick(view: ColumnView | null): void;
   /** Puts the tab's column view back as it was picked. */
@@ -34,12 +34,12 @@ export interface ColumnViewController {
 }
 
 /** The tab's preset and action, which default views are keyed by; `null` if there is no tab. */
-export function tabScope(uuid: string): ColumnViewScope | null {
-  const tab = useTabsStore.getState().tabs[uuid];
+export function tabScope(tabId: string): ColumnViewScope | null {
+  const tab = useTabsStore.getState().tabs[tabId];
   return tab ? scopeOf(tab.toRun) : null;
 }
 
-const tabView = (uuid: string) => useTabsStore.getState().tabs[uuid]?.view;
+const tabGrid = (tabId: string) => useTabsStore.getState().tabs[tabId]?.grid;
 
 /**
  * Keeps an action tab's grid in step with its column view: when the grid is ready it gets the
@@ -47,7 +47,7 @@ const tabView = (uuid: string) => useTabsStore.getState().tabs[uuid]?.view;
  * Built-in view, each fitted to the result. The tab then keeps the grid's column view
  * sections as they change.
  */
-export function useActionColumnView(uuid: string) {
+export function useActionColumnView(tabId: string) {
   const notify = useContext(NotifyContext);
   const apiRef = useRef<GridApi | null>(null);
   /** Off while a state is being put on the grid, so its own updates aren't kept. */
@@ -56,7 +56,7 @@ export function useActionColumnView(uuid: string) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const controller = useMemo(() => {
-    const apply = (transition: Transition) => useTabsStore.getState().apply(uuid, transition);
+    const apply = (transition: Transition) => useTabsStore.getState().apply(tabId, transition);
 
     /** Resets the grid to the Built-in view, then puts `view` (fitted) on it. */
     const putOn = (
@@ -89,7 +89,7 @@ export function useActionColumnView(uuid: string) {
 
     /** The default view of the tab's scope, if it's still there; warns when it's gone. */
     const defaultView = async (): Promise<ColumnView | null> => {
-      const scope = tabScope(uuid);
+      const scope = tabScope(tabId);
       const entry = scope && useDefaultViewsStore.getState().defaults[scopeKey(scope)];
       if (!scope || !entry) return null;
       await useSavedColumnViewsStore.getState().refresh();
@@ -107,7 +107,7 @@ export function useActionColumnView(uuid: string) {
     const start = async (api: GridApi) => {
       apiRef.current = api;
       settled.current = false;
-      const own = tabView(uuid)?.gridState;
+      const own = tabGrid(tabId)?.gridState;
       if (own) {
         putOn(api, own, null);
         return;
@@ -125,13 +125,13 @@ export function useActionColumnView(uuid: string) {
         const api = apiRef.current;
         if (!settled.current || !api || api.isDestroyed()) return;
         const now = columnViewStateOf(api.getState());
-        const before = tabView(uuid)?.gridState;
+        const before = tabGrid(tabId)?.gridState;
         if (!before || !sameColumnView(before, now)) apply(gridStateChanged(now));
       }, SETTLE_MS);
     };
 
     const columnViews: ColumnViewController = {
-      uuid,
+      tabId,
       pick(view) {
         const api = apiRef.current;
         if (!api || api.isDestroyed()) return;
@@ -139,7 +139,7 @@ export function useActionColumnView(uuid: string) {
       },
       revert() {
         const api = apiRef.current;
-        const picked = tabView(uuid)?.columnView;
+        const picked = tabGrid(tabId)?.columnView;
         if (!api || api.isDestroyed() || !picked) return;
         putOn(api, picked.baseline, null);
       },
@@ -149,7 +149,7 @@ export function useActionColumnView(uuid: string) {
       },
     };
     return { start, keep, columnViews };
-  }, [uuid, notify]);
+  }, [tabId, notify]);
 
   return controller;
 }

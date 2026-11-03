@@ -14,12 +14,12 @@ import { useTabsStore, type TabsStore } from '../tabs';
 
 interface ChildTabInput {
   /** The tab the rows are in; the child tab opens under it. */
-  parentUuid: string;
+  parentTabId: string;
   notify: Notify;
   /** Focuses a tab: the toast's Go to. */
-  goTo: (uuid: string) => void;
+  goTo: (tabId: string) => void;
   /** Runs the child tab when it needs nothing. */
-  run: (uuid: string) => void;
+  run: (tabId: string) => void;
   /** The pivot rows' `id`s, each `null` for a row without one; the child tab keeps them. */
   pivotRowIds: readonly (string | null)[];
   store?: TabsStore;
@@ -44,29 +44,29 @@ export interface PivotIntoPresetInput extends ChildTabInput {
 }
 
 /**
- * Opens the child tab of `parentUuid` that `pivot` opens, in the background, and says so with Go
+ * Opens the child tab of `parentTabId` that `pivot` opens, in the background, and says so with Go
  * to. It runs at once when no param is missing, and otherwise waits for them, with the reasons.
  */
 function openChildTab(
-  { parentUuid, notify, goTo, run, pivotRowIds, store = useTabsStore }: ChildTabInput,
+  { parentTabId, notify, goTo, run, pivotRowIds, store = useTabsStore }: ChildTabInput,
   pivot: Omit<Pivot, 'pivotRowIds'>,
 ): string {
   const { action, params, missing } = pivot;
   const content = fromPivot({ ...pivot, pivotRowIds });
   const { title } = content;
-  const uuid = store.getState().createTab({ parentId: parentUuid, content });
+  const tabId = store.getState().createTab({ parentId: parentTabId, content });
   const needed = Object.keys(missing);
-  const goToChild = { label: 'Go to', onClick: () => goTo(uuid) };
+  const goToChild = { label: 'Go to', onClick: () => goTo(tabId) };
   if (needed.length > 0) {
     notify({
       message: `Opened ${title}: needs ${paramTitles(pills(action.params, params).params, needed)}`,
       action: goToChild,
     });
   } else {
-    run(uuid);
+    run(tabId);
     notify({ message: `Running ${title}`, action: goToChild });
   }
-  return uuid;
+  return tabId;
 }
 
 /** `rows` trimmed to the columns `action`'s title names, or none when it names none. */
@@ -97,7 +97,7 @@ function failure(e: unknown): string {
 
 /**
  * Pivots from `rows` into `action`: the server resolves its params from the rows, sent by value
- * and trimmed to the columns it reads. A child tab of `parentUuid` opens in the background. It
+ * and trimmed to the columns it reads. A child tab of `parentTabId` opens in the background. It
  * runs at once when no param is missing, and otherwise waits for them, with the reasons. A toast
  * says which, with Go to. Returns the child tab, or `null` when the server refused the pivot.
  */
@@ -133,7 +133,7 @@ export async function pivotIntoAction({
 
 /**
  * Pivots with `preset` of `action`, its params already resolved from the rows in the browser:
- * a child tab of `parentUuid`, titled with the preset's name and holding its id, opens in the
+ * a child tab of `parentTabId`, titled with the preset's name and holding its id, opens in the
  * background as after `pivotIntoAction`. Returns the child tab.
  */
 export function pivotIntoPreset({

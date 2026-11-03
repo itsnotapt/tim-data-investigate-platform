@@ -45,7 +45,7 @@ function renderAt(url: string) {
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="runs/:runId" element={<ShareLinkPage />} />
-        <Route path="view/:uuid" element={<Loc />} />
+        <Route path="view/:tabId" element={<Loc />} />
       </Routes>
     </MemoryRouter>,
   );

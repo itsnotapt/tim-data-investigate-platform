@@ -100,7 +100,7 @@ describe('opening a tab', () => {
       presetId: 'p-1',
       titleInputs: [{ source: 'param', name: 'host' }],
     });
-    expect(tab.view.idColumn).toBe('Host');
+    expect(tab.grid.idColumn).toBe('Host');
     expect(tab.status.pivotMissing).toEqual({ host: null });
   });
 
@@ -110,7 +110,7 @@ describe('opening a tab', () => {
       missing: {},
     });
     expect(tab.status.pivotMissing).toBeNull();
-    expect(tab.view).not.toHaveProperty('idColumn');
+    expect(tab.grid).not.toHaveProperty('idColumn');
   });
 
   it("from a pivot holds the pivot rows and their ids, and waits for what's missing, with why", () => {
@@ -147,7 +147,7 @@ describe('opening a tab', () => {
       titleInputs: [{ source: 'param', name: 'host' }],
       pivotRowIds: ['e1'],
     });
-    expect(tab.view.idColumn).toBe('Host');
+    expect(tab.grid.idColumn).toBe('Host');
     expect(tab.status.pivotMissing).toBeNull();
   });
 
@@ -161,11 +161,11 @@ describe('opening a tab', () => {
       title: 'Host timeline web01',
     });
     expect(tab.status).toMatchObject({ executing: true, linkedRow: 3 });
-    expect(tab.view).not.toHaveProperty('idColumn');
+    expect(tab.grid).not.toHaveProperty('idColumn');
   });
 
   it('from a share link that names an Id column uses it', () => {
-    expect(fromShareLink(RUNNING, null, 'Host').view.idColumn).toBe('Host');
+    expect(fromShareLink(RUNNING, null, 'Host').grid.idColumn).toBe('Host');
   });
 });
 
@@ -192,7 +192,7 @@ describe('cloning a tab', () => {
       params: { host: ['web01', 'web02'], limit: 5 },
       pivotRows: [{ Host: 'web01' }],
     });
-    expect(copy.view.idColumn).toBe('Host');
+    expect(copy.grid.idColumn).toBe('Host');
     expect(copy.latest).toEqual({ run: null, params: null, title: null });
     expect(copy.results).toBeNull();
   });
@@ -635,7 +635,7 @@ describe('the column view', () => {
 
   it('picked is put on the tab, with the grid state as its baseline', () => {
     const picked = columnViewPicked({ viewId: 'v-1', name: 'Hosts' }, HOST_FIRST)(tab);
-    expect(picked.view).toEqual({
+    expect(picked.grid).toEqual({
       gridState: HOST_FIRST,
       columnView: { viewId: 'v-1', name: 'Hosts', baseline: HOST_FIRST },
     });
@@ -644,13 +644,13 @@ describe('the column view', () => {
   it('a grid state change is kept, and the baseline stays', () => {
     const picked = columnViewPicked({ viewId: null, name: 'Built-in' }, HOST_FIRST)(tab);
     const changed = gridStateChanged(FILTERED)(picked);
-    expect(changed.view.gridState).toEqual(FILTERED);
-    expect(changed.view.columnView?.baseline).toEqual(HOST_FIRST);
+    expect(changed.grid.gridState).toEqual(FILTERED);
+    expect(changed.grid.columnView?.baseline).toEqual(HOST_FIRST);
   });
 
   it('renamed renames the tab’s when it is the one shown', () => {
     const picked = columnViewPicked({ viewId: 'v-1', name: 'Hosts' }, HOST_FIRST)(tab);
-    expect(columnViewRenamed('v-1', 'Servers')(picked).view.columnView?.name).toBe('Servers');
+    expect(columnViewRenamed('v-1', 'Servers')(picked).grid.columnView?.name).toBe('Servers');
     expect(columnViewRenamed('v-2', 'Servers')(picked)).toEqual(picked);
   });
 });

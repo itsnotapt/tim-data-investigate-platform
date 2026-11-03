@@ -11,11 +11,11 @@ beforeEach(() => {
 
 describe('runRowsStore', () => {
   it('lets go of a tab’s rows when the tab is closed', async () => {
-    const uuid = useTabsStore
+    const tabId = useTabsStore
       .getState()
       .createTab({ parentId: null, content: content('Sign-ins') });
-    runRowsStore.getState().start(uuid, 'r1', null, 1);
-    await useTabsStore.getState().removeTab(uuid);
-    expect(runRowsStore.getState().byTab[uuid]).toBeUndefined();
+    runRowsStore.getState().start(tabId, 'r1', null, 1);
+    await useTabsStore.getState().removeTab(tabId);
+    expect(runRowsStore.getState().byTab[tabId]).toBeUndefined();
   });
 });

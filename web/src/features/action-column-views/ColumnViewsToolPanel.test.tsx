@@ -77,19 +77,19 @@ let notes: (NotifyOptions | string)[];
  * A controller that puts a column view on the tab as the grid would: its state, or the Built-in
  * view's for `null`.
  */
-function controllerFor(uuid: string): ColumnViewController {
-  const tab = () => useTabsStore.getState().tabs[uuid]!.view;
+function controllerFor(tabId: string): ColumnViewController {
+  const tab = () => useTabsStore.getState().tabs[tabId]!.grid;
   const put = (state: GridState, columnView: { viewId: string | null; name: string }) =>
-    useTabsStore.getState().apply(uuid, columnViewPicked(columnView, state));
+    useTabsStore.getState().apply(tabId, columnViewPicked(columnView, state));
   return {
-    uuid,
+    tabId,
     pick: (v) =>
       v
         ? put(v.state, { viewId: v.viewId, name: v.name })
         : put(BUILT_IN_STATE, { viewId: null, name: 'Built-in' }),
     revert: () => {
       const picked = tab().columnView;
-      if (picked) useTabsStore.getState().apply(uuid, gridStateChanged(picked.baseline));
+      if (picked) useTabsStore.getState().apply(tabId, gridStateChanged(picked.baseline));
     },
     current: () => tab().gridState ?? null,
   };
@@ -97,10 +97,10 @@ function controllerFor(uuid: string): ColumnViewController {
 
 /** Renders the panel of a Sign-ins tab showing `showing` (the Built-in view for `null`). */
 function renderPanel(showing: ColumnView | null = null) {
-  const uuid = useTabsStore
+  const tabId = useTabsStore
     .getState()
     .createTab({ parentId: null, content: content('Sign-ins', { toRun: { action: SIGN_INS } }) });
-  const controller = controllerFor(uuid);
+  const controller = controllerFor(tabId);
   controller.pick(showing);
   const props = { context: { columnViews: controller } } as unknown as CustomToolPanelProps;
   render(
@@ -108,13 +108,13 @@ function renderPanel(showing: ColumnView | null = null) {
       <ColumnViewsToolPanel {...props} />
     </NotifyContext.Provider>,
   );
-  return uuid;
+  return tabId;
 }
 
-const tabOf = (uuid: string) => useTabsStore.getState().tabs[uuid]!.view;
+const tabOf = (tabId: string) => useTabsStore.getState().tabs[tabId]!.grid;
 /** Edits the tab's columns, so it no longer matches its column view. */
-const edit = (uuid: string) =>
-  act(() => useTabsStore.getState().apply(uuid, gridStateChanged(EDITED)));
+const edit = (tabId: string) =>
+  act(() => useTabsStore.getState().apply(tabId, gridStateChanged(EDITED)));
 
 const saveDialog = () => screen.getByRole('dialog', { name: 'Save column view' });
 
@@ -229,76 +229,76 @@ describe('ColumnViewsToolPanel', () => {
     async function editedAndPicking(target: string) {
       const shown = triage();
       served = [shown, view('Wide', { state: stateWith('User', 'Result') })];
-      const uuid = renderPanel(shown);
-      edit(uuid);
+      const tabId = renderPanel(shown);
+      edit(tabId);
       await userEvent.click(await screen.findByRole('radio', { name: target }));
       const dialog = await screen.findByRole('dialog', { name: `Switch to "${target}"?` });
       expect(dialog).toHaveTextContent(
         `Your changes to "Triage" aren't saved. Switching views replaces this tab's columns and filters.`,
       );
-      return { uuid, dialog };
+      return { tabId, dialog };
     }
 
     it('keeps the edits on Cancel', async () => {
-      const { uuid, dialog } = await editedAndPicking('Wide');
+      const { tabId, dialog } = await editedAndPicking('Wide');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       await waitFor(() => expect(dialog).not.toBeInTheDocument());
-      expect(tabOf(uuid).columnView?.name).toBe('Triage');
-      expect(tabOf(uuid).gridState).toEqual(EDITED);
+      expect(tabOf(tabId).columnView?.name).toBe('Triage');
+      expect(tabOf(tabId).gridState).toEqual(EDITED);
     });
 
     it('saves and then switches on Save first…', async () => {
-      const { uuid, dialog } = await editedAndPicking('Wide');
+      const { tabId, dialog } = await editedAndPicking('Wide');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Save first…' }));
       await userEvent.click(within(saveDialog()).getByRole('button', { name: 'Update "Triage"' }));
 
-      await waitFor(() => expect(tabOf(uuid).columnView?.name).toBe('Wide'));
+      await waitFor(() => expect(tabOf(tabId).columnView?.name).toBe('Wide'));
       expect(writes.map((w) => [w.call.split(' ')[0], w.body.name, w.body.state])).toEqual([
         ['PUT', 'Triage', EDITED],
       ]);
-      expect(tabOf(uuid).gridState).toEqual(stateWith('User', 'Result'));
+      expect(tabOf(tabId).gridState).toEqual(stateWith('User', 'Result'));
     });
 
     it('keeps the edits when the Save dialog of Save first… is cancelled', async () => {
-      const { uuid, dialog } = await editedAndPicking('Wide');
+      const { tabId, dialog } = await editedAndPicking('Wide');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Save first…' }));
       await userEvent.click(within(saveDialog()).getByRole('button', { name: 'Cancel' }));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-      expect(tabOf(uuid).columnView?.name).toBe('Triage');
-      expect(tabOf(uuid).gridState).toEqual(EDITED);
+      expect(tabOf(tabId).columnView?.name).toBe('Triage');
+      expect(tabOf(tabId).gridState).toEqual(EDITED);
     });
 
     it('switches on Discard and switch', async () => {
-      const { uuid, dialog } = await editedAndPicking('Built-in');
+      const { tabId, dialog } = await editedAndPicking('Built-in');
       await userEvent.click(within(dialog).getByRole('button', { name: 'Discard and switch' }));
-      await waitFor(() => expect(tabOf(uuid).columnView?.viewId).toBeNull());
-      expect(tabOf(uuid).gridState).toEqual(BUILT_IN_STATE);
+      await waitFor(() => expect(tabOf(tabId).columnView?.viewId).toBeNull());
+      expect(tabOf(tabId).gridState).toEqual(BUILT_IN_STATE);
     });
   });
 
   it('switches without asking when the tab is not edited', async () => {
     served = [view('Triage')];
-    const uuid = renderPanel();
+    const tabId = renderPanel();
     await userEvent.click(await screen.findByRole('radio', { name: 'Triage' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(tabOf(uuid).columnView?.name).toBe('Triage');
+    expect(tabOf(tabId).columnView?.name).toBe('Triage');
   });
 
   it("says when the tab's changes aren't saved, and Discard puts the view back", async () => {
     const triage = view('Triage');
     served = [triage];
-    const uuid = renderPanel(triage);
+    const tabId = renderPanel(triage);
     expect(await screen.findByRole('button', { name: 'Save as new view…' })).toBeInTheDocument();
     expect(screen.queryByText(/aren't saved/)).not.toBeInTheDocument();
 
-    edit(uuid);
+    edit(tabId);
     expect(screen.getByText(`Your changes to "Triage" aren't saved`)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save as new view…' })).not.toBeInTheDocument();
     expect(rows()[1]).toBe('TriageEdited');
 
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
-    expect(tabOf(uuid).gridState).toEqual(triage.state);
+    expect(tabOf(tabId).gridState).toEqual(triage.state);
     expect(screen.queryByText(/aren't saved/)).not.toBeInTheDocument();
     expect(rows()[1]).toBe('Triage');
   });
@@ -307,8 +307,8 @@ describe('ColumnViewsToolPanel', () => {
     it('updates your own view while its name is unchanged', async () => {
       const triage = view('Triage');
       served = [triage];
-      const uuid = renderPanel(triage);
-      edit(uuid);
+      const tabId = renderPanel(triage);
+      edit(tabId);
       await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
       const dialog = saveDialog();
       expect(within(dialog).getByLabelText('Name')).toHaveValue('Triage');
@@ -322,7 +322,7 @@ describe('ColumnViewsToolPanel', () => {
           body: { name: 'Triage', visibility: 'private', state: EDITED },
         },
       ]);
-      expect(tabOf(uuid).columnView).toEqual({
+      expect(tabOf(tabId).columnView).toEqual({
         viewId: triage.viewId,
         name: 'Triage',
         baseline: EDITED,
@@ -332,8 +332,8 @@ describe('ColumnViewsToolPanel', () => {
     it('saves a new view once the name is changed, and leaves yours as it is', async () => {
       const triage = view('Triage');
       served = [triage];
-      const uuid = renderPanel(triage);
-      edit(uuid);
+      const tabId = renderPanel(triage);
+      edit(tabId);
       await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
       const dialog = saveDialog();
       await userEvent.type(within(dialog).getByLabelText('Name'), ' wide');
@@ -352,8 +352,8 @@ describe('ColumnViewsToolPanel', () => {
           },
         },
       ]);
-      expect(tabOf(uuid).columnView?.name).toBe('Triage wide');
-      expect(tabOf(uuid).columnView?.viewId).not.toBe(triage.viewId);
+      expect(tabOf(tabId).columnView?.name).toBe('Triage wide');
+      expect(tabOf(tabId).columnView?.viewId).not.toBe(triage.viewId);
     });
 
     it("saves someone else's view as a new one of your own, with no hint", async () => {
@@ -363,8 +363,8 @@ describe('ColumnViewsToolPanel', () => {
         visibility: 'shared',
       });
       served = [theirs];
-      const uuid = renderPanel(theirs);
-      edit(uuid);
+      const tabId = renderPanel(theirs);
+      edit(tabId);
       await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
       const dialog = saveDialog();
       expect(within(dialog).getByLabelText('Name')).toHaveValue('Theirs');
@@ -406,8 +406,8 @@ describe('ColumnViewsToolPanel', () => {
     it('moves to a view with Make default, even while the tab is edited', async () => {
       const triage = view('Triage');
       served = [triage];
-      const uuid = renderPanel();
-      edit(uuid);
+      const tabId = renderPanel();
+      edit(tabId);
       expect((await moreMenu('Triage')).items).toEqual([
         'Make default',
         'Rename…',
@@ -420,7 +420,7 @@ describe('ColumnViewsToolPanel', () => {
       expect(rows()[0]).not.toMatch(/Default$/);
       expect(rows()[1]).toMatch(/^Triage.*Default$/);
       expect(notes).toContain('"Sign-ins" now opens with "Triage".');
-      expect(tabOf(uuid).gridState).toEqual(EDITED);
+      expect(tabOf(tabId).gridState).toEqual(EDITED);
     });
 
     it('goes back to Built-in with Stop using as default, or with Make default on Built-in', async () => {
@@ -457,8 +457,8 @@ describe('ColumnViewsToolPanel', () => {
     it('is the saved view when Make it the default is ticked', async () => {
       const triage = view('Triage');
       served = [triage];
-      const uuid = renderPanel(triage);
-      edit(uuid);
+      const tabId = renderPanel(triage);
+      edit(tabId);
       await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
       const dialog = saveDialog();
       await userEvent.click(within(dialog).getByLabelText('Make it the default for "Sign-ins"'));
@@ -472,10 +472,10 @@ describe('ColumnViewsToolPanel', () => {
   it("renames your own view and changes its sharing, leaving its columns and the tab's edits alone", async () => {
     const triage = view('Triage');
     served = [triage];
-    const uuid = renderPanel(triage);
+    const tabId = renderPanel(triage);
     await chooseFromMenu('Triage', 'Make default');
     await waitFor(() => expect(defaultEntry()).toBeDefined());
-    edit(uuid);
+    edit(tabId);
 
     await chooseFromMenu('Triage', 'Rename…');
     const dialog = screen.getByRole('dialog', { name: 'Rename "Triage"' });
@@ -494,12 +494,12 @@ describe('ColumnViewsToolPanel', () => {
       },
     ]);
     expect(rows()[1]).toMatch(/^Triage by hostEdited/);
-    expect(tabOf(uuid).columnView).toEqual({
+    expect(tabOf(tabId).columnView).toEqual({
       viewId: triage.viewId,
       name: 'Triage by host',
       baseline: triage.state,
     });
-    expect(tabOf(uuid).gridState).toEqual(EDITED);
+    expect(tabOf(tabId).gridState).toEqual(EDITED);
     expect(defaultEntry()?.name).toBe('Triage by host');
   });
 

@@ -27,17 +27,17 @@ export interface SideTreeProps {
 
 /**
  * Query tree drawer (mini variant, expands on hover). The active node comes straight from the
- * route (`/view/:uuid`) on every render, so it is highlighted after a hard load too.
+ * route (`/view/:tabId`) on every render, so it is highlighted after a hard load too.
  */
 export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const navigate = useNavigate();
-  const activeUuid = useMatch('/view/:uuid')?.params.uuid;
+  const activeTabId = useMatch('/view/:tabId')?.params.tabId;
   const tabs = store((s) => s.tabs);
   const order = store((s) => s.order);
   const lastCreated = store((s) => s.lastCreated);
   const [hover, setHover] = useState(false);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const selection = useTreeSelection(activeUuid, store);
+  const selection = useTreeSelection(activeTabId, store);
 
   const { roots, children } = useMemo(() => {
     const data = { tabs, order };
@@ -65,7 +65,7 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
 
   // Results arriving on the active tab count as seen, and
   // opening a tab by URL marks it visited.
-  const active = activeUuid ? tabs[activeUuid] : undefined;
+  const active = activeTabId ? tabs[activeTabId] : undefined;
   useEffect(() => {
     if (active && !active.visited && active.results !== null) {
       store.getState().markVisited(active.id);
@@ -74,7 +74,7 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
 
   const open = (t: Tab) => {
     store.getState().markVisited(t.id);
-    if (t.id !== activeUuid) void navigate(`/view/${t.id}`);
+    if (t.id !== activeTabId) void navigate(`/view/${t.id}`);
   };
 
   // mouseleave is lost when the pointer was over a portalled menu item that closed under it
@@ -95,7 +95,7 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const renderNode = (t: Tab, depth: number) => {
     const kids = children.get(t.id) ?? [];
     const isOpen = kids.length > 0 && !collapsed.has(t.id);
-    const isActive = t.id === activeUuid;
+    const isActive = t.id === activeTabId;
     return (
       <li key={t.id} style={{ listStyle: 'none' }}>
         <ListItemButton

@@ -134,7 +134,7 @@ function setup(
     shown = true,
   }: { params?: object; run?: boolean; shown?: boolean } = {},
 ) {
-  const uuid = useTabsStore.getState().createTab({
+  const tabId = useTabsStore.getState().createTab({
     parentId: null,
     content: content('Sign-ins for alice', {
       ...over,
@@ -151,13 +151,13 @@ function setup(
         <header>
           <AppBarSlot />
         </header>
-        <MemoryRouter initialEntries={[`/view/${shown ? uuid : 'another-tab'}`]}>
+        <MemoryRouter initialEntries={[`/view/${shown ? tabId : 'another-tab'}`]}>
           <Routes>
             <Route
-              path="/view/:uuid"
+              path="/view/:tabId"
               element={
                 <>
-                  <ActionTab uuid={uuid} onRun={onRun} onCancel={onCancel} />
+                  <ActionTab tabId={tabId} onRun={onRun} onCancel={onCancel} />
                   <Location />
                 </>
               }
@@ -167,7 +167,7 @@ function setup(
       </AppBarSlotProvider>
     </SnackbarHost>,
   );
-  return { uuid, onRun, onCancel };
+  return { tabId, onRun, onCancel };
 }
 
 const running: Run = { ...succeeded, runId: 'r2', status: 'running', rowCount: undefined };
@@ -247,16 +247,16 @@ describe('ActionTab', () => {
   });
 
   it('keeps the params edited in a pill on the tab, and runs from them', async () => {
-    const { uuid, onRun } = setup();
+    const { tabId, onRun } = setup();
     await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
     await userEvent.keyboard('{Escape}');
-    expect(useTabsStore.getState().tabs[uuid]?.toRun).toEqual({
+    expect(useTabsStore.getState().tabs[tabId]?.toRun).toEqual({
       action: 'dev-sign-ins',
       params: { users: ['alice', 'bob'] },
     });
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
-    expect(onRun).toHaveBeenCalledWith(uuid);
+    expect(onRun).toHaveBeenCalledWith(tabId);
   });
 
   describe('while a run is going', () => {
@@ -266,13 +266,13 @@ describe('ActionTab', () => {
 
     it('shows a spinner with the time since the run started, and Cancel', async () => {
       vi.useFakeTimers({ now: new Date('2026-10-20T10:01:05Z'), toFake: ['Date'] });
-      const { uuid, onCancel } = setup({ latest: { run: running }, status: { executing: true } });
+      const { tabId, onCancel } = setup({ latest: { run: running }, status: { executing: true } });
       expect(screen.queryByRole('button', { name: 'Run' })).not.toBeInTheDocument();
       expect(screen.getByRole('progressbar', { name: 'Running' })).toBeInTheDocument();
       expect(screen.getByText('1 min 5 s')).toBeInTheDocument();
       vi.useRealTimers();
       await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      expect(onCancel).toHaveBeenCalledWith(uuid);
+      expect(onCancel).toHaveBeenCalledWith(tabId);
     });
 
     it('says it is cancelling until the run ends', () => {
@@ -357,14 +357,14 @@ describe('ActionTab', () => {
   });
 
   it('holds the inner tab the analyst picked until the run changes', async () => {
-    const { uuid } = setup(withResults);
+    const { tabId } = setup(withResults);
     await userEvent.click(screen.getByRole('tab', { name: 'Run · 1 s' }));
     expect(selectedTab()).toHaveAccessibleName('Run · 1 s');
-    act(() => useTabsStore.getState().apply(uuid, paramEdited('users', ['bob'])));
+    act(() => useTabsStore.getState().apply(tabId, paramEdited('users', ['bob'])));
     expect(selectedTab()).toHaveAccessibleName('Run · 1 s');
     act(() => {
-      useTabsStore.getState().apply(uuid, runStarting);
-      useTabsStore.getState().apply(uuid, runStarted(running, { users: ['bob'] }));
+      useTabsStore.getState().apply(tabId, runStarting);
+      useTabsStore.getState().apply(tabId, runStarted(running, { users: ['bob'] }));
     });
     expect(selectedTab()).toHaveAccessibleName('Results · 2');
   });
@@ -404,15 +404,15 @@ describe('ActionTab', () => {
   });
 
   it('clones the tab beside it and opens the copy', async () => {
-    const { uuid } = setup(withResults);
+    const { tabId } = setup(withResults);
     await userEvent.click(screen.getByRole('button', { name: 'Clone' }));
-    const copy = Object.values(useTabsStore.getState().tabs).find((t) => t.id !== uuid);
+    const copy = Object.values(useTabsStore.getState().tabs).find((t) => t.id !== tabId);
     expect(copy).toMatchObject({ parentId: null, title: 'Copy of Sign-ins for alice' });
     expect(screen.getByRole('status', { name: 'Location' })).toHaveTextContent(`/view/${copy?.id}`);
   });
 
   it('goes back to the action’s Id column when the Id column pill is cleared', async () => {
-    setup({ ...withResults, view: { idColumn: 'Host' } });
+    setup({ ...withResults, grid: { idColumn: 'Host' } });
     await userEvent.click(screen.getByRole('button', { name: 'Id column: Host' }));
     await userEvent.clear(screen.getByRole('combobox', { name: 'Id column' }));
     await userEvent.keyboard('{Escape}{Escape}');
@@ -454,15 +454,15 @@ describe('ActionTab', () => {
   });
 
   it('shows the rows loaded so far while the rest load', async () => {
-    const { uuid } = setup({
+    const { tabId } = setup({
       latest: { run: { ...succeeded, rowCount: 3 } },
       status: { executing: true },
     });
     act(() => {
       runRowsStore
         .getState()
-        .start(uuid, 'r1', [{ name: 'User', type: 'string', declared: false }], 3);
-      runRowsStore.getState().append(uuid, 'r1', [
+        .start(tabId, 'r1', [{ name: 'User', type: 'string', declared: false }], 3);
+      runRowsStore.getState().append(tabId, 'r1', [
         { row: 0, data: { User: 'alice' } },
         { row: 1, data: { User: 'bob' } },
       ]);
@@ -470,8 +470,8 @@ describe('ActionTab', () => {
     expect(screen.getByRole('tab', { name: 'Results · 2 of 3' })).toBeInTheDocument();
     expect(await screen.findByText('bob')).toBeInTheDocument();
     act(() => {
-      runRowsStore.getState().append(uuid, 'r1', [{ row: 2, data: { User: 'carol' } }]);
-      runRowsStore.getState().finish(uuid, 'r1');
+      runRowsStore.getState().append(tabId, 'r1', [{ row: 2, data: { User: 'carol' } }]);
+      runRowsStore.getState().finish(tabId, 'r1');
     });
     expect(screen.getByRole('tab', { name: 'Results · 3' })).toBeInTheDocument();
     expect(await screen.findByText('carol')).toBeInTheDocument();
@@ -494,13 +494,13 @@ describe('ActionTab with a query param', () => {
   afterEach(resetTestApp);
 
   it('edits the query in the Query tab, without a pill, and runs it on Ctrl+Enter', async () => {
-    const { uuid, onRun } = setupKql();
+    const { tabId, onRun } = setupKql();
     expect(selectedTab()).toHaveAccessibleName('Query');
     expect(screen.queryByRole('button', { name: /^Query:/ })).not.toBeInTheDocument();
     const editor = screen.getByRole('textbox', { name: 'Query' });
     await userEvent.clear(editor);
     await userEvent.type(editor, 'StormEvents | count');
-    expect(useTabsStore.getState().tabs[uuid]?.toRun).toMatchObject({
+    expect(useTabsStore.getState().tabs[tabId]?.toRun).toMatchObject({
       params: { kql: 'StormEvents | count' },
     });
     await userEvent.keyboard('{Control>}{Enter}{/Control}');
@@ -602,7 +602,7 @@ describe('ActionTab with a query param', () => {
       { name: 'Upn', type: 'string', value: null },
       { name: 'Limit', type: 'long', value: 10 },
     ];
-    const { uuid } = setup(
+    const { tabId } = setup(
       { status: { pivotMissing: { 'parameters.Upn': null } } },
       'tim.run_kql',
       {
@@ -619,7 +619,7 @@ describe('ActionTab with a query param', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Upn' }), 'alice@example.com');
     await userEvent.keyboard('{Escape}');
 
-    expect(useTabsStore.getState().tabs[uuid]?.toRun).toMatchObject({
+    expect(useTabsStore.getState().tabs[tabId]?.toRun).toMatchObject({
       params: {
         parameters: [
           { name: 'Upn', type: 'string', value: 'alice@example.com' },
@@ -709,8 +709,8 @@ describe('ActionTab with a query param', () => {
       );
     });
 
-    const setParameters = (uuid: string, parameters: object[]) =>
-      act(() => useTabsStore.getState().apply(uuid, paramEdited('parameters', parameters)));
+    const setParameters = (tabId: string, parameters: object[]) =>
+      act(() => useTabsStore.getState().apply(tabId, paramEdited('parameters', parameters)));
 
     it('shows the statement above the query, out of the query text', async () => {
       setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since, limit] } });
@@ -729,32 +729,32 @@ describe('ActionTab with a query param', () => {
     });
 
     it('asks again once the query parameters settle, and hides it without any', async () => {
-      const { uuid } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
+      const { tabId } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
       await screen.findByText('declare query_parameters(since:datetime);');
-      setParameters(uuid, [since, limit]);
-      setParameters(uuid, [{ ...since, name: 'from' }, limit]);
+      setParameters(tabId, [since, limit]);
+      setParameters(tabId, [{ ...since, name: 'from' }, limit]);
       expect(
         await screen.findByText('declare query_parameters(from:datetime, limit:long);'),
       ).toBeInTheDocument();
       expect(requests).toHaveLength(2);
-      setParameters(uuid, []);
+      setParameters(tabId, []);
       expect(screen.queryByText(/^declare/)).not.toBeInTheDocument();
       expect(requests).toHaveLength(2);
     });
 
     it('forgets the statement once there are none, so the next one shows only when answered', async () => {
-      const { uuid } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
+      const { tabId } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [since] } });
       await screen.findByText('declare query_parameters(since:datetime);');
-      setParameters(uuid, []);
-      setParameters(uuid, [limit]);
+      setParameters(tabId, []);
+      setParameters(tabId, [limit]);
       expect(screen.queryByText(/^declare/)).not.toBeInTheDocument();
       expect(await screen.findByText('declare query_parameters(limit:long);')).toBeInTheDocument();
     });
 
     it('does not ask again when only a value changes', async () => {
-      const { uuid } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [limit] } });
+      const { tabId } = setup({}, 'tim.run_kql', { params: { ...kql, parameters: [limit] } });
       await screen.findByText('declare query_parameters(limit:long);');
-      setParameters(uuid, [{ ...limit, value: 11 }]);
+      setParameters(tabId, [{ ...limit, value: 11 }]);
       await new Promise((r) => setTimeout(r, 500));
       expect(requests).toHaveLength(1);
     });

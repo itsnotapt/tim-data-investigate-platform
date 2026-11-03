@@ -94,11 +94,11 @@ Features import `lib/*` and `components/*`. Between features:
 
 Routes are hash routes. Unknown hashes redirect to `#/`. Pages are lazy-loaded.
 
-| Route                   | Page                                                                                                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `#/`                    | Welcome                                                                                                                                                                                          |
-| `#/view/:uuid`          | A tab (`uuid` is the tab's id)                                                                                                                                                                   |
-| `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row number). It opens an action tab holding the run and replaces the URL with `#/view/<uuid>` ([Share links](#share-links)) |
+| Route                   | Page                                                                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#/`                    | Welcome                                                                                                                                                                                           |
+| `#/view/:tabId`         | A tab (`tabId` is the tab's id)                                                                                                                                                                   |
+| `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row number). It opens an action tab holding the run and replaces the URL with `#/view/<tabId>` ([Share links](#share-links)) |
 
 ### Bundle
 
@@ -155,7 +155,7 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 | `toRun`   | What the tab runs: `{action, params, presetId?, titleInputs?, pivotRows?, pivotRowIds?}`      |
 | `latest`  | The latest run: `{run, params, title}`                                                        |
 | `results` | The run whose rows are stored, `{runId, columns, startedAt, rowCount}`, or `null`             |
-| `view`    | How the tab shows its results: `{gridState, columnView, idColumn?}`                           |
+| `grid`    | How the tab shows its results: `{gridState, columnView, idColumn?}`                           |
 | `status`  | What the tab is doing: `{executing, cancelling, error, paramErrors, linkedRow, pivotMissing}` |
 
 `toRun` holds the action's key, the param values as plain values, as the browser sends them, and the preset the tab was opened from or saved as. They are never resolved again, so the tab keeps working when the instance's catalogue changes.
@@ -168,12 +168,12 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 | `params` | The plain params the latest run started with                                                                                            |
 | `title`  | The latest run's title, kept while the next run starts                                                                                  |
 
-`view` and `status`:
+`grid` and `status`:
 
 | Field                | Holds                                                                                                                                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view.gridState`     | The column and filter sections of the tab's grid, as the analyst last left them                                                                                         |
-| `view.columnView`    | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the built-in view), and the grid state just after it was put on |
+| `grid.gridState`     | The column and filter sections of the tab's grid, as the analyst last left them                                                                                         |
+| `grid.columnView`    | `{viewId, name, baseline}`: the column view the tab started from or last picked (`viewId` is `null` for the built-in view), and the grid state just after it was put on |
 | `status.cancelling`  | A cancel was asked for and the run has not ended                                                                                                                        |
 | `status.paramErrors` | Why each param was refused, by name                                                                                                                                     |
 
@@ -217,7 +217,7 @@ A share link is `<origin><path>#/runs/<runId>`, or `…#/runs/<runId>?row=<n>` f
 - **Copy link.** The action tab's button in the app bar copies the link to its run: "Copied a link to this result". It is disabled until the tab has a run. The last group of the row context menu, after the sinks and Copy column settings, copies the link to the row: "Copied a link to this row".
 - **Open.** `ShareLinkPage` reads the run with `GET /api/runs/{runId}`. For a succeeded run with rows it also reads the first page of rows.
   - A `404` (unknown or expired run) or a `410` (results gone) shows only "This result is no longer available".
-  - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<uuid>`. A run still going is followed, and the tab fills in when it ends.
+  - Otherwise `openRunTab` opens an ordinary action tab holding the run, with the run's params on its pills, and the URL becomes `#/view/<tabId>`. A run still going is followed, and the tab fills in when it ends.
   - The link's `idColumn`, when it has one, becomes the tab's Id column ([The Id column](#the-id-column)).
   - The linked row is kept in the tab as `linkedRow`. Once that row arrives, the grid focuses it and opens Row detail on it, and `linkedRow` is cleared. It is also cleared when the run ends without success, when the stored rows don't have that row, and when a new run of the tab starts.
 - **Run.** Run starts a new run as the recipient, with the tab's params. For an action the instance does not know, the rows still show and Run is disabled.
@@ -230,7 +230,7 @@ Database `tim` (version 6):
 
 | Store             | Key                                     | Value                                                                                                                                                                                              |
 | ----------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tabs`            | `id`                                    | Tab: its content (`title`, `toRun`, `latest`, `results`, `view`, `status`) and its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`)                                      |
+| `tabs`            | `id`                                    | Tab: its content (`title`, `toRun`, `latest`, `results`, `grid`, `status`) and its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`)                                      |
 | `row_results`     | tab id (out-of-line)                    | Array of raw result rows; for an action tab, `{row, data}` rows of its run                                                                                                                         |
 | `applied_views`   | `[analyst, scope]` (index on `analyst`) | `{analyst, scope, viewId, name}`: the default view an analyst chose. `scope` is `preset:<presetId>` or `action:<key>`                                                                              |
 | `annotations`     | `id`                                    | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
@@ -605,7 +605,7 @@ A row's `id` is computed in the browser, from one column of its results: the **I
 
 - **The `id`.** `rowId` (`web/src/features/labels/labelRows.ts`) takes the value of the Id column: a string as it is, anything else as its JSON. A missing or `null` value, `""`, and a value over `MAX_ID_LENGTH` (512) characters give no `id`.
 - **Where it starts.** `idColumnOf` of the action tab module (`web/src/features/action-tab/model.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
-- **The tab's Id column.** `idColumn` of the module gives the tab's `view.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
+- **The tab's Id column.** `idColumn` of the module gives the tab's `grid.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
 - **In the grid.** `ActionResultsGrid.tsx` gives each row its `id` with `withIds`, and its annotations from the annotation store. A switch recomputes both in place and keeps the selection, filters, sort and scroll.
 - **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
   - The cell context menu has **Use <column> as Id column** for the clicked cell's column.

@@ -44,8 +44,8 @@ import { useTabColumnView } from './useTabColumnView';
  */
 export function ColumnViewsToolPanel(props: CustomToolPanelProps) {
   const controller = (props.context as { columnViews: ColumnViewController }).columnViews;
-  const { uuid } = controller;
-  const { scope, columnView, name, gridState, edited, defaultView } = useTabColumnView(uuid);
+  const { tabId } = controller;
+  const { scope, columnView, name, gridState, edited, defaultView } = useTabColumnView(tabId);
   const views = useSavedColumnViewsStore((s) => s.views);
   const error = useSavedColumnViewsStore((s) => s.error);
   const loaded = useSavedColumnViewsStore((s) => s.loaded);
@@ -136,7 +136,7 @@ export function ColumnViewsToolPanel(props: CustomToolPanelProps) {
       : await store.create({ ...fields, state, savedFrom: scope });
     useTabsStore
       .getState()
-      .apply(uuid, columnViewPicked({ viewId: saved.viewId, name: saved.name }, state));
+      .apply(tabId, columnViewPicked({ viewId: saved.viewId, name: saved.name }, state));
     if (asDefault) makeDefault(saved);
   };
 
@@ -145,7 +145,7 @@ export function ColumnViewsToolPanel(props: CustomToolPanelProps) {
     const renamed = await useSavedColumnViewsStore
       .getState()
       .replace(view.viewId, { ...fields, state: view.state });
-    useTabsStore.getState().apply(uuid, columnViewRenamed(renamed.viewId, renamed.name));
+    useTabsStore.getState().apply(tabId, columnViewRenamed(renamed.viewId, renamed.name));
     if (scope && defaultView?.viewId === renamed.viewId) {
       await useDefaultViewsStore.getState().makeDefault(scope, renamed);
     }

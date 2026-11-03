@@ -9,27 +9,27 @@ import { TabHost } from './TabHost';
 import { tab } from '../../test/tabsTestUtils';
 import { useTabsStore } from './tabStore';
 
-const mounts = vi.fn<(kind: string, uuid: string) => void>();
+const mounts = vi.fn<(kind: string, tabId: string) => void>();
 
-function Probe({ kind, uuid }: { kind: string; uuid: string }) {
-  const title = useTabsStore((s) => s.tabs[uuid]?.title);
+function Probe({ kind, tabId }: { kind: string; tabId: string }) {
+  const title = useTabsStore((s) => s.tabs[tabId]?.title);
   // Runs once per mount.
-  useMountLog(kind, uuid);
+  useMountLog(kind, tabId);
   return <p>{`${kind}:${title}`}</p>;
 }
 import { useEffect } from 'react';
-function useMountLog(kind: string, uuid: string) {
+function useMountLog(kind: string, tabId: string) {
   useEffect(() => {
-    mounts(kind, uuid);
-  }, [kind, uuid]);
+    mounts(kind, tabId);
+  }, [kind, tabId]);
 }
-const ProbeTab = ({ uuid }: { uuid: string }) => <Probe kind="action" uuid={uuid} />;
+const ProbeTab = ({ tabId }: { tabId: string }) => <Probe kind="action" tabId={tabId} />;
 
 function renderAt(entry: string) {
   const router = createMemoryRouter(
     [
       { path: '/', element: <p>home</p> },
-      { path: '/view/:uuid', element: <TabHost component={ProbeTab} /> },
+      { path: '/view/:tabId', element: <TabHost component={ProbeTab} /> },
     ],
     { initialEntries: [entry] },
   );
@@ -76,7 +76,7 @@ describe('TabHost', () => {
     expect(useTabsStore.getState().tabs['a']?.visited).toBe(true);
   });
 
-  it('redirects an unknown uuid to / only after load finished', async () => {
+  it('redirects an unknown tabId to / only after load finished', async () => {
     const router = renderAt('/view/nope');
     expect(router.state.location.pathname).toBe('/view/nope');
     act(() => useTabsStore.setState({ loaded: true }));

@@ -29,7 +29,7 @@ const unrun = (title: string, toRun: TabToRun): TabContent => ({
   toRun,
   latest: { run: null, params: null, title: null },
   results: null,
-  view: { gridState: null, columnView: null },
+  grid: { gridState: null, columnView: null },
   status: {
     executing: false,
     cancelling: false,
@@ -64,7 +64,7 @@ function ofPreset(tab: TabContent, preset: Preset): TabContent {
   const named = presetNamed(preset)(tab);
   return {
     ...named,
-    view: preset.idColumn ? { ...tab.view, idColumn: preset.idColumn } : tab.view,
+    grid: preset.idColumn ? { ...tab.grid, idColumn: preset.idColumn } : tab.grid,
   };
 }
 
@@ -124,7 +124,7 @@ export function fromShareLink(
   return {
     ...tab,
     latest: { run, params: run.params, title: run.title },
-    view: idColumn !== null ? { ...tab.view, idColumn } : tab.view,
+    grid: idColumn !== null ? { ...tab.grid, idColumn } : tab.grid,
     status: { ...tab.status, executing: true, linkedRow },
   };
 }
@@ -143,8 +143,8 @@ export function cloneOf(tab: TabContent): TabContent {
     params: copied(params),
     ...(pivotRows && { pivotRows: copied(pivotRows) }),
   });
-  const { idColumn } = tab.view;
-  return idColumn !== undefined ? { ...copy, view: { ...copy.view, idColumn } } : copy;
+  const { idColumn } = tab.grid;
+  return idColumn !== undefined ? { ...copy, grid: { ...copy.grid, idColumn } } : copy;
 }
 
 /**
@@ -183,10 +183,10 @@ export const isEdited = (tab: TabContent): boolean =>
 export const idColumnSwitched =
   (column: string | null): Transition =>
   (tab) => {
-    const view = { ...tab.view };
-    if (column === null) delete view.idColumn;
-    else view.idColumn = column;
-    return { ...tab, view };
+    const grid = { ...tab.grid };
+    if (column === null) delete grid.idColumn;
+    else grid.idColumn = column;
+    return { ...tab, grid };
   };
 
 /**
@@ -194,7 +194,7 @@ export const idColumnSwitched =
  * else the action's, the `id` of its action file.
  */
 export const idColumnOf = (tab: TabContent, action: CatalogueAction | undefined): string | null =>
-  tab.view.idColumn ?? action?.idColumn ?? null;
+  tab.grid.idColumn ?? action?.idColumn ?? null;
 
 /** The Id column a share link to the tab's results carries: the tab's when it isn't the action's. */
 export function linkIdColumnOf(
@@ -376,19 +376,19 @@ export const columnViewPicked =
   (view: Omit<TabColumnView, 'baseline'>, gridState: GridState): Transition =>
   (tab) => ({
     ...tab,
-    view: { ...tab.view, gridState, columnView: { ...view, baseline: gridState } },
+    grid: { ...tab.grid, gridState, columnView: { ...view, baseline: gridState } },
   });
 
 /** The tab's grid state changed to `gridState`. */
 export const gridStateChanged =
   (gridState: GridState): Transition =>
-  (tab) => ({ ...tab, view: { ...tab.view, gridState } });
+  (tab) => ({ ...tab, grid: { ...tab.grid, gridState } });
 
 /** The column view `viewId` was renamed `name`. */
 export const columnViewRenamed =
   (viewId: string, name: string): Transition =>
   (tab) => {
-    const { columnView } = tab.view;
+    const { columnView } = tab.grid;
     if (columnView?.viewId !== viewId) return tab;
-    return { ...tab, view: { ...tab.view, columnView: { ...columnView, name } } };
+    return { ...tab, grid: { ...tab.grid, columnView: { ...columnView, name } } };
   };

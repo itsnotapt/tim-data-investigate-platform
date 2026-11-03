@@ -6,7 +6,7 @@ import type { GridRow } from './columns';
  * Loads stored rows for a tab; reloads when `trigger` (the tab's `rowDataTrigger`) changes.
  * Missing or failing reads give `[]`.
  */
-export function useRowResults(uuid: string, trigger: number | null | undefined) {
+export function useRowResults(tabId: string, trigger: number | null | undefined) {
   const [state, setState] = useState<{ rows: GridRow[]; loading: boolean }>({
     rows: [],
     loading: true,
@@ -14,7 +14,7 @@ export function useRowResults(uuid: string, trigger: number | null | undefined) 
   useEffect(() => {
     let cancelled = false;
     void rowResultsDao
-      .get(uuid)
+      .get(tabId)
       .catch(() => [] as GridRow[])
       .then((rows) => {
         if (!cancelled) setState({ rows: rows ?? [], loading: false });
@@ -22,6 +22,6 @@ export function useRowResults(uuid: string, trigger: number | null | undefined) 
     return () => {
       cancelled = true;
     };
-  }, [uuid, trigger]);
+  }, [tabId, trigger]);
   return state;
 }

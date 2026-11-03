@@ -42,7 +42,7 @@ describe('toggleChecked', () => {
     expect(ids(c)).toEqual(['d', 'e']);
   });
 
-  it('ignores unknown uuids', () => {
+  it('ignores unknown tab ids', () => {
     expect(toggleChecked(data(tree()), new Set(['a']), 'zzz', true).size).toBe(1);
   });
 });

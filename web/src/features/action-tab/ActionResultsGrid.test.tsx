@@ -84,14 +84,14 @@ const withId = (row: RunRow, id: string): RunRow => ({
 });
 
 function renderGrid(
-  uuid: string,
+  tabId: string,
   shown: readonly RunRow[] = rows,
   declaredColumns: readonly CatalogueColumn[] = declared,
 ) {
   let api: GridApi | undefined;
   const grid = (r: readonly RunRow[]) => (
     <ActionResultsGrid
-      uuid={uuid}
+      tabId={tabId}
       rows={r}
       declaredColumns={declaredColumns}
       runColumns={columns}
@@ -110,8 +110,8 @@ function renderGrid(
   };
 }
 
-async function gridOf(uuid: string, declaredColumns?: readonly CatalogueColumn[]) {
-  const api = await renderGrid(uuid, rows, declaredColumns).api();
+async function gridOf(tabId: string, declaredColumns?: readonly CatalogueColumn[]) {
+  const api = await renderGrid(tabId, rows, declaredColumns).api();
   await waitFor(() => expect(api.getDisplayedRowCount()).toBeGreaterThan(0));
   return api;
 }
@@ -166,11 +166,11 @@ describe('ActionResultsGrid', () => {
   });
 
   it("puts the tab's own grid state over the declared settings", async () => {
-    const uuid = useTabsStore
+    const tabId = useTabsStore
       .getState()
       .createTab({ parentId: null, content: content('Sign-ins') });
     useTabsStore.getState().apply(
-      uuid,
+      tabId,
       gridStateChanged({
         partialColumnState: true,
         columnOrder: { orderedColIds: ['Timestamp', 'User', 'Raw', 'KiB', 'row', 'Raw Bytes'] },
@@ -180,7 +180,7 @@ describe('ActionResultsGrid', () => {
         sort: { sortModel: [] },
       }),
     );
-    const api = await gridOf(uuid);
+    const api = await gridOf(tabId);
     await waitFor(() => expect(stateOf(api, 'Raw')).toMatchObject({ hide: false }));
     expect(stateOf(api, 'Timestamp')).toMatchObject({ width: 90, pinned: null, sort: null });
   });
@@ -287,7 +287,7 @@ describe('ActionResultsGrid', () => {
     let api: GridApi | undefined;
     const grid = (r: readonly RunRow[]) => (
       <ActionResultsGrid
-        uuid="linked"
+        tabId="linked"
         rows={r}
         declaredColumns={declared}
         runColumns={columns}
@@ -321,7 +321,7 @@ describe('ActionResultsGrid', () => {
     render(
       <SnackbarHost>
         <ActionResultsGrid
-          uuid="link"
+          tabId="link"
           runId="r1"
           rows={rows}
           runColumns={columns}
@@ -367,7 +367,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
     let api: GridApi | undefined;
     render(
       <ActionResultsGrid
-        uuid="pivoted"
+        tabId="pivoted"
         rows={shown}
         declaredColumns={declaredColumns}
         runColumns={[{ name: 'User', type: 'string', declared: !!declaredColumns }]}
@@ -668,7 +668,7 @@ describe('ActionResultsGrid Id column', () => {
     const [idColumn, setIdColumn] = useState<string | null>('User');
     return (
       <ActionResultsGrid
-        uuid="id-column"
+        tabId="id-column"
         rows={sessions}
         idColumn={idColumn}
         onIdColumnChange={setIdColumn}
@@ -722,11 +722,11 @@ describe('ActionResultsGrid Id column', () => {
 });
 
 describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
-  async function bigGrid(uuid: string, shown: readonly RunRow[], runColumns: RunColumn[]) {
+  async function bigGrid(tabId: string, shown: readonly RunRow[], runColumns: RunColumn[]) {
     let api: GridApi | undefined;
     render(
       <ActionResultsGrid
-        uuid={uuid}
+        tabId={tabId}
         rows={shown}
         runColumns={runColumns}
         height={400}
@@ -860,7 +860,7 @@ describe('ActionResultsGrid Comment cell', () => {
       <AuthProvider client={createAuthClient({ VITE_AUTH_STUB: 'true' })}>
         <SnackbarHost>
           <ActionResultsGrid
-            uuid={`comment-${id}`}
+            tabId={`comment-${id}`}
             rows={shown}
             declaredColumns={[]}
             runColumns={columns}

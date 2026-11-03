@@ -78,7 +78,7 @@ The source has four parts:
 
 ## Routes (hash)
 
-`#/`, `#/view/:uuid` (tab), `#/runs/:runId` (a share link to a run).
+`#/`, `#/view/:tabId` (tab), `#/runs/:runId` (a share link to a run).
 
 ## Runtime config
 
@@ -261,19 +261,19 @@ Once loaded, the instance is refetched on window focus (`refreshInstanceOnFocus`
 
 One more piece lives beside it.
 
-- `TabHost` (`src/features/tabs/TabHost.tsx`): renders the active tab at `/view/:uuid` with `ActionTab`.
+- `TabHost` (`src/features/tabs/TabHost.tsx`): renders the active tab at `/view/:tabId` with `ActionTab`.
 
 `TabHost` keeps visited tabs mounted, hidden with `display:none`.
 
 - It keeps up to 100. The least recently visited are dropped.
-- It renders them in a fixed order, by uuid, so React never moves a tab's node and its scroll positions stay.
-- An unknown uuid redirects to `/`, but only once the tabs have loaded.
+- It renders them in a fixed order, by tab id, so React never moves a tab's node and its scroll positions stay.
+- An unknown tab id redirects to `/`, but only once the tabs have loaded.
 
 ## Tab store (`src/features/tabs`)
 
 `useTabsStore` holds the open tabs; see [architecture.md](../docs/architecture.md#state-and-tab-model). Tests use `createTabsStore({persistence, debounceMs})` and call `store.reset()` to empty it.
 
-- State: normalised tabs `{[id]: Tab}` plus `order`. A `Tab` is a `TabContent` (`title`, `toRun`, `latest`, `results`, `view`, `status`) plus its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`). The store keeps the tree and its persistence; the action tab module (`features/action-tab/model.ts`) is the only writer of a tab's content.
+- State: normalised tabs `{[id]: Tab}` plus `order`. A `Tab` is a `TabContent` (`title`, `toRun`, `latest`, `results`, `grid`, `status`) plus its place in the tree (`id`, `parentId`, `index`, `visited`, `rowDataTrigger`). The store keeps the tree and its persistence; the action tab module (`features/action-tab/model.ts`) is the only writer of a tab's content.
 - `selectors.ts`: `children` is derived, never stored. The selectors are `selectRoots`, `selectChildrenOf`, `selectAncestors` and `selectSubtreeIds`.
 - `load()`: reads IndexedDB sorted by `index`, renumbers, and saves again. A tab whose parent is missing becomes a root.
 - Writes: create, update, trigger and visited changes are debounced per tab (300 ms) and serialised with deletes. `flush()` forces them.
@@ -291,12 +291,12 @@ One more piece lives beside it.
 
 - `SideTree`: `<SideTree store? />` is the permanent left drawer.
   - It is 56 px wide, and 700 px while hovered.
-  - It reads the tab store, and takes the active node from the route with `useMatch('/view/:uuid')`.
-  - Clicking a node marks the tab visited, and navigates to `/view/:uuid`.
+  - It reads the tab store, and takes the active node from the route with `useMatch('/view/:tabId')`.
+  - Clicking a node marks the tab visited, and navigates to `/view/:tabId`.
 - Node labels: `[draft]` and `[new]` prefixes, then the tab's title from the action tab module's `title`, cut to two lines with the full title in a tooltip.
 - Node icons: a spinner, an error, a ringed 0, a row-count badge ("9+" above nine) or a faded folder. The ringed 0 is an action tab whose run succeeded with no rows (`nodeStatus.ts`).
 - Header: the New menu and "Remove selected".
-- `useTreeSelection(activeUuid)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
+- `useTreeSelection(activeTabId)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
 - Remove selected: calls `removeTab`, which cascades, then navigates to `/` with replace if the active tab is gone.
 
 `features/new-query` holds the New menu: `<NewQueryMenu actions? ariaLabel? store? presetsStore? analyst?>label</NewQueryMenu>`. Choosing an entry creates a root tab and navigates to it.
@@ -339,7 +339,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
   - `ResultsGrid` calls `initAgGridFromConfig()` when it is imported, so the grid works in tests without extra setup.
   - `src/app/main.tsx` must not import AG Grid.
 - `ResultsGrid`: takes `rows`. `columnDefs` replaces the columns built from the rows.
-- `useRowResults(uuid, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
+- `useRowResults(tabId, trigger)`: reads a tab's rows from IndexedDB and reloads them when `trigger`, the tab's `rowDataTrigger`, changes. A tab with no stored rows gives `[]`.
 - Columns: the union of all row keys.
 - Row id: the row's row number, `row`.
 - Extension points:
@@ -356,7 +356,7 @@ AG Grid Enterprise with the v33+ Theming API (`themeBalham`) and explicit module
 [architecture.md](../docs/architecture.md#column-views) describes the behaviour.
 
 - `columnViewState.ts`: `columnViewStateOf` takes the column and filter sections of a `GridState`. `fitColumnView` fits a column view to a result. `isModified` and `sameColumnView` compare states.
-- `useActionColumnView(uuid)`: `ActionResultsGrid` calls it. `start` puts the tab's `view`, the default view or the built-in view on the grid when it is ready. `keep` stores the grid's state in the tab's `view.gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
+- `useActionColumnView(tabId)`: `ActionResultsGrid` calls it. `start` puts the tab's column view, the default view or the built-in view on the grid when it is ready. `keep` stores the grid's state in the tab's `grid.gridState`. The controller (`pick`, `revert`, `current`) reaches the panels through the grid's `context.columnViews`.
 - `ColumnViewsToolPanel` is the Views panel, with `SaveColumnViewDialog`, `RenameColumnViewDialog` and `ColumnViewMoreMenu`. `ColumnViewStatusPanel` is the status bar panel. `gridParts.ts` has the side bar and status panel definitions.
 - `ranking.ts`: `rankColumnViews` orders the list by how many of the tab's columns a column view matches.
 - `savedColumnViewsStore.ts`: the column views from `GET /api/columnViews` (client: `src/lib/api/columnViews.ts`). `defaultViewsStore.ts`: the default views, through `defaultViewsDao`.
@@ -427,5 +427,5 @@ A share link opens a run; see the glossary entry for Share link.
 - The action tab's header Copy link button is disabled before the tab has a run. The row context menu's Copy link is its last group of items.
 - `ShareLinkPage`: routed at `#/runs/:runId`. It waits until the tabs are loaded. It reads the run with `getRun`, and a succeeded run with rows also its first rows page.
   - A `404` or `410` shows only "This result is no longer available".
-  - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<uuid>`.
+  - Otherwise `openRunTab` opens an action tab holding the run, and the URL is replaced with `#/view/<tabId>`.
   - For an action the instance doesn't know, the rows still show and Run is disabled.
