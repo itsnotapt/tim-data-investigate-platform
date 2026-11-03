@@ -133,14 +133,16 @@ export function fromShareLink(
 const copied = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /**
- * A copy of `tab` titled "Copy of <title>", with copies of its params and the rows it was pivoted
- * from, and its Id column, not run.
+ * A copy of `tab` titled "Copy of <title>", with copies of its params, the rows it was pivoted from
+ * and the inputs it shows in its title, and its Id column, not run. It is of no preset, so Save…
+ * on it saves a new one.
  */
 export function cloneOf(tab: TabContent): TabContent {
-  const { action, params, pivotRows } = tab.toRun;
+  const { action, params, pivotRows, titleInputs } = tab.toRun;
   const copy = unrun(`Copy of ${tab.title}`, {
     action,
     params: copied(params),
+    ...(titleInputs && { titleInputs: copied(titleInputs) }),
     ...(pivotRows && { pivotRows: copied(pivotRows) }),
   });
   const { idColumn } = tab.grid;
@@ -165,15 +167,20 @@ export const paramEdited =
     };
   };
 
-/** The latest run's params put back, and the reasons params were refused cleared. */
-export const paramsReset: Transition = (tab) =>
-  tab.latest.params
-    ? {
-        ...tab,
-        toRun: { ...tab.toRun, params: tab.latest.params },
-        status: { ...tab.status, paramErrors: null },
-      }
-    : tab;
+/**
+ * The latest run's params and pivot rows put back, and the reasons params were refused cleared.
+ */
+export const paramsReset: Transition = (tab) => {
+  const { params, pivotRows } = tab.latest;
+  if (!params) return tab;
+  const toRun = { ...tab.toRun, params };
+  delete toRun.pivotRows;
+  return {
+    ...tab,
+    toRun: pivotRows ? { ...toRun, pivotRows } : toRun,
+    status: { ...tab.status, paramErrors: null },
+  };
+};
 
 /** Whether the tab's params differ from its latest run's. */
 export const isEdited = (tab: TabContent): boolean =>
@@ -288,14 +295,14 @@ export const runRefused =
   });
 
 /**
- * `run` started with `params`: it is the tab's latest run, and the tab no longer waits for the
- * params a pivot left missing.
+ * `run` started with `params`, sent with `pivotRows`: it is the tab's latest run, and the tab no
+ * longer waits for the params a pivot left missing.
  */
 export const runStarted =
-  (run: Run, params: Record<string, unknown>): Transition =>
+  (run: Run, { params, pivotRows }: Pick<TabToRun, 'params' | 'pivotRows'>): Transition =>
   (tab) => ({
     ...withStatus(tab, { pivotMissing: null }),
-    latest: { run, params, title: run.title },
+    latest: { run, params, title: run.title, ...(pivotRows && { pivotRows }) },
   });
 
 /** `run`, the tab's latest, has a new envelope. */

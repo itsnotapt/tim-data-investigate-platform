@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -364,7 +364,7 @@ describe('ActionTab', () => {
     expect(selectedTab()).toHaveAccessibleName('Run · 1 s');
     act(() => {
       useTabsStore.getState().apply(tabId, runStarting);
-      useTabsStore.getState().apply(tabId, runStarted(running, { users: ['bob'] }));
+      useTabsStore.getState().apply(tabId, runStarted(running, { params: { users: ['bob'] } }));
     });
     expect(selectedTab()).toHaveAccessibleName('Results · 2');
   });
@@ -401,6 +401,42 @@ describe('ActionTab', () => {
     expect(screen.getByRole('button', { name: 'Users: bob' })).not.toHaveAccessibleDescription(
       'Value 1: Must be an email',
     );
+  });
+
+  describe('running against the server', () => {
+    beforeEach(() => configureTestApp());
+    afterEach(resetTestApp);
+
+    it('sends the rows the tab was pivoted from again when it reruns after Edited and Reset', async () => {
+      let body: unknown;
+      server.use(
+        http.post(apiUrl('/api/runs'), async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ ...succeeded, runId: 'r2', rowCount: 0 });
+        }),
+        http.get(apiUrl('/api/runs/r2/rows'), () =>
+          HttpResponse.json({ rows: [], lastRow: 0, annotationVersion: 0 }),
+        ),
+      );
+      const pivotRows = [{ User: 'alice' }];
+      setup(
+        {
+          ...withResults,
+          toRun: { pivotRows },
+          latest: { ...withResults.latest, params: { users: ['alice'] }, pivotRows },
+        },
+        'dev-sign-ins',
+        { run: false },
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
+      await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
+      await userEvent.keyboard('{Escape}');
+      await userEvent.click(screen.getByRole('button', { name: 'Edited' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+      await waitFor(() => {
+        expect(body).toEqual({ action: 'dev-sign-ins', params: { users: ['alice'] }, pivotRows });
+      });
+    });
   });
 
   it('clones the tab beside it and opens the copy', async () => {

@@ -153,7 +153,7 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 | --------- | --------------------------------------------------------------------------------------------- |
 | `title`   | The title the tab was opened with, before any run                                             |
 | `toRun`   | What the tab runs: `{action, params, presetId?, titleInputs?, pivotRows?, pivotRowIds?}`      |
-| `latest`  | The latest run: `{run, params, title}`                                                        |
+| `latest`  | The latest run: `{run, params, pivotRows?, title}`                                            |
 | `results` | The run whose rows are stored, `{runId, columns, startedAt, rowCount}`, or `null`             |
 | `grid`    | How the tab shows its results: `{gridState, columnView, idColumn?}`                           |
 | `status`  | What the tab is doing: `{executing, cancelling, error, paramErrors, linkedRow, pivotMissing}` |
@@ -282,20 +282,21 @@ A From row query parameter is left unset too. A From row input that is still uns
 
 - Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone.
 - After a run, a tab with no `titleInputs` shows `latest.title`, the title of its latest run, which the server made from the action's `title` template ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
-- A preset tab, opened from a preset, pivoted into one or saved as one, has `toRun.titleInputs`, its inputs that show in the title. After a run it shows the preset's name, then its latest run's values for those inputs, separated by spaces.
+- A preset tab, opened from a preset, pivoted into one or saved as one, has `toRun.titleInputs`, its inputs that show in the title. A clone keeps them. After a run it shows its stored title, then its latest run's values for those inputs, separated by spaces. Its stored title is the preset's name, or "Copy of <preset name>" for a clone.
   - A list shows its first two values joined by ", ", then " +N" for the rest.
   - An unset or empty value is left out.
 - An action's template can name the rows the tab was pivoted from as `row` and `cols`.
   - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed to the action's `titleColumns`, or none when it has none.
   - Each run sends them as `pivotRows`, a plain rerun included.
   - Clone copies them.
-  - Editing any param drops them.
+  - Editing any param drops them. Reset puts back the pivot rows of the latest run, or none when it had none.
+  - The latest run (`latest.pivotRows`) records the pivot rows it was sent with.
   - The server never stores them.
 - The tree clamps a title to two lines and the app bar to one. Both show the full title in a tooltip.
 
 The action tab has a header in the app bar, a pills bar and inner tabs.
 
-**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
+**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params, pivot rows and `titleInputs`, and no `presetId`. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
 
 **Pills bar:** the first row of the tab is **New**, then **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
@@ -321,7 +322,7 @@ The action tab has a header in the app bar, a pills bar and inner tabs.
   - Cancel is disabled until the run has an id.
   - The tab says "Cancelling…" until the run ends.
   - A failed cancel shows "Couldn't cancel: …".
-- When the params differ from those the latest run started with (`latest.params`), an **Edited** chip shows. Clicking it resets them and clears the pill marks.
+- When the params differ from those the latest run started with (`latest.params`), an **Edited** chip shows. Clicking it resets them, and the pivot rows, to those of the latest run, and clears the pill marks.
 - A param the server refused is marked on its pill until the pill is edited. The pill takes the error colour, with the reason as its description.
 - An action that is not in the catalogue shows a warning and cannot be run.
 
@@ -469,7 +470,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
 - The preset saves the tab's Id column as `idColumn` when it isn't the action's ([The Id column](#the-id-column)).
 - After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL or Run SQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
-- On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy.
+- On a tab with a `presetId`, Save… first refetches the presets to find that preset. When they can't be loaded, it says so and offers **Retry**, not a Save that would make a copy. A clone has no `presetId`, so its Save… saves a new preset and offers no update of the original.
 
 **Storage.** The API stores presets in `presets`, and each analyst's hidden marks in `preset_hidden` ([Persistence](#persistence)).
 
