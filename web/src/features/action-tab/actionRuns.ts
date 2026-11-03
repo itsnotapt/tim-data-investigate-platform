@@ -203,7 +203,7 @@ export async function runActionTab(tabId: string, options: ActionRunOptions = {}
     return;
   }
   if (signal.aborted) return;
-  store.getState().apply(tabId, runStarted(run, params));
+  store.getState().apply(tabId, runStarted(run, { params, pivotRows }));
   // Saved at once, so a reload picks the run up by its id.
   await store.getState().flush();
   await followRun(tabId, run, signal, options);

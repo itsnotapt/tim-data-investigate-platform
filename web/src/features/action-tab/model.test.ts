@@ -190,11 +190,20 @@ describe('cloning a tab', () => {
     expect(copy.toRun).toEqual({
       action: 'host-timeline',
       params: { host: ['web01', 'web02'], limit: 5 },
+      titleInputs: [{ source: 'param', name: 'host' }],
       pivotRows: [{ Host: 'web01' }],
     });
     expect(copy.grid.idColumn).toBe('Host');
     expect(copy.latest).toEqual({ run: null, params: null, title: null });
     expect(copy.results).toBeNull();
+  });
+
+  it("of a preset tab keeps the inputs shown in its title, without the preset's id", () => {
+    const copy = cloneOf(ran);
+    expect(copy.toRun.titleInputs).toEqual([{ source: 'param', name: 'host' }]);
+    expect(copy.toRun).not.toHaveProperty('presetId');
+    const copyRan = runStarted(RUNNING, { params: { host: ['web03'], limit: 5 } })(copy);
+    expect(titleOf(copyRan)).toBe('Copy of My hosts web03');
   });
 
   it('shares no values with the tab, so editing one leaves the other', () => {
@@ -243,6 +252,18 @@ describe('Reset and edited', () => {
     ...fromAction(HOST_TIMELINE, { host: 'web01', limit: 10 }),
     latest: { run: RUNNING, params: { host: 'web01', limit: 10 }, title: 'Host timeline web01' },
   };
+  const pivotedRan = runStarted(RUNNING, {
+    params: { host: 'web01', limit: 10 },
+    pivotRows: [{ Host: 'web01' }],
+  })(
+    fromPivot({
+      action: HOST_TIMELINE,
+      params: { host: 'web01', limit: 10 },
+      missing: {},
+      pivotRows: [{ Host: 'web01' }],
+      pivotRowIds: ['e1'],
+    }),
+  );
   const changed = {
     ...paramEdited('host', 'web02')(ran),
     status: { ...ran.status, paramErrors: { limit: 'Too big' } },
@@ -266,6 +287,21 @@ describe('Reset and edited', () => {
     expect(back.toRun.params).toEqual({ host: 'web01', limit: 10 });
     expect(back.status.paramErrors).toBeNull();
     expect(isEdited(back)).toBe(false);
+  });
+
+  it('Reset puts back the rows the latest run was pivoted from, as well as its params', () => {
+    const back = paramsReset(paramEdited('host', 'web02')(pivotedRan));
+    expect(back.toRun.params).toEqual({ host: 'web01', limit: 10 });
+    expect(back.toRun.pivotRows).toEqual([{ Host: 'web01' }]);
+  });
+
+  it('Reset leaves no pivot rows when the latest run had none', () => {
+    const second = runStarted(RUNNING, { params: { host: 'web02', limit: 10 } })(
+      paramEdited('host', 'web02')(pivotedRan),
+    );
+    const back = paramsReset(paramEdited('host', 'web03')(second));
+    expect(back.toRun.params).toEqual({ host: 'web02', limit: 10 });
+    expect(back.toRun).not.toHaveProperty('pivotRows');
   });
 
   it('Reset leaves a tab that has not run as it is', () => {
@@ -468,7 +504,7 @@ describe('a run', () => {
   });
 
   it('started is the latest run, with the params it started with and its title, and the tab stops waiting', () => {
-    const started = runStarted(RUNNING, { host: 'web01', limit: 10 })(
+    const started = runStarted(RUNNING, { params: { host: 'web01', limit: 10 } })(
       runStarting(paramEdited('limit', 20)(ran)),
     );
     expect(started.latest).toEqual({
