@@ -1098,23 +1098,6 @@ describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
       await waitFor(() => expect(clipboard).toBe('12345678901234567890'));
     });
   });
-
-  it('warns in the header of a number column that has them', async () => {
-    await bigGrid(
-      'number-warning',
-      [
-        { row: 0, data: { Hash: 2 ** 64, Count: 5 } },
-        { row: 1, data: { Hash: 7, Count: 2 ** 53 - 1 } },
-      ],
-      [
-        { name: 'Hash', type: 'number', declared: false },
-        { name: 'Count', type: 'number', declared: false },
-      ],
-    );
-
-    const warnings = await screen.findAllByLabelText(/Declare the column as bigint/);
-    expect(warnings.map((w) => w.closest('[col-id]')?.getAttribute('col-id'))).toEqual(['Hash']);
-  });
 });
 
 describe('ActionResultsGrid Comment cell', () => {

@@ -417,7 +417,6 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
   - `claimEditorSchema` makes an editor the holder when it gains focus (`onDidFocusEditorText`). It gives the language service that editor's last loaded schema with its tab's query parameters, or the parameters alone before any schema has loaded. It does nothing for the holder or for a `sql` editor, whose schemas are per model.
 - `declareStatement.ts`: `useDeclareStatement` asks `POST /api/actions/{key}/declareStatement` once the query parameters' names and types have stayed unchanged for 400 ms. The Query editor shows the result above its first line, and the Save dialog's preview before the query.
 - `actionColumns.ts`: the grid's columns. Declared settings become `initial*` settings, and declared `calculated` columns become `calculatedExpression` columns. A `bigint` column gets cell data type `bigint`.
-- `roundedColumns.ts` finds the `number` columns with a whole number beyond ±(2^53 − 1). `NumberHeader.tsx` is their header, with the warning icon.
 - Tests pass `onRun` to `ActionTab` instead of running.
 
 ## Share links (`src/features/share-links`)

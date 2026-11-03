@@ -1,6 +1,5 @@
 import type { ColDef } from 'ag-grid-community';
 import type { CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
-import { NumberHeader } from './NumberHeader';
 
 /** A `tim:` column is one of TIM's own grid columns, never a result column. */
 const isTimColumn = (name: string): boolean => name.startsWith('tim:');
@@ -45,7 +44,7 @@ function toBigInt(value: unknown): unknown {
 
 /**
  * Settings by column type: a `bigint` column holds `BigInt`s, with the bigint filter in place of
- * the number and date filters; a `number` column's header warns of rounded whole numbers.
+ * the number and date filters.
  */
 const TYPE_SETTINGS: Partial<Record<RunColumn['type'], (name: string) => ColDef>> = {
   bigint: (name) => ({
@@ -60,7 +59,6 @@ const TYPE_SETTINGS: Partial<Record<RunColumn['type'], (name: string) => ColDef>
       ],
     },
   }),
-  number: () => ({ headerComponentParams: { innerHeaderComponent: NumberHeader } }),
 };
 
 /** A declared column's settings, as AG Grid `initial*` settings. */
