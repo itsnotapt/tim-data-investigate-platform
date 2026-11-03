@@ -198,7 +198,9 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 4. **Store.** For a succeeded run, the rows are loaded page by page from `GET /api/runs/{runId}/rows`.
    - Each page is added to the open grid as it arrives, so the analyst can scroll the first rows while the rest load.
    - Until they all have, the tab shows "Results · 20000 of 85000".
-   - Results (`features/action-tab/results.ts`) give each row its `id` from the tab's Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
+   - Results (`features/action-tab/results.ts`) keep the rows in pages of the instance's rows page size. A row's number is its position.
+   - A page whose row numbers don't continue the rows so far fails the run with "Expected row N next, got row M", and none of its rows are added.
+   - Results give each row its `id` from the tab's Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
    - The grid is given the rows as they arrive. It holds its own copy of them ([What the grid holds](#what-the-grid-holds)).
    - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `results` (`runId`, `columns`, `startedAt` and `rowCount`) is written with them.
    - A failed or abandoned load shows none of its rows. When a rerun fails or is cancelled while its rows load, its rows go and the rows of the tab's last succeeded run are shown again, read back from `row_results`.
@@ -244,7 +246,7 @@ Database `tim` (version 6):
 | `annotations`     | `id`                                    | An `id`'s [Annotations](api.md#annotations): `{id, label, tags, comments, version}`. An `id` whose annotations were all removed stays, with `label: null`, as a tombstone that keeps its `version` |
 | `annotation_sync` | `cursor` (out-of-line)                  | The change feed version read up to; `0` before the first read                                                                                                                                      |
 
-Annotations and `id`s are never stored in `row_results`.
+Annotations and `id`s are never stored in `row_results`. Stored rows whose row numbers don't go up by one from `0` are read as none.
 
 Opening a database from before version 6 drops its tabs and their row results; its annotations and default views stay.
 
@@ -397,6 +399,7 @@ AG Grid holds the analyst's view of the rows. Results hold the rows.
 - **Results hold:** each row's data, `id` and annotations (`features/action-tab/results.ts`).
   - `resultRows(tabId, rowNumbers)` gives the rows with those row numbers.
   - `rowNumbersOf(tabId, id)` gives the row numbers of the rows with that `id`.
+  - Results keep the row numbers of each `id`, in one map that grows as rows arrive.
 - **The grid's copy.** The grid also holds a copy of the row data, because label colours, filters and sorts read the annotations from it.
   - The adapter is the only writer of that copy, and the copy shares its row objects with Results.
   - Each change to Results is applied to the grid as one transaction, or as new row data for a replaced run.

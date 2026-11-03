@@ -4,6 +4,7 @@ import { getAnnotationStore } from '../../lib/annotations';
 import type { RunColumn, RunRow } from '../../lib/api';
 import { annotated } from '../../test/annotationFakes';
 import { content } from '../../test/tabsTestUtils';
+import { useInstanceStore } from '../instance';
 import { useTabsStore } from '../tabs/tabStore';
 import { rowResultsDao, type TabResults } from '../../lib/storage';
 import {
@@ -46,7 +47,29 @@ function changesOf(tabId: string): ResultsChange[] {
   return changes;
 }
 
-beforeEach(() => useTabsStore.reset());
+/** Pages of two rows, so a few rows make several. */
+const ROWS_PAGE_SIZE = 2;
+
+beforeEach(() => {
+  useTabsStore.reset();
+  useInstanceStore.setState({
+    instance: {
+      version: 'v1',
+      actions: [],
+      connections: [],
+      labels: [],
+      limits: {
+        maxResultRows: 100,
+        maxResultBytes: 1_000_000,
+        maxPivotRows: 100,
+        rowsPageSize: ROWS_PAGE_SIZE,
+        runTimeoutSeconds: 600,
+        maxAnnotationIds: 10_000,
+        annotationPollSeconds: 30,
+      },
+    },
+  });
+});
 afterEach(() => clearResults());
 
 /** Holds the tab's Results, given `inputs`, as a mounted tab does. */
@@ -60,22 +83,144 @@ describe('Results', () => {
   it('gives the rows of row numbers, and the row numbers of an id, under the Id column as it is now', () => {
     hold('lookup', { idColumn: 'User', stored: null });
     runLoading('lookup', { runId: 'r1', columns, rowCount: 3 }, 'User');
-    pageLoaded('lookup', 'r1', [row(4, 'alice'), row(7, 'bob')]);
-    pageLoaded('lookup', 'r1', [{ row: 9, data: { User: 'alice', Host: 'h1' } }]);
-    expect(resultRows('lookup', [9, 3, 4]).map((r) => [r.row, r.id])).toEqual([
-      [9, 'alice'],
-      [4, 'alice'],
+    pageLoaded('lookup', 'r1', [row(0, 'alice'), row(1, 'bob')]);
+    pageLoaded('lookup', 'r1', [{ row: 2, data: { User: 'alice', Host: 'h1' } }]);
+    expect(resultRows('lookup', [2, 3, 0]).map((r) => [r.row, r.id])).toEqual([
+      [2, 'alice'],
+      [0, 'alice'],
     ]);
-    expect(rowNumbersOf('lookup', 'alice')).toEqual([4, 9]);
+    expect(rowNumbersOf('lookup', 'alice')).toEqual([0, 2]);
 
     setResultsInputs('lookup', { idColumn: 'Host', stored: null });
-    expect(resultRows('lookup', [4, 9]).map((r) => [r.row, r.id, r.data])).toEqual([
-      [4, null, { User: 'alice' }],
-      [9, 'h1', { User: 'alice', Host: 'h1' }],
+    expect(resultRows('lookup', [0, 2]).map((r) => [r.row, r.id, r.data])).toEqual([
+      [0, null, { User: 'alice' }],
+      [2, 'h1', { User: 'alice', Host: 'h1' }],
     ]);
     expect(rowNumbersOf('lookup', 'alice')).toEqual([]);
-    expect(rowNumbersOf('lookup', 'h1')).toEqual([9]);
-    expect(resultRows('other', [4])).toEqual([]);
+    expect(rowNumbersOf('lookup', 'h1')).toEqual([2]);
+    expect(resultRows('other', [0])).toEqual([]);
+  });
+
+  it('keeps the rows in pages of the rows page size, topping up a short last page', () => {
+    hold('paged', { idColumn: 'User', stored: null });
+    runLoading('paged', { runId: 'r1', columns, rowCount: 5 }, 'User');
+    pageLoaded('paged', 'r1', [row(0, 'alice')]);
+    pageLoaded('paged', 'r1', [row(1, 'bob'), row(2, 'carol')]);
+    pageLoaded('paged', 'r1', [row(3, 'dave'), row(4, 'eve')]);
+
+    const rows = resultsOf('paged')!.rows;
+    expect(rows.pages.map((p) => p.map((r) => r.id))).toEqual([
+      ['alice', 'bob'],
+      ['carol', 'dave'],
+      ['eve'],
+    ]);
+    expect(rows.length).toBe(5);
+    expect([0, 1, 2, 3, 4, 5].map((n) => rows.at(n)?.id)).toEqual([
+      'alice',
+      'bob',
+      'carol',
+      'dave',
+      'eve',
+      undefined,
+    ]);
+    expect(rows.flat().map((r) => r.row)).toEqual([0, 1, 2, 3, 4]);
+    expect(resultRows('paged', [5, 3, 1]).map((r) => r.id)).toEqual(['dave', 'bob']);
+  });
+
+  it('adds a page without copying the full pages before it', () => {
+    hold('shared', { idColumn: 'User', stored: null });
+    runLoading('shared', { runId: 'r1', columns, rowCount: 5 }, 'User');
+    pageLoaded('shared', 'r1', [row(0, 'alice'), row(1, 'bob'), row(2, 'carol')]);
+    const before = resultsOf('shared')!.rows;
+
+    pageLoaded('shared', 'r1', [row(3, 'dave'), row(4, 'eve')]);
+    const after = resultsOf('shared')!.rows;
+    expect(after.pages[0]).toBe(before.pages[0]);
+    expect(before.pages.map((p) => p.length)).toEqual([2, 1]);
+    expect(after.pages.map((p) => p.length)).toEqual([2, 2, 1]);
+  });
+
+  it('gives a page that arrives after the Id column changes its rows’ ids under the new column', () => {
+    hold('switching', { idColumn: 'User', stored: null });
+    runLoading('switching', { runId: 'r1', columns, rowCount: 3 }, 'User');
+    pageLoaded('switching', 'r1', [{ row: 0, data: { User: 'alice', Host: 'h1' } }]);
+    setResultsInputs('switching', { idColumn: 'Host', stored: null });
+    pageLoaded('switching', 'r1', [
+      { row: 1, data: { User: 'bob', Host: 'h2' } },
+      { row: 2, data: { User: 'carol', Host: 'h1' } },
+    ]);
+
+    const rows = resultsOf('switching')!.rows;
+    expect(rows.pages.map((p) => p.map((r) => r.id))).toEqual([['h1', 'h2'], ['h1']]);
+    expect(rowNumbersOf('switching', 'h1')).toEqual([0, 2]);
+    expect(rowNumbersOf('switching', 'alice')).toEqual([]);
+  });
+
+  it('keeps a snapshot as it was after a later page arrives and a row of its page is annotated', async () => {
+    hold('snapshot', { idColumn: 'User', stored: null });
+    runLoading('snapshot', { runId: 'r1', columns, rowCount: 3 }, 'User');
+    pageLoaded('snapshot', 'r1', [row(0, 'snapshot-alice')]);
+    const before = resultsOf('snapshot')!;
+    const alice = before.rows.at(0);
+
+    pageLoaded('snapshot', 'r1', [row(1, 'snapshot-bob'), row(2, 'snapshot-carol')]);
+    await getAnnotationStore().apply([annotated('snapshot-alice', 1, 'benign')], 'own');
+    await expect
+      .poll(() => resultsOf('snapshot')?.rows.at(0)?.annotations?.label?.key)
+      .toBe('benign');
+
+    expect(before.rows.length).toBe(1);
+    expect(before.rows.flat()).toEqual([
+      { row: 0, data: { User: 'snapshot-alice' }, id: 'snapshot-alice' },
+    ]);
+    expect(before.rows.at(0)).toBe(alice);
+    expect(before.rows.at(1)).toBeUndefined();
+  });
+
+  it('copies only the pages holding the rows an annotation change gives annotations', async () => {
+    hold('copies', { idColumn: 'User', stored: null });
+    runLoading('copies', { runId: 'r1', columns, rowCount: 5 }, 'User');
+    pageLoaded('copies', 'r1', [
+      row(0, 'copies-alice'),
+      row(1, 'copies-bob'),
+      row(2, 'copies-carol'),
+      row(3, 'copies-dave'),
+      row(4, 'copies-alice'),
+    ]);
+    const before = resultsOf('copies')!.rows;
+
+    await getAnnotationStore().apply([annotated('copies-alice', 1, 'benign')], 'own');
+    await expect.poll(() => resultsOf('copies')?.rows).not.toBe(before);
+
+    const after = resultsOf('copies')!.rows;
+    expect(after.flat().map((r) => r.annotations?.label?.key ?? null)).toEqual([
+      'benign',
+      null,
+      null,
+      null,
+      'benign',
+    ]);
+    expect(after.pages[1]).toBe(before.pages[1]);
+    expect(after.pages[0]).not.toBe(before.pages[0]);
+    expect(after.at(1)).toBe(before.at(1));
+  });
+
+  it('refuses a page whose row numbers don’t continue the rows so far', () => {
+    hold('numbers', { idColumn: 'User', stored: null });
+    runLoading('numbers', { runId: 'r1', columns, rowCount: 5 }, 'User');
+    pageLoaded('numbers', 'r1', [row(0, 'alice'), row(1, 'bob')]);
+
+    expect(() => pageLoaded('numbers', 'r1', [row(3, 'dave')])).toThrow(
+      'Expected row 2 next, got row 3',
+    );
+    expect(() => pageLoaded('numbers', 'r1', [row(2, 'carol'), row(4, 'eve')])).toThrow(
+      'Expected row 3 next, got row 4',
+    );
+    expect(
+      resultsOf('numbers')
+        ?.rows.flat()
+        .map((r) => r.row),
+    ).toEqual([0, 1]);
   });
 
   it('adds each page of the run loading after the rows so far, each row with its id', () => {
@@ -91,12 +236,12 @@ describe('Results', () => {
       total: 3,
       done: false,
       idColumn: 'User',
-      rows: [
-        { row: 0, data: { User: 'alice' }, id: 'alice' },
-        { row: 1, data: { User: 'bob' }, id: 'bob' },
-        { row: 2, data: { User: 'carol' }, id: 'carol' },
-      ],
     });
+    expect(resultsOf('pages')?.rows.flat()).toEqual([
+      { row: 0, data: { User: 'alice' }, id: 'alice' },
+      { row: 1, data: { User: 'bob' }, id: 'bob' },
+      { row: 2, data: { User: 'carol' }, id: 'carol' },
+    ]);
     expect(changes.filter((c) => c.type === 'added').map((c) => c.rows.map((r) => r.id))).toEqual([
       ['alice', 'bob'],
       ['carol'],
@@ -113,16 +258,18 @@ describe('Results', () => {
     hold('reload', { idColumn: 'User', stored: stored('r1', 2) });
     await expect
       .poll(() => resultsOf('reload'))
-      .toMatchObject({
-        runId: 'r1',
-        columns,
-        total: 2,
-        done: true,
-        rows: [
-          { row: 0, data: { User: 'alice' }, id: 'alice' },
-          { row: 1, data: { User: 'bob' }, id: 'bob' },
-        ],
-      });
+      .toMatchObject({ runId: 'r1', columns, total: 2, done: true });
+    expect(resultsOf('reload')?.rows.flat()).toEqual([
+      { row: 0, data: { User: 'alice' }, id: 'alice' },
+      { row: 1, data: { User: 'bob' }, id: 'bob' },
+    ]);
+  });
+
+  it('reads none of the stored rows when their row numbers don’t go up by one from 0', async () => {
+    await rowResultsDao.put('gaps', [row(0, 'alice'), row(2, 'carol')]);
+    hold('gaps', { idColumn: 'User', stored: stored('r1', 2) });
+    await expect.poll(() => resultsOf('gaps')).toMatchObject({ runId: 'r1', total: 2, done: true });
+    expect(resultsOf('gaps')?.rows.length).toBe(0);
   });
 
   it('gives back the last succeeded run’s rows when a rerun fails or is cancelled while its rows load', async () => {
@@ -132,16 +279,19 @@ describe('Results', () => {
 
     runLoading('rerun', { runId: 'r2', columns, rowCount: 2 }, 'User');
     pageLoaded('rerun', 'r2', [row(0, 'dave')]);
-    expect(resultsOf('rerun')?.rows.map((r) => r.id)).toEqual(['dave']);
+    expect(
+      resultsOf('rerun')
+        ?.rows.flat()
+        .map((r) => r.id),
+    ).toEqual(['dave']);
     loadAbandoned('rerun', 'r2');
 
-    await expect
-      .poll(() => resultsOf('rerun'))
-      .toMatchObject({
-        runId: 'r1',
-        done: true,
-        rows: [{ id: 'alice' }, { id: 'bob' }],
-      });
+    await expect.poll(() => resultsOf('rerun')).toMatchObject({ runId: 'r1', done: true });
+    expect(
+      resultsOf('rerun')
+        ?.rows.flat()
+        .map((r) => r.id),
+    ).toEqual(['alice', 'bob']);
   });
 
   it('re-keys the rows when the Id column changes: their new ids, with those ids’ annotations', async () => {
@@ -162,25 +312,25 @@ describe('Results', () => {
     hold('switch', { idColumn: 'User', stored: null });
     runLoading('switch', { runId: 'r1', columns, rowCount: rows.length }, 'User');
     pageLoaded('switch', 'r1', rows);
-    const labels = () => resultsOf('switch')?.rows.map((r) => r.annotations?.label?.key ?? null);
+    const labels = () =>
+      resultsOf('switch')
+        ?.rows.flat()
+        .map((r) => r.annotations?.label?.key ?? null);
     await expect.poll(labels).toEqual(['malicious', null, null, null, null, null, 'malicious']);
 
     setResultsInputs('switch', { idColumn: 'Host', stored: null });
     expect(resultsOf('switch')?.idColumn).toBe('Host');
-    expect(resultsOf('switch')?.rows.map((r) => r.id)).toEqual([
-      'switch-h1',
-      null,
-      null,
-      null,
-      null,
-      long,
-      '7',
-    ]);
+    expect(
+      resultsOf('switch')
+        ?.rows.flat()
+        .map((r) => r.id),
+    ).toEqual(['switch-h1', null, null, null, null, long, '7']);
     await expect.poll(labels).toEqual(['benign', null, null, null, null, null, null]);
 
     setResultsInputs('switch', { idColumn: 'User', stored: null });
     await expect.poll(labels).toEqual(['malicious', null, null, null, null, null, 'malicious']);
-    expect(resultsOf('switch')?.rowsById.get('switch-alice')).toEqual(['0', '6']);
+    expect(resultsOf('switch')?.rows.pages.map((p) => p.length)).toEqual([2, 2, 2, 1]);
+    expect(resultsOf('switch')?.rowsById.get('switch-alice')).toEqual([0, 6]);
   });
 
   it('gives a change from the feed to every row with its id', async () => {
@@ -191,7 +341,11 @@ describe('Results', () => {
 
     await getAnnotationStore().apply([annotated('feed-alice', 3, 'benign')], 'feed');
     await expect
-      .poll(() => resultsOf('feed')?.rows.map((r) => r.annotations?.label?.key ?? null))
+      .poll(() =>
+        resultsOf('feed')
+          ?.rows.flat()
+          .map((r) => r.annotations?.label?.key ?? null),
+      )
       .toEqual(['benign', null, 'benign']);
     const fromFeed = changes.filter((c) => c.type === 'annotated' && c.source === 'feed');
     expect(fromFeed.map((c) => c.type === 'annotated' && c.rows.map((r) => r.row))).toEqual([
@@ -208,9 +362,9 @@ describe('Results', () => {
 
     hold('visit', { idColumn: 'User', stored: stored('r1', 1) });
     await expect
-      .poll(() => resultsOf('visit')?.rows)
+      .poll(() => resultsOf('visit')?.rows.flat())
       .toEqual([{ row: 0, data: { User: 'alice' }, id: 'alice' }]);
-    expect(resultsOf('visit')?.rows[0]).not.toBe(inMemory?.rows[0]);
+    expect(resultsOf('visit')?.rows.at(0)).not.toBe(inMemory?.rows.at(0));
   });
 
   it('keeps the rows of a run loading in a tab that isn’t mounted until they have all arrived', async () => {

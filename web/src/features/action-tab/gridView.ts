@@ -126,7 +126,7 @@ function applyChange(grid: GridApi, change: ResultsChange, results: Results): vo
       return;
     case 'replaced':
       // The grid matches the rows by row id, so it updates those it has in place.
-      grid.setGridOption('rowData', [...results.rows]);
+      grid.setGridOption('rowData', results.rows.flat());
       return;
     case 'annotated': {
       const nodes = grid.applyTransaction({ update: [...change.rows] })?.update ?? [];

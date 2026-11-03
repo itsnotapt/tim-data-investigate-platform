@@ -247,7 +247,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 {rows: [{row, data}], lastRow}
 ```
 
-- `row` is the row number, from `0`, unique within the run.
+- `row` is the row number, unique within the run. Rows are numbered from `0` to `lastRow − 1`, with no gaps.
 - `data` is the row as the action returned it, as column-name to value; datetimes are ISO 8601 strings, and NaN and infinities are `null`.
 - `lastRow` is the run's row count. A page past it is empty.
 - Rows carry no `id` and no annotations. The browser takes a row's `id` from one column and its annotations from the [change feed](#get-apiannotationschanges) ([architecture.md](architecture.md#the-id-column)).

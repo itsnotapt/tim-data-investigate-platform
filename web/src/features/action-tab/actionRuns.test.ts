@@ -207,12 +207,13 @@ describe('runActionTab', () => {
       total: 3,
       done: false,
       columns: [{ name: 'User', type: 'string', declared: true }],
-      rows: rows.slice(0, 2),
     });
+    expect(resultsOf('a')?.rows.flat()).toMatchObject(rows.slice(0, 2));
     expect(await rowResultsDao.get('a')).toEqual([]);
     releaseSecondPage();
     await running;
-    expect(resultsOf('a')).toMatchObject({ rows, done: true });
+    expect(resultsOf('a')?.done).toBe(true);
+    expect(resultsOf('a')?.rows.flat()).toMatchObject(rows);
     expect(await rowResultsDao.get('a')).toEqual(rows);
   });
 
@@ -242,8 +243,28 @@ describe('runActionTab', () => {
     await runActionTab('a', { store, sleep });
     unsubscribe();
     expect(seen).toContain(RUN_ID);
-    await vi.waitFor(() => expect(resultsOf('a')).toMatchObject({ runId: 'r0', rows: previous }));
+    await vi.waitFor(() => expect(resultsOf('a')?.runId).toBe('r0'));
+    expect(resultsOf('a')?.rows.flat()).toMatchObject(previous);
     expect(tab().status.error).toEqual({ message: 'Results are no longer available; run again' });
+  });
+
+  it('fails the run when a page’s row numbers don’t continue the rows so far, and stores none', async () => {
+    server.use(
+      http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(3))),
+      http.get(apiUrl(`/api/runs/${RUN_ID}/rows`), () =>
+        HttpResponse.json({
+          rows: [rows[0], rows[2]],
+          lastRow: rows.length,
+          annotationVersion: 0,
+        }),
+      ),
+    );
+    holdResults('a');
+    await runActionTab('a', { store, sleep });
+    expect(tab().status.error).toEqual({ message: 'Expected row 1 next, got row 2' });
+    expect(tab().results).toBeNull();
+    expect(await rowResultsDao.get('a')).toEqual([]);
+    expect(resultsOf('a')).toBeNull();
   });
 
   it('counts only the rows it stored when the server runs out of rows early', async () => {
