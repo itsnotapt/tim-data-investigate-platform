@@ -76,7 +76,7 @@ The fields every action file takes:
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
 | `id` | no | The column whose value is a row's `id`: the action's Id column. |
-| `find_pivot_rows` | no | `true` shows **Go to pivot row** on tabs pivoted into this action ([architecture.md](architecture.md#go-to-pivot-row)). Default `false`. It is an action-file error with `pivot: none`, or without `id`; `tim-api check` reports it. |
+| `find_pivot_rows` | no | `true` shows **Go to pivot row** and **Highlight pivot rows** in the status bar of tabs pivoted into this action ([architecture.md](architecture.md#go-to-pivot-row)). Default `false`. It is an action-file error with `pivot: none`, or without `id`; `tim-api check` reports it. |
 | `columns` | no | Declared result columns, below. |
 
 The action type adds fields of its own, such as a connection and a query.

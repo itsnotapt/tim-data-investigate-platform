@@ -54,7 +54,7 @@ The data is from a staged attack on a company called Frothly, in August 2018. Si
 3. Right-click the alert's **Host** cell. Choose **Pivot** ▸ **Endpoint** ▸ **Process creations**.
 4. TIM shows "Running Process creations". Choose **Go to**.
 5. BGIST-L started only Edge and a Dropbox install. Symantec deleted the file before it ran.
-6. Go back to the Alerts tab. Right-click the alert's **Host** cell again. Choose **Pivot** ▸ **Host** ▸ **Host timeline**. TIM shows "Running Host timeline". Choose **Go to**, then **Go to pivot row**. The timeline scrolls to the alert's row, `Alert created [Symantec Endpoint Protection]: Backdoor.PsEmpire`, and flashes it.
+6. Go back to the Alerts tab. Right-click the alert's **Host** cell again. Choose **Pivot** ▸ **Host** ▸ **Host timeline**. TIM shows "Running Host timeline". Choose **Go to**, then click **Go to pivot row** in the grid's status bar. The timeline scrolls to the alert's row, `Alert created [Symantec Endpoint Protection]: Backdoor.PsEmpire`, and flashes it.
 
 ### Follow the file to other hosts
 
@@ -159,7 +159,7 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 - **Activity by user:** the user's process creations and network connections.
 - **Filename seen on this host:** every Sysmon event on the host with a file path that ends in the file's name, or a `CommandLine` or `ParentCommandLine` that holds it. A file another process created shows its creation, then its runs.
 - **Host timeline:** one row per Sysmon event on the host, and one per alert on it. An alert's `EventType` is `Alert`, and its `Summary` is `Alert created [<Product>]: <Alert>`.
-- **Go to pivot row:** Host timeline offers it, because it declares `find_pivot_rows: true`. An alert's row has the alert's `EventId`, so it is found from the Alerts tab.
+- **Go to pivot row:** Host timeline offers it, with **Highlight pivot rows**, because it declares `find_pivot_rows: true`. An alert's row has the alert's `EventId`, so it is found from the Alerts tab.
 - **Columns:** the Endpoint actions and Host timeline show every field of the events, with `EventType` and `Summary` beside `Timestamp` and `Host`. Their `columns:` declare only the first columns, because TIM shows the declared columns first.
 
 ## In this folder

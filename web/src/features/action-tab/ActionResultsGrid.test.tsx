@@ -467,22 +467,97 @@ describe('ActionResultsGrid Go to pivot row', () => {
     expect(link()).toHaveAccessibleName('Go to pivot row');
   });
 
-  it('goes through the matching rows in grid order, counting them, and wraps', async () => {
+  it("sits in the centre of the grid's status bar", async () => {
+    await renderPivoted()();
+    await waitFor(() => expect(link()).toBeInTheDocument());
+    expect(link()!.closest('.ag-status-bar-center')).not.toBeNull();
+  });
+
+  it('goes through the matching rows in grid order, numbering the next, and wraps', async () => {
     const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
     await waitFor(() => expect(link()).toBeEnabled());
-    expect(link()).toHaveAccessibleName('Go to pivot row');
-
-    await userEvent.click(link()!);
-    expect(focusedRow(api)).toBe('1');
     expect(link()).toHaveAccessibleName('Go to pivot row (1 of 2)');
 
     await userEvent.click(link()!);
-    expect(focusedRow(api)).toBe('3');
+    expect(focusedRow(api)).toBe('1');
     expect(link()).toHaveAccessibleName('Go to pivot row (2 of 2)');
 
     await userEvent.click(link()!);
-    expect(focusedRow(api)).toBe('1');
+    expect(focusedRow(api)).toBe('3');
     expect(link()).toHaveAccessibleName('Go to pivot row (1 of 2)');
+
+    await userEvent.click(link()!);
+    expect(focusedRow(api)).toBe('1');
+    expect(link()).toHaveAccessibleName('Go to pivot row (2 of 2)');
+  });
+
+  const highlight = () => screen.queryByRole('checkbox', { name: 'Highlight pivot rows' });
+  /** The row ids of the rows drawn with the pivot row tint, in any part of the grid. */
+  const tinted = () =>
+    [
+      ...new Set(
+        [...document.querySelectorAll('.ag-row.tim-pivot-row')].map((r) =>
+          r.getAttribute('row-id'),
+        ),
+      ),
+    ].sort();
+
+  it('tints the matching rows, with Highlight pivot rows ticked when the tab opens', async () => {
+    await renderPivoted({ pivotRowIds: ['e-2'] })();
+    await waitFor(() => expect(highlight()).toBeEnabled());
+    expect(highlight()).toBeChecked();
+    expect(highlight()!.closest('.ag-status-bar-center')).not.toBeNull();
+    await waitFor(() => expect(tinted()).toEqual(['1', '3']));
+  });
+
+  it("takes the tint off when Highlight pivot rows is unticked, and keeps the tab's tick", async () => {
+    const tabId = loadingTab('pivoted', events, [
+      { name: 'User', type: 'string', declared: false },
+    ]);
+    const grid = <TabGrid tabId={tabId} pivotRowIds={['e-2']} findPivotRows height={400} />;
+    const { unmount } = render(grid);
+    await waitFor(() => expect(tinted()).toEqual(['1', '3']));
+
+    await userEvent.click(highlight()!);
+    expect(highlight()).not.toBeChecked();
+    await waitFor(() => expect(tinted()).toEqual([]));
+
+    // The grid of the tab's next run.
+    unmount();
+    render(grid);
+    await waitFor(() => expect(highlight()).toBeEnabled());
+    expect(highlight()).not.toBeChecked();
+    expect(tinted()).toEqual([]);
+
+    await userEvent.click(highlight()!);
+    await waitFor(() => expect(tinted()).toEqual(['1', '3']));
+  });
+
+  it('moves the tint to the rows the new Id column matches', async () => {
+    const tabId = loadingTab('pivoted', events, [
+      { name: 'User', type: 'string', declared: false },
+    ]);
+    const grid = (idColumn: string) => (
+      <TabGrid
+        tabId={tabId}
+        idColumn={idColumn}
+        pivotRowIds={['e-2', 'user-3']}
+        findPivotRows
+        height={400}
+      />
+    );
+    const { rerender } = render(grid(ID_COLUMN));
+    await waitFor(() => expect(tinted()).toEqual(['1', '3']));
+
+    rerender(grid('User'));
+    await waitFor(() => expect(tinted()).toEqual(['3']));
+  });
+
+  it("disables Highlight pivot rows when no row has a pivot row's id", async () => {
+    await renderPivoted({ pivotRowIds: ['e-9'] })();
+    await waitFor(() => expect(link()).toBeDisabled());
+    expect(highlight()).toBeDisabled();
+    expect(tinted()).toEqual([]);
   });
 
   it("opens the matching row's group", async () => {

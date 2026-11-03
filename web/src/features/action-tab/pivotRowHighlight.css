@@ -1,0 +1,17 @@
+/*
+ * Highlighted pivot rows: the primary colour at 12% over the row's own background, a label's fill
+ * included, in every part of the row (the selection column too), and a 3px primary bar on the
+ * left edge, inside a label's stripe.
+ */
+.tim-pivot-row {
+  --tim-pivot-row-tint: color-mix(in srgb, var(--mui-palette-primary-main) 12%, transparent);
+  background-image: linear-gradient(var(--tim-pivot-row-tint), var(--tim-pivot-row-tint));
+}
+.tim-pivot-row .ag-cell.ag-column-first {
+  box-shadow: inset 3px 0 0 var(--mui-palette-primary-main);
+}
+.tim-pivot-row.tim-label .ag-cell.ag-column-first {
+  box-shadow:
+    inset 3px 0 0 var(--mui-palette-primary-main),
+    inset 8px 0 0 var(--tim-label-stripe);
+}

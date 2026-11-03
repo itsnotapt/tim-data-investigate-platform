@@ -1,20 +1,24 @@
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import ButtonBase from '@mui/material/ButtonBase';
+import Checkbox from '@mui/material/Checkbox';
+import Divider from '@mui/material/Divider';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Tooltip from '@mui/material/Tooltip';
+import type { CustomStatusPanelProps } from 'ag-grid-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { GridView } from './gridView';
+import { gridView, type GridView } from './gridView';
+import { usePivotRowHighlight } from './pivotRowHighlight';
 import { rowNumbersOf } from './results';
 
-export interface GoToPivotRowProps {
+/** The grid `context` entry of an action tab's pivot rows: `null` shows no pivot row controls. */
+export type PivotRowsContext = {
   /** The tab whose grid it goes through. */
   tabId: string;
-  /** The tab's grid, once it is ready. */
-  grid: GridView | null;
   /** The pivot rows' `id`s, each `null` for a row without one. */
   pivotRowIds: readonly (string | null)[];
-}
+} | null;
 
 /** The grid's rows against the pivot rows' `id`s. */
 interface Matches {
@@ -42,13 +46,26 @@ function reasonFor(ids: readonly (string | null)[], matches: Matches): string | 
 }
 
 /**
- * Go to pivot row: a pill floating over the bottom centre of an action tab's grid, above the
- * status bar. Each click goes to the next row, in grid order, whose `id` is a pivot row's, and
- * wraps after the last; the cycle starts over when the number of such rows changes. Its arrow
- * points to that row. With nowhere to go it is disabled, with the reason as its tooltip, and with
- * none until the grid has rows.
+ * AG Grid status panel of a tab pivoted into an action that finds pivot rows, from
+ * `context.pivotRows`: Go to pivot row. Each click goes to the next row, in grid order, whose `id`
+ * is a pivot row's, and wraps after the last; the cycle starts over when the number of such rows
+ * changes. With more than one, it numbers the row the next click goes to, and its arrow points to
+ * that row. With nowhere to go it is disabled, with the reason as its tooltip, and with none until
+ * the grid has rows. Then Highlight pivot rows, which tints every such row while it is ticked: it is
+ * ticked when the tab opens, and disabled while no row has a pivot row's `id`.
  */
-export function GoToPivotRow({ tabId, grid, pivotRowIds }: GoToPivotRowProps) {
+export function PivotRowsStatusPanel(props: CustomStatusPanelProps) {
+  const pivotRows = (props.context as { pivotRows?: PivotRowsContext }).pivotRows ?? null;
+  if (!pivotRows) return null;
+  return <PivotRows {...pivotRows} grid={props.api} />;
+}
+
+function PivotRows({
+  tabId,
+  pivotRowIds,
+  grid: api,
+}: NonNullable<PivotRowsContext> & { grid: CustomStatusPanelProps['api'] }) {
+  const grid = useMemo(() => gridView(api), [api]);
   const ids = useMemo(
     () => new Set(pivotRowIds.filter((id): id is string => id !== null)),
     [pivotRowIds],
@@ -57,7 +74,7 @@ export function GoToPivotRow({ tabId, grid, pivotRowIds }: GoToPivotRowProps) {
   // Bumped on a scroll, to point the arrow again.
   const [, setScrolled] = useState(0);
   useEffect(() => {
-    if (!grid || grid.isDestroyed()) return;
+    if (grid.isDestroyed()) return;
     let frame = 0;
     const update = () => setMatches(findMatches(tabId, grid, ids));
     const scrolled = () => {
@@ -80,49 +97,64 @@ export function GoToPivotRow({ tabId, grid, pivotRowIds }: GoToPivotRowProps) {
   const next = matches.shown[nextAt];
   const reason = matches.rows === 0 ? null : reasonFor(pivotRowIds, matches);
   const onClick = () => {
-    if (!grid || next === undefined) return;
+    if (next === undefined) return;
     // Focuses its first data cell, opening its groups, and flashes it.
     grid.goTo(next);
     grid.flash(next);
     setCursor({ count, at: nextAt });
   };
-  const label = `Go to pivot row${count > 1 && at !== null ? ` (${at + 1} of ${count})` : ''}`;
+  const [highlight, setHighlight] = usePivotRowHighlight(tabId);
+  const Arrow = next !== undefined && grid.isAbove(next) ? ArrowUpwardIcon : ArrowDownwardIcon;
   return (
     <Box
+      className="ag-status-name-value ag-status-panel"
       sx={{
-        position: 'absolute',
-        bottom: 56,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 3,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        color: 'text.secondary',
+        fontVariantNumeric: 'tabular-nums',
       }}
     >
       <Tooltip title={reason ?? ''}>
         <span>
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={
-              grid && next !== undefined && grid.isAbove(next) ? (
-                <ArrowUpwardIcon />
-              ) : (
-                <ArrowDownwardIcon />
-              )
-            }
+          <ButtonBase
             disabled={next === undefined}
             onClick={onClick}
             sx={{
-              borderRadius: 999,
-              boxShadow: 4,
-              textTransform: 'none',
-              px: 2,
-              '&.Mui-disabled': { bgcolor: 'background.paper', color: 'text.secondary' },
+              gap: 0.5,
+              px: 0.75,
+              borderRadius: 1,
+              fontSize: 'inherit',
+              color: 'inherit',
+              '&:hover': { color: 'primary.main', textDecoration: 'underline' },
+              '&.Mui-disabled': { opacity: 0.5 },
             }}
           >
-            {label}
-          </Button>
+            <Arrow sx={{ fontSize: 14 }} />
+            Go to pivot row{count > 1 && ` (${nextAt + 1} of ${count})`}
+          </ButtonBase>
         </span>
       </Tooltip>
+      <Divider orientation="vertical" flexItem sx={{ my: 0.25 }} />
+      <FormControlLabel
+        disabled={matches.total === 0}
+        control={
+          <Checkbox
+            size="small"
+            checked={highlight}
+            onChange={(e) => setHighlight(e.target.checked)}
+            sx={{ p: 0, '& svg': { fontSize: 16 } }}
+          />
+        }
+        label="Highlight pivot rows"
+        sx={{
+          m: 0,
+          gap: 0.5,
+          color: 'inherit',
+          '& .MuiFormControlLabel-label': { fontSize: 'inherit' },
+        }}
+      />
     </Box>
   );
 }
