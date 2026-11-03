@@ -9,16 +9,8 @@ import Tooltip from '@mui/material/Tooltip';
 import type { CustomStatusPanelProps } from 'ag-grid-react';
 import { useEffect, useMemo, useState } from 'react';
 import { gridView, type GridView } from './gridView';
-import { usePivotRowHighlight } from './pivotRowHighlight';
+import { usePivotRowHighlight, usePivotRows, type PivotRows } from './pivotRows';
 import { rowNumbersOf } from './results';
-
-/** The grid `context` entry of an action tab's pivot rows: `null` shows no pivot row controls. */
-export type PivotRowsContext = {
-  /** The tab whose grid it goes through. */
-  tabId: string;
-  /** The pivot rows' `id`s, each `null` for a row without one. */
-  pivotRowIds: readonly (string | null)[];
-} | null;
 
 /** The grid's rows against the pivot rows' `id`s. */
 interface Matches {
@@ -46,30 +38,33 @@ function reasonFor(ids: readonly (string | null)[], matches: Matches): string | 
 }
 
 /**
- * AG Grid status panel of a tab pivoted into an action that finds pivot rows, from
- * `context.pivotRows`: Go to pivot row. Each click goes to the next row, in grid order, whose `id`
+ * AG Grid status panel of the pivot rows the grid of the tab `context.tabId` shows: none, or Go to
+ * pivot row. Each click goes to the next row, in grid order, whose `id`
  * is a pivot row's, and wraps after the last; the cycle starts over when the number of such rows
  * changes. With more than one, it numbers the row the next click goes to, and its arrow points to
  * that row. With nowhere to go it is disabled, with the reason as its tooltip, and with none until
  * the grid has rows. Then Highlight pivot rows, which tints every such row while it is ticked: it is
  * ticked when the tab opens, and disabled while no row has a pivot row's `id`.
  */
-export function PivotRowsStatusPanel(props: CustomStatusPanelProps) {
-  const pivotRows = (props.context as { pivotRows?: PivotRowsContext }).pivotRows ?? null;
+export function PivotRowsStatusPanel({ context, api }: CustomStatusPanelProps) {
+  // The context is the one the grid started with, so it gives only the tab.
+  const { tabId } = context as { tabId: string };
+  const pivotRows = usePivotRows(tabId);
+  const grid = useMemo(() => gridView(api), [api]);
   if (!pivotRows) return null;
-  return <PivotRows {...pivotRows} grid={props.api} />;
+  return <PivotRowControls tabId={tabId} pivotRows={pivotRows} grid={grid} />;
 }
 
-function PivotRows({
+/** Go to pivot row and Highlight pivot rows, for the pivot rows of the tab's grid. */
+function PivotRowControls({
   tabId,
-  pivotRowIds,
-  grid: api,
-}: NonNullable<PivotRowsContext> & { grid: CustomStatusPanelProps['api'] }) {
-  const grid = useMemo(() => gridView(api), [api]);
-  const ids = useMemo(
-    () => new Set(pivotRowIds.filter((id): id is string => id !== null)),
-    [pivotRowIds],
-  );
+  pivotRows: { rowIds, ids },
+  grid,
+}: {
+  tabId: string;
+  pivotRows: PivotRows;
+  grid: GridView;
+}) {
   const [matches, setMatches] = useState(NO_MATCHES);
   // Bumped on a scroll, to point the arrow again.
   const [, setScrolled] = useState(0);
@@ -95,7 +90,7 @@ function PivotRows({
   const at = cursor?.count === count ? cursor.at : null;
   const nextAt = at === null ? 0 : (at + 1) % Math.max(count, 1);
   const next = matches.shown[nextAt];
-  const reason = matches.rows === 0 ? null : reasonFor(pivotRowIds, matches);
+  const reason = matches.rows === 0 ? null : reasonFor(rowIds, matches);
   const onClick = () => {
     if (next === undefined) return;
     // Focuses its first data cell, opening its groups, and flashes it.

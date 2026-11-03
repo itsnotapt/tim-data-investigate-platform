@@ -439,7 +439,7 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
 
 The results grid of a tab shows **Go to pivot row** when the tab has `pivotRowIds` and the action's `findPivotRows` is true ([actions.md](actions.md#action-files)).
 
-- **Look.** A centre status panel of the grid's status bar, `PivotRowsStatusPanel`, fed through the grid `context.pivotRows`, between the column view and the row counts. **Go to pivot row** is a text link in the secondary text colour, primary and underlined on hover, with an arrow up or down toward the next match. A vertical divider follows, then a small **Highlight pivot rows** checkbox.
+- **Look.** `PivotRowsStatusPanel` is a centre panel of the grid's status bar. It sits between the column view and the row counts. The panel takes the tab from `context.tabId` and the pivot rows from `pivotRows.ts`. **Go to pivot row** is a text link. It is in the secondary text colour, and primary and underlined on hover. An arrow up or down points toward the next match. A vertical divider follows. Then comes a small **Highlight pivot rows** checkbox.
 - **Matching.** A child row matches when its `id`, under the child's current [Id column](#the-id-column), equals a stored `id`. Matching is by `id` only, never by time. The row numbers of the matches come from Results (`rowNumbersOf`).
 - **Click.** The grid says which of those rows the filters show, in the grid's order. The click goes to the next of them.
   - It expands the row's groups, scrolls the row to the middle, focuses its first data cell and flashes it.
@@ -450,8 +450,8 @@ The results grid of a tab shows **Go to pivot row** when the tab has `pivotRowId
   2. "No row here has a pivot row's id."
   3. "The pivot row is hidden by the grid's filters."
 - **Before rows arrive.** The link is disabled, with no tooltip.
-- **Highlight.** **Highlight pivot rows** is ticked when a tab opens. The tick is kept per tab in memory only (`pivotRowHighlight.ts`), so it survives a re-run but nothing persists it.
-  - While ticked, every row whose `id` matches gets the `tim-pivot-row` row class from `rowClassRules`, as labels do. It tints the whole row, the selection column included, with the primary colour at 12% over any label fill, and puts a 3px primary bar on its left edge, inside a label's stripe.
+- **Highlight.** **Highlight pivot rows** is ticked when a tab opens. The tick is kept per tab in memory only (`pivotRows.ts`), so it survives a re-run but nothing persists it.
+  - While ticked, every row whose `id` matches gets the `tim-pivot-row` row class from `rowClassRules`, as labels do. It tints the whole row, the selection column included. The tint is the primary colour at 12% over any label fill. A 3px primary bar sits at the row's very left edge. On a labelled row, the label's stripe follows the bar.
   - The tint follows matching: the Id column, the rows and the filters.
   - It is disabled when no row has a pivot row's `id`.
 

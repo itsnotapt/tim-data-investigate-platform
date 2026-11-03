@@ -40,8 +40,13 @@ import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 import { gridView, type GridView } from './gridView';
-import { pivotRowClassRules, usePivotRowHighlight } from './pivotRowHighlight';
-import { PivotRowsStatusPanel, type PivotRowsContext } from './PivotRowsStatusPanel';
+import {
+  pivotRowClassRules,
+  usePivotRowHighlight,
+  usePivotRows,
+  useShowPivotRows,
+} from './pivotRows';
+import { PivotRowsStatusPanel } from './PivotRowsStatusPanel';
 import {
   resultRows,
   resultsOf,
@@ -51,6 +56,7 @@ import {
 } from './results';
 
 const NO_LABELS: readonly InstanceLabel[] = [];
+const NO_IDS: ReadonlySet<string> = new Set();
 /** `maxAnnotationIds` until the instance says otherwise. */
 const DEFAULT_MAX_IDS = 10_000;
 /** The column view on the left, the pivot row controls in the centre. */
@@ -171,13 +177,10 @@ export function ActionResultsGrid({
   /** The rows of the tab's Results with these row numbers, as they are when it's called. */
   const rowsOf = useCallback<RowsOf>((rowNumbers) => resultRows(tabId, rowNumbers), [tabId]);
   const { start, keep, columnViews } = useActionColumnView(tabId);
-  const pivotRows = useMemo<PivotRowsContext>(
-    () => (findPivotRows && pivotRowIds ? { tabId, pivotRowIds } : null),
-    [findPivotRows, pivotRowIds, tabId],
-  );
+  useShowPivotRows(tabId, findPivotRows ? pivotRowIds : null);
   const context = useMemo(
-    () => ({ columnViews, actionFile, pivotRows }),
-    [columnViews, actionFile, pivotRows],
+    () => ({ tabId, columnViews, actionFile }),
+    [tabId, columnViews, actionFile],
   );
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
@@ -329,13 +332,13 @@ export function ActionResultsGrid({
     [onRowFocused],
   );
   const [highlight] = usePivotRowHighlight(tabId);
-  const pivotIds = useMemo(
-    () => new Set(pivotRows?.pivotRowIds.filter((id): id is string => id !== null)),
-    [pivotRows],
-  );
+  const pivotRows = usePivotRows(tabId);
   const rowClassRules = useMemo(
-    () => ({ ...labelClassRules(labels), ...pivotRowClassRules(pivotIds, highlight) }),
-    [labels, pivotIds, highlight],
+    () => ({
+      ...labelClassRules(labels),
+      ...pivotRowClassRules(pivotRows?.ids ?? NO_IDS, highlight),
+    }),
+    [labels, pivotRows, highlight],
   );
   return (
     <Box sx={{ position: 'relative', overflow: 'hidden' }}>

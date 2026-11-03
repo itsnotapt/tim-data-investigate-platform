@@ -448,6 +448,21 @@ describe('ActionResultsGrid Go to pivot row', () => {
     expect(link()).not.toBeInTheDocument();
   });
 
+  it('shows the link once the action is known to find pivot rows', async () => {
+    const tabId = loadingTab('pivoted', events, [
+      { name: 'User', type: 'string', declared: false },
+    ]);
+    const grid = (findPivotRows: boolean) => (
+      <TabGrid tabId={tabId} pivotRowIds={['e-3']} findPivotRows={findPivotRows} height={400} />
+    );
+    const { rerender } = render(grid(false));
+    await waitFor(() => expect(document.querySelector('.ag-status-bar-center')).not.toBeNull());
+    expect(link()).not.toBeInTheDocument();
+
+    rerender(grid(true));
+    await waitFor(() => expect(link()).toBeEnabled());
+  });
+
   const focusedRow = (api: GridApi) => {
     const focused = api.getFocusedCell();
     return focused ? api.getDisplayedRowAtIndex(focused.rowIndex)?.id : undefined;
@@ -492,7 +507,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
   });
 
   const highlight = () => screen.queryByRole('checkbox', { name: 'Highlight pivot rows' });
-  /** The row ids of the rows drawn with the pivot row tint, in any part of the grid. */
+  /** The row numbers of the rows drawn with the pivot row tint, in any part of the grid. */
   const tinted = () =>
     [
       ...new Set(
