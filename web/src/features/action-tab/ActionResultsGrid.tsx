@@ -1,16 +1,17 @@
 import Box from '@mui/material/Box';
 import type {
+  CellFocusedEvent,
   CellKeyDownEvent,
   FullWidthCellKeyDownEvent,
+  GetContextMenuItemsParams,
   GetMainMenuItems,
-  GridApi,
   GridReadyEvent,
   GridState,
 } from 'ag-grid-community';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyContext } from '../../components/notifyContext';
 import { getAnnotationStore, pollAnnotationsSoon } from '../../lib/annotations';
-import type { CatalogueColumn, InstanceLabel, RunRow } from '../../lib/api';
+import type { CatalogueColumn, InstanceLabel } from '../../lib/api';
 import {
   ACTION_SIDE_BAR,
   ACTION_STATUS_PANELS,
@@ -20,8 +21,9 @@ import {
 } from '../action-column-views';
 import { useAnalyst } from '../analyst';
 import { annotationColumnDefs, saveComment, useAnnotating, useRowDetail } from '../annotate';
+import type { RowsMenu, RowTargets } from '../grid';
 import type { GridRowWithId } from '../grid/columns';
-import { SELECTION_COLUMN_ID, type GetExtraContextMenuItems } from '../grid/gridOptions';
+import type { GetExtraContextMenuItems } from '../grid/gridOptions';
 import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
 import { useInstanceStore } from '../instance';
 import {
@@ -30,14 +32,21 @@ import {
   labelColumnDef,
   LabelSymbol,
   makeLabelKeys,
-  targetRows,
   type LabelMenuOptions,
+  type RowsOf,
 } from '../labels';
 import { copyShareLink } from '../share-links';
 import { buildSinkMenu, useSinks } from '../sinks';
 import { buildActionColumnDefs } from './actionColumns';
 import { GoToPivotRow } from './GoToPivotRow';
-import { resultsOf, subscribeResults, type Results, type ResultsChange } from './results';
+import { gridView, type GridView } from './gridView';
+import {
+  resultRows,
+  resultsOf,
+  subscribeResults,
+  type Results,
+  type ResultsChange,
+} from './results';
 import { RoundedColumnsContext, roundedColumns } from './roundedColumns';
 
 const NO_LABELS: readonly InstanceLabel[] = [];
@@ -56,6 +65,7 @@ export type ActionResultsGridProps = Omit<
   | 'selectionSymbol'
   | 'onCellKeyDown'
   | 'onCellFocused'
+  | 'getContextMenuItems'
 > & {
   tabId: string;
   /** The tab's Results, as they are now: the grid applies each change to them as it comes. */
@@ -65,7 +75,7 @@ export type ActionResultsGridProps = Omit<
   /** The action's declared columns. */
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** More context menu items, after Label ▸, Annotate…, Comment… and Row detail, before the sinks. */
-  getContextMenuItems?: GetExtraContextMenuItems;
+  getContextMenuItems?: RowsMenu;
   /** The Id column Copy link carries: `idColumn` when it isn't the one the run opens with. */
   linkIdColumn?: string | null;
   /** The row a share link named: focused, with Row detail open on it, once it has arrived. */
@@ -77,28 +87,6 @@ export type ActionResultsGridProps = Omit<
   /** Whether the action finds pivot rows: with `pivotRowIds`, the grid shows Go to pivot row. */
   findPivotRows?: boolean;
 };
-
-/** Applies a change to the tab's Results to the grid. */
-function applyChange(grid: GridApi<GridRowWithId>, change: ResultsChange, results: Results): void {
-  switch (change.type) {
-    case 'added':
-      grid.applyTransaction({ add: [...change.rows] });
-      return;
-    case 'replaced':
-      // The grid matches the rows by row id, so it updates those it has in place.
-      grid.setGridOption('rowData', [...results.rows]);
-      return;
-    case 'annotated': {
-      const nodes = grid.applyTransaction({ update: [...change.rows] })?.update ?? [];
-      // The symbol has no value of its own, so its cells are redrawn.
-      grid.refreshCells({ rowNodes: nodes, columns: [SELECTION_COLUMN_ID], force: true });
-      if (change.source === 'feed' && nodes.length > 0) grid.flashCells({ rowNodes: nodes });
-      return;
-    }
-    case 'loaded':
-      return;
-  }
-}
 
 /**
  * An action tab's Results, keyed by `row`, with the action's columns and the annotations of each
@@ -169,26 +157,25 @@ export function ActionResultsGrid({
   // The grid is given the rows it starts with as its row data, then each change by transaction, so
   // a page doesn't make it take every row again.
   const [given] = useState(rows);
-  const api = useRef<GridApi<GridRowWithId> | null>(null);
-  /** The grid's api once it is ready, for what renders from it. */
-  const [readyApi, setReadyApi] = useState<GridApi<GridRowWithId> | null>(null);
-  const gridReady = readyApi !== null;
+  /** The grid once it is ready. */
+  const [view, setView] = useState<GridView | null>(null);
   useEffect(() => {
-    if (!readyApi) return;
+    if (!view) return;
     const apply = (change: ResultsChange, now: Results | null) => {
-      if (!readyApi.isDestroyed() && now?.runId === runId) applyChange(readyApi, change, now);
+      if (!view.isDestroyed() && now?.runId === runId) view.apply(change, now);
     };
     // What changed before the grid was ready.
     const now = resultsOf(tabId);
     if (now && now.rows !== given) apply({ type: 'replaced' }, now);
     return subscribeResults(tabId, apply);
-  }, [readyApi, tabId, runId, given]);
+  }, [view, tabId, runId, given]);
+  /** The rows of the tab's Results with these row numbers, as they are when it's called. */
+  const rowsOf = useCallback<RowsOf>((rowNumbers) => resultRows(tabId, rowNumbers), [tabId]);
   const { start, keep, columnViews } = useActionColumnView(tabId);
   const context = useMemo(() => ({ columnViews, actionFile }), [columnViews, actionFile]);
   const ready = useCallback(
     (e: GridReadyEvent<GridRowWithId>) => {
-      api.current = e.api;
-      setReadyApi(e.api);
+      setView(gridView(e.api));
       void start(e.api);
       onGridReady?.(e);
     },
@@ -199,10 +186,11 @@ export function ActionResultsGrid({
       store: getAnnotationStore(),
       labels,
       max,
+      rowsOf,
       notify: (options) => notifyContext?.(options),
       pollSoon: pollAnnotationsSoon,
     }),
-    [labels, max, notifyContext],
+    [labels, max, rowsOf, notifyContext],
   );
   const labelMenu = useMemo(() => buildLabelMenu(labelling), [labelling]);
   const sinks = useSinks(runColumns);
@@ -210,116 +198,129 @@ export function ActionResultsGrid({
     menu: annotateMenu,
     keys: annotateKeys,
     dialog,
-  } = useAnnotating({ labels, max, rowsById, sinks });
-  const sinkMenu = useCallback<GetExtraContextMenuItems>(
-    (params) => {
-      const rows = targetRows(params.api as GridApi<GridRowWithId>, params.node);
-      return buildSinkMenu({
+  } = useAnnotating({ labels, max, rowsById, rowsOf, sinks });
+  const sinkMenu = useCallback<RowsMenu>(
+    (targets) =>
+      buildSinkMenu({
         actions: sinks.sinks,
-        rowCount: rows.length,
+        rowCount: rowsOf(targets.rows).length,
         max,
-        onRun: (sink) => sinks.run(sink, rows),
-      });
-    },
-    [sinks, max],
+        onRun: (sink) => sinks.run(sink, rowsOf(targets.rows)),
+      }),
+    [sinks, max, rowsOf],
   );
   const {
     menu: rowDetailMenu,
     keys: rowDetailKeys,
-    onCellFocused,
+    onRowFocused,
     panel: rowDetail,
     open: openRowDetail,
-    follow: followRows,
-  } = useRowDetail({ labels, columns: runColumns });
-  useEffect(() => followRows(rows), [rows, followRows]);
+  } = useRowDetail({ labels, columns: runColumns, rowsOf });
   const linkedShown = useRef(false);
   useEffect(() => {
-    const grid = api.current;
-    if (linkedRow === null || linkedShown.current || !gridReady || !grid) return;
-    const node = grid.getRowNode(String(linkedRow));
-    if (!node?.data) return;
+    if (linkedRow === null || linkedShown.current || !view) return;
+    if (rowsOf([linkedRow]).length === 0 || !view.goTo(linkedRow)) return;
     linkedShown.current = true;
-    for (let group = node.parent; group && group.level >= 0; group = group.parent) {
-      group.setExpanded(true, undefined, true);
-    }
-    grid.ensureNodeVisible(node, 'middle');
-    const column = grid.getAllDisplayedColumns().find((c) => !c.getColId().startsWith('ag-Grid-'));
-    if (node.rowIndex !== null && column) grid.setFocusedCell(node.rowIndex, column);
-    openRowDetail(node.data);
+    openRowDetail(linkedRow);
     onLinkedRowShown?.();
-  }, [linkedRow, gridReady, rows, openRowDetail, onLinkedRowShown]);
-  const linkMenu = useCallback<GetExtraContextMenuItems>(
-    ({ node }) => {
-      const row = (node?.data as GridRowWithId | undefined)?.row;
-      return [
-        {
-          name: 'Copy link',
-          disabled: typeof row !== 'number',
-          action: () => {
-            if (typeof row === 'number') {
-              void copyShareLink(runId, row, notifyContext, linkIdColumn);
-            }
-          },
+  }, [linkedRow, view, rows, rowsOf, openRowDetail, onLinkedRowShown]);
+  const linkMenu = useCallback<RowsMenu>(
+    ({ row }) => [
+      {
+        name: 'Copy link',
+        disabled: row === null,
+        action: () => {
+          if (row !== null) void copyShareLink(runId, row, notifyContext, linkIdColumn);
         },
-      ];
-    },
+      },
+    ],
     [runId, linkIdColumn, notifyContext],
   );
-  const idColumnMenu = useCallback<GetExtraContextMenuItems>(
-    ({ column, node }) => {
-      const name = column?.getColId();
-      const data = node?.data as RunRow | undefined;
-      if (!onIdColumnChange || !name || name === idColumn || !data || !(name in data.data))
+  const idColumnMenu = useCallback<RowsMenu>(
+    ({ row, column }) => {
+      const [clicked] = rowsOf(row === null ? [] : [row]);
+      if (
+        !onIdColumnChange ||
+        !column ||
+        column === idColumn ||
+        !clicked ||
+        !(column in clicked.data)
+      )
         return [];
-      return [{ name: `Use ${name} as Id column`, action: () => onIdColumnChange(name) }];
+      return [{ name: `Use ${column} as Id column`, action: () => onIdColumnChange(column) }];
     },
-    [idColumn, onIdColumnChange],
+    [idColumn, onIdColumnChange, rowsOf],
   );
   const copySettingsItem = useCallback(
-    (api: GridApi) => copyColumnSettingsItem(() => actionFile(api.getState()), notifyContext),
+    (state: () => GridState) => copyColumnSettingsItem(() => actionFile(state()), notifyContext),
     [actionFile, notifyContext],
   );
-  const copyColumnSettingsMenu = useCallback<GetExtraContextMenuItems>(
-    (params) => [copySettingsItem(params.api)],
-    [copySettingsItem],
+  const copyColumnSettingsMenu = useCallback<RowsMenu>(
+    () => (view ? [copySettingsItem(() => view.state())] : []),
+    [copySettingsItem, view],
   );
-  const menu = useMemo(
-    () => [
-      ((params) => [
-        ...labelMenu(params),
-        ...annotateMenu(params),
-        ...rowDetailMenu(params),
-      ]) satisfies GetExtraContextMenuItems,
+  const menu = useMemo(() => {
+    // The targets of each menu opened, worked out once for all its items.
+    const targets = new WeakMap<GetContextMenuItemsParams, RowTargets>();
+    const targetsOf = (params: GetContextMenuItemsParams) => {
+      let found = targets.get(params);
+      if (!found) {
+        found = gridView(params.api).targets(params.node, params.column);
+        targets.set(params, found);
+      }
+      return found;
+    };
+    const groups: RowsMenu[] = [
+      (t) => [...labelMenu(t), ...annotateMenu(t), ...rowDetailMenu(t)],
       idColumnMenu,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
       copyColumnSettingsMenu,
       linkMenu,
-    ],
-    [
-      labelMenu,
-      annotateMenu,
-      rowDetailMenu,
-      idColumnMenu,
-      getContextMenuItems,
-      sinkMenu,
-      copyColumnSettingsMenu,
-      linkMenu,
-    ],
-  );
+    ];
+    return groups.map(
+      (group): GetExtraContextMenuItems =>
+        (params) =>
+          group(targetsOf(params)),
+    );
+  }, [
+    labelMenu,
+    annotateMenu,
+    rowDetailMenu,
+    idColumnMenu,
+    getContextMenuItems,
+    sinkMenu,
+    copyColumnSettingsMenu,
+    linkMenu,
+  ]);
   const getMainMenuItems = useCallback<GetMainMenuItems<GridRowWithId>>(
-    (params) => [...params.defaultItems, 'separator', copySettingsItem(params.api)],
+    (params) => [
+      ...params.defaultItems,
+      'separator',
+      copySettingsItem(() => gridView(params.api).state()),
+    ],
     [copySettingsItem],
   );
   const labelKeys = useMemo(() => makeLabelKeys(labelling), [labelling]);
   const onCellKeyDown = useCallback(
     (e: CellKeyDownEvent<GridRowWithId> | FullWidthCellKeyDownEvent) => {
-      if (!('column' in e)) return;
-      labelKeys(e);
-      annotateKeys(e);
-      rowDetailKeys(e);
+      const key = e.event as KeyboardEvent | null | undefined;
+      if (!('column' in e) || !key) return;
+      const grid = gridView(e.api);
+      if (grid.isEditing()) return;
+      const targets = grid.targets(e.node, e.column);
+      labelKeys(key, targets);
+      annotateKeys(key, targets);
+      rowDetailKeys(key, targets);
     },
     [labelKeys, annotateKeys, rowDetailKeys],
+  );
+  const onCellFocused = useCallback(
+    (e: CellFocusedEvent<GridRowWithId>) => {
+      const row = e.rowIndex === null ? null : gridView(e.api).displayedRow(e.rowIndex);
+      if (row !== null) onRowFocused(row);
+    },
+    [onRowFocused],
   );
   const rowClassRules = useMemo(() => labelClassRules(labels), [labels]);
   return (
@@ -342,7 +343,9 @@ export function ActionResultsGrid({
           onGridReady={ready}
         />
       </RoundedColumnsContext>
-      {findPivotRows && pivotRowIds && <GoToPivotRow api={readyApi} pivotRowIds={pivotRowIds} />}
+      {findPivotRows && pivotRowIds && (
+        <GoToPivotRow tabId={tabId} grid={view} pivotRowIds={pivotRowIds} />
+      )}
       {rowDetail}
       {dialog}
     </Box>

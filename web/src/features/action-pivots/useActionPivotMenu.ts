@@ -1,43 +1,21 @@
-import type { GetContextMenuItemsParams, IRowNode } from 'ag-grid-community';
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useNotify } from '../../components/useNotify';
-import type { RunRow } from '../../lib/api';
-import type { GetExtraContextMenuItems } from '../grid';
+import { resultRows } from '../action-tab/results';
+import type { RowsMenu } from '../grid';
 import { useInstanceStore } from '../instance';
-import type { LabelledRow } from '../labels';
 import { usePresetsStore } from '../presets';
 import { buildActionPivotMenu, recentPivotKey } from './actionPivotMenu';
 import { pivotIntoAction, pivotIntoPreset } from './pivotIntoAction';
 import { useRecentPivots } from './recentPivots';
 
 /**
- * The targets of a context menu: the selected rows. Right-clicking a row outside them selects
- * just that row.
+ * Context menu items for the grid of the action tab `parentTabId`: Pivot ▸ into the actions and
+ * with the presets, which it loads unless they are already. It pivots from the targets' rows and
+ * `id`s as the tab's Results have them when an item is picked. `run` runs a child tab that needs
+ * nothing.
  */
-function menuTargets({ api, node }: GetContextMenuItemsParams): IRowNode[] {
-  if (node && !node.isSelected()) {
-    api.deselectAll();
-    node.setSelected(true);
-  }
-  const selected = api.getSelectedNodes();
-  return selected.length > 0 ? selected : node ? [node] : [];
-}
-
-const values = (node: IRowNode) => (node.data as RunRow | undefined)?.data ?? {};
-
-/** A target's `id` under the grid's Id column, `null` when it has none. */
-const rowIdOf = (node: IRowNode) => (node.data as LabelledRow | undefined)?.id ?? null;
-
-/**
- * `getContextMenuItems` provider for the grid of the action tab `parentTabId`: Pivot ▸ into the
- * actions and with the presets, which it loads unless they are already. `run` runs a child tab
- * that needs nothing.
- */
-export function useActionPivotMenu(
-  parentTabId: string,
-  run: (tabId: string) => void,
-): GetExtraContextMenuItems {
+export function useActionPivotMenu(parentTabId: string, run: (tabId: string) => void): RowsMenu {
   const instance = useInstanceStore((s) => s.instance);
   const recent = useRecentPivots((s) => s.keys);
   const record = useRecentPivots((s) => s.record);
@@ -49,28 +27,38 @@ export function useActionPivotMenu(
     if (!presetsLoaded) void usePresetsStore.getState().refresh();
   }, [presetsLoaded]);
   return useMemo(
-    () => (params) => {
+    () => (targets) => {
       if (!instance) return [];
-      const targets = menuTargets(params);
-      const rows = targets.map(values);
-      const pivotRowIds = targets.map(rowIdOf);
-      const column = params.column?.getColId();
-      const clicked = params.node ? values(params.node) : {};
+      /** The targets' rows, and the clicked cell, as the tab's Results have them now. */
+      const fromResults = () => {
+        const found = resultRows(parentTabId, targets.rows);
+        const { row, column } = targets;
+        const [clicked] = resultRows(parentTabId, row === null ? [] : [row]);
+        return {
+          rows: found.map((r) => r.data),
+          pivotRowIds: found.map((r) => r.id ?? null),
+          cell:
+            column !== null && clicked && column in clicked.data
+              ? { column, value: clicked.data[column] }
+              : null,
+        };
+      };
       const goTo = (tabId: string) => void navigate(`/view/${tabId}`);
       return buildActionPivotMenu({
         actions: instance.actions,
         presets,
         connections: instance.connections,
-        rows,
+        rows: fromResults().rows,
         maxPivotRows: instance.limits.maxPivotRows,
         recent,
         onPivot: (action) => {
           record(recentPivotKey(action));
+          const { rows, pivotRowIds, cell } = fromResults();
           void pivotIntoAction({
             action,
             parentTabId,
             rows,
-            cell: column && column in clicked ? { column, value: clicked[column] } : null,
+            cell,
             connections: instance.connections,
             pivotRowIds,
             notify,
@@ -80,6 +68,7 @@ export function useActionPivotMenu(
         },
         onPivotPreset: (preset, action, resolved) => {
           record(recentPivotKey(preset));
+          const { rows, pivotRowIds } = fromResults();
           pivotIntoPreset({
             preset,
             action,
