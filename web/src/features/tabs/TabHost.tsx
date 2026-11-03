@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router';
 import { touchLru } from './lru';
 import { ActionTab } from '../action-tab/ActionTab';
@@ -11,12 +11,7 @@ import { useTabsStore } from './tabStore';
  * redirect home, but only after tabs finished loading (a hard load must not bounce before
  * IndexedDB is read).
  */
-export function TabHost({
-  component: Component = ActionTab,
-}: {
-  /** What shows a tab (default `ActionTab`); tests put a probe in its place. */
-  component?: ComponentType<{ tabId: string }>;
-}) {
+export function TabHost() {
   const { tabId = '' } = useParams();
   const tabs = useTabsStore((s) => s.tabs);
   const loaded = useTabsStore((s) => s.loaded);
@@ -39,7 +34,7 @@ export function TabHost({
         if (!tabs[id]) return null; // removed since it was visited
         return (
           <Box key={id} sx={{ display: id === tabId ? 'block' : 'none' }}>
-            <Component tabId={id} />
+            <ActionTab tabId={id} />
           </Box>
         );
       })}

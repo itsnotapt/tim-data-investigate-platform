@@ -1,49 +1,45 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { AppBarSlotProvider } from '../../components/AppBarSlot';
+import { SnackbarHost } from '../../components/SnackbarHost';
 import { resetTimDb } from '../../lib/storage';
+import { results, tab } from '../../test/tabsTestUtils';
 import { MAX_MOUNTED_TABS, touchLru } from './lru';
 import { TabHost } from './TabHost';
-import { tab } from '../../test/tabsTestUtils';
 import { useTabsStore } from './tabStore';
-
-const mounts = vi.fn<(kind: string, tabId: string) => void>();
-
-function Probe({ kind, tabId }: { kind: string; tabId: string }) {
-  const title = useTabsStore((s) => s.tabs[tabId]?.title);
-  // Runs once per mount.
-  useMountLog(kind, tabId);
-  return <p>{`${kind}:${title}`}</p>;
-}
-import { useEffect } from 'react';
-function useMountLog(kind: string, tabId: string) {
-  useEffect(() => {
-    mounts(kind, tabId);
-  }, [kind, tabId]);
-}
-const ProbeTab = ({ tabId }: { tabId: string }) => <Probe kind="action" tabId={tabId} />;
 
 function renderAt(entry: string) {
   const router = createMemoryRouter(
     [
       { path: '/', element: <p>home</p> },
-      { path: '/view/:tabId', element: <TabHost component={ProbeTab} /> },
+      { path: '/view/:tabId', element: <TabHost /> },
     ],
     { initialEntries: [entry] },
   );
-  render(<RouterProvider router={router} />);
+  render(
+    <SnackbarHost>
+      <AppBarSlotProvider>
+        <RouterProvider router={router} />
+      </AppBarSlotProvider>
+    </SnackbarHost>,
+  );
   return router;
 }
 
-const action = (id: string, title = id) => tab(id, null, { title });
+/** A tab whose run stored `rowCount` rows, so it shows "Results · <rowCount>" and Run. */
+const ran = (id: string, rowCount: number) => tab(id, null, { results: results(rowCount) });
+
+/** The visible tab's inner tab named `name`; hidden tabs' inner tabs are not found. */
+const innerTab = (name: string) => screen.queryByRole('tab', { name });
 
 beforeEach(async () => {
   globalThis.indexedDB = new IDBFactory();
   await resetTimDb();
   useTabsStore.reset();
-  mounts.mockClear();
 });
 afterEach(async () => {
   await useTabsStore.getState().flush();
@@ -63,20 +59,20 @@ describe('touchLru', () => {
 });
 
 describe('TabHost', () => {
-  it('renders the tab on a hard load once tabs are loaded', async () => {
+  it('shows the tab on a hard load once tabs are loaded, and marks it visited', async () => {
     const router = renderAt('/view/a');
-    // Not loaded yet: no redirect, nothing rendered.
+    // Not loaded yet: no redirect, nothing shown.
     expect(router.state.location.pathname).toBe('/view/a');
     act(() => {
-      useTabsStore.getState().createTab(action('a', 'Alpha'));
+      useTabsStore.getState().createTab(ran('a', 2));
       useTabsStore.setState({ loaded: true });
     });
-    expect(await screen.findByText('action:Alpha')).toBeVisible();
+    expect(await screen.findByRole('tab', { name: 'Results · 2' })).toBeVisible();
     expect(router.state.location.pathname).toBe('/view/a');
     expect(useTabsStore.getState().tabs['a']?.visited).toBe(true);
   });
 
-  it('redirects an unknown tabId to / only after load finished', async () => {
+  it('redirects an unknown tab id to / only after load finished', async () => {
     const router = renderAt('/view/nope');
     expect(router.state.location.pathname).toBe('/view/nope');
     act(() => useTabsStore.setState({ loaded: true }));
@@ -84,33 +80,34 @@ describe('TabHost', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
-  it('keeps visited tabs mounted and hidden, without remounting', async () => {
-    useTabsStore.getState().createTab(action('a'));
-    useTabsStore.getState().createTab(action('b'));
+  it('keeps a visited tab as the analyst left it, hidden while another is shown', async () => {
+    useTabsStore.getState().createTab(ran('a', 2));
+    useTabsStore.getState().createTab(ran('b', 3));
     useTabsStore.setState({ loaded: true });
     const router = renderAt('/view/a');
-    expect(await screen.findByText('action:a')).toBeVisible();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Run' }));
+
     await act(() => router.navigate('/view/b'));
-    expect(screen.getByText('action:b')).toBeVisible();
-    expect(screen.getByText('action:a')).not.toBeVisible();
+    expect(innerTab('Results · 3')).toHaveAttribute('aria-selected', 'true');
+    expect(innerTab('Results · 2')).not.toBeInTheDocument();
+
     await act(() => router.navigate('/view/a'));
-    expect(screen.getByText('action:a')).toBeVisible();
-    expect(screen.getByText('action:b')).not.toBeVisible();
-    expect(mounts.mock.calls).toEqual([
-      ['action', 'a'],
-      ['action', 'b'],
-    ]);
+    // Still on the inner tab the analyst picked: the tab was not mounted again.
+    expect(innerTab('Run')).toHaveAttribute('aria-selected', 'true');
+    expect(innerTab('Results · 3')).not.toBeInTheDocument();
   });
 
-  it('drops a removed tab from the mounted set', async () => {
-    useTabsStore.getState().createTab(action('a'));
-    useTabsStore.getState().createTab(action('b'));
+  it('drops a removed tab', async () => {
+    useTabsStore.getState().createTab(ran('a', 2));
+    useTabsStore.getState().createTab(ran('b', 3));
     useTabsStore.setState({ loaded: true });
     const router = renderAt('/view/a');
-    await screen.findByText('action:a');
+    await screen.findByRole('tab', { name: 'Results · 2' });
     await act(() => router.navigate('/view/b'));
     await act(() => useTabsStore.getState().removeTab('a'));
-    expect(screen.queryByText('action:a')).not.toBeInTheDocument();
-    expect(screen.getByText('action:b')).toBeVisible();
+    expect(
+      screen.queryByRole('tab', { name: 'Results · 2', hidden: true }),
+    ).not.toBeInTheDocument();
+    expect(innerTab('Results · 3')).toBeVisible();
   });
 });
