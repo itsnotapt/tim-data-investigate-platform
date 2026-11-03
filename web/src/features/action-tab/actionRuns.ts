@@ -16,6 +16,7 @@ import {
   cancelFailed,
   cancelRequested,
   fromShareLink,
+  idColumnOf,
   resumed,
   runFailed,
   runRefused,
@@ -27,7 +28,7 @@ import {
   type Refusal,
 } from './model';
 import { pills } from './queryParameters';
-import { runRowsStore } from './runRows';
+import { loadAbandoned, pageLoaded, runLoaded, runLoading } from './results';
 
 const FAST_POLL_MS = 1000;
 const FAST_POLLS = 10;
@@ -123,16 +124,25 @@ function startErrors(e: unknown, action: string, values: Record<string, unknown>
  * Every row of a succeeded run, page by page (the server returns at most its page size). Each page
  * is shown in the tab's grid as it arrives.
  */
-async function loadRows(tabId: string, run: Run, signal: AbortSignal): Promise<RunRow[]> {
+async function loadRows(
+  tabId: string,
+  run: Run,
+  signal: AbortSignal,
+  store: TabsStore,
+): Promise<RunRow[]> {
   const rowCount = run.rowCount ?? 0;
-  const shown = runRowsStore.getState();
-  shown.start(tabId, run.runId, run.columns ?? null, rowCount);
+  const tab = store.getState().tabs[tabId];
+  const action = useInstanceStore
+    .getState()
+    .instance?.actions.find((a) => a.key === tab?.toRun.action);
+  const idColumn = tab ? idColumnOf(tab, action) : null;
+  runLoading(tabId, { runId: run.runId, columns: run.columns ?? null, rowCount }, idColumn);
   const rows: RunRow[] = [];
   while (rows.length < rowCount) {
     const page = await getRunRows(run.runId, rows.length, rowCount, { signal });
     if (page.rows.length === 0) break;
     rows.push(...page.rows);
-    shown.append(tabId, run.runId, page.rows);
+    pageLoaded(tabId, run.runId, page.rows);
   }
   return rows;
 }
@@ -150,7 +160,7 @@ async function followRun(
 ): Promise<void> {
   const fail = (message: string) => store.getState().apply(tabId, runFailed(message));
   let run = first;
-  /** The run whose rows are being shown as they load; dropped unless they all load. */
+  /** The run whose rows are being shown as they load; abandoned unless they all load. */
   let loading: string | null = null;
   try {
     for (let n = 0; run.status === 'running'; n++) {
@@ -162,13 +172,12 @@ async function followRun(
     const message = endMessage(run);
     if (message !== null) return fail(message);
     loading = run.runId;
-    const rows = await loadRows(tabId, run, signal);
+    const rows = await loadRows(tabId, run, signal, store);
     if (signal.aborted) return;
     await rowResultsDao.put(tabId, rows);
-    runRowsStore.getState().finish(tabId, run.runId);
+    runLoaded(tabId, run.runId);
     store.getState().apply(tabId, runSucceeded(run, rows));
     store.getState().markUnvisited(tabId);
-    store.getState().triggerRowData(tabId);
     await store.getState().flush();
   } catch (e) {
     if (signal.aborted) return;
@@ -176,8 +185,7 @@ async function followRun(
     if (isApiError(e) && e.status === 404) return fail(RUN_GONE);
     fail(reasonOf(e));
   } finally {
-    const shown = runRowsStore.getState().byTab[tabId];
-    if (shown && shown.runId === loading && !shown.done) runRowsStore.getState().drop(tabId);
+    if (loading !== null) loadAbandoned(tabId, loading);
     if (following.get(tabId)?.signal === signal) following.delete(tabId);
   }
 }

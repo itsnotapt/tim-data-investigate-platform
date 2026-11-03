@@ -5,7 +5,7 @@ import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
 import { load } from 'js-yaml';
 import { HttpResponse, http } from 'msw';
 import { useState } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { Annotations, CatalogueColumn, RunColumn, RunRow } from '../../lib/api';
 import { AuthProvider, createAuthClient, DEV_ACCOUNT } from '../../lib/auth';
 import { apiUrl, problemResponse } from '../../test/msw/handlers';
@@ -15,11 +15,13 @@ import { SnackbarHost } from '../../components/SnackbarHost';
 import { getAnnotationStore } from '../../lib/annotations';
 import { annotated } from '../../test/annotationFakes';
 import { useAnalystStore } from '../analyst';
+import { useInstanceStore } from '../instance';
 import type { LabelledRow } from '../labels';
 import { content } from '../../test/tabsTestUtils';
 import { useTabsStore } from '../tabs';
 import { gridStateChanged } from './model';
-import { ActionResultsGrid } from './ActionResultsGrid';
+import { ActionResultsGrid, type ActionResultsGridProps } from './ActionResultsGrid';
+import { clearResults, pageLoaded, runLoading, useResults } from './results';
 
 const server = setupMswServer();
 
@@ -83,30 +85,59 @@ const withId = (row: RunRow, id: string): RunRow => ({
   data: { ...row.data, [ID_COLUMN]: id },
 });
 
+const RUN_ID = 'r1';
+
+/**
+ * The tab `name` (a new one named so, unless a tab has that id), with `shown` as the first page of
+ * its run's rows. More pages can follow, with `pageLoaded`.
+ */
+function loadingTab(
+  name: string,
+  shown: readonly RunRow[],
+  runColumns: RunColumn[] = columns,
+  idColumn: string | null = ID_COLUMN,
+): string {
+  const tabId =
+    name in useTabsStore.getState().tabs
+      ? name
+      : useTabsStore.getState().createTab({ parentId: null, content: content(name) });
+  runLoading(tabId, { runId: RUN_ID, columns: runColumns, rowCount: shown.length }, idColumn);
+  pageLoaded(tabId, RUN_ID, shown);
+  return tabId;
+}
+
+type TabGridProps = Omit<ActionResultsGridProps, 'results'> & { idColumn?: string | null };
+
+/** The grid of the tab's Results, as the action tab shows it. */
+function TabGrid({ tabId, idColumn = ID_COLUMN, ...props }: TabGridProps) {
+  const results = useResults(tabId, { idColumn, stored: null });
+  return (
+    results && <ActionResultsGrid key={results.runId} tabId={tabId} results={results} {...props} />
+  );
+}
+
 function renderGrid(
-  tabId: string,
+  name: string,
   shown: readonly RunRow[] = rows,
   declaredColumns: readonly CatalogueColumn[] = declared,
 ) {
   let api: GridApi | undefined;
-  const grid = (r: readonly RunRow[]) => (
-    <ActionResultsGrid
+  const tabId = loadingTab(name, shown);
+  render(
+    <TabGrid
       tabId={tabId}
-      rows={r}
       declaredColumns={declaredColumns}
-      runColumns={columns}
-      idColumn={ID_COLUMN}
       height={400}
       onGridReady={(e) => (api = e.api)}
-    />
+    />,
   );
-  const { rerender } = render(grid(shown));
   return {
     api: async () => {
       await waitFor(() => expect(api).toBeDefined());
       return api!;
     },
-    rerender: (r: readonly RunRow[]) => rerender(grid(r)),
+    /** The next page of the tab's run arrives. */
+    page: (page: readonly RunRow[]) => act(() => pageLoaded(tabId, RUN_ID, page)),
   };
 }
 
@@ -123,6 +154,7 @@ let clipboard: string | null;
 
 beforeEach(() => {
   useTabsStore.reset();
+  clearResults();
   clipboard = null;
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -270,40 +302,55 @@ describe('ActionResultsGrid', () => {
     expect(load(clipboard!)).toEqual({ columns: declaredBlock });
   });
 
-  it('adds the rows of each page that arrives, and replaces rows that are not a continuation', async () => {
+  it('adds the rows of each page that arrives, keeping the selection', async () => {
     const grid = renderGrid('growing', rows.slice(0, 1));
     const api = await grid.api();
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
-    grid.rerender(rows);
+    act(() => api.getRowNode('0')!.setSelected(true));
+    grid.page(rows.slice(1));
     await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
     expect(api.getCellValue({ rowNode: api.getRowNode('1')!, colKey: 'User' })).toBe('bob');
-    grid.rerender([{ row: 0, data: { CaseId: 'c-9', User: 'dave' } }]);
-    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(1));
-    expect(api.getCellValue({ rowNode: api.getRowNode('0')!, colKey: 'User' })).toBe('dave');
+    expect(api.getSelectedNodes().map((n) => n.id)).toEqual(['0']);
+  });
+
+  it('flashes the rows a change from the feed labels, and not those of the analyst’s own', async () => {
+    const shown = [withId(rows[0]!, 'flash-feed'), withId(rows[1]!, 'flash-own')];
+    const api = await renderGrid('flash', shown, []).api();
+    await waitFor(() => expect(api.getDisplayedRowCount()).toBe(2));
+    const flashing = (row: number) =>
+      document.querySelectorAll(`[row-index="${row}"] .ag-cell-data-changed`).length > 0;
+    const labelOf = (row: string) =>
+      (api.getRowNode(row)?.data as LabelledRow | undefined)?.annotations?.label?.key;
+
+    await act(() => getAnnotationStore().apply([annotated('flash-own', 1, 'benign')], 'own'));
+    await waitFor(() => expect(labelOf('1')).toBe('benign'));
+    expect(flashing(1)).toBe(false);
+
+    await act(() => getAnnotationStore().apply([annotated('flash-feed', 1, 'malicious')], 'feed'));
+    await waitFor(() => expect(labelOf('0')).toBe('malicious'));
+    expect(flashing(0)).toBe(true);
+    expect(flashing(1)).toBe(false);
   });
 
   it('focuses the linked row and opens its Row detail once the row has arrived', async () => {
     const shown = vi.fn();
     let api: GridApi | undefined;
-    const grid = (r: readonly RunRow[]) => (
-      <ActionResultsGrid
-        tabId="linked"
-        rows={r}
+    const tabId = loadingTab('linked', rows.slice(0, 1));
+    render(
+      <TabGrid
+        tabId={tabId}
         declaredColumns={declared}
-        runColumns={columns}
-        idColumn={ID_COLUMN}
         height={400}
         linkedRow={1}
         onLinkedRowShown={shown}
         onGridReady={(e) => (api = e.api)}
-      />
+      />,
     );
-    const { rerender } = render(grid(rows.slice(0, 1)));
     await waitFor(() => expect(api?.getDisplayedRowCount()).toBeGreaterThan(0));
     expect(screen.queryByRole('complementary', { name: 'Row detail' })).not.toBeInTheDocument();
     expect(shown).not.toHaveBeenCalled();
 
-    rerender(grid(rows));
+    act(() => pageLoaded(tabId, RUN_ID, rows.slice(1)));
     const detail = await screen.findByRole('complementary', { name: 'Row detail' });
     // The id shows in the header and, being a data column, among the fields.
     expect(within(detail).getAllByText('c-1').length).toBeGreaterThan(0);
@@ -320,11 +367,9 @@ describe('ActionResultsGrid', () => {
     let api: GridApi | undefined;
     render(
       <SnackbarHost>
-        <ActionResultsGrid
-          tabId="link"
-          runId="r1"
-          rows={rows}
-          runColumns={columns}
+        <TabGrid
+          tabId={loadingTab('link', rows, columns, null)}
+          idColumn={null}
           height={400}
           onGridReady={(e) => (api = e.api)}
         />
@@ -366,12 +411,11 @@ describe('ActionResultsGrid Go to pivot row', () => {
   } = {}) {
     let api: GridApi | undefined;
     render(
-      <ActionResultsGrid
-        tabId="pivoted"
-        rows={shown}
+      <TabGrid
+        tabId={loadingTab('pivoted', shown, [
+          { name: 'User', type: 'string', declared: !!declaredColumns },
+        ])}
         declaredColumns={declaredColumns}
-        runColumns={[{ name: 'User', type: 'string', declared: !!declaredColumns }]}
-        idColumn={ID_COLUMN}
         pivotRowIds={pivotRowIds}
         findPivotRows={findPivotRows}
         height={400}
@@ -651,6 +695,16 @@ describe('ActionResultsGrid Id column', () => {
       (row) =>
         (api.getRowNode(row)?.data as LabelledRow | undefined)?.annotations?.label?.key ?? null,
     );
+  const switchable = () =>
+    loadingTab(
+      'id-column',
+      sessions,
+      [
+        { name: 'User', type: 'string', declared: false },
+        { name: 'Host', type: 'string', declared: false },
+      ],
+      'User',
+    );
   /** Picks `name` from the menu of row 1's `column` cell. */
   const pick = (api: GridApi, column: string, name: string) => {
     const items = (api.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
@@ -664,18 +718,13 @@ describe('ActionResultsGrid Id column', () => {
   };
 
   let api: GridApi | undefined;
-  function Switchable() {
+  function Switchable({ tabId }: { tabId: string }) {
     const [idColumn, setIdColumn] = useState<string | null>('User');
     return (
-      <ActionResultsGrid
-        tabId="id-column"
-        rows={sessions}
+      <TabGrid
+        tabId={tabId}
         idColumn={idColumn}
         onIdColumnChange={setIdColumn}
-        runColumns={[
-          { name: 'User', type: 'string', declared: false },
-          { name: 'Host', type: 'string', declared: false },
-        ]}
         height={400}
         onGridReady={(e) => (api = e.api)}
       />
@@ -687,7 +736,7 @@ describe('ActionResultsGrid Id column', () => {
       [annotated('switch-alice', 1, 'malicious'), annotated('switch-h1', 1, 'benign')],
       'feed',
     );
-    render(<Switchable />);
+    render(<Switchable tabId={switchable()} />);
     await waitFor(() => expect(labelsOf(api!)).toEqual(['malicious', null, 'malicious']));
     act(() => api!.getRowNode('1')!.setSelected(true));
 
@@ -700,8 +749,47 @@ describe('ActionResultsGrid Id column', () => {
     expect(api!.getSelectedNodes().map((n) => n.id)).toEqual(['1']);
   });
 
+  it('redraws the label symbol of a row whose new id has no annotations', async () => {
+    useInstanceStore.setState({
+      instance: {
+        version: 'v1',
+        actions: [],
+        connections: [],
+        labels: [
+          { key: 'malicious', name: 'Malicious', colour: 'red', symbol: 'skull' },
+          { key: 'benign', name: 'Benign', colour: 'green', symbol: 'check' },
+        ],
+        limits: {
+          maxResultRows: 1,
+          maxResultBytes: 1,
+          maxPivotRows: 100,
+          rowsPageSize: 1,
+          runTimeoutSeconds: 1,
+          maxAnnotationIds: 10_000,
+          annotationPollSeconds: 30,
+        },
+      },
+    });
+    onTestFinished(() => useInstanceStore.setState({ instance: null }));
+    await getAnnotationStore().apply(
+      [annotated('switch-alice', 1, 'malicious'), annotated('switch-h1', 1, 'benign')],
+      'feed',
+    );
+    render(<Switchable tabId={switchable()} />);
+    const symbolOf = (row: string) =>
+      document.querySelector<HTMLElement>(
+        `.ag-row[row-id="${row}"] [col-id="ag-Grid-SelectionColumn"] [role="img"]`,
+      );
+    await waitFor(() => expect(symbolOf('2')).not.toBeNull());
+
+    pick(api!, 'Host', 'Use Host as Id column');
+    await waitFor(() => expect(labelsOf(api!)).toEqual(['benign', 'benign', null]));
+    await waitFor(() => expect(symbolOf('1')).not.toBeNull());
+    expect(symbolOf('2')).toBeNull();
+  });
+
   it('shows the new id in an open Row detail', async () => {
-    render(<Switchable />);
+    render(<Switchable tabId={switchable()} />);
     await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
     const rowDetail = find(
       (api!.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
@@ -725,10 +813,9 @@ describe('ActionResultsGrid with whole numbers beyond 2^53', () => {
   async function bigGrid(tabId: string, shown: readonly RunRow[], runColumns: RunColumn[]) {
     let api: GridApi | undefined;
     render(
-      <ActionResultsGrid
-        tabId={tabId}
-        rows={shown}
-        runColumns={runColumns}
+      <TabGrid
+        tabId={loadingTab(tabId, shown, runColumns, null)}
+        idColumn={null}
         height={400}
         onGridReady={(e) => (api = e.api)}
       />,
@@ -859,12 +946,9 @@ describe('ActionResultsGrid Comment cell', () => {
     render(
       <AuthProvider client={createAuthClient({ VITE_AUTH_STUB: 'true' })}>
         <SnackbarHost>
-          <ActionResultsGrid
-            tabId={`comment-${id}`}
-            rows={shown}
+          <TabGrid
+            tabId={loadingTab(`comment-${id}`, shown)}
             declaredColumns={[]}
-            runColumns={columns}
-            idColumn={ID_COLUMN}
             height={400}
             onGridReady={(e) => (gridApi = e.api)}
           />

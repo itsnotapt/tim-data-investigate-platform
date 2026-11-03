@@ -1,8 +1,7 @@
-import type { ColDef, GridApi, IRowNode, RowClassRules } from 'ag-grid-community';
+import type { ColDef, RowClassRules } from 'ag-grid-community';
 import { LABEL_COLOURS } from '../../app/theme';
 import type { Annotations, InstanceLabel, RunRow } from '../../lib/api';
 import { gridRowId, type GridRowWithId } from '../grid';
-import { SELECTION_COLUMN_ID } from '../grid/gridOptions';
 import { shownLabel } from './labels';
 
 /** An action grid's row: the run's row, its grid row id, its `id` and the `id`'s annotations. */
@@ -27,7 +26,10 @@ export function rowId(
 }
 
 /** `rows` with the `id` of their Id column, and no annotations yet. */
-export function withIds(rows: readonly RunRow[], idColumn: string | null): LabelledRow[] {
+export function withIds(
+  rows: readonly RunRow[],
+  idColumn: string | null,
+): (RunRow & LabelledRow)[] {
   return rows.map((r) => ({ row: r.row, data: r.data, id: rowId(r.data, idColumn) }));
 }
 
@@ -82,28 +84,4 @@ export function indexRows(index: RowsById, rows: readonly LabelledRow[]): void {
     if (ids) ids.push(gridRowId(row));
     else index.set(row.id, [gridRowId(row)]);
   }
-}
-
-/**
- * Gives the rows of each changed `id` its annotations, by transaction, where they are newer than
- * the rows have. Returns the rows that changed.
- */
-export function updateRowAnnotations(
-  api: GridApi<GridRowWithId>,
-  index: RowsById,
-  changes: readonly Annotations[],
-): IRowNode<GridRowWithId>[] {
-  const update: LabelledRow[] = [];
-  for (const change of changes) {
-    for (const rowId of index.get(change.id) ?? []) {
-      const data: LabelledRow | undefined = api.getRowNode(rowId)?.data;
-      if (!data || (data.annotations?.version ?? -1) >= change.version) continue;
-      update.push({ ...data, annotations: change });
-    }
-  }
-  if (update.length === 0) return [];
-  const nodes = api.applyTransaction({ update })?.update ?? [];
-  // The symbol has no value of its own, so its cells are redrawn.
-  api.refreshCells({ rowNodes: nodes, columns: [SELECTION_COLUMN_ID], force: true });
-  return nodes;
 }

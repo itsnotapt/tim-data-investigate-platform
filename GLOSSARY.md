@@ -1,6 +1,6 @@
 # TIM
 
-TIM is an investigation platform: analysts run actions against an instance's connections (Kusto, Snowflake), pivot from result rows into other actions, and annotate rows by `id`.
+TIM is an investigation platform: analysts run actions against an instance's connections (Kusto, Snowflake), pivot from rows into other actions, and annotate rows by `id`.
 
 ## Language
 
@@ -139,6 +139,10 @@ The key-value facts a run reports, such as its duration, row count or a warning.
 A link to a run, or to one row of it, that any signed-in analyst holding it can open to see the run's rows.
 
 ### Results
+
+**Results**:
+The rows a tab shows: those of its latest succeeded run, or of the run loading as its pages arrive. Each has its `id` under the tab's Id column, and its annotations.
+_Avoid_: result rows, row data
 
 **`id`**:
 The key a row is annotated by: the value of the row's Id column, computed in the browser. It is shared across actions, so rows with the same `id` carry the same annotations. A row without one cannot be annotated.

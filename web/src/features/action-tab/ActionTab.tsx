@@ -30,7 +30,7 @@ import { copyShareLink } from '../share-links';
 import type { Transition } from '../tabs';
 import { useTabsStore } from '../tabs/tabStore';
 import { useActionPivotMenu } from '../action-pivots';
-import { ActionResultsGrid, StoredActionResultsGrid } from './ActionResultsGrid';
+import { ActionResultsGrid } from './ActionResultsGrid';
 import { cancelActionTab, runActionTab } from './actionRuns';
 import { useDeclareStatement } from './declareStatement';
 import { useEditorSchema, type LoadedEditorSchema, type SchemaHandler } from './editorSchema';
@@ -52,7 +52,7 @@ import { datetimeText, hasPill, paramTitles } from './paramValues';
 import { PillsBar } from './PillsBar';
 import { pills, queryParameters } from './queryParameters';
 import { RunPanel } from './RunPanel';
-import { useRunRows } from './runRows';
+import { useResults } from './results';
 import { durationText, outcomeText } from './runText';
 import { useElapsed } from './useElapsed';
 
@@ -235,7 +235,10 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
   const pivotMenu = useActionPivotMenu(tabId, onRun);
   const actions = useInstanceStore((s) => s.instance?.actions);
   const connections = useInstanceStore((s) => s.instance?.connections ?? NO_CONNECTIONS);
-  const shown = useRunRows(tabId);
+  const action = actions?.find((a) => a.key === tab?.toRun.action);
+  const idColumn = tab ? idColumnOf(tab, action) : null;
+  // The rows of the run loading, as each page arrives; else those of the last run that succeeded.
+  const shown = useResults(tabId, { idColumn, stored: tab?.results ?? null });
   const notify = useContext(NotifyContext);
   const latestRun = tab?.latest.run;
   const executing = tab?.status.executing ?? false;
@@ -255,13 +258,16 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
   const { toRun, latest, results, status } = tab;
   const run = latest.run;
   const apply = (transition: Transition) => useTabsStore.getState().apply(tabId, transition);
-  const action = actions?.find((a) => a.key === toRun.action);
   const queryParam = action?.params.find((p) => !hasPill(p));
   const actionName = action?.name ?? run?.action.name ?? toRun.action;
-  // Rows loaded in this session, as each page arrives; else the stored rows of the last run.
-  const rowCount = shown ? shown.rows.length : (results?.rowCount ?? null);
+  // The rows the run returned once they have all arrived, else those so far.
+  const rowCount = shown
+    ? shown.done
+      ? shown.total
+      : shown.rows.length
+    : (results?.rowCount ?? null);
   const resultsLabel = shown
-    ? `Results · ${shown.rows.length}${shown.done ? '' : ` of ${shown.total}`}`
+    ? `Results · ${shown.done ? shown.total : `${shown.rows.length} of ${shown.total}`}`
     : results
       ? `Results · ${results.rowCount}`
       : 'Results';
@@ -293,7 +299,6 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
   const neededReasons = needed.flatMap((name) => status.pivotMissing?.[name] ?? []);
 
   const setParam = (name: string, value: unknown) => apply(paramEdited(name, value));
-  const idColumn = idColumnOf(tab, action);
   const linkIdColumn = linkIdColumnOf(tab, action);
   const switchTo = (column: string | null) => {
     apply(idColumnSwitched(column));
@@ -574,32 +579,10 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
           <ActionResultsGrid
             key={shown.runId}
             tabId={tabId}
-            idColumn={idColumn}
+            results={shown}
             onIdColumnChange={switchTo}
             linkIdColumn={linkIdColumn}
-            runId={shown.runId}
-            rows={shown.rows}
             declaredColumns={action?.columns}
-            runColumns={shown.columns}
-            getContextMenuItems={pivotMenu}
-            linkedRow={status.linkedRow}
-            onLinkedRowShown={linkedRowShown}
-            pivotRowIds={toRun.pivotRowIds}
-            findPivotRows={action?.findPivotRows}
-            quickFilterText={quickFilter}
-            height={GRID_HEIGHT}
-          />
-        )}
-        {!shown && results && rowCount !== 0 && (
-          <StoredActionResultsGrid
-            tabId={tabId}
-            idColumn={idColumn}
-            onIdColumnChange={switchTo}
-            linkIdColumn={linkIdColumn}
-            runId={results.runId}
-            rowDataTrigger={tab.rowDataTrigger}
-            declaredColumns={action?.columns}
-            runColumns={results.columns}
             getContextMenuItems={pivotMenu}
             linkedRow={status.linkedRow}
             onLinkedRowShown={linkedRowShown}

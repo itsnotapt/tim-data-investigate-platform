@@ -11,7 +11,13 @@ import { useInstanceStore } from '../instance';
 import { createTabsStore, type Tab } from '../tabs';
 import { cancelActionTab, resumeActionRuns, runActionTab } from './actionRuns';
 import { paramEdited } from './model';
-import { runRowsStore } from './runRows';
+import {
+  clearResults,
+  holdResults,
+  resultsOf,
+  setResultsInputs,
+  subscribeResults,
+} from './results';
 
 const server = setupMswServer();
 const store = newTestStore();
@@ -125,7 +131,7 @@ beforeEach(async () => {
     },
   });
   store.reset();
-  runRowsStore.getState().clear();
+  clearResults();
   delays = [];
   await rowResultsDao.deleteMany(['a', 'b', 'c']);
   createActionTab('a');
@@ -158,7 +164,6 @@ describe('runActionTab', () => {
       },
       latest: { run: { runId: RUN_ID, status: 'succeeded' } },
     });
-    expect(tab().rowDataTrigger).not.toBeNull();
   });
 
   it('sends the rows the tab was pivoted from, for the run’s title', async () => {
@@ -194,23 +199,32 @@ describe('runActionTab', () => {
         });
       }),
     );
+    holdResults('a');
     const running = runActionTab('a', { store, sleep });
-    await vi.waitFor(() => expect(runRowsStore.getState().byTab.a?.rows).toHaveLength(2));
-    expect(runRowsStore.getState().byTab.a).toMatchObject({
+    await vi.waitFor(() => expect(resultsOf('a')?.rows).toHaveLength(2));
+    expect(resultsOf('a')).toMatchObject({
       runId: RUN_ID,
       total: 3,
       done: false,
       columns: [{ name: 'User', type: 'string', declared: true }],
+      rows: rows.slice(0, 2),
     });
-    expect(runRowsStore.getState().byTab.a?.rows).toEqual(rows.slice(0, 2));
     expect(await rowResultsDao.get('a')).toEqual([]);
     releaseSecondPage();
     await running;
-    expect(runRowsStore.getState().byTab.a).toMatchObject({ rows, done: true });
+    expect(resultsOf('a')).toMatchObject({ rows, done: true });
     expect(await rowResultsDao.get('a')).toEqual(rows);
   });
 
-  it('drops the rows shown so far when loading the rest fails', async () => {
+  it('drops the rows shown so far when loading the rest fails, and shows the last succeeded run’s again', async () => {
+    const previous: RunRow[] = [{ row: 0, data: { User: 'dave' } }];
+    await rowResultsDao.put('a', previous);
+    holdResults('a');
+    setResultsInputs('a', {
+      idColumn: null,
+      stored: { runId: 'r0', columns: null, startedAt: '2026-10-19T10:00:00Z', rowCount: 1 },
+    });
+    await vi.waitFor(() => expect(resultsOf('a')?.runId).toBe('r0'));
     server.use(
       http.post(apiUrl('/api/runs'), () => HttpResponse.json(succeeded(3))),
       http.get(apiUrl(`/api/runs/${RUN_ID}/rows`), ({ request }) => {
@@ -223,8 +237,12 @@ describe('runActionTab', () => {
         });
       }),
     );
+    const seen: (string | undefined)[] = [];
+    const unsubscribe = subscribeResults('a', (_, results) => seen.push(results?.runId));
     await runActionTab('a', { store, sleep });
-    expect(runRowsStore.getState().byTab.a).toBeUndefined();
+    unsubscribe();
+    expect(seen).toContain(RUN_ID);
+    await vi.waitFor(() => expect(resultsOf('a')).toMatchObject({ runId: 'r0', rows: previous }));
     expect(tab().status.error).toEqual({ message: 'Results are no longer available; run again' });
   });
 
