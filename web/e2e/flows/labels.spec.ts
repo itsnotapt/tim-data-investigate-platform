@@ -45,7 +45,7 @@ async function watchFlashes(page: Page) {
 const flashed = (page: Page) =>
   page.evaluate(() => (window as unknown as { flashed: boolean }).flashed);
 
-test('a label set with key 1 reaches every row with that id, in another tab and another analyst’s browser', async ({
+test('a label set with key 1 reaches the same id, in another tab and another analyst’s browser', async ({
   page,
   analyst,
   signIn,
@@ -53,7 +53,7 @@ test('a label set with key 1 reaches every row with that id, in another tab and 
 }) => {
   const a = `${idPrefix}-a`;
   const b = `${idPrefix}-b`;
-  await runJson(page, [{ Host: a }, { Host: b }, { Host: a }], 'Host');
+  await runJson(page, [{ Host: a }, { Host: b }], 'Host');
   const otherTab = await analyst.context.newPage();
   await runJson(otherTab, [{ Host: a }], 'Host');
   const teammate = await signIn(`${idPrefix}.teammate@example.com`);
@@ -64,9 +64,8 @@ test('a label set with key 1 reaches every row with that id, in another tab and 
   await grid(page).getByText(a).first().click();
   await page.keyboard.press('1');
   await expect(page.getByText('Labelled 1 id Malicious')).toBeVisible();
-  await expect(rowsWith(page, a)).toHaveCount(2);
-  for (const row of await rowsWith(page, a).all()) await expect(row).toHaveClass(/tim-label-red/);
-  await expect(grid(page).getByRole('img', { name: 'Malicious' })).toHaveCount(2);
+  await expect(rowsWith(page, a)).toHaveClass(/tim-label-red/);
+  await expect(grid(page).getByRole('img', { name: 'Malicious' })).toHaveCount(1);
   await expect(rowsWith(page, b)).not.toHaveClass(/tim-label/);
   await expect(rowsWith(otherTab, a)).toHaveClass(/tim-label-red/);
   await expect(rowsWith(teammate.page, a)).toHaveClass(/tim-label-red/);
@@ -141,7 +140,7 @@ test('right-clicking a row that isn’t selected labels just that row; with rows
   await expect(rowsWith(page, c)).toHaveClass(/tim-label-green/);
 });
 
-test('a cell’s Use … as Id column gives rows run without one their ids, to label at once', async ({
+test('an Id column with duplicates is refused, and the Id column stays as it was', async ({
   page,
   idPrefix,
 }) => {
@@ -155,18 +154,15 @@ test('a cell’s Use … as Id column gives rows run without one their ids, to l
     ],
     null,
   );
-  await grid(page).getByText(b).click({ button: 'right' });
-  await menuOption(page, 'Use Host as Id column').click();
-  await expect(page.getByText('Id column set to Host: labels now follow Host')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Id column: Host' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Edited' })).toBeHidden();
+  await page.getByRole('button', { name: /^Id column: / }).click();
+  await page.getByRole('textbox', { name: 'Id column' }).fill('Host');
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Id column not changed: 1 duplicate found in Host')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Id column: not set' })).toBeVisible();
 
-  await grid(page).getByText(a).first().click({ button: 'right' });
-  await menuOption(page, /^Label/).hover();
-  await menuOption(page, 'Malicious').click();
-  await expect(page.getByText('Labelled 1 id Malicious')).toBeVisible();
-  for (const row of await rowsWith(page, a).all()) await expect(row).toHaveClass(/tim-label-red/);
-  await expect(rowsWith(page, b)).not.toHaveClass(/tim-label/);
+  await grid(page).getByText(b).click({ button: 'right' });
+  await expect(menuOption(page, 'Use Host as Id column')).toHaveCount(0);
+  await page.keyboard.press('Escape');
 });
 
 test('rows without an id, or more ids than one change takes, say why they can’t be labelled', async ({
@@ -181,9 +177,7 @@ test('rows without an id, or more ids than one change takes, say why they can’
   await page.keyboard.press('Escape');
   await grid(page).getByText(`${idPrefix}-none`).click();
   await page.keyboard.press('1');
-  await expect(
-    page.getByText('No id: right-click a cell and use its column as the Id column'),
-  ).toBeVisible();
+  await expect(page.getByText('No id: no Id column')).toBeVisible();
 
   // The e2e api takes at most 5 ids in one change.
   const many = Array.from({ length: 6 }, (_, i) => ({ Host: `${idPrefix}-${i}` }));

@@ -1,6 +1,6 @@
 import type { ColDef, RowClassRules } from 'ag-grid-community';
 import { LABEL_COLOURS } from '../../app/theme';
-import type { Annotations, InstanceLabel, RunRow } from '../../lib/api';
+import type { Annotations, InstanceLabel, RunColumn, RunRow } from '../../lib/api';
 import type { GridRowWithId } from '../grid';
 import { shownLabel } from './labels';
 
@@ -26,6 +26,18 @@ export function rowId(
   if (value === undefined || value === null) return null;
   const id = typeof value === 'string' ? value : JSON.stringify(value);
   return id === '' || id.length > MAX_ID_LENGTH ? null : id;
+}
+
+/**
+ * The rows of `column` whose `id` an earlier row already has, as the server counted them: 0 for no
+ * column, or a column not among `columns`.
+ */
+export function duplicatesOf(
+  columns: readonly Pick<RunColumn, 'name' | 'duplicates'>[] | null,
+  column: string | null,
+): number {
+  if (column === null) return 0;
+  return columns?.find((c) => c.name === column)?.duplicates ?? 0;
 }
 
 /** `rows` with the `id` of their Id column, and no annotations yet. */
@@ -76,15 +88,10 @@ export function labelColumnDef(labels: readonly InstanceLabel[]): ColDef {
   };
 }
 
-/** The row numbers of each `id`, in order, so a change to an `id` updates every row that has it. */
-export type RowsById = Map<string, number[]>;
+/** The row number of each `id`: an `id` is unique among its run's rows. */
+export type RowNumberById = Map<string, number>;
 
 /** Adds `rows` to `index`. */
-export function indexRows(index: RowsById, rows: readonly LabelledRow[]): void {
-  for (const row of rows) {
-    if (!row.id) continue;
-    const ids = index.get(row.id);
-    if (ids) ids.push(row.row);
-    else index.set(row.id, [row.row]);
-  }
+export function indexRows(index: RowNumberById, rows: readonly LabelledRow[]): void {
+  for (const row of rows) if (row.id) index.set(row.id, row.row);
 }

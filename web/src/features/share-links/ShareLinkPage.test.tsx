@@ -24,7 +24,7 @@ const run: Run = {
   finishedAt: '2026-10-20T10:00:02Z',
   expiresAt: '2026-10-21T10:00:00Z',
   details: {},
-  columns: [{ name: 'User', type: 'string', declared: true }],
+  columns: [{ name: 'User', type: 'string', declared: true, duplicates: 0 }],
   rowCount: 2,
 };
 const rows: RunRow[] = [

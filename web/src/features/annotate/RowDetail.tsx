@@ -9,7 +9,7 @@ import { useState } from 'react';
 import type { Annotations, CallOptions, InstanceLabel } from '../../lib/api';
 import { formatUtcDateTime } from '../../lib/utcFormat';
 import type { DetailColumns } from '../grid';
-import { shownLabel, targetIds, whyUnlabellable, type LabelledRow } from '../labels';
+import { shownLabel, type LabelledRow } from '../labels';
 import { CommentsAndHistory, type CommentsAndHistoryProps } from './CommentsAndHistory';
 import { CopyButton } from './CopyButton';
 import { COPY_SHOWN, MONO } from './rowDetailStyles';
@@ -25,6 +25,8 @@ export interface RowDetailProps {
   labels: readonly InstanceLabel[];
   /** The run's columns: the order of the fields. */
   columns: DetailColumns;
+  /** Why the row has no `id`, shown when it has none. */
+  noId: string;
   /** The name the API knows the signed-in analyst by: whose comment the panel edits. */
   analyst: string | null;
   /** Called with what a comment saved from the panel changed. */
@@ -99,6 +101,7 @@ export function RowDetail({
   annotations,
   labels,
   columns,
+  noId,
   analyst,
   onCommented,
   onClose,
@@ -168,7 +171,7 @@ export function RowDetail({
         >
           {id === null ? (
             <Alert severity="info" variant="outlined" sx={{ py: 0, fontSize: 13 }}>
-              {whyUnlabellable(targetIds(row ? [row] : []), Infinity)}
+              {noId}
             </Alert>
           ) : (
             <Annotated id={id} annotations={annotations} labels={labels} />

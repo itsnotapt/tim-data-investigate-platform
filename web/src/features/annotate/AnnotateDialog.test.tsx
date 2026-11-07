@@ -67,7 +67,7 @@ function renderDialog(props: Partial<AnnotateDialogProps> = {}) {
     <AnnotateDialog
       mode="annotate"
       targets={['h1', 'h2', 'h3']}
-      reach={{ rows: 4, ids: 3, otherRows: 2, withoutId: 1 }}
+      reach={{ rows: 4, withoutId: 1 }}
       current={[annotations('h1', ['c2', 'beacon'], 'malicious'), annotations('h2', ['c2'])]}
       labels={labels}
       analyst={ALICE}
@@ -85,11 +85,7 @@ const save = () => screen.getByRole('button', { name: 'Save' });
 describe('AnnotateDialog', () => {
   it("states the change's reach and the targets' label now", () => {
     renderDialog();
-    expect(
-      screen.getByText(
-        '4 rows · 3 ids · also changes 2 other rows with the same id · 1 row without an id is skipped',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText('4 rows · 1 row without an id is skipped')).toBeInTheDocument();
     expect(screen.getByText('Now: 1 Malicious · 2 no label')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep' })).toHaveAttribute('aria-pressed', 'true');
     expect(save()).toBeDisabled();

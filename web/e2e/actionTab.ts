@@ -11,10 +11,10 @@ export async function openAction(page: Page, path: string[]) {
 /** The results grid of the tab on show: tabs visited before stay mounted, hidden. */
 export const grid = (page: Page) => page.getByTestId('results-grid').filter({ visible: true });
 
-/** Sets the tab's Id column through its pill: typed, then Enter. */
+/** Sets the tab's Id column through its pill: the name typed in its editor, then Enter. */
 export async function setIdColumn(page: Page, column: string) {
   await page.getByRole('button', { name: /^Id column: / }).click();
-  await page.getByRole('combobox', { name: 'Id column' }).fill(column);
+  await page.getByRole('textbox', { name: 'Id column' }).fill(column);
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: `Id column: ${column}` })).toBeVisible();
 }

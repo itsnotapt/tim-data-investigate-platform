@@ -200,7 +200,7 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
    - Until they all have, the tab shows "Results · 20000 of 85000".
    - Results (`features/action-tab/results.ts`) keep the rows in pages of the instance's rows page size. A row's number is its position.
    - A page whose row numbers don't continue the rows so far fails the run with "Expected row N next, got row M", and none of its rows are added.
-   - Results give each row its `id` from the tab's Id column, and its annotations from the annotation store ([The Id column](#the-id-column)).
+   - Results give each row its `id` from the tab's Id column, unless that column has duplicates, and its annotations from the annotation store ([The Id column](#the-id-column)).
    - The grid is given the rows as they arrive. It holds its own copy of them ([What the grid holds](#what-the-grid-holds)).
    - Once every page has loaded, the rows are written to IndexedDB `row_results` as `{row, data}` rows, in one write. The tab's `results` (`runId`, `columns`, `startedAt` and `rowCount`) is written with them.
    - A failed or abandoned load shows none of its rows. When a rerun fails or is cancelled while its rows load, its rows go and the rows of the tab's last succeeded run are shown again, read back from `row_results`.
@@ -398,8 +398,8 @@ AG Grid holds the analyst's view of the rows. Results hold the rows.
 - **The grid holds:** the selection, sort, filters, grouping, scroll and focus.
 - **Results hold:** each row's data, `id` and annotations (`features/action-tab/results.ts`).
   - `resultRows(tabId, rowNumbers)` gives the rows with those row numbers.
-  - `rowNumbersOf(tabId, id)` gives the row numbers of the rows with that `id`.
-  - Results keep the row numbers of each `id`, in one map that grows as rows arrive.
+  - `rowNumberOf(tabId, id)` gives the row number of the row with that `id`, if there is one.
+  - Results keep the row number of each `id`, in one map that grows as rows arrive.
 - **The grid's copy.** The grid also holds a copy of the row data, because label colours, filters and sorts read the annotations from it.
   - The adapter is the only writer of that copy, and the copy shares its row objects with Results.
   - Each change to Results is applied to the grid as one transaction, or as new row data for a replaced run.
@@ -407,7 +407,7 @@ AG Grid holds the analyst's view of the rows. Results hold the rows.
   - It turns a context menu or a key into `RowTargets` (`features/grid/rowTargets.ts`): the selected row numbers, else the clicked or focused row; the clicked or focused row; and the column.
   - Everything else gets row numbers, never AG Grid nodes.
 - **Acting.** A menu item or key reads the rows and their `id`s from Results when the analyst acts, not when the menu opens. If the Id column changes between opening the menu and picking an item, the item acts on the new `id`s.
-  - This holds for **Label ▸**, **Annotate…**, **Comment…**, **Row detail**, the sinks, **Pivot ▸**, **Copy link** and **Use <column> as Id column**.
+  - This holds for **Label ▸**, **Annotate…**, **Comment…**, **Row detail**, the sinks, **Pivot ▸** and **Copy link**.
 
 #### Action pivots
 
@@ -443,7 +443,7 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
 The results grid of a tab shows **Go to pivot row** when the tab has `pivotRowIds` and the action's `findPivotRows` is true ([actions.md](actions.md#action-files)).
 
 - **Look.** `PivotRowsStatusPanel` is a centre panel of the grid's status bar. It sits between the column view and the row counts. The panel takes the tab from `context.tabId` and the pivot rows from `pivotRows.ts`. **Go to pivot row** is a text link. It is in the secondary text colour, and primary and underlined on hover. An arrow up or down points toward the next match. A vertical divider follows. Then comes a small **Highlight pivot rows** checkbox.
-- **Matching.** A child row matches when its `id`, under the child's current [Id column](#the-id-column), equals a stored `id`. Matching is by `id` only, never by time. The row numbers of the matches come from Results (`rowNumbersOf`).
+- **Matching.** A child row matches when its `id`, under the child's current [Id column](#the-id-column), equals a stored `id`. Matching is by `id` only, never by time. The row numbers of the matches come from Results (`rowNumberOf`).
 - **Click.** The grid says which of those rows the filters show, in the grid's order. The click goes to the next of them.
   - It expands the row's groups, scrolls the row to the middle, focuses its first data cell and flashes it.
   - It doesn't open Row detail or change the selection.
@@ -634,19 +634,37 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 
 ### The Id column
 
-A row's `id` is computed in the browser, from one column of its results: the **Id column** ([GLOSSARY.md](../GLOSSARY.md)). The server stores and sends no `id`s.
+A row's `id` is computed in the browser, from one column of its results: the **Id column** ([GLOSSARY.md](../GLOSSARY.md)). The server stores and sends no `id`s, but it counts each column's duplicates ([Duplicate ids](#duplicate-ids)).
 
 - **The `id`.** `rowId` (`web/src/features/labels/labelRows.ts`) takes the value of the Id column: a string as it is, anything else as its JSON. A missing or `null` value, `""`, and a value over `MAX_ID_LENGTH` (512) characters give no `id`.
+- **Unique within a run.** While the Id column has duplicates (`duplicates` above 0 in the run's `columns`), no row has an `id`. The column stays the Id column, and saved annotations stay.
 - **Where it starts.** `idColumnOf` of the action tab module (`web/src/features/action-tab/model.ts`) takes the action's `idColumn` in the catalogue, which is the `id` of its action file or Python action. A tab opened from a preset (New menu or preset pivot) starts with the preset's `idColumn` instead, when it has one.
 - **The tab's Id column.** `idColumn` of the module gives the tab's `grid.idColumn` when the analyst has switched it, else the starting one. The tab keeps it across runs, and a clone of the tab takes it. It is not a param.
 - **In Results.** `results.ts` gives each row its `id` with `withIds`, and its annotations from the annotation store, not the grid. A switch recomputes both in place, and the grid applies the change and keeps the selection, filters, sort and scroll.
 - **Acting on a switch.** A menu or key that acts on a row's `id` reads it from Results when the analyst acts, so it uses the Id column then.
-- **Switching.** The analyst can switch the Id column on the results of any action without rerunning.
-  - The cell context menu has **Use <column> as Id column** for the clicked cell's column.
-  - Every action tab shows an **Id column** pill after the param pills. Its editor suggests the results' columns. Picking a suggestion applies at once, and a typed column applies when the pill closes (Enter). Clearing it goes back to the action's Id column.
-  - A toast says "Id column set to Host: labels now follow Host". Switching back shows the earlier annotations again, as they follow the `id`s.
+- **Switching.** The analyst can switch the Id column on the results of any action without rerunning, from the **Id column** pill that every action tab shows after the param pills.
+  - **The editor.** A text field above a list of every column of the results. Clicking a column applies it at once. A typed name applies when the pill closes (Enter). Clearing it goes back to the action's Id column.
+  - **Columns with duplicates.** They are disabled from the moment the editor opens, captioned "Not valid: 150 duplicates found". A typed name with duplicates is refused with the toast "Id column not changed: 150 duplicates found in User". A name that is not among the columns is accepted.
+  - **The toast.** "Id column set to Host: labels now follow Host". Switching back shows the earlier annotations again, as they follow the `id`s.
+- **The pill warns** while the Id column has duplicates: warning colour and icon, the label "Id column: Host · 150 duplicates found", and the tooltip "150 duplicates found in Host, so no row has an id: choose another Id column". Counts are exact and en-US formatted, such as "999,950 duplicates found".
 - **Pivot rows.** [Go to pivot row](#go-to-pivot-row) matches by the tab's current Id column, so switching it changes what matches.
-- **No `id`.** A row without one can't be annotated. Row detail and the disabled items say "No id: right-click a cell and use its column as the Id column".
+- **No `id`.** A row without one can't be annotated. Row detail and the disabled items give the reason:
+  - "No id: no Id column";
+  - "No id: Device is empty here", when the Id column is Device and the row's value is blank;
+  - "No id: 150 duplicates found in Host".
+- **Annotate dialog.** Its reach line reads "N rows", plus " · X rows without an id are skipped" when some targets have none.
+
+### Duplicate ids
+
+The api counts the duplicates of every column of a succeeded run, so the browser knows which columns can be the Id column.
+
+- **The count.** `RunColumn.duplicates` is the number of extra rows: rows whose id text an earlier row of the column has. Blank values (null, `""`, over 512 UTF-16 code units) are skipped.
+- **The id rule.** `api/src/tim_api/runs/ids.py` forms id text as `rowId` does: a string as it is, anything else as `JSON.stringify` writes it, numbers as JavaScript writes them. The shared fixture `web/src/features/labels/idCases.json` pins both, and `api/tests/test_run_ids.py` and `labelRows.test.ts` read it.
+- **How.** While rows are stored, the worker keeps a 64-bit hash of each value's id text in a compact array per column. When the run finishes, it counts one column at a time (length minus the size of its set) and frees each before the next.
+- **Collisions.** Two different ids with the same hash count as a duplicate: about 1 in 37 million for a 1M-row column.
+- **Cost.** At 1M rows by 20 columns the count adds about 9 s to storing the rows and 178 MiB to the peak.
+
+The decision is [ADR-0028](adr/0028-an-id-is-unique-within-a-run.md).
 
 ### Grid annotating
 
@@ -656,7 +674,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - The row's fill, a stripe on its left edge and a symbol in the selection column.
   - The label's `colour` and `symbol` pick them from the theme's palette (`label` and `labelStripe` in `web/src/app/theme.ts`, light and dark).
   - A stored key that the labels file no longer lists shows grey, as its bare key, with no symbol.
-  - Every row with the same `id` shows it, in any tab.
+  - The row with that `id` shows it, in any tab.
 - **The Label column.** Column `tim:label` holds the label's name. It is hidden until the analyst shows it, and it has a set filter and can be grouped.
 - **Comment column.** Column `tim:comments` has the header **Comment**. It is shown and about 280px wide. It has a text filter on the shown text.
   - **Cell.** It shows the analyst's own comment. Without one it shows the latest other comment, dimmed and italic, as "author: text". The author is the name's part before the `@`. A line break shows as ⏎.
@@ -696,7 +714,7 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
     - its current label with a swatch;
     - who set the label and when;
     - its tags;
-  - for a row without an `id`, the reason in place of the band: "No id: right-click a cell and use its column as the Id column";
+  - for a row without an `id`, the reason in place of the band ([The Id column](#the-id-column));
   - the row's fields;
   - the **Comments and history** section.
 - **The fields.** They follow the run's column order: the declared columns first, then the order the query returned them, hidden columns included (`web/src/features/grid/detailText.ts`).
@@ -719,15 +737,15 @@ An action tab's grid labels, tags and comments on rows by `id` ([ADR-0006](adr/0
   - **Save.** Sends one `PATCH /api/annotations`. A failed save keeps the dialog open and shows the error.
 - **Right-click.** Opening the context menu of any results grid on a row that isn't selected selects just that row first (`makeGetContextMenuItems` in `web/src/features/grid/gridOptions.ts`). The adapter then passes the menu's builders the `RowTargets`.
 - **Keys.** 1 to 9 set the label at that place in the list, and 0 clears it. T opens Annotate… and C opens Comment…. They act on the selected rows, or the focused row when none is selected. D opens or closes Row detail on the focused row. They do nothing while a cell is edited, or with Ctrl, Cmd or Alt held.
-- **Targets.** The target is the distinct `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
+- **Targets.** The target is the `id`s of the rows. Rows without an `id` are skipped. The items are disabled, with the reason as a tooltip, and a key shows it in a toast, when:
   - there are more than `maxAnnotationIds` ids: "At most 10,000 ids; 23,412 selected";
-  - no target row has an `id`: "No id: right-click a cell and use its column as the Id column".
+  - no target row has an `id`: the reason it has none ([The Id column](#the-id-column)).
 - **Feedback.** One `PATCH /api/annotations` sets the label of every target, and a toast reports it. The Annotate dialog's own save reports "Annotated N ids", "Commented on N ids" or "Nothing to change".
   - "Labelled 3 ids Malicious", or "Cleared the label of 3 ids". Ids that already had the label are left out of the count.
   - "Already Malicious" or "No labels to clear" when nothing changed.
   - A failure shows "Couldn't label: …".
 - **Flash.** A change that arrives from the feed, such as a teammate's, flashes the rows it changes.
-- **Row updates.** Results keep a map from each `id` to its rows. A changed `id` updates all of them, and the adapter applies that to the grid with one AG Grid transaction.
+- **Row updates.** Results keep a map from each `id` to its row. A changed `id` updates that row, and the adapter applies the changes to the grid with one AG Grid transaction.
 
 ### Runtime configuration
 
@@ -1136,7 +1154,7 @@ Cancel (`POST /api/runs/{runId}/cancel`) sets `cancel_requested` on the run.
 - objects and arrays as `json`;
 - `string` when the values disagree or are all `null`.
 
-A run has no `id`s. The browser computes them from the Id column ([The Id column](#the-id-column)).
+A run has no `id`s. The browser computes them from the Id column ([The Id column](#the-id-column)). Each column also has `duplicates`: how many of its rows have an `id` text that an earlier row of the column has ([Duplicate ids](#duplicate-ids)).
 
 `GET /api/runs/{runId}/rows` reads a page of `run_rows` by row number. When a succeeded run with rows has none stored, it answers `410`.
 

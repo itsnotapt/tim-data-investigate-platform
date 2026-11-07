@@ -66,13 +66,13 @@ async def test_run_kql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
     assert run["status"] == "succeeded"
     assert run["rowCount"] == 2
     assert run["columns"] == [
-        {"name": "EventId", "type": "number", "declared": True},
-        {"name": "State", "type": "string", "declared": True},
-        {"name": "StartTime", "type": "datetime", "declared": True},
-        {"name": "Duration", "type": "timespan", "declared": True},
-        {"name": "Damage", "type": "number", "declared": True},
-        {"name": "Fatal", "type": "boolean", "declared": True},
-        {"name": "Extra", "type": "json", "declared": True},
+        {"name": "EventId", "type": "number", "declared": True, "duplicates": 0},
+        {"name": "State", "type": "string", "declared": True, "duplicates": 0},
+        {"name": "StartTime", "type": "datetime", "declared": True, "duplicates": 0},
+        {"name": "Duration", "type": "timespan", "declared": True, "duplicates": 0},
+        {"name": "Damage", "type": "number", "declared": True, "duplicates": 0},
+        {"name": "Fatal", "type": "boolean", "declared": True, "duplicates": 0},
+        {"name": "Extra", "type": "json", "declared": True, "duplicates": 0},
     ]
     assert {k: v for k, v in run["details"].items() if k not in ("duration", "rowCount")} == {
         "executionTime": 0.25,

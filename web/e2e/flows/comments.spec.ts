@@ -35,14 +35,14 @@ async function commentInCell(page: Page, host: string, text: string) {
   await expect(editor).toBeHidden();
 }
 
-test('a comment edited in the grid reaches every row of its id and a teammate, is in History as last saved, and when cleared shows the teammate’s', async ({
+test('a comment edited in the grid reaches a teammate, is in History as last saved, and when cleared shows the teammate’s', async ({
   page,
   signIn,
   idPrefix,
 }) => {
   const a = `${idPrefix}-a`;
   const b = `${idPrefix}-b`;
-  await runJson(page, [{ Host: a }, { Host: b }, { Host: a }]);
+  await runJson(page, [{ Host: a }, { Host: b }]);
   const teammate = await signIn(`${idPrefix}.teammate@example.com`);
   await runJson(teammate.page, [{ Host: a }]);
 
@@ -57,10 +57,7 @@ test('a comment edited in the grid reaches every row of its id and a teammate, i
   await editor.pressSequentially('every 60s');
   await editor.press('Enter');
   await expect(editor).toBeHidden();
-  await expect(commentOf(page, a)).toHaveText([
-    'tcd 1 beacons ⏎ every 60s',
-    'tcd 1 beacons ⏎ every 60s',
-  ]);
+  await expect(commentOf(page, a)).toHaveText('tcd 1 beacons ⏎ every 60s');
   await expect(commentOf(page, b)).toHaveText('');
   await expect(rowsWith(page, a).first()).not.toHaveClass(/tim-label-/);
 
@@ -83,10 +80,7 @@ test('a comment edited in the grid reaches every row of its id and a teammate, i
   await expect(commentOf(page, a).first()).toHaveText('beacons every 30s+1');
 
   await commentInCell(page, a, '');
-  await expect(commentOf(page, a)).toHaveText([
-    `${idPrefix}.teammate: owner confirmed`,
-    `${idPrefix}.teammate: owner confirmed`,
-  ]);
+  await expect(commentOf(page, a)).toHaveText(`${idPrefix}.teammate: owner confirmed`);
   await expect(entries(page)).toHaveText([teammates]);
   await expect(box).toHaveValue('');
 });

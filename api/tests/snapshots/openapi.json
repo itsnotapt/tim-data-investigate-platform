@@ -1771,11 +1771,15 @@
         "type": "object"
       },
       "RunColumn": {
-        "description": "A result column: ``declared`` by the action or the run, else inferred from the rows.",
+        "description": "A result column: ``declared`` by the action or the run, else inferred from the rows.\n``duplicates`` counts the rows whose ``id`` from this column an earlier row already has, so\n0 means the column can be the Id column (ADR 0028).",
         "properties": {
           "declared": {
             "title": "Declared",
             "type": "boolean"
+          },
+          "duplicates": {
+            "title": "Duplicates",
+            "type": "integer"
           },
           "name": {
             "title": "Name",
@@ -1798,7 +1802,8 @@
         "required": [
           "name",
           "type",
-          "declared"
+          "declared",
+          "duplicates"
         ],
         "title": "RunColumn",
         "type": "object"

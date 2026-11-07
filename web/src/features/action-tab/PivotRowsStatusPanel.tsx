@@ -10,7 +10,7 @@ import type { CustomStatusPanelProps } from 'ag-grid-react';
 import { useEffect, useMemo, useState } from 'react';
 import { gridView, type GridView } from './gridView';
 import { usePivotRowHighlight, usePivotRows, type PivotRows } from './pivotRows';
-import { rowNumbersOf } from './results';
+import { rowNumberOf } from './results';
 
 /** The grid's rows against the pivot rows' `id`s. */
 interface Matches {
@@ -25,7 +25,7 @@ interface Matches {
 const NO_MATCHES: Matches = { rows: 0, total: 0, shown: [] };
 
 function findMatches(tabId: string, grid: GridView, ids: ReadonlySet<string>): Matches {
-  const matching = new Set([...ids].flatMap((id) => rowNumbersOf(tabId, id)));
+  const matching = new Set([...ids].flatMap((id) => rowNumberOf(tabId, id) ?? []));
   return { rows: grid.rowCount(), total: matching.size, shown: grid.shownAmong(matching) };
 }
 

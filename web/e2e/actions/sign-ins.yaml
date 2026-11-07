@@ -39,7 +39,7 @@ rows:
   - {
       Timestamp: '2026-10-01T08:09:00Z',
       User: carol@example.com,
-      CorrelationId: c-1,
+      CorrelationId: c-4,
       Result: Success,
     }
 ---

@@ -121,8 +121,8 @@ def make_rows(start: int, count: int) -> list[RunRow]:
 
 
 COLUMNS = [
-    RunColumn(name="n", type="number", declared=True),
-    RunColumn(name="tags", type="json", declared=False),
+    RunColumn(name="n", type="number", declared=True, duplicates=0),
+    RunColumn(name="tags", type="json", declared=False, duplicates=0),
 ]
 
 

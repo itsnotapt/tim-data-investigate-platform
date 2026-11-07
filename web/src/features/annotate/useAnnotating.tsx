@@ -14,8 +14,8 @@ export interface AnnotatingOptions {
   labels: readonly InstanceLabel[];
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
-  /** The row numbers of each `id`. */
-  rowsById: ReadonlyMap<string, readonly number[]>;
+  /** Why a row has no `id`, from `noIdReason`. */
+  noId: string;
   /** The rows of the tab's Results, as they are now. */
   rowsOf: RowsOf;
   /** The sinks Annotate… offers to run on the rows after tagging. */
@@ -46,26 +46,21 @@ interface OpenDialog {
  * change goes into the annotation store as the analyst's own, then a toast says what changed, and
  * the sink picked in Annotate… starts on the rows.
  */
-export function useAnnotating({
-  labels,
-  max,
-  rowsById,
-  rowsOf,
-  sinks,
-}: AnnotatingOptions): Annotating {
+export function useAnnotating({ labels, max, noId, rowsOf, sinks }: AnnotatingOptions): Annotating {
   const notify = useContext(NotifyContext);
   const analyst = useAnalyst();
   const [open, setOpen] = useState<OpenDialog | null>(null);
   const options = useMemo(
     () => ({
       max,
+      noId,
       rowsOf,
       notify: (message: string) => notify?.(message),
       // The dialog opens on the `id`s the rows have when it opens.
       open: (mode: AnnotateMode, rowNumbers: readonly number[]) => {
         const rows = rowsOf(rowNumbers);
         const targets = targetIds(rows);
-        const reason = whyUnlabellable(targets, max);
+        const reason = whyUnlabellable(targets, max, noId);
         if (reason !== null) return void notify?.(reason);
         void getAnnotationStore()
           .get(targets)
@@ -74,13 +69,13 @@ export function useAnnotating({
               mode,
               rows,
               targets,
-              reach: reachOf(rows, rowsById),
+              reach: reachOf(rows),
               current: [...found.values()],
             }),
           );
       },
     }),
-    [max, notify, rowsById, rowsOf],
+    [max, noId, notify, rowsOf],
   );
   const onSaved = useCallback(
     async (mode: AnnotateMode, changes: Annotations[]) => {

@@ -3,7 +3,8 @@ name: Build api
 # Pull requests always run this workflow, so the required build-api-gate check always reports;
 # the changes job skips the build jobs when the PR does not touch api/, this file, a file the
 # api tests read from outside api/ (docs/architecture.md, web/src/lib/api/openapi.json,
-# deploy/config/), or the examples built on the api image (examples/deployment/, examples/demo/).
+# web/src/features/labels/idCases.json, deploy/config/), or the examples built on the api image
+# (examples/deployment/, examples/demo/).
 on:
   pull_request:
   push:
@@ -13,6 +14,7 @@ on:
       - api/**
       - docs/architecture.md
       - web/src/lib/api/openapi.json
+      - web/src/features/labels/idCases.json
       - deploy/config/**
       - examples/deployment/**
       - examples/demo/**
@@ -57,7 +59,7 @@ jobs:
             # Diff on its own line, so a failed diff fails this job and the gate instead of reading
             # as "no changes".
             files=$(git diff --name-only "$BASE...$HEAD")
-            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|deploy/config/|examples/deployment/|examples/demo/|\.github/workflows/build-api\.yml$)' <<<"$files"; then
+            if grep -qE '^(api/|docs/architecture\.md$|web/src/lib/api/openapi\.json$|web/src/features/labels/idCases\.json$|deploy/config/|examples/deployment/|examples/demo/|\.github/workflows/build-api\.yml$)' <<<"$files"; then
               changed=true
             else
               changed=false

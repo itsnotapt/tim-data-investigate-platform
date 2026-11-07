@@ -145,15 +145,15 @@ The rows a tab shows: those of its latest succeeded run, or of the run loading a
 _Avoid_: result rows, row data
 
 **`id`**:
-The key a row is annotated by: the value of the row's Id column, computed in the browser. It is shared across actions, so rows with the same `id` carry the same annotations. A row without one cannot be annotated.
+The key a row is annotated by: the value of the row's Id column, computed in the browser. It is unique among its run's rows, so annotating a row annotates only that row in its tab. It is shared across actions, so the same `id` in another tab carries the same annotations. A row without one cannot be annotated.
 _Avoid_: EventId, event id, row id
 
 **Id column**:
-The column of a result that its rows' `id`s come from. It starts as the action's `id`, or the `idColumn` of the preset the tab was opened from, and the analyst can switch it on the results without rerunning.
+The column of a result that its rows' `id`s come from. It starts as the action's `id`, or the `idColumn` of the preset the tab was opened from, and the analyst can switch it on the results without rerunning. A column with duplicate ids can't be chosen as the Id column. If the Id column has duplicates, no row has an `id`.
 _Avoid_: id field, key column
 
 **Row number**:
-A row's position in its run's results, unique within the run where `id` can repeat.
+A row's position in its run's results, unique within the run, including for rows without an `id`.
 _Avoid_: ordinal, row id
 
 **Page**:

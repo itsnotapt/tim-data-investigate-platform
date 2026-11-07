@@ -83,29 +83,19 @@ describe('tagChips', () => {
 });
 
 describe('reachOf and reachLine', () => {
-  const index = new Map([
-    ['h1', [0, 1, 2]],
-    ['h2', [3]],
-    ['h3', [4, 5]],
-  ]);
-
-  it('counts the rows, their ids, the other rows with those ids and the rows without one', () => {
-    const rows = [{ id: 'h1' }, { id: 'h1' }, { id: 'h2' }, { id: null }, {}];
-    const reach = reachOf(rows, index);
-    expect(reach).toEqual({ rows: 5, ids: 2, otherRows: 1, withoutId: 2 });
-    expect(reachLine(reach)).toBe(
-      '5 rows · 2 ids · also changes 1 other row with the same id · 2 rows without an id are skipped',
-    );
+  it('counts the rows and the rows without an id, which the change skips', () => {
+    const reach = reachOf([{ id: 'h1' }, { id: 'h2' }, { id: null }, {}]);
+    expect(reach).toEqual({ rows: 4, withoutId: 2 });
+    expect(reachLine(reach)).toBe('4 rows · 2 rows without an id are skipped');
   });
 
-  it('leaves out the other rows and the skipped rows when there are none', () => {
-    const reach = reachOf([{ id: 'h2' }], index);
-    expect(reachLine(reach)).toBe('1 row · 1 id');
+  it('leaves out the skipped rows when there are none', () => {
+    expect(reachLine(reachOf([{ id: 'h2' }]))).toBe('1 row');
   });
 
   it('says one skipped row in the singular', () => {
-    expect(reachLine({ rows: 1_200, ids: 3, otherRows: 4, withoutId: 1 })).toBe(
-      '1,200 rows · 3 ids · also changes 4 other rows with the same id · 1 row without an id is skipped',
+    expect(reachLine({ rows: 1_200, withoutId: 1 })).toBe(
+      '1,200 rows · 1 row without an id is skipped',
     );
   });
 });

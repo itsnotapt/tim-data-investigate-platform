@@ -465,7 +465,7 @@ describe('ActionTab', () => {
   it('goes back to the action’s Id column when the Id column pill is cleared', async () => {
     setup({ ...withResults, grid: { idColumn: 'Host' } });
     await userEvent.click(screen.getByRole('button', { name: 'Id column: Host' }));
-    await userEvent.clear(screen.getByRole('combobox', { name: 'Id column' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Id column' }));
     await userEvent.keyboard('{Escape}{Escape}');
 
     expect(await screen.findByRole('button', { name: 'Id column: User' })).toBeInTheDocument();
@@ -512,7 +512,11 @@ describe('ActionTab', () => {
     act(() => {
       runLoading(
         tabId,
-        { runId: 'r1', columns: [{ name: 'User', type: 'string', declared: false }], rowCount: 3 },
+        {
+          runId: 'r1',
+          columns: [{ name: 'User', type: 'string', declared: false, duplicates: 0 }],
+          rowCount: 3,
+        },
         null,
       );
       pageLoaded(tabId, 'r1', [

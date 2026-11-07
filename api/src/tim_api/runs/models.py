@@ -50,11 +50,14 @@ class RunAction(ApiModel):
 
 
 class RunColumn(ApiModel):
-    """A result column: ``declared`` by the action or the run, else inferred from the rows."""
+    """A result column: ``declared`` by the action or the run, else inferred from the rows.
+    ``duplicates`` counts the rows whose ``id`` from this column an earlier row already has, so
+    0 means the column can be the Id column (ADR 0028)."""
 
     name: str
     type: ColumnType
     declared: bool
+    duplicates: int
 
 
 class Run(ApiModel):

@@ -1191,10 +1191,14 @@ export interface components {
         /**
          * RunColumn
          * @description A result column: ``declared`` by the action or the run, else inferred from the rows.
+         *     ``duplicates`` counts the rows whose ``id`` from this column an earlier row already has, so
+         *     0 means the column can be the Id column (ADR 0028).
          */
         RunColumn: {
             /** Declared */
             declared: boolean;
+            /** Duplicates */
+            duplicates: number;
             /** Name */
             name: string;
             /**

@@ -87,43 +87,23 @@ export function undoRemoval(edits: TagEdits, tag: string): TagEdits {
   return { ...edits, remove: edits.remove.filter((t) => t !== tag) };
 }
 
-/** Which rows a change to the targets reaches. */
+/** Which rows a change to the targets reaches: each target row with an `id`, and only it. */
 export interface Reach {
   /** The target rows. */
   rows: number;
-  /** Their distinct `id`s: what the change is sent for. */
-  ids: number;
-  /** The grid's other rows with one of those `id`s, which change with them. */
-  otherRows: number;
   /** The target rows without an `id`, which the change skips. */
   withoutId: number;
 }
 
-/** The reach of a change to `rows`, given the row numbers of each `id`. */
-export function reachOf(
-  rows: readonly { id?: string | null }[],
-  rowsById: ReadonlyMap<string, readonly number[]>,
-): Reach {
-  const withId = rows.flatMap((r) => (r.id ? [r.id] : []));
-  const ids = new Set(withId);
-  let reached = 0;
-  for (const id of ids) reached += rowsById.get(id)?.length ?? 1;
-  return {
-    rows: rows.length,
-    ids: ids.size,
-    otherRows: Math.max(0, reached - withId.length),
-    withoutId: rows.length - withId.length,
-  };
+/** The reach of a change to `rows`. */
+export function reachOf(rows: readonly { id?: string | null }[]): Reach {
+  return { rows: rows.length, withoutId: rows.filter((r) => !r.id).length };
 }
 
-/** "N rows · M ids · also changes K other rows with the same id · X rows without an id are skipped". */
-export function reachLine({ rows, ids, otherRows, withoutId }: Reach): string {
+/** "N rows · X rows without an id are skipped". */
+export function reachLine({ rows, withoutId }: Reach): string {
   return [
     plural(rows, 'row', 'rows'),
-    plural(ids, 'id', 'ids'),
-    ...(otherRows > 0
-      ? [`also changes ${plural(otherRows, 'other row', 'other rows')} with the same id`]
-      : []),
     ...(withoutId > 0
       ? [
           withoutId === 1
