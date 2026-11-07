@@ -3,7 +3,7 @@ import { getAnnotationStore, type AnnotationsSource } from '../../lib/annotation
 import type { Annotations, RunColumn, RunRow } from '../../lib/api';
 import { rowResultsDao, type TabResults } from '../../lib/storage';
 import { useInstanceStore } from '../instance';
-import { indexRows, withIds, type LabelledRow, type RowsById } from '../labels';
+import { duplicatesOf, indexRows, withIds, type LabelledRow, type RowNumberById } from '../labels';
 import { useTabsStore } from '../tabs/tabStore';
 import { pagedRows, withRows, withRowsChanged, type PagedRows } from './pagedRows';
 
@@ -12,7 +12,8 @@ export type ResultRow = RunRow & LabelledRow;
 
 /**
  * A tab's Results: the rows of its latest succeeded run, or of the run loading as its pages
- * arrive, each with its `id` under the tab's Id column and its annotations.
+ * arrive, each with its `id` under the tab's Id column and its annotations. While the Id column
+ * has duplicates, no row has an `id`.
  */
 export interface Results {
   runId: string;
@@ -23,13 +24,13 @@ export interface Results {
   rows: PagedRows<ResultRow>;
   /** Every row has arrived. */
   done: boolean;
-  /** The Id column the rows' `id`s are under. */
+  /** The tab's Id column, which the rows' `id`s are under unless it has duplicates. */
   idColumn: string | null;
   /**
-   * The row numbers of each `id`. Unlike the rest of a snapshot, this map grows in place as rows
+   * The row number of each `id`. Unlike the rest of a snapshot, this map grows in place as rows
    * are added, and every snapshot of the same rows shares it.
    */
-  rowsById: ReadonlyMap<string, readonly number[]>;
+  rowNumberById: ReadonlyMap<string, number>;
 }
 
 /** What changed in a tab's Results, for its grid to apply. */
@@ -61,7 +62,7 @@ interface Entry {
   /** The run whose rows are being read from `row_results`. */
   reading: string | null;
   shown: Results | null;
-  index: RowsById;
+  index: RowNumberById;
   /** Stops hearing the annotation store. */
   unsubscribe: () => void;
 }
@@ -106,12 +107,17 @@ function letGo(tabId: string, entry: Entry): void {
   if (entries.get(tabId) === entry) entries.delete(tabId);
 }
 
-/** The `id`s of `rows`, once each. */
-const idsOf = (rows: readonly ResultRow[]) => [
-  ...new Set(rows.flatMap((r) => (r.id ? [r.id] : []))),
-];
+/** The `id`s of `rows`. */
+const idsOf = (rows: readonly ResultRow[]) => rows.flatMap((r) => (r.id ? [r.id] : []));
 
-/** Gives the rows of each changed `id` its annotations, where they are newer than the rows have. */
+/** `rows` with their `id`s under `idColumn`, or none while it has duplicates. */
+const withIdsUnder = (
+  rows: readonly RunRow[],
+  columns: readonly RunColumn[] | null,
+  idColumn: string | null,
+) => withIds(rows, duplicatesOf(columns, idColumn) > 0 ? null : idColumn);
+
+/** Gives the row of each changed `id` its annotations, where they are newer than the row has. */
 function annotate(
   tabId: string,
   changes: readonly Annotations[],
@@ -122,12 +128,12 @@ function annotate(
   if (!entry || !shown) return;
   const rows = new Map<number, ResultRow>();
   for (const change of changes) {
-    for (const n of entry.index.get(change.id) ?? []) {
-      const current = rows.get(n) ?? shown.rows.at(n);
-      if (!current) continue;
-      if ((current.annotations?.version ?? -1) >= change.version) continue;
-      rows.set(n, { ...current, annotations: change });
-    }
+    const n = entry.index.get(change.id);
+    if (n === undefined) continue;
+    const current = rows.get(n) ?? shown.rows.at(n);
+    if (!current) continue;
+    if ((current.annotations?.version ?? -1) >= change.version) continue;
+    rows.set(n, { ...current, annotations: change });
   }
   if (rows.size === 0) return;
   entry.shown = { ...shown, rows: withRowsChanged(shown.rows, rows) };
@@ -146,7 +152,7 @@ function annotateStored(tabId: string, ids: readonly string[]): void {
 function replace(
   tabId: string,
   entry: Entry,
-  run: Omit<Results, 'rows' | 'idColumn' | 'rowsById'>,
+  run: Omit<Results, 'rows' | 'idColumn' | 'rowNumberById'>,
   rows: readonly ResultRow[],
 ): void {
   entry.index = new Map();
@@ -155,7 +161,7 @@ function replace(
     ...run,
     rows: pagedRows(rowsPageSize(), rows),
     idColumn: entry.idColumn,
-    rowsById: entry.index,
+    rowNumberById: entry.index,
   };
   tell(tabId, { type: 'replaced' });
   annotateStored(tabId, idsOf(rows));
@@ -178,7 +184,10 @@ function readStored(tabId: string, entry: Entry): void {
       if (entry.shown || entry.loading !== null) return;
       const { runId, columns, rowCount } = stored;
       const runRows = rows as unknown as RunRow[];
-      const read = rowNumberMismatch(runRows, 0) !== null ? [] : withIds(runRows, entry.idColumn);
+      const read =
+        rowNumberMismatch(runRows, 0) !== null
+          ? []
+          : withIdsUnder(runRows, columns, entry.idColumn);
       replace(tabId, entry, { runId, columns, total: rowCount, done: true }, read);
     });
 }
@@ -214,9 +223,9 @@ export function resultRows(tabId: string, rowNumbers: readonly number[]): Result
   });
 }
 
-/** The row numbers of the rows of the tab's Results with `id`, in order. */
-export function rowNumbersOf(tabId: string, id: string): readonly number[] {
-  return entries.get(tabId)?.index.get(id) ?? [];
+/** The row number of the row of the tab's Results with `id`, if it has one. */
+export function rowNumberOf(tabId: string, id: string): number | undefined {
+  return entries.get(tabId)?.index.get(id);
 }
 
 /** Hears every change to the tab's Results. Returns the unsubscribe. */
@@ -263,7 +272,10 @@ export function setResultsInputs(tabId: string, inputs: ResultsInputs): void {
   if (inputs.idColumn !== entry.idColumn) {
     entry.idColumn = inputs.idColumn;
     const { shown } = entry;
-    if (shown) replace(tabId, entry, shown, withIds(shown.rows.flat(), entry.idColumn));
+    if (shown) {
+      const rows = withIdsUnder(shown.rows.flat(), shown.columns, entry.idColumn);
+      replace(tabId, entry, shown, rows);
+    }
   }
   readStored(tabId, entry);
 }
@@ -295,7 +307,7 @@ export function pageLoaded(tabId: string, runId: string, page: readonly RunRow[]
   if (!entry || !shown || entry.loading !== runId || shown.runId !== runId) return;
   const mismatch = rowNumberMismatch(page, shown.rows.length);
   if (mismatch !== null) throw new Error(mismatch);
-  const added = withIds(page, entry.idColumn);
+  const added = withIdsUnder(page, shown.columns, entry.idColumn);
   indexRows(entry.index, added);
   entry.shown = { ...shown, rows: withRows(shown.rows, added) };
   tell(tabId, { type: 'added', rows: added });

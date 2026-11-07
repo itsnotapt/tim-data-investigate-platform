@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { rowId } from './labelRows';
 
 describe('rowId', () => {
@@ -22,5 +24,16 @@ describe('rowId', () => {
   it('is no id where the value is longer than 512 characters', () => {
     expect(rowId({ EventId: 'x'.repeat(512) }, 'EventId')).toBe('x'.repeat(512));
     expect(rowId({ EventId: 'x'.repeat(513) }, 'EventId')).toBeNull();
+  });
+});
+
+describe('rowId and the api’s duplicate counts', () => {
+  it('gives each shared case its id, as the api counts them', () => {
+    // Parsed as the browser parses rows, so 1.0 and large integers arrive as they would.
+    const { cases } = JSON.parse(
+      readFileSync(join(import.meta.dirname, 'idCases.json'), 'utf8'),
+    ) as { cases: { value: unknown; id: string | null }[] };
+    expect(cases.length).toBeGreaterThan(30);
+    for (const { value, id } of cases) expect(rowId({ v: value }, 'v')).toBe(id);
   });
 });

@@ -40,7 +40,7 @@ const succeeded = (rowCount: number) =>
     status: 'succeeded',
     rowCount,
     finishedAt: '2026-10-20T10:00:02Z',
-    columns: [{ name: 'User', type: 'string', declared: true }],
+    columns: [{ name: 'User', type: 'string', declared: true, duplicates: 0 }],
   });
 const rows: RunRow[] = [
   { row: 0, data: { User: 'alice' } },
@@ -160,7 +160,7 @@ describe('runActionTab', () => {
       results: {
         runId: RUN_ID,
         rowCount: 3,
-        columns: [{ name: 'User', type: 'string', declared: true }],
+        columns: [{ name: 'User', type: 'string', declared: true, duplicates: 0 }],
       },
       latest: { run: { runId: RUN_ID, status: 'succeeded' } },
     });
@@ -206,7 +206,7 @@ describe('runActionTab', () => {
       runId: RUN_ID,
       total: 3,
       done: false,
-      columns: [{ name: 'User', type: 'string', declared: true }],
+      columns: [{ name: 'User', type: 'string', declared: true, duplicates: 0 }],
     });
     expect(resultsOf('a')?.rows.flat()).toMatchObject(rows.slice(0, 2));
     expect(await rowResultsDao.get('a')).toEqual([]);

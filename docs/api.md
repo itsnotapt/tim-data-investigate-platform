@@ -268,7 +268,7 @@ Query: `startRow` (default `0`) and `endRow` (exclusive; default and maximum `st
 | `finishedAt` | datetime | Once the run has ended. |
 | `expiresAt` | datetime | |
 | `details` | object | Scalars: `duration` (seconds), `inputRowCount` for a sink, `rowCount` when a query action succeeded, then the action's own, in the order reported. |
-| `columns` | array | When succeeded: `[{name, type, declared}]`, the declared columns first, without TIM's own `tim:` columns, and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json` or `bigint`; only an action file declares `bigint`, and its whole-number values are served as strings of digits. |
+| `columns` | array | When succeeded: `[{name, type, declared, duplicates}]`, the declared columns first, without TIM's own `tim:` columns, and then the others in first-seen order. `type` is `string`, `number`, `boolean`, `datetime`, `timespan`, `json` or `bigint`; only an action file declares `bigint`, and its whole-number values are served as strings of digits. `duplicates` is how many rows have an id text that an earlier row of the column has, so 0 means the column can be the Id column; blank values (null, `""`, over 512 UTF-16 code units) are skipped ([architecture.md](architecture.md#duplicate-ids)). |
 | `rowCount` | integer | When succeeded. |
 | `error` | string | A message safe to show, when `error` or `timedOut`. |
 

@@ -36,7 +36,7 @@ rows:
   - { User: alice@example.com, CorrelationId: c-1, Result: Success }
   - { User: bob@example.com, CorrelationId: c-2, Result: Failure }
   - { User: alice@example.com, CorrelationId: c-3, Result: Failure }
-  - { User: carol@example.com, CorrelationId: c-1, Result: Success }
+  - { User: carol@example.com, CorrelationId: c-4, Result: Success }
 ---
 type: dev_rows
 key: dev-host

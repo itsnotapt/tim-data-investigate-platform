@@ -29,10 +29,12 @@ import { ResultsGrid, type ResultsGridProps } from '../grid/ResultsGrid';
 import { useInstanceStore } from '../instance';
 import {
   buildLabelMenu,
+  duplicatesOf,
   labelClassRules,
   labelColumnDef,
   LabelSymbol,
   makeLabelKeys,
+  noIdReason,
   type LabelMenuOptions,
   type RowsOf,
 } from '../labels';
@@ -82,8 +84,6 @@ export type ActionResultsGridProps = Omit<
   tabId: string;
   /** The tab's Results, as they are now: the grid applies each change to them as it comes. */
   results: Results;
-  /** Called with the column a cell's Use … as Id column picks. */
-  onIdColumnChange?: (column: string) => void;
   /** The action's declared columns. */
   declaredColumns?: readonly CatalogueColumn[] | null;
   /** More context menu items, after Label ▸, Annotate…, Comment… and Row detail, before the sinks. */
@@ -104,9 +104,8 @@ export type ActionResultsGridProps = Omit<
  * An action tab's Results, keyed by `row`, with the action's columns and the annotations of each
  * row's `id`, the value of its Id column. Each page that arrives is added to the rows; when the Id
  * column changes, the rows take their new ids and those ids' annotations in place. Either way the
- * grid keeps the selection, filters, sort and scroll. A cell's Use … as Id column asks for its
- * column to be the Id column. The annotations show the label's fill, stripe and
- * symbol, the comments column, the hidden Label, Tags and Comment text columns, Label ▸, Annotate…,
+ * grid keeps the selection, filters, sort and scroll. The annotations show the label's fill,
+ * stripe and symbol, the comments column, the hidden Label, Tags and Comment text columns, Label ▸, Annotate…,
  * Comment…, Row detail and their keys, the Row detail side panel, the sinks, which take the rows,
  * Copy column settings, and Copy link to the right-clicked row.
  * The annotations come from the annotation store, never from `row_results`; a teammate's change
@@ -119,7 +118,6 @@ export type ActionResultsGridProps = Omit<
 export function ActionResultsGrid({
   tabId,
   results,
-  onIdColumnChange,
   declaredColumns,
   onGridReady,
   getContextMenuItems,
@@ -130,11 +128,12 @@ export function ActionResultsGrid({
   findPivotRows = false,
   ...rest
 }: ActionResultsGridProps) {
-  const { runId, idColumn, rows, columns: runColumns, rowsById } = results;
+  const { runId, idColumn, rows, columns: runColumns } = results;
   const labels = useInstanceStore((s) => s.instance?.labels) ?? NO_LABELS;
   const max = useInstanceStore((s) => s.instance?.limits.maxAnnotationIds) ?? DEFAULT_MAX_IDS;
   const notifyContext = useContext(NotifyContext);
   const analyst = useAnalyst();
+  const noId = noIdReason(idColumn, duplicatesOf(runColumns, idColumn));
   const own = useMemo(
     () => [
       ...annotationColumnDefs({
@@ -196,11 +195,12 @@ export function ActionResultsGrid({
       store: getAnnotationStore(),
       labels,
       max,
+      noId,
       rowsOf,
       notify: (options) => notifyContext?.(options),
       pollSoon: pollAnnotationsSoon,
     }),
-    [labels, max, rowsOf, notifyContext],
+    [labels, max, noId, rowsOf, notifyContext],
   );
   const labelMenu = useMemo(() => buildLabelMenu(labelling), [labelling]);
   const sinks = useSinks(runColumns);
@@ -208,7 +208,7 @@ export function ActionResultsGrid({
     menu: annotateMenu,
     keys: annotateKeys,
     dialog,
-  } = useAnnotating({ labels, max, rowsById, rowsOf, sinks });
+  } = useAnnotating({ labels, max, noId, rowsOf, sinks });
   const sinkMenu = useCallback<RowsMenu>(
     (targets) =>
       buildSinkMenu({
@@ -225,7 +225,7 @@ export function ActionResultsGrid({
     onRowFocused,
     panel: rowDetail,
     open: openRowDetail,
-  } = useRowDetail({ labels, columns: runColumns, rowsOf });
+  } = useRowDetail({ labels, columns: runColumns, rowsOf, noId });
   const linkedShown = useRef(false);
   useEffect(() => {
     if (linkedRow === null || linkedShown.current || !view) return;
@@ -245,21 +245,6 @@ export function ActionResultsGrid({
       },
     ],
     [runId, linkIdColumn, notifyContext],
-  );
-  const idColumnMenu = useCallback<RowsMenu>(
-    ({ row, column }) => {
-      const [clicked] = rowsOf(row === null ? [] : [row]);
-      if (
-        !onIdColumnChange ||
-        !column ||
-        column === idColumn ||
-        !clicked ||
-        !(column in clicked.data)
-      )
-        return [];
-      return [{ name: `Use ${column} as Id column`, action: () => onIdColumnChange(column) }];
-    },
-    [idColumn, onIdColumnChange, rowsOf],
   );
   const copySettingsItem = useCallback(
     (state: () => GridState) => copyColumnSettingsItem(() => actionFile(state()), notifyContext),
@@ -282,7 +267,6 @@ export function ActionResultsGrid({
     };
     const groups: RowsMenu[] = [
       (t) => [...labelMenu(t), ...annotateMenu(t), ...rowDetailMenu(t)],
-      idColumnMenu,
       ...(getContextMenuItems ? [getContextMenuItems] : []),
       sinkMenu,
       copyColumnSettingsMenu,
@@ -297,7 +281,6 @@ export function ActionResultsGrid({
     labelMenu,
     annotateMenu,
     rowDetailMenu,
-    idColumnMenu,
     getContextMenuItems,
     sinkMenu,
     copyColumnSettingsMenu,

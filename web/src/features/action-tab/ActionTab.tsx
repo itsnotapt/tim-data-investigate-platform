@@ -305,7 +305,7 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
     // Clearing goes back to the action's Id column.
     notify?.(switchedText(column ?? action?.idColumn ?? null));
   };
-  const resultColumns = (shown?.columns ?? results?.columns ?? []).map((c) => c.name);
+  const resultColumns = shown?.columns ?? results?.columns ?? [];
   // The run going, else the one whose results show.
   const linkRunId =
     run?.status === 'running' || run?.status === 'succeeded' ? run.runId : (results?.runId ?? null);
@@ -580,7 +580,6 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
             key={shown.runId}
             tabId={tabId}
             results={shown}
-            onIdColumnChange={switchTo}
             linkIdColumn={linkIdColumn}
             declaredColumns={action?.columns}
             getContextMenuItems={pivotMenu}

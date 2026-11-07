@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogueParam, InstanceConnection } from '../../lib/api';
+import { type Notify, NotifyContext } from '../../components/notifyContext';
 import { PillsBar } from './PillsBar';
 
 const param = (
@@ -421,26 +422,50 @@ describe('PillsBar', () => {
 });
 
 describe('PillsBar Id column', () => {
-  /** The bar with an Id column pill over the results' `columns`, which keeps what it applies. */
-  function IdColumnHarness({ apply }: { apply: (column: string | null) => void }) {
-    const [current, setCurrent] = useState<string | null>('User');
+  /**
+   * The bar with an Id column pill over the results' `columns`, which keeps what it applies.
+   * Host has 150 duplicate ids and Device 1.
+   */
+  function IdColumnHarness({
+    apply,
+    notify = () => {},
+    initial = 'User',
+  }: {
+    apply: (column: string | null) => void;
+    notify?: Notify;
+    initial?: string | null;
+  }) {
+    const [current, setCurrent] = useState<string | null>(initial);
     return (
-      <PillsBar
-        params={[param({ name: 'host', kind: 'string', title: 'Host' })]}
-        values={{}}
-        connections={connections}
-        onChange={() => {}}
-        idColumn={{
-          current,
-          columns: ['User', 'Host'],
-          onChange: (column) => {
-            apply(column);
-            setCurrent(column);
-          },
-        }}
-      />
+      <NotifyContext.Provider value={notify}>
+        <PillsBar
+          params={[param({ name: 'host', kind: 'string', title: 'Host' })]}
+          values={{}}
+          connections={connections}
+          onChange={() => {}}
+          idColumn={{
+            current,
+            columns: [
+              { name: 'User', duplicates: 0 },
+              { name: 'Host', duplicates: 150 },
+              { name: 'Device', duplicates: 1 },
+              { name: 'Sid', duplicates: 0 },
+            ],
+            onChange: (column) => {
+              apply(column);
+              setCurrent(column);
+            },
+          }}
+        />
+      </NotifyContext.Provider>
     );
   }
+
+  const idField = () => within(popover()).getByRole('textbox', { name: 'Id column' });
+  const columnOption = (name: string | RegExp) =>
+    within(within(popover()).getByRole('listbox', { name: 'Columns' })).getByRole('option', {
+      name,
+    });
 
   it('shows the results’ Id column after the params, and switches to a picked column at once', async () => {
     const apply = vi.fn();
@@ -449,12 +474,34 @@ describe('PillsBar Id column', () => {
     expect(pills).toEqual(['Host: not set', 'Id column: User']);
 
     await openPill(/^Id column:/);
-    await userEvent.click(within(popover()).getByRole('combobox', { name: 'Id column' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Host' }));
+    await userEvent.click(columnOption(/^Sid/));
 
-    expect(apply).toHaveBeenCalledExactlyOnceWith('Host');
+    expect(apply).toHaveBeenCalledExactlyOnceWith('Sid');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Id column: Host' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Id column: Sid' })).toBeInTheDocument();
+  });
+
+  it('warns when the Id column has duplicates, with the count', () => {
+    render(<IdColumnHarness apply={vi.fn()} initial="Host" />);
+    const pill = screen.getByRole('button', { name: 'Id column: Host · 150 duplicates found' });
+    expect(pill).toHaveClass('MuiChip-colorWarning');
+    expect(pill).toHaveAttribute(
+      'title',
+      '150 duplicates found in Host, so no row has an id: choose another Id column',
+    );
+  });
+
+  it('disables each column with duplicates, saying how many, the current one included', async () => {
+    const apply = vi.fn();
+    render(<IdColumnHarness apply={apply} initial="Host" />);
+
+    await openPill(/^Id column:/);
+    expect(columnOption(/^Host/)).toHaveAttribute('aria-disabled', 'true');
+    expect(columnOption(/^Host/)).toHaveTextContent('Not valid: 150 duplicates found');
+    expect(columnOption(/^Device/)).toHaveTextContent('Not valid: 1 duplicate found');
+    expect(columnOption(/^Device/)).toHaveAttribute('aria-disabled', 'true');
+    expect(columnOption(/^User/)).not.toHaveAttribute('aria-disabled');
+    expect(columnOption(/^User/)).toHaveTextContent(/^User$/);
   });
 
   it('switches to a typed column when its editor closes, and not when it is unchanged', async () => {
@@ -462,17 +509,15 @@ describe('PillsBar Id column', () => {
     render(<IdColumnHarness apply={apply} />);
 
     await openPill(/^Id column:/);
-    const field = within(popover()).getByRole('combobox', { name: 'Id column' });
-    await userEvent.clear(field);
-    await userEvent.type(field, 'Seen');
+    await userEvent.clear(idField());
+    await userEvent.type(idField(), 'Seen');
     expect(apply).not.toHaveBeenCalled();
-    // The first Escape closes the suggestions.
-    await userEvent.keyboard('{Escape}{Escape}');
+    await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(apply).toHaveBeenCalledExactlyOnceWith('Seen');
 
     await openPill(/^Id column:/);
-    await userEvent.keyboard('{Escape}{Escape}');
+    await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(apply).toHaveBeenCalledOnce();
   });
@@ -482,11 +527,27 @@ describe('PillsBar Id column', () => {
     render(<IdColumnHarness apply={apply} />);
 
     await openPill(/^Id column:/);
-    const field = within(popover()).getByRole('combobox', { name: 'Id column' });
-    await userEvent.clear(field);
-    await userEvent.type(field, 'Seen{Enter}');
+    await userEvent.clear(idField());
+    await userEvent.type(idField(), 'Seen{Enter}');
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(apply).toHaveBeenCalledExactlyOnceWith('Seen');
+  });
+
+  it('refuses a typed column with duplicates, saying how many', async () => {
+    const apply = vi.fn();
+    const notify = vi.fn();
+    render(<IdColumnHarness apply={apply} notify={notify} />);
+
+    await openPill(/^Id column:/);
+    await userEvent.clear(idField());
+    await userEvent.type(idField(), 'Host{Enter}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(apply).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledExactlyOnceWith(
+      'Id column not changed: 150 duplicates found in Host',
+    );
+    expect(screen.getByRole('button', { name: 'Id column: User' })).toBeInTheDocument();
   });
 });

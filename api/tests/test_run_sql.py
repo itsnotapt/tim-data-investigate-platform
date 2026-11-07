@@ -80,9 +80,9 @@ async def test_run_sql_returns_the_querys_rows_as_the_analyst(env: Env) -> None:
     run = started.json()
     assert run["status"] == "succeeded", run.get("error")
     assert run["columns"] == [
-        {"name": "ID", "type": "number", "declared": True},
-        {"name": "UPN", "type": "string", "declared": True},
-        {"name": "AT", "type": "datetime", "declared": True},
+        {"name": "ID", "type": "number", "declared": True, "duplicates": 0},
+        {"name": "UPN", "type": "string", "declared": True, "duplicates": 0},
+        {"name": "AT", "type": "datetime", "declared": True, "duplicates": 0},
     ]
     assert await env.rows(run["runId"]) == [
         {"ID": 7, "UPN": "alice@contoso.com", "AT": "2026-01-02T03:04:05Z"}

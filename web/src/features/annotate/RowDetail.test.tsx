@@ -11,7 +11,7 @@ import {
 import { apiUrl, problemResponse, TEST_API } from '../../test/msw/handlers';
 import { setupMswServer } from '../../test/msw/server';
 import { SnackbarHost } from '../../components/SnackbarHost';
-import { NO_ID, type LabelledRow } from '../labels';
+import { noIdReason, type LabelledRow } from '../labels';
 import { RowDetail, type RowDetailProps } from './RowDetail';
 
 const server = setupMswServer();
@@ -83,7 +83,8 @@ const commented: Annotations = {
   ],
 };
 
-const fixed = { labels, columns: [], analyst: ALICE, call };
+const NO_ID = noIdReason('Host', 2);
+const fixed = { labels, columns: [], analyst: ALICE, call, noId: NO_ID };
 
 function renderPanel(props: Partial<RowDetailProps> = {}) {
   const onCommented = vi.fn();

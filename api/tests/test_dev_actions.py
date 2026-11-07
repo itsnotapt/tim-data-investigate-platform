@@ -167,9 +167,9 @@ details:
             "scanned": 12,
         }
         assert body["columns"] == [
-            {"name": "User", "type": "string", "declared": True},
-            {"name": "CorrelationId", "type": "string", "declared": False},
-            {"name": "Count", "type": "number", "declared": False},
+            {"name": "User", "type": "string", "declared": True, "duplicates": 0},
+            {"name": "CorrelationId", "type": "string", "declared": False, "duplicates": 0},
+            {"name": "Count", "type": "number", "declared": False, "duplicates": 0},
         ]
         assert [row["data"]["User"] for row in rows(client, body["runId"])] == ["alice", "bob"]
 

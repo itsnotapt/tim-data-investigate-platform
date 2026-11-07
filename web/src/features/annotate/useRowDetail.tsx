@@ -15,6 +15,8 @@ export interface RowDetailOptions {
   columns?: DetailColumns | null;
   /** The rows of the tab's Results, as they are now: the panel shows its row as they have it. */
   rowsOf: RowsOf;
+  /** Why a row has no `id`, from `noIdReason`. */
+  noId: string;
 }
 
 export interface RowDetailState {
@@ -35,7 +37,7 @@ export interface RowDetailState {
  * focused row, shows the row as the tab's Results have it now, and takes the annotations of its `id` from the annotation store, so a change from
  * the feed updates it. A comment saved from it goes into the store as the analyst's own.
  */
-export function useRowDetail({ labels, columns, rowsOf }: RowDetailOptions): RowDetailState {
+export function useRowDetail({ labels, columns, rowsOf, noId }: RowDetailOptions): RowDetailState {
   const analyst = useAnalyst();
   // The row number of the row the panel shows; null while it's closed.
   const [shown, setShown] = useState<number | null>(null);
@@ -86,6 +88,7 @@ export function useRowDetail({ labels, columns, rowsOf }: RowDetailOptions): Row
       annotations={annotations}
       labels={labels}
       columns={columns ?? NO_COLUMNS}
+      noId={noId}
       analyst={analyst}
       onCommented={onCommented}
       onClose={close}

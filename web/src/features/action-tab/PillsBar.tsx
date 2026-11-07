@@ -1,4 +1,5 @@
 import UndoIcon from '@mui/icons-material/Undo';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
@@ -11,9 +12,11 @@ import Popover from '@mui/material/Popover';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CatalogueParam, InstanceConnection } from '../../lib/api';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { NotifyContext } from '../../components/notifyContext';
+import type { CatalogueParam, InstanceConnection, RunColumn } from '../../lib/api';
 import type { ParamErrors } from '../../lib/storage';
+import { duplicatesFound, duplicatesOf } from '../labels';
 import { DatetimeEditor } from './DatetimeEditor';
 import {
   connectionChoices,
@@ -51,14 +54,15 @@ export interface PillsBarProps {
 }
 
 /**
- * The Id column pill. It isn't a param: its editor suggests the results' columns, and a column
- * picked, or typed and the editor closed, switches the results to it at once.
+ * The Id column pill. It isn't a param: its editor lists the results' columns, and a column
+ * picked, or typed and the editor closed, switches the results to it at once. A column with
+ * duplicate ids can't be chosen, and the pill warns while the Id column is one.
  */
 export interface IdColumnPill {
   /** The results' Id column. */
   current: string | null;
-  /** The results' columns. */
-  columns: readonly string[];
+  /** The results' columns, each with its count of duplicate ids. */
+  columns: readonly Pick<RunColumn, 'name' | 'duplicates'>[];
   onChange: (column: string | null) => void;
 }
 
@@ -71,6 +75,68 @@ const ID_COLUMN: CatalogueParam = {
   required: false,
   many: false,
 };
+
+/**
+ * The Id column's editor: a column name typed, applied when the editor closes, above every
+ * column, a click on one applying it. A column with duplicate ids is disabled, with its count.
+ */
+function IdColumnEditor({
+  value,
+  columns,
+  onChange,
+  onDone,
+  focusRef,
+}: {
+  value: string | null;
+  columns: IdColumnPill['columns'];
+  onChange: (value: string | null) => void;
+  onDone: () => void;
+  focusRef: (field: Focusable | null) => void;
+}) {
+  return (
+    <Box sx={{ width: 320, mt: 1 }}>
+      <TextField
+        size="small"
+        fullWidth
+        inputRef={focusRef}
+        label={ID_COLUMN.title}
+        helperText={ID_COLUMN.help}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value || null)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onDone();
+        }}
+      />
+      <List dense role="listbox" aria-label="Columns" sx={{ maxHeight: 320, overflow: 'auto' }}>
+        {columns.map(({ name, duplicates }) => (
+          <ListItemButton
+            key={name}
+            role="option"
+            selected={name === value}
+            aria-selected={name === value}
+            disabled={duplicates > 0}
+            onClick={() => {
+              onChange(name);
+              onDone();
+            }}
+          >
+            <ListItemText
+              primary={name}
+              secondary={duplicates > 0 ? `Not valid: ${duplicatesFound(duplicates)}` : undefined}
+              slotProps={{
+                secondary: {
+                  variant: 'caption',
+                  color: 'text.disabled',
+                  sx: { fontSize: '0.7rem', lineHeight: 1.2 },
+                },
+              }}
+            />
+          </ListItemButton>
+        ))}
+      </List>
+    </Box>
+  );
+}
 
 interface EditorProps {
   param: CatalogueParam;
@@ -339,11 +405,20 @@ export function PillsBar({
     idDraftRef.current = column;
     setIdDraft(column);
   };
+  const notify = useContext(NotifyContext);
   const close = () => {
     const typed = idDraftRef.current?.trim() ? idDraftRef.current : null;
-    if (editingIdColumn && typed !== idColumn.current) idColumn.onChange(typed);
+    if (editingIdColumn && typed !== idColumn.current) {
+      const duplicates = duplicatesOf(idColumn.columns, typed);
+      if (duplicates > 0) {
+        notify?.(`Id column not changed: ${duplicatesFound(duplicates)} in ${typed}`);
+      } else {
+        idColumn.onChange(typed);
+      }
+    }
     setOpen(null);
   };
+  const idDuplicates = idColumn ? duplicatesOf(idColumn.columns, idColumn.current) : 0;
   const chips = useRef(new Map<string, HTMLElement>());
   // The editor's field, focused once the popover has opened.
   const field = useRef<Focusable | null>(null);
@@ -393,8 +468,18 @@ export function PillsBar({
       {idColumn && (
         <Chip
           variant="outlined"
-          label={`${ID_COLUMN.title}: ${idColumn.current ?? 'not set'}`}
-          title={ID_COLUMN.help ?? undefined}
+          color={idDuplicates > 0 ? 'warning' : 'default'}
+          icon={idDuplicates > 0 ? <WarningAmberIcon /> : undefined}
+          label={
+            idDuplicates > 0
+              ? `${ID_COLUMN.title}: ${idColumn.current} · ${duplicatesFound(idDuplicates)}`
+              : `${ID_COLUMN.title}: ${idColumn.current ?? 'not set'}`
+          }
+          title={
+            idDuplicates > 0
+              ? `${duplicatesFound(idDuplicates)} in ${idColumn.current}, so no row has an id: choose another Id column`
+              : (ID_COLUMN.help ?? undefined)
+          }
           onClick={(e) => {
             draftIdColumn(idColumn.current);
             setOpen({ name: ID_COLUMN.name, anchor: e.currentTarget });
@@ -427,22 +512,23 @@ export function PillsBar({
           transition: { onEntered: () => field.current?.focus() },
         }}
       >
-        {editing && (
+        {editingIdColumn && (
+          <IdColumnEditor
+            value={idDraft}
+            columns={idColumn.columns}
+            onChange={draftIdColumn}
+            onDone={close}
+            focusRef={takeField}
+          />
+        )}
+        {editing && !editingIdColumn && (
           <Editor
             key={editing.name}
             param={editing}
-            value={editingIdColumn ? idDraft : values[editing.name]}
+            value={values[editing.name]}
             connections={connections}
-            suggestions={
-              editingIdColumn
-                ? idColumn.columns
-                : databaseSuggestions(editing, params, values, connections)
-            }
-            onChange={(value) =>
-              editingIdColumn
-                ? draftIdColumn(typeof value === 'string' ? value : null)
-                : onChange(editing.name, value)
-            }
+            suggestions={databaseSuggestions(editing, params, values, connections)}
+            onChange={(value) => onChange(editing.name, value)}
             onDone={close}
             focusRef={takeField}
           />

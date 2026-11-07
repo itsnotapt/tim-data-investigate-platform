@@ -5,9 +5,9 @@ import type { CatalogueColumn, RunColumn } from '../../lib/api';
 import { actionFileColumns } from './actionFileColumns';
 
 const runColumns: RunColumn[] = [
-  { name: 'Timestamp', type: 'datetime', declared: true },
-  { name: 'User', type: 'string', declared: true },
-  { name: 'Bytes', type: 'number', declared: false },
+  { name: 'Timestamp', type: 'datetime', declared: true, duplicates: 0 },
+  { name: 'User', type: 'string', declared: true, duplicates: 0 },
+  { name: 'Bytes', type: 'number', declared: false, duplicates: 0 },
 ];
 
 /** TIM's own columns, with their defaults. */

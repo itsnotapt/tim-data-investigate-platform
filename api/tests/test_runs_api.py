@@ -163,9 +163,9 @@ async def test_a_run_goes_end_to_end_over_http(storage: PostgresStorage, auth: A
         assert list(run["details"])[:2] == ["duration", "rowCount"]
         assert run["details"]["rowCount"] == 3
         assert run["columns"] == [
-            {"name": "CorrelationId", "type": "string", "declared": False},
-            {"name": "User", "type": "string", "declared": False},
-            {"name": "Count", "type": "number", "declared": False},
+            {"name": "CorrelationId", "type": "string", "declared": False, "duplicates": 1},
+            {"name": "User", "type": "string", "declared": False, "duplicates": 0},
+            {"name": "Count", "type": "number", "declared": False, "duplicates": 0},
         ]
         assert "error" not in run
         assert {"startedAt", "finishedAt", "expiresAt"} <= set(run)
@@ -651,17 +651,51 @@ async def test_columns_are_declared_first_then_inferred_in_first_seen_order(
     async with open_env(storage, auth, [action]) as env:
         run = (await env.start("acme.columns")).json()
         assert run["columns"] == [
-            {"name": "Count", "type": "number", "declared": True},
-            {"name": "Elapsed", "type": "timespan", "declared": True},
-            {"name": "Host", "type": "string", "declared": True},
-            {"name": "When", "type": "datetime", "declared": False},
-            {"name": "Late", "type": "number", "declared": False},
-            {"name": "Day", "type": "datetime", "declared": False},
-            {"name": "Flag", "type": "boolean", "declared": False},
-            {"name": "Bag", "type": "json", "declared": False},
-            {"name": "Mixed", "type": "string", "declared": False},
-            {"name": "Note", "type": "string", "declared": False},
+            {"name": "Count", "type": "number", "declared": True, "duplicates": 0},
+            {"name": "Elapsed", "type": "timespan", "declared": True, "duplicates": 0},
+            {"name": "Host", "type": "string", "declared": True, "duplicates": 0},
+            {"name": "When", "type": "datetime", "declared": False, "duplicates": 0},
+            {"name": "Late", "type": "number", "declared": False, "duplicates": 0},
+            {"name": "Day", "type": "datetime", "declared": False, "duplicates": 0},
+            {"name": "Flag", "type": "boolean", "declared": False, "duplicates": 0},
+            {"name": "Bag", "type": "json", "declared": False, "duplicates": 0},
+            {"name": "Mixed", "type": "string", "declared": False, "duplicates": 0},
+            {"name": "Note", "type": "string", "declared": False, "duplicates": 0},
         ]
+
+
+async def test_each_column_counts_its_duplicate_ids_as_the_extra_rows(
+    storage: PostgresStorage, auth: AuthKit
+) -> None:
+    action = Rows(
+        key="acme.duplicates",
+        name="Duplicates",
+        pivot="none",
+        columns=(Column("Never", "string"), Column("Hash", "bigint")),
+        rows=(
+            {"Host": "h1", "User": "alice", "Device": None, "Ratio": 1.0, "Sid": "s-1"},
+            {"Host": "h1", "User": "alice", "Device": "", "Ratio": 1, "Sid": "s-2"},
+            {"Host": "h1", "User": "bob", "Device": None, "Ratio": "1", "Sid": "s-3"},
+            {"Host": "h2", "User": "alice", "Ratio": 2.5, "Sid": "s-4"},
+            # Over 512 characters gives no id. A declared bigint is served as its digits, while
+            # the same whole numbers undeclared are read in the browser as one JavaScript number.
+            {"Long": "x" * 513, "Hash": 12345678901234567891, "Count": 12345678901234567891},
+            {"Long": "x" * 513, "Hash": 12345678901234567892, "Count": 12345678901234567892},
+        ),
+    )
+    async with open_env(storage, auth, [action]) as env:
+        run = (await env.start("acme.duplicates")).json()
+        assert {c["name"]: c["duplicates"] for c in run["columns"]} == {
+            "Never": 0,
+            "Hash": 0,
+            "Host": 2,
+            "User": 2,
+            "Device": 0,
+            "Ratio": 2,
+            "Sid": 0,
+            "Long": 0,
+            "Count": 1,
+        }
 
 
 async def test_a_declared_bigint_column_is_served_as_digit_strings(
@@ -682,8 +716,8 @@ async def test_a_declared_bigint_column_is_served_as_digit_strings(
     async with open_env(storage, auth, [action]) as env:
         run = (await env.start("acme.bigint")).json()
         assert run["columns"] == [
-            {"name": "Hash", "type": "bigint", "declared": True},
-            {"name": "Count", "type": "number", "declared": False},
+            {"name": "Hash", "type": "bigint", "declared": True, "duplicates": 0},
+            {"name": "Count", "type": "number", "declared": False, "duplicates": 0},
         ]
         rows = (await env.rows(run["runId"])).json()["rows"]
         assert [row["data"] for row in rows] == [
@@ -706,7 +740,9 @@ async def test_a_declared_tim_column_is_not_one_of_the_runs_columns(
     )
     async with open_env(storage, auth, [action]) as env:
         run = (await env.start("acme.tim")).json()
-        assert run["columns"] == [{"name": "Host", "type": "string", "declared": True}]
+        assert run["columns"] == [
+            {"name": "Host", "type": "string", "declared": True, "duplicates": 0}
+        ]
 
 
 async def test_nul_characters_become_replacement_characters(

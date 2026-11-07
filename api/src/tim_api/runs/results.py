@@ -14,6 +14,7 @@ from typing import Any
 import pydantic_core
 from tim_actions import TIM_COLUMNS, Column, ColumnType
 
+from tim_api.runs.ids import DuplicateCounter
 from tim_api.runs.models import RunColumn, RunRow
 
 NUL_REPLACEMENT = "�"
@@ -95,8 +96,8 @@ def _bigint_value(value: Any) -> Any:
 class ResultBuilder:
     """Turns each row ``run`` yields into a stored row, and keeps the row count, the bytes
     (compact JSON per row, summed) and the columns: declared ones first, then the rest in
-    first-seen order with their types inferred. A declared ``tim:`` column only sets up TIM's own
-    grid column, so it is not one of the run's columns.
+    first-seen order with their types inferred, each with its count of duplicate ids. A declared
+    ``tim:`` column only sets up TIM's own grid column, so it is not one of the run's columns.
 
     Not thread-safe: one worker thread calls ``add`` and ``declare``.
     """
@@ -111,6 +112,7 @@ class ResultBuilder:
         self._declared: dict[str, ColumnType] = {}
         self.declare(declared or ())
         self._inferred: dict[str, ColumnType | None] = {}
+        self._ids = DuplicateCounter()
         self._max_rows = max_rows
         self._max_bytes = max_bytes
         self.row_count = 0
@@ -137,6 +139,7 @@ class ResultBuilder:
             if self._declared.get(name) == "bigint":
                 data[name] = _bigint_value(value)
             self._infer(name, value)
+            self._ids.add(name, data[name])
         stored = RunRow(row=self.row_count, data=data)
         self.row_count += 1
         return stored
@@ -154,9 +157,15 @@ class ResultBuilder:
             self._inferred[name] = _type_of(value)
 
     def columns(self) -> list[RunColumn]:
-        declared = [RunColumn(name=n, type=t, declared=True) for n, t in self._declared.items()]
+        """The run's columns. The first call counts the duplicate ids, so it is made once the
+        last row is added."""
+        duplicates = self._ids.duplicates()
+        declared = [
+            RunColumn(name=n, type=t, declared=True, duplicates=duplicates.get(n, 0))
+            for n, t in self._declared.items()
+        ]
         inferred = [
-            RunColumn(name=n, type=t or "string", declared=False)
+            RunColumn(name=n, type=t or "string", declared=False, duplicates=duplicates.get(n, 0))
             for n, t in self._inferred.items()
             if n not in self._declared
         ]

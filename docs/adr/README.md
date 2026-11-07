@@ -79,3 +79,4 @@ Numbers are never reused, so the sequence has gaps.
 | [0025](0025-ids-from-the-id-column-in-the-browser.md) | A row's `id` is the value of the Id column, computed in the browser | accepted | 2026-10-30 |
 | [0026](0026-a-demo-instance-needs-no-accounts.md) | A demo instance needs no accounts | accepted | 2026-10-31 |
 | [0027](0027-run-titles-from-jinja-templates.md) | Run titles: Jinja templates for actions, Show in title for presets | accepted | 2026-11-01 |
+| [0028](0028-an-id-is-unique-within-a-run.md) | An `id` is unique within a run, and the api counts duplicates | accepted | 2026-11-07 |

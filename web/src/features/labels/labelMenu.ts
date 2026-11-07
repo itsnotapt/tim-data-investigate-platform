@@ -7,6 +7,8 @@ import { rowLabelKey, type RowsOf } from './labelRows';
 export interface LabelMenuOptions extends LabellingDeps {
   /** `maxAnnotationIds`: the most distinct `id`s one change takes. */
   max: number;
+  /** Why a row has no `id`, from `noIdReason`. */
+  noId: string;
   /** The rows of the targets, as the tab's Results have them now. */
   rowsOf: RowsOf;
 }
@@ -14,7 +16,7 @@ export interface LabelMenuOptions extends LabellingDeps {
 /** Sets the label of the `id`s the rows have now, or says why they can't be labelled. */
 function labelNow(rowNumbers: readonly number[], key: string | null, options: LabelMenuOptions) {
   const targets = targetIds(options.rowsOf(rowNumbers));
-  const reason = whyUnlabellable(targets, options.max);
+  const reason = whyUnlabellable(targets, options.max, options.noId);
   if (reason !== null) return options.notify(reason);
   void setLabel(targets, key, options);
 }
@@ -29,11 +31,11 @@ const swatch = (label: InstanceLabel) =>
  * with the reason as their tooltip. An item labels the `id`s the targets have when it is picked.
  */
 export function buildLabelMenu(options: LabelMenuOptions): RowsMenu {
-  const { labels, max, rowsOf } = options;
+  const { labels, max, noId, rowsOf } = options;
   return (targets) => {
     const rows = rowsOf(targets.rows);
     if (rows.length === 0) return [];
-    const reason = whyUnlabellable(targetIds(rows), max);
+    const reason = whyUnlabellable(targetIds(rows), max, noId);
     const withId = rows.filter((r) => r.id);
     const state = { disabled: reason !== null, tooltip: reason ?? undefined };
     const items: ExtraMenuItems = labels.map((label, i): MenuItemDef => ({

@@ -17,8 +17,8 @@ const makeRun = (overrides: Partial<Run> = {}): Run => ({
   details: { duration: 125.2, rowCount: 2 },
   rowCount: 2,
   columns: [
-    { name: 'User', type: 'string', declared: true },
-    { name: 'Result', type: 'string', declared: false },
+    { name: 'User', type: 'string', declared: true, duplicates: 0 },
+    { name: 'Result', type: 'string', declared: false, duplicates: 0 },
   ],
   ...overrides,
 });

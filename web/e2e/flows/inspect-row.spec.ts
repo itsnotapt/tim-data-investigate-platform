@@ -53,9 +53,7 @@ test('Row detail on a row without an id shows its fields and why it has no annot
   await stateCell(page, 0).click();
   await page.keyboard.press('d');
 
-  await expect(panel(page)).toContainText(
-    'No id: right-click a cell and use its column as the Id column',
-  );
+  await expect(panel(page)).toContainText('No id: NoSuchColumn is empty here');
   await expect(fields(page)).toContainText(String(STORM_ROWS[0]?.['EventId']));
   await expect(panel(page).getByRole('textbox', { name: 'Comment' })).toBeHidden();
   await panel(page).getByRole('button', { name: 'Close row detail' }).click();

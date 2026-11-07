@@ -523,7 +523,7 @@ describe('a run that has started', () => {
     ...RUNNING,
     status: 'succeeded',
     rowCount: 2,
-    columns: [{ name: 'Host', type: 'string', declared: true }],
+    columns: [{ name: 'Host', type: 'string', declared: true, duplicates: 0 }],
   };
 
   it('updated is the latest run', () => {
@@ -534,7 +534,7 @@ describe('a run that has started', () => {
     const done = runSucceeded(SUCCEEDED, [{ row: 1 }, { row: 3 }])(shared);
     expect(done.results).toEqual({
       runId: 'r-1',
-      columns: [{ name: 'Host', type: 'string', declared: true }],
+      columns: [{ name: 'Host', type: 'string', declared: true, duplicates: 0 }],
       startedAt: '2026-11-02T10:00:00Z',
       rowCount: 2,
     });

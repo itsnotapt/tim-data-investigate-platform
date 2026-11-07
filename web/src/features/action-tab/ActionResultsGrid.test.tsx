@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ColumnState, GridApi, MenuItemDef } from 'ag-grid-community';
 import { load } from 'js-yaml';
 import { HttpResponse, http } from 'msw';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type {
@@ -55,11 +55,11 @@ const declared: CatalogueColumn[] = [
   },
 ];
 const columns: RunColumn[] = [
-  { name: 'Timestamp', type: 'datetime', declared: true },
-  { name: 'User', type: 'string', declared: true },
-  { name: 'Raw', type: 'json', declared: true },
-  { name: 'row', type: 'string', declared: false },
-  { name: 'Raw Bytes', type: 'number', declared: false },
+  { name: 'Timestamp', type: 'datetime', declared: true, duplicates: 0 },
+  { name: 'User', type: 'string', declared: true, duplicates: 0 },
+  { name: 'Raw', type: 'json', declared: true, duplicates: 0 },
+  { name: 'row', type: 'string', declared: false, duplicates: 0 },
+  { name: 'Raw Bytes', type: 'number', declared: false, duplicates: 0 },
 ];
 const rows: RunRow[] = [
   {
@@ -413,8 +413,8 @@ describe('ActionResultsGrid', () => {
 });
 
 describe('ActionResultsGrid Go to pivot row', () => {
-  /** Events in time order; e-2 shows twice, and the pivot rows below look for it. */
-  const events: RunRow[] = ['e-1', 'e-2', 'e-3', 'e-2'].map((id, row) => ({
+  /** Events in time order; the pivot rows below look for e-2 and e-4. */
+  const events: RunRow[] = ['e-1', 'e-2', 'e-3', 'e-4'].map((id, row) => ({
     row,
     data: { [ID_COLUMN]: id, User: `user-${row}` },
   }));
@@ -429,7 +429,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
     render(
       <TabGrid
         tabId={loadingTab('pivoted', shown, [
-          { name: 'User', type: 'string', declared: !!declaredColumns },
+          { name: 'User', type: 'string', declared: !!declaredColumns, duplicates: 0 },
         ])}
         declaredColumns={declaredColumns}
         pivotRowIds={pivotRowIds}
@@ -458,7 +458,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
 
   it('shows the link once the action is known to find pivot rows', async () => {
     const tabId = loadingTab('pivoted', events, [
-      { name: 'User', type: 'string', declared: false },
+      { name: 'User', type: 'string', declared: false, duplicates: 0 },
     ]);
     const grid = (findPivotRows: boolean) => (
       <TabGrid tabId={tabId} pivotRowIds={['e-3']} findPivotRows={findPivotRows} height={400} />
@@ -497,7 +497,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
   });
 
   it('goes through the matching rows in grid order, numbering the next, and wraps', async () => {
-    const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
+    const api = await renderPivoted({ pivotRowIds: ['e-2', 'e-4'] })();
     await waitFor(() => expect(link()).toBeEnabled());
     expect(link()).toHaveAccessibleName('Go to pivot row (1 of 2)');
 
@@ -526,7 +526,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
     ].sort();
 
   it('tints the matching rows, with Highlight pivot rows ticked when the tab opens', async () => {
-    await renderPivoted({ pivotRowIds: ['e-2'] })();
+    await renderPivoted({ pivotRowIds: ['e-2', 'e-4'] })();
     await waitFor(() => expect(highlight()).toBeEnabled());
     expect(highlight()).toBeChecked();
     expect(highlight()!.closest('.ag-status-bar-center')).not.toBeNull();
@@ -535,9 +535,9 @@ describe('ActionResultsGrid Go to pivot row', () => {
 
   it("takes the tint off when Highlight pivot rows is unticked, and keeps the tab's tick", async () => {
     const tabId = loadingTab('pivoted', events, [
-      { name: 'User', type: 'string', declared: false },
+      { name: 'User', type: 'string', declared: false, duplicates: 0 },
     ]);
-    const grid = <TabGrid tabId={tabId} pivotRowIds={['e-2']} findPivotRows height={400} />;
+    const grid = <TabGrid tabId={tabId} pivotRowIds={['e-2', 'e-4']} findPivotRows height={400} />;
     const { unmount } = render(grid);
     await waitFor(() => expect(tinted()).toEqual(['1', '3']));
 
@@ -558,13 +558,13 @@ describe('ActionResultsGrid Go to pivot row', () => {
 
   it('moves the tint to the rows the new Id column matches', async () => {
     const tabId = loadingTab('pivoted', events, [
-      { name: 'User', type: 'string', declared: false },
+      { name: 'User', type: 'string', declared: false, duplicates: 0 },
     ]);
     const grid = (idColumn: string) => (
       <TabGrid
         tabId={tabId}
         idColumn={idColumn}
-        pivotRowIds={['e-2', 'user-3']}
+        pivotRowIds={['e-2', 'e-4', 'user-3']}
         findPivotRows
         height={400}
       />
@@ -597,7 +597,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
   });
 
   it('goes through the matching rows in the order the grid sorts them', async () => {
-    const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
+    const api = await renderPivoted({ pivotRowIds: ['e-2', 'e-4'] })();
     act(() => void api.applyColumnState({ state: [{ colId: 'User', sort: 'desc' }] }));
     await waitFor(() => expect(link()).toBeEnabled());
 
@@ -642,7 +642,7 @@ describe('ActionResultsGrid Go to pivot row', () => {
   });
 
   it('skips a matching row the filters hide', async () => {
-    const api = await renderPivoted({ pivotRowIds: ['e-2'] })();
+    const api = await renderPivoted({ pivotRowIds: ['e-2', 'e-4'] })();
     await act(async () => {
       await api.setColumnFilterModel('User', {
         filterType: 'multi',
@@ -793,8 +793,8 @@ describe('ActionResultsGrid Row detail', () => {
 describe('ActionResultsGrid Id column', () => {
   const sessions: RunRow[] = [
     { row: 0, data: { User: 'switch-alice', Host: 'switch-h1' } },
-    { row: 1, data: { User: 'switch-bob', Host: 'switch-h1' } },
-    { row: 2, data: { User: 'switch-alice', Host: 'switch-h2' } },
+    { row: 1, data: { User: 'switch-bob', Host: 'switch-h2' } },
+    { row: 2, data: { User: 'switch-carol', Host: 'switch-h3' } },
   ];
   const labelsOf = (api: GridApi) =>
     ['0', '1', '2'].map(
@@ -806,52 +806,54 @@ describe('ActionResultsGrid Id column', () => {
       'id-column',
       sessions,
       [
-        { name: 'User', type: 'string', declared: false },
-        { name: 'Host', type: 'string', declared: false },
+        { name: 'User', type: 'string', declared: false, duplicates: 0 },
+        { name: 'Host', type: 'string', declared: false, duplicates: 0 },
       ],
       'User',
     );
-  /** Picks `name` from the menu of row 1's `column` cell. */
-  const pick = (api: GridApi, column: string, name: string) => {
-    const items = (api.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
-      api,
-      node: api.getRowNode('1'),
-      column: api.getColumn(column),
-    });
-    const item = find(items, name);
-    expect(item).toBeDefined();
-    act(() => (item!.action as () => void)());
-  };
-
+  /** Changes the tab's Id column to `column`, as the Id column pill does. */
+  const switchTo = (column: string) => act(() => setId!(column));
+  let setId: ((column: string) => void) | undefined;
   let api: GridApi | undefined;
   function Switchable({ tabId }: { tabId: string }) {
     const [idColumn, setIdColumn] = useState<string | null>('User');
+    useEffect(() => {
+      setId = setIdColumn;
+    }, [setIdColumn]);
     return (
-      <TabGrid
-        tabId={tabId}
-        idColumn={idColumn}
-        onIdColumnChange={setIdColumn}
-        height={400}
-        onGridReady={(e) => (api = e.api)}
-      />
+      <TabGrid tabId={tabId} idColumn={idColumn} height={400} onGridReady={(e) => (api = e.api)} />
     );
   }
 
-  it("switches from a cell's menu: the rows show their new ids' annotations, keep the selection, and get the old ones back on switching back", async () => {
+  it('offers no item to use a cell’s column as the Id column', async () => {
+    render(<Switchable tabId={switchable()} />);
+    await waitFor(() => expect(api?.getDisplayedRowCount()).toBe(3));
+    const items = (api!.getGridOption('getContextMenuItems') as (p: unknown) => Item[])({
+      api,
+      node: api!.getRowNode('1'),
+      column: api!.getColumn('Host'),
+    });
+    expect(find(items, 'Use Host as Id column')).toBeUndefined();
+    expect(items.some((i) => typeof i === 'object' && /as Id column/.test(i.name ?? ''))).toBe(
+      false,
+    );
+  });
+
+  it("switches when the Id column changes: the rows show their new ids' annotations, keep the selection, and get the old ones back on switching back", async () => {
     await getAnnotationStore().apply(
-      [annotated('switch-alice', 1, 'malicious'), annotated('switch-h1', 1, 'benign')],
+      [annotated('switch-carol', 1, 'malicious'), annotated('switch-h2', 1, 'benign')],
       'feed',
     );
     render(<Switchable tabId={switchable()} />);
-    await waitFor(() => expect(labelsOf(api!)).toEqual(['malicious', null, 'malicious']));
+    await waitFor(() => expect(labelsOf(api!)).toEqual([null, null, 'malicious']));
     act(() => api!.getRowNode('1')!.setSelected(true));
 
-    pick(api!, 'Host', 'Use Host as Id column');
-    await waitFor(() => expect(labelsOf(api!)).toEqual(['benign', 'benign', null]));
+    switchTo('Host');
+    await waitFor(() => expect(labelsOf(api!)).toEqual([null, 'benign', null]));
     expect(api!.getSelectedNodes().map((n) => n.id)).toEqual(['1']);
 
-    pick(api!, 'User', 'Use User as Id column');
-    await waitFor(() => expect(labelsOf(api!)).toEqual(['malicious', null, 'malicious']));
+    switchTo('User');
+    await waitFor(() => expect(labelsOf(api!)).toEqual([null, null, 'malicious']));
     expect(api!.getSelectedNodes().map((n) => n.id)).toEqual(['1']);
   });
 
@@ -878,7 +880,7 @@ describe('ActionResultsGrid Id column', () => {
     });
     onTestFinished(() => useInstanceStore.setState({ instance: null }));
     await getAnnotationStore().apply(
-      [annotated('switch-alice', 1, 'malicious'), annotated('switch-h1', 1, 'benign')],
+      [annotated('switch-carol', 1, 'malicious'), annotated('switch-h2', 1, 'benign')],
       'feed',
     );
     render(<Switchable tabId={switchable()} />);
@@ -888,8 +890,8 @@ describe('ActionResultsGrid Id column', () => {
       );
     await waitFor(() => expect(symbolOf('2')).not.toBeNull());
 
-    pick(api!, 'Host', 'Use Host as Id column');
-    await waitFor(() => expect(labelsOf(api!)).toEqual(['benign', 'benign', null]));
+    switchTo('Host');
+    await waitFor(() => expect(labelsOf(api!)).toEqual([null, 'benign', null]));
     await waitFor(() => expect(symbolOf('1')).not.toBeNull());
     expect(symbolOf('2')).toBeNull();
   });
@@ -910,27 +912,30 @@ describe('ActionResultsGrid Id column', () => {
     const shownId = () => detail.querySelector('code')?.textContent;
     expect(shownId()).toBe('switch-bob');
 
-    pick(api!, 'Host', 'Use Host as Id column');
-    await waitFor(() => expect(shownId()).toBe('switch-h1'));
+    switchTo('Host');
+    await waitFor(() => expect(shownId()).toBe('switch-h2'));
   });
 });
 
 describe('ActionResultsGrid acting after the Id column changes', () => {
   const sessions: RunRow[] = [
     { row: 0, data: { User: 'acting-alice', Host: 'acting-h1' } },
-    { row: 1, data: { User: 'acting-bob', Host: 'acting-h1' } },
-    { row: 2, data: { User: 'acting-carol', Host: 'acting-h2' } },
+    { row: 1, data: { User: 'acting-bob', Host: 'acting-h2' } },
+    { row: 2, data: { User: 'acting-carol', Host: 'acting-h3' } },
   ];
   let patches: unknown[];
   let api: GridApi | undefined;
+  let setId: ((column: string) => void) | undefined;
 
   function Switchable({ tabId, ...props }: Omit<TabGridProps, 'idColumn'>) {
     const [idColumn, setIdColumn] = useState<string | null>('User');
+    useEffect(() => {
+      setId = setIdColumn;
+    }, [setIdColumn]);
     return (
       <TabGrid
         tabId={tabId}
         idColumn={idColumn}
-        onIdColumnChange={setIdColumn}
         height={400}
         onGridReady={(e) => (api = e.api)}
         {...props}
@@ -1039,8 +1044,8 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
       'acting',
       sessions,
       [
-        { name: 'User', type: 'string', declared: false },
-        { name: 'Host', type: 'string', declared: false },
+        { name: 'User', type: 'string', declared: false, duplicates: 0 },
+        { name: 'Host', type: 'string', declared: false, duplicates: 0 },
       ],
       'User',
     );
@@ -1062,8 +1067,7 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
       }),
     );
     const items = menuOf('User');
-    const useHost = find(menuOf('Host'), 'Use Host as Id column');
-    act(() => (useHost!.action as () => void)());
+    act(() => setId!('Host'));
     return items;
   }
 
@@ -1071,7 +1075,9 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
     const items = await menuThenSwitch();
     const clear = find(find(items, 'Label')!.subMenu as Item[], 'Clear label');
     act(() => (clear!.action as () => void)());
-    await waitFor(() => expect(patches).toEqual([{ ids: ['acting-h1'], label: null }]));
+    await waitFor(() =>
+      expect(patches).toEqual([{ ids: ['acting-h1', 'acting-h2'], label: null }]),
+    );
   });
 
   it.each(['Annotate', 'Comment'])(
@@ -1079,7 +1085,7 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
     async (mode) => {
       pickFrom(await menuThenSwitch(), `${mode}…`);
       const dialog = await screen.findByRole('dialog', { name: mode });
-      expect(within(dialog).getByText('2 rows · 1 id', { exact: false })).toBeInTheDocument();
+      expect(within(dialog).getByText('2 rows', { exact: false })).toBeInTheDocument();
     },
   );
 
@@ -1122,7 +1128,7 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
     pickFrom(items, 'Sign-ins by host');
     await waitFor(() => {
       const child = Object.values(useTabsStore.getState().tabs).find((t) => t.parentId === parent);
-      expect(child).toMatchObject({ toRun: { pivotRowIds: ['acting-h1', 'acting-h1'] } });
+      expect(child).toMatchObject({ toRun: { pivotRowIds: ['acting-h1', 'acting-h2'] } });
     });
   });
 });
@@ -1155,7 +1161,9 @@ describe('ActionResultsGrid with a bigint column', () => {
     { row: 2, data: { Hash: '-9007199254740993' } },
     { row: 3, data: { Hash: null } },
   ];
-  const hashColumns: RunColumn[] = [{ name: 'Hash', type: 'bigint', declared: true }];
+  const hashColumns: RunColumn[] = [
+    { name: 'Hash', type: 'bigint', declared: true, duplicates: 0 },
+  ];
 
   it('filters them exactly with the bigint filter', async () => {
     const api = await bigGrid('bigint-filter', hashes, hashColumns);
@@ -1232,16 +1240,12 @@ describe('ActionResultsGrid Comment cell', () => {
     resetTestApp();
   });
 
-  /** The grid with two rows of `id` and one of another, once the store has the annotations. */
+  /** The grid with a row of `id` and one of another, once the store has the annotations. */
   let gridApi: GridApi | undefined;
 
   async function commentGrid(id: string) {
     await getAnnotationStore().apply([commentedBy(id, 1, [BOB, 'beacons'])], 'feed');
-    const shown = [
-      withId(rows[0]!, id),
-      withId(rows[1]!, id),
-      { ...withId(rows[0]!, `${id}-other`), row: 2 },
-    ];
+    const shown = [withId(rows[0]!, id), withId(rows[1]!, `${id}-other`)];
     render(
       <AuthProvider client={createAuthClient({ VITE_AUTH_STUB: 'true' })}>
         <SnackbarHost>
@@ -1255,7 +1259,7 @@ describe('ActionResultsGrid Comment cell', () => {
       </AuthProvider>,
     );
     // The grid can take over a second to start on a busy machine.
-    await waitFor(() => expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']), {
+    await waitFor(() => expect(cellsOf()).toEqual(['bob: beacons']), {
       timeout: 5000,
     });
     return userEvent.setup();
@@ -1263,11 +1267,11 @@ describe('ActionResultsGrid Comment cell', () => {
 
   const cell = (row: number) =>
     document.querySelector<HTMLElement>(`[row-index="${row}"] [col-id="tim:comments"]`)!;
-  /** The Comment cells of the two rows with the same id. */
-  const cellsOf = () => [0, 1].map((row) => cell(row)?.textContent ?? '');
+  /** The Comment cell of the row of the id. */
+  const cellsOf = () => [0].map((row) => cell(row)?.textContent ?? '');
   const editor = (id: string) => screen.findByRole('textbox', { name: `Your comment on ${id}` });
 
-  it("saves the comment with Enter, for that row's id only, and every row of it shows it", async () => {
+  it("saves the comment with Enter, for that row's id only", async () => {
     server.use(
       http.patch(apiUrl('/api/annotations'), async ({ request }) => {
         patches.push(await request.json());
@@ -1287,8 +1291,8 @@ describe('ActionResultsGrid Comment cell', () => {
       expect(patches).toEqual([{ ids: ['e-1'], comment: 'same tdC2\nevery 60s' }]),
     );
     const shown = 'same tdC2 ⏎ every 60s+1';
-    await waitFor(() => expect(cellsOf()).toEqual([shown, shown]));
-    expect(cell(2).textContent).toBe('');
+    await waitFor(() => expect(cellsOf()).toEqual([shown]));
+    expect(cell(1).textContent).toBe('');
   });
 
   it("keeps editing when a teammate's comment on the id comes in from the feed", async () => {
@@ -1322,18 +1326,18 @@ describe('ActionResultsGrid Comment cell', () => {
     );
     await commentGrid('e-4');
     act(() => {
-      gridApi!.addCellRange({ rowStartIndex: 0, rowEndIndex: 2, columns: ['tim:comments'] });
+      gridApi!.addCellRange({ rowStartIndex: 0, rowEndIndex: 1, columns: ['tim:comments'] });
       cell(0).focus();
     });
     await userEvent.keyboard('{Delete}');
     act(() => {
-      for (const row of [0, 1, 2]) {
+      for (const row of [0, 1]) {
         gridApi!.getDisplayedRowAtIndex(row)!.setDataValue('tim:comments', 'pasted', 'paste');
       }
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(patches).toEqual([]);
-    expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']);
+    expect(cellsOf()).toEqual(['bob: beacons']);
   });
 
   it("counts a teammate's comment from the feed, under your own", async () => {
@@ -1341,7 +1345,7 @@ describe('ActionResultsGrid Comment cell', () => {
     await act(() =>
       getAnnotationStore().apply([commentedBy('e-3', 2, [BOB, 'beacons'], [ME, 'mine'])], 'own'),
     );
-    await waitFor(() => expect(cellsOf()).toEqual(['mine+1', 'mine+1']));
+    await waitFor(() => expect(cellsOf()).toEqual(['mine+1']));
     const alice = 'alice@example.com';
     await act(() =>
       getAnnotationStore().apply(
@@ -1349,7 +1353,7 @@ describe('ActionResultsGrid Comment cell', () => {
         'feed',
       ),
     );
-    await waitFor(() => expect(cellsOf()).toEqual(['mine+2', 'mine+2']));
+    await waitFor(() => expect(cellsOf()).toEqual(['mine+2']));
   });
 
   describe('for an analyst the API knows by another name than their sign-in', () => {
@@ -1365,7 +1369,7 @@ describe('ActionResultsGrid Comment cell', () => {
           'feed',
         ),
       );
-      await waitFor(() => expect(cellsOf()).toEqual(['mine+1', 'mine+1']));
+      await waitFor(() => expect(cellsOf()).toEqual(['mine+1']));
     });
 
     it('keeps their saved comment in the Row detail box, apart from the other comments', async () => {
@@ -1416,13 +1420,13 @@ describe('ActionResultsGrid Comment cell', () => {
     await waitFor(() =>
       expect(screen.queryByRole('textbox', { name: 'Your comment on e-2' })).toBeNull(),
     );
-    act(() => cell(1).focus());
+    act(() => cell(0).focus());
     await user.keyboard('{Enter}');
     await user.type(await editor('e-2'), 'refused');
     await user.keyboard('{Enter}');
     expect(
       await screen.findByText("Couldn't save the comment: Try again shortly"),
     ).toBeInTheDocument();
-    expect(cellsOf()).toEqual(['bob: beacons', 'bob: beacons']);
+    expect(cellsOf()).toEqual(['bob: beacons']);
   });
 });

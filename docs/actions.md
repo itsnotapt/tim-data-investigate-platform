@@ -87,6 +87,7 @@ Annotations are kept by `id`, so a row needs one to be annotated. The browser co
 
 - `id: EventId` makes `EventId` the action's Id column. A row's `id` is that column's value: a string as it is, anything else as JSON.
 - A row whose value is `null`, missing or `""`, or longer than 512 characters, has no `id` and cannot be annotated.
+- An `id` is unique within a run. When the Id column has duplicates, no row has an `id`, and the analyst chooses another Id column. Pick a column whose values are unique, or build one in the query.
 - `id` is one column name, not a list. For an `id` made of several columns, build the column in the query, such as `extend SummaryId = strcat(State, "|", EventType)`.
 - Without `id`, the results start with no Id column.
 - A preset of Run KQL or Run SQL copied as an action file gets the preset's `idColumn` as its `id`.

@@ -50,23 +50,21 @@ async function tagRow(page: Page, host: string, ...tags: string[]) {
   await expect(dialog(page)).toBeHidden();
 }
 
-test('a label, two tags and a comment saved at once reach every row with that id, and another analyst', async ({
+test('a label, two tags and a comment saved at once reach the same id in another analyst’s browser', async ({
   page,
   signIn,
   idPrefix,
 }) => {
   const a = `${idPrefix}-a`;
   const b = `${idPrefix}-b`;
-  await runJson(page, [{ Host: a }, { Host: b }, { Host: a }]);
+  await runJson(page, [{ Host: a }, { Host: b }]);
   const teammate = await signIn(`${idPrefix}.teammate@example.com`);
   await runJson(teammate.page, [{ Host: a }]);
 
   await page.bringToFront();
   await grid(page).getByText(a).first().click();
   await page.keyboard.press('t');
-  await expect(
-    dialog(page).getByText('1 row · 1 id · also changes 1 other row with the same id'),
-  ).toBeVisible();
+  await expect(dialog(page).getByText('1 row', { exact: true })).toBeVisible();
   await expect(dialog(page).getByText('Now: no label')).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Malicious' }).click();
   await addTags(page, 'beacon', 'c2');
@@ -75,10 +73,8 @@ test('a label, two tags and a comment saved at once reach every row with that id
   await expect(page.getByText('Annotated 1 id')).toBeVisible();
   await expect(dialog(page)).toBeHidden();
 
-  for (const row of await rowsWith(page, a).all()) {
-    await expect(row).toHaveClass(/tim-label-red/);
-  }
-  await expect(commentOf(page, a)).toHaveText(['beacons every 60s', 'beacons every 60s']);
+  await expect(rowsWith(page, a)).toHaveClass(/tim-label-red/);
+  await expect(commentOf(page, a)).toHaveText('beacons every 60s');
   await expect(commentOf(page, b)).toHaveText('');
 
   await expect(rowsWith(teammate.page, a)).toHaveClass(/tim-label-red/);

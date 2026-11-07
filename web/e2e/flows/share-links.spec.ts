@@ -91,8 +91,7 @@ test('a row link carries the Id column switched to after the run, and opens with
 }) => {
   const [a, b] = [`${idPrefix}-a`, `${idPrefix}-b`];
   await runJson(page, [{ Host: a }, { Host: b }], null);
-  await rowsWith(page, b).locator('.ag-cell[col-id="Host"]').click({ button: 'right' });
-  await page.locator('.ag-menu').getByText('Use Host as Id column', { exact: true }).click();
+  await setIdColumn(page, 'Host');
   await rowsWith(page, b).locator('.ag-cell[col-id="Host"]').click({ button: 'right' });
   await page.locator('.ag-menu').getByText('Copy link', { exact: true }).click();
   const link = await clipboard(page);

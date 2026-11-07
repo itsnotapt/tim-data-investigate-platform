@@ -14,7 +14,7 @@ import {
   pageLoaded,
   resultRows,
   resultsOf,
-  rowNumbersOf,
+  rowNumberOf,
   runLoaded,
   runLoading,
   setResultsInputs,
@@ -23,7 +23,7 @@ import {
   type ResultsInputs,
 } from './results';
 
-const columns: RunColumn[] = [{ name: 'User', type: 'string', declared: true }];
+const columns: RunColumn[] = [{ name: 'User', type: 'string', declared: true, duplicates: 0 }];
 const row = (n: number, user: unknown): RunRow => ({ row: n, data: { User: user } });
 const stored = (runId: string, rowCount: number): TabResults => ({
   runId,
@@ -84,21 +84,43 @@ describe('Results', () => {
     hold('lookup', { idColumn: 'User', stored: null });
     runLoading('lookup', { runId: 'r1', columns, rowCount: 3 }, 'User');
     pageLoaded('lookup', 'r1', [row(0, 'alice'), row(1, 'bob')]);
-    pageLoaded('lookup', 'r1', [{ row: 2, data: { User: 'alice', Host: 'h1' } }]);
+    pageLoaded('lookup', 'r1', [{ row: 2, data: { User: 'carol', Host: 'h1' } }]);
     expect(resultRows('lookup', [2, 3, 0]).map((r) => [r.row, r.id])).toEqual([
-      [2, 'alice'],
+      [2, 'carol'],
       [0, 'alice'],
     ]);
-    expect(rowNumbersOf('lookup', 'alice')).toEqual([0, 2]);
+    expect(rowNumberOf('lookup', 'alice')).toBe(0);
 
     setResultsInputs('lookup', { idColumn: 'Host', stored: null });
     expect(resultRows('lookup', [0, 2]).map((r) => [r.row, r.id, r.data])).toEqual([
       [0, null, { User: 'alice' }],
-      [2, 'h1', { User: 'alice', Host: 'h1' }],
+      [2, 'h1', { User: 'carol', Host: 'h1' }],
     ]);
-    expect(rowNumbersOf('lookup', 'alice')).toEqual([]);
-    expect(rowNumbersOf('lookup', 'h1')).toEqual([2]);
+    expect(rowNumberOf('lookup', 'alice')).toBeUndefined();
+    expect(rowNumberOf('lookup', 'h1')).toBe(2);
     expect(resultRows('other', [0])).toEqual([]);
+  });
+
+  it('gives no row an id while the Id column has duplicates, and each id one row otherwise', () => {
+    const counted: RunColumn[] = [
+      { name: 'User', type: 'string', declared: true, duplicates: 1 },
+      { name: 'Sid', type: 'string', declared: false, duplicates: 0 },
+    ];
+    const rows: RunRow[] = [
+      { row: 0, data: { User: 'dup-alice', Sid: 's-1' } },
+      { row: 1, data: { User: 'dup-bob', Sid: 's-2' } },
+      { row: 2, data: { User: 'dup-alice', Sid: 's-3' } },
+    ];
+    hold('duplicates', { idColumn: 'User', stored: null });
+    runLoading('duplicates', { runId: 'r1', columns: counted, rowCount: 3 }, 'User');
+    pageLoaded('duplicates', 'r1', rows);
+    expect(resultRows('duplicates', [0, 1, 2]).map((r) => r.id)).toEqual([null, null, null]);
+    expect(rowNumberOf('duplicates', 'dup-bob')).toBeUndefined();
+
+    setResultsInputs('duplicates', { idColumn: 'Sid', stored: null });
+    expect(resultRows('duplicates', [0, 1, 2]).map((r) => r.id)).toEqual(['s-1', 's-2', 's-3']);
+    expect(rowNumberOf('duplicates', 's-3')).toBe(2);
+    expect(resultsOf('duplicates')?.rowNumberById.get('s-2')).toBe(1);
   });
 
   it('keeps the rows in pages of the rows page size, topping up a short last page', () => {
@@ -147,13 +169,13 @@ describe('Results', () => {
     setResultsInputs('switching', { idColumn: 'Host', stored: null });
     pageLoaded('switching', 'r1', [
       { row: 1, data: { User: 'bob', Host: 'h2' } },
-      { row: 2, data: { User: 'carol', Host: 'h1' } },
+      { row: 2, data: { User: 'carol', Host: 'h3' } },
     ]);
 
     const rows = resultsOf('switching')!.rows;
-    expect(rows.pages.map((p) => p.map((r) => r.id))).toEqual([['h1', 'h2'], ['h1']]);
-    expect(rowNumbersOf('switching', 'h1')).toEqual([0, 2]);
-    expect(rowNumbersOf('switching', 'alice')).toEqual([]);
+    expect(rows.pages.map((p) => p.map((r) => r.id))).toEqual([['h1', 'h2'], ['h3']]);
+    expect(rowNumberOf('switching', 'h3')).toBe(2);
+    expect(rowNumberOf('switching', 'alice')).toBeUndefined();
   });
 
   it('keeps a snapshot as it was after a later page arrives and a row of its page is annotated', async () => {
@@ -185,11 +207,14 @@ describe('Results', () => {
       row(1, 'copies-bob'),
       row(2, 'copies-carol'),
       row(3, 'copies-dave'),
-      row(4, 'copies-alice'),
+      row(4, 'copies-eve'),
     ]);
     const before = resultsOf('copies')!.rows;
 
-    await getAnnotationStore().apply([annotated('copies-alice', 1, 'benign')], 'own');
+    await getAnnotationStore().apply(
+      [annotated('copies-alice', 1, 'benign'), annotated('copies-eve', 1, 'benign')],
+      'own',
+    );
     await expect.poll(() => resultsOf('copies')?.rows).not.toBe(before);
 
     const after = resultsOf('copies')!.rows;
@@ -200,6 +225,7 @@ describe('Results', () => {
       null,
       'benign',
     ]);
+    expect(after.pages[2]).not.toBe(before.pages[2]);
     expect(after.pages[1]).toBe(before.pages[1]);
     expect(after.pages[0]).not.toBe(before.pages[0]);
     expect(after.at(1)).toBe(before.at(1));
@@ -307,7 +333,7 @@ describe('Results', () => {
       { row: 3, data: { User: 'switch-dave' } },
       { row: 4, data: { User: 'switch-eve', Host: `${long}x` } },
       { row: 5, data: { User: 'switch-frank', Host: long } },
-      { row: 6, data: { User: 'switch-alice', Host: 7 } },
+      { row: 6, data: { User: 'switch-grace', Host: 7 } },
     ];
     hold('switch', { idColumn: 'User', stored: null });
     runLoading('switch', { runId: 'r1', columns, rowCount: rows.length }, 'User');
@@ -316,7 +342,7 @@ describe('Results', () => {
       resultsOf('switch')
         ?.rows.flat()
         .map((r) => r.annotations?.label?.key ?? null);
-    await expect.poll(labels).toEqual(['malicious', null, null, null, null, null, 'malicious']);
+    await expect.poll(labels).toEqual(['malicious', null, null, null, null, null, null]);
 
     setResultsInputs('switch', { idColumn: 'Host', stored: null });
     expect(resultsOf('switch')?.idColumn).toBe('Host');
@@ -328,18 +354,21 @@ describe('Results', () => {
     await expect.poll(labels).toEqual(['benign', null, null, null, null, null, null]);
 
     setResultsInputs('switch', { idColumn: 'User', stored: null });
-    await expect.poll(labels).toEqual(['malicious', null, null, null, null, null, 'malicious']);
+    await expect.poll(labels).toEqual(['malicious', null, null, null, null, null, null]);
     expect(resultsOf('switch')?.rows.pages.map((p) => p.length)).toEqual([2, 2, 2, 1]);
-    expect(resultsOf('switch')?.rowsById.get('switch-alice')).toEqual([0, 6]);
+    expect(resultsOf('switch')?.rowNumberById.get('switch-alice')).toBe(0);
   });
 
   it('gives a change from the feed to every row with its id', async () => {
     hold('feed', { idColumn: 'User', stored: null });
     const changes = changesOf('feed');
     runLoading('feed', { runId: 'r1', columns, rowCount: 3 }, 'User');
-    pageLoaded('feed', 'r1', [row(0, 'feed-alice'), row(1, 'feed-bob'), row(2, 'feed-alice')]);
+    pageLoaded('feed', 'r1', [row(0, 'feed-alice'), row(1, 'feed-bob'), row(2, 'feed-carol')]);
 
-    await getAnnotationStore().apply([annotated('feed-alice', 3, 'benign')], 'feed');
+    await getAnnotationStore().apply(
+      [annotated('feed-alice', 3, 'benign'), annotated('feed-carol', 3, 'benign')],
+      'feed',
+    );
     await expect
       .poll(() =>
         resultsOf('feed')
