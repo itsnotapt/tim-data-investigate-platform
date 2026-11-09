@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { stubBootstrap } from '../test/stubBootstrap';
@@ -47,18 +48,35 @@ function renderAt(entry: string) {
 }
 
 describe('routes', () => {
-  it('/ renders Welcome with a working Get Started menu and the side tree', async () => {
+  it('/ renders Welcome with a working Get Started menu, the action bar and the side tree', async () => {
     renderAt('/');
     expect(await screen.findByRole('heading', { name: 'Welcome to TIM' })).toBeInTheDocument();
     expect(screen.getByText('The triage and investigation experience.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Get Started' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'New query' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Query tree')).toBeInTheDocument();
+    const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
+    expect(actionBar.getByRole('button', { name: 'New' })).toBeEnabled();
+    expect(actionBar.getByRole('button', { name: 'Run' })).toBeDisabled();
   });
 
-  it('/view/:tabId renders the action tab', async () => {
+  it('/ says in a tooltip on the disabled Run how to get a query to run', async () => {
+    renderAt('/');
+    const run = await screen.findByRole('button', { name: 'Run' });
+    // A disabled button gets no pointer events; its wrapper holds the tooltip.
+    await userEvent.hover(run.parentElement!);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Open a query from the tree, or start a new one, to run it.',
+    );
+  });
+
+  it('/view/:tabId renders the action tab, with its Run in the action bar', async () => {
     useTabsStore.getState().createTab(tab('abc-123', null, { title: 'My tab' }));
     renderAt('/view/abc-123');
     expect(await screen.findByText('This action is no longer available.')).toBeInTheDocument();
+    const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
+    expect(actionBar.getByRole('button', { name: 'New' })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: 'Run' })).toHaveLength(1);
+    expect(actionBar.getByRole('button', { name: 'Run' })).toBeDisabled();
   });
 
   it('/view/:tabId with an unknown tabId redirects to /', async () => {

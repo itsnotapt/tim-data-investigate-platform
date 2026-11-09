@@ -1,4 +1,3 @@
-import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import LinkIcon from '@mui/icons-material/Link';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -18,13 +17,13 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { InActionBar } from '../../components/ActionBarSlot';
 import { InAppBar } from '../../components/AppBarSlot';
 import { CodeEditor, type CodeEditorInstance } from '../../components/CodeEditor';
 import { NotifyContext } from '../../components/notifyContext';
 import type { CatalogueParam, InstanceConnection, Preset } from '../../lib/api';
 import type { EditorLanguage } from '../../lib/monaco';
 import { useInstanceStore } from '../instance';
-import { NewQueryMenu } from '../new-query';
 import { PresetsLoadErrorDialog, SavePresetDialog, usePresetsStore } from '../presets';
 import { copyShareLink } from '../share-links';
 import type { Transition } from '../tabs';
@@ -73,7 +72,7 @@ const EDITOR_LANGUAGES: Partial<Record<CatalogueParam['kind'], EditorLanguage>> 
   sql: 'sql',
 };
 /** The results grid's height: the window below the app bar, the tab's rows and the status bar. */
-const GRID_HEIGHT = 'calc(100vh - 156px)';
+const GRID_HEIGHT = 'calc(100vh - 160px)';
 const defaultRun = (tabId: string) => void runActionTab(tabId);
 const defaultCancel = (tabId: string) => void cancelActionTab(tabId);
 
@@ -166,7 +165,7 @@ function QueryEditor({
     >
       <Box
         sx={{
-          height: 'calc(100vh - 170px)',
+          height: 'calc(100vh - 174px)',
           minHeight: 160,
           border: '1px solid',
           borderColor: error !== undefined ? 'error.main' : 'editor.border',
@@ -384,13 +383,12 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
     </Box>
   ) : (
     <Button
-      variant="outlined"
+      variant="contained"
       size="small"
       startIcon={<PlayArrowIcon />}
       disabled={!action}
       onClick={runNow}
-      // Light primary text on the hover tint, which shows after each click, is under 4.5:1.
-      sx={(theme) => theme.applyStyles('light', { color: 'primary.dark' })}
+      sx={{ px: 2 }}
     >
       Run
     </Button>
@@ -446,26 +444,24 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
           </Box>
         </InAppBar>
       )}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1 }}>
-        <NewQueryMenu size="small">
-          <AddIcon fontSize="small" sx={{ mr: 0.5 }} />
-          New
-        </NewQueryMenu>
-        <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
-        <Box sx={{ flexShrink: 0 }}>{runButton}</Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <PillsBar
-            params={pillsBar.params}
-            values={pillsBar.values}
-            connections={connections}
-            onChange={setParam}
-            errors={status.paramErrors}
-            onReset={isEdited(tab) ? () => apply(paramsReset) : undefined}
-            needed={needed}
-            idColumn={{ current: idColumn, columns: resultColumns, onChange: switchTo }}
-          />
-        </Box>
-      </Box>
+      {onShow && (
+        <InActionBar>
+          <Box sx={{ flexShrink: 0 }}>{runButton}</Box>
+          <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <PillsBar
+              params={pillsBar.params}
+              values={pillsBar.values}
+              connections={connections}
+              onChange={setParam}
+              errors={status.paramErrors}
+              onReset={isEdited(tab) ? () => apply(paramsReset) : undefined}
+              needed={needed}
+              idColumn={{ current: idColumn, columns: resultColumns, onChange: switchTo }}
+            />
+          </Box>
+        </InActionBar>
+      )}
       {saving && 'error' in saving && (
         <PresetsLoadErrorDialog
           error={saving.error}

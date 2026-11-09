@@ -28,10 +28,11 @@ import {
   type ReactNode,
 } from 'react';
 import { Link as RouterLink, Outlet } from 'react-router';
-import { AppBarSlot, useNotify } from '../components';
+import { ActionBarSlotProvider, AppBarSlot, useNotify } from '../components';
 import { useAuth } from '../lib/auth';
 import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
+import { ActionBar } from './ActionBar';
 import { AuthGate } from './AuthGate';
 import type { ThemeMode } from './themeKeys';
 
@@ -186,17 +187,23 @@ function AccountMenu() {
   );
 }
 
-/** Side tree plus the routed page; only rendered once signed in and bootstrapped. */
+/**
+ * The action bar across the top, then the side tree beside the routed page; only rendered once
+ * signed in and bootstrapped.
+ */
 function ShellContent() {
   return (
-    <>
-      <SideTree />
-      <Box sx={{ ml: `${SIDE_TREE_COLLAPSED_WIDTH}px` }}>
-        <Suspense fallback={<CircularProgress aria-label="Loading page" sx={{ m: 2 }} />}>
-          <Outlet />
-        </Suspense>
+    <ActionBarSlotProvider>
+      <ActionBar />
+      <Box sx={{ position: 'relative', flexGrow: 1 }}>
+        <SideTree />
+        <Box sx={{ ml: `${SIDE_TREE_COLLAPSED_WIDTH}px`, px: 2, pt: 0.5 }}>
+          <Suspense fallback={<CircularProgress aria-label="Loading page" sx={{ m: 2 }} />}>
+            <Outlet />
+          </Suspense>
+        </Box>
       </Box>
-    </>
+    </ActionBarSlotProvider>
   );
 }
 
@@ -250,7 +257,7 @@ export function AppShell() {
           <AccountMenu />
         </Toolbar>
       </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, px: 2, py: 1, position: 'relative' }}>
+      <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <AuthGate>
           <ShellContent />
         </AuthGate>

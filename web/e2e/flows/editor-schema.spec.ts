@@ -155,15 +155,13 @@ test("each tab's editor suggests its own query parameters once focused, not the 
   await addQueryParameter(page, first, 'since', 'datetime');
 
   const tree = page.getByLabel('Query tree');
-  await tree.hover();
-  await tree.getByRole('button', { name: 'New query' }).click();
+  await page
+    .getByRole('region', { name: 'Action bar' })
+    .getByRole('button', { name: 'New', exact: true })
+    .click();
   for (const step of ['Actions and presets', 'Development', 'Run KQL (development)']) {
     await page.getByRole('button', { name: step, exact: true }).click();
   }
-  // Off the tree, once its menu has closed: the tree stays expanded while the pointer is on either.
-  // The closing menu is aria-hidden, so it is waited out by its class.
-  await expect(page.locator('.MuiMenu-root')).toHaveCount(0);
-  await page.mouse.move(900, 500);
   await pickConnection(page);
   await pickDatabase(page);
   await addQueryParameter(page, `${idPrefix} Limit`, 'limit', 'long');

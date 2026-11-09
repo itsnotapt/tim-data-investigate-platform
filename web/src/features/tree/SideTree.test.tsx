@@ -161,6 +161,20 @@ describe('SideTree', () => {
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe('/'));
   });
 
+  it('has no New of its own, and shows its header only while open', async () => {
+    const store = newTestStore();
+    store.getState().createTab(tab('a'));
+    renderTree(store);
+    const tree = within(screen.getByLabelText('Query tree'));
+    expect(tree.queryByRole('button', { name: /new/i })).not.toBeInTheDocument();
+    expect(tree.getByText('Queries')).not.toBeVisible();
+    expect(tree.queryByRole('button', { name: 'Remove selected' })).not.toBeInTheDocument();
+    await expand();
+    expect(tree.getByText('Queries')).toBeVisible();
+    expect(tree.getByRole('button', { name: 'Remove selected' })).toBeDisabled();
+    expect(tree.queryByRole('button', { name: /new/i })).not.toBeInTheDocument();
+  });
+
   it('expands on hover', async () => {
     const store = newTestStore();
     store.getState().createTab(tab('a'));

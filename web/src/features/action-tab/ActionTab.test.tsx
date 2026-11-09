@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ActionBarSlot, ActionBarSlotProvider } from '../../components/ActionBarSlot';
 import { AppBarSlot, AppBarSlotProvider } from '../../components/AppBarSlot';
 import { SnackbarHost } from '../../components/SnackbarHost';
 import type { CatalogueAction, Instance, Run } from '../../lib/api';
@@ -156,22 +157,27 @@ function setup(
   render(
     <SnackbarHost>
       <AppBarSlotProvider>
-        <header>
-          <AppBarSlot />
-        </header>
-        <MemoryRouter initialEntries={[`/view/${shown ? tabId : 'another-tab'}`]}>
-          <Routes>
-            <Route
-              path="/view/:tabId"
-              element={
-                <>
-                  <ActionTab tabId={tabId} onRun={onRun} onCancel={onCancel} />
-                  <Location />
-                </>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+        <ActionBarSlotProvider>
+          <header>
+            <AppBarSlot />
+          </header>
+          <div role="region" aria-label="Action bar">
+            <ActionBarSlot />
+          </div>
+          <MemoryRouter initialEntries={[`/view/${shown ? tabId : 'another-tab'}`]}>
+            <Routes>
+              <Route
+                path="/view/:tabId"
+                element={
+                  <>
+                    <ActionTab tabId={tabId} onRun={onRun} onCancel={onCancel} />
+                    <Location />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </ActionBarSlotProvider>
       </AppBarSlotProvider>
     </SnackbarHost>,
   );
@@ -224,18 +230,27 @@ describe('ActionTab', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Sign-ins alice, bob');
   });
 
-  it('leaves the app bar to the tab on show', () => {
+  it('puts Run and the pills in the action bar', () => {
+    setup();
+    const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
+    expect(actionBar.getByRole('button', { name: 'Run' })).toBeEnabled();
+    expect(actionBar.getByRole('button', { name: 'Users: alice' })).toBeInTheDocument();
+  });
+
+  it('leaves the app bar and the action bar to the tab on show', () => {
     setup({}, 'dev-sign-ins', { shown: false });
     const appBar = within(screen.getByRole('banner'));
     expect(appBar.queryByRole('heading')).not.toBeInTheDocument();
     expect(appBar.queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument();
+    const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
+    expect(actionBar.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('puts Run before the pills, so it stays put as the pills change', () => {
     setup();
-    const run = screen.getByRole('button', { name: 'Run' });
-    const pill = screen.getByRole('button', { name: 'Users: alice' });
+    const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
+    const run = actionBar.getByRole('button', { name: 'Run' });
+    const pill = actionBar.getByRole('button', { name: 'Users: alice' });
     expect(run.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
