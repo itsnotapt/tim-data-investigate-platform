@@ -1,17 +1,16 @@
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import AddIcon from '@mui/icons-material/Add';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Divider from '@mui/material/Divider';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import ListItemButton from '@mui/material/ListItemButton';
+import { keyframes } from '@mui/material/styles';
 import { useEffect, useMemo, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router';
 import { titleOf } from '../action-tab/model';
-import { NewQueryMenu } from '../new-query';
 import { selectAncestors, selectRoots, useTabsStore, type Tab, type TabsStore } from '../tabs';
 import { TreeNodeIcon } from './TreeNodeIcon';
 import { TreeNodeLabel } from './TreeNodeLabel';
@@ -20,14 +19,30 @@ import { useTreeSelection } from './useTreeSelection';
 export const SIDE_TREE_COLLAPSED_WIDTH = 56;
 const SIDE_TREE_EXPANDED_WIDTH = 700;
 
+/** Opening is quick and a little slower than closing; both ease out. */
+const EASE_OUT = 'cubic-bezier(0.2, 0, 0, 1)';
+const OPEN_MS = 110;
+const CLOSE_MS = 80;
+
+/** A row's chevron, checkbox and label slide in once the tree has started to open. */
+const detailsIn = keyframes`
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+`;
+const DETAILS_IN = {
+  animation: `${detailsIn} 120ms 40ms ${EASE_OUT} backwards`,
+  '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+};
+
 export interface SideTreeProps {
   /** Override the tab store (tests). */
   store?: TabsStore;
 }
 
 /**
- * Query tree drawer (mini variant, expands on hover). The active node comes straight from the
- * route (`/view/:tabId`) on every render, so it is highlighted after a hard load too.
+ * Query tree drawer (mini variant, expands on hover), below the action bar. The active node comes
+ * straight from the route (`/view/:tabId`) on every render, so it is highlighted after a hard load
+ * too. Rows and the header keep their height when it opens, so the icons don't move up or down.
  */
 export function SideTree({ store = useTabsStore }: SideTreeProps) {
   const navigate = useNavigate();
@@ -105,7 +120,8 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
           aria-current={isActive ? 'page' : undefined}
           onClick={() => open(t)}
           sx={{
-            minHeight: 40,
+            height: 40,
+            py: 0,
             pl: expanded ? 1 + depth * 2 : 2,
             whiteSpace: 'nowrap',
             ...(isActive && { color: 'primary.main' }),
@@ -115,7 +131,7 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
             <IconButton
               size="small"
               aria-label={isOpen ? 'Collapse' : 'Expand'}
-              sx={{ visibility: kids.length > 0 ? 'visible' : 'hidden' }}
+              sx={{ p: 0.5, ...DETAILS_IN, visibility: kids.length > 0 ? 'visible' : 'hidden' }}
               onClick={(e) => {
                 e.stopPropagation();
                 setCollapsed((prev) => {
@@ -132,16 +148,21 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
           {expanded && (
             <Checkbox
               size="small"
+              sx={{ p: 0.5, ...DETAILS_IN }}
               checked={selection.checked.has(t.id)}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => selection.toggle(t.id, e.target.checked)}
               slotProps={{ input: { 'aria-label': `Select ${titleOf(t)}` } }}
             />
           )}
-          <Box sx={{ display: 'flex', mr: 1 }}>
+          <Box sx={{ display: 'flex', mr: 1, ml: expanded ? 1 : 0 }}>
             <TreeNodeIcon tab={t} open={isOpen} active={isActive} />
           </Box>
-          {expanded && <TreeNodeLabel tab={t} />}
+          {expanded && (
+            <Box sx={{ display: 'contents', '& > *': DETAILS_IN }}>
+              <TreeNodeLabel tab={t} />
+            </Box>
+          )}
         </ListItemButton>
         {isOpen && (
           <ul style={{ margin: 0, padding: 0 }}>{kids.map((k) => renderNode(k, depth + 1))}</ul>
@@ -163,17 +184,28 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
           sx: {
             width,
             overflowX: 'hidden',
-            transition: 'width 150ms ease',
+            transition: `width ${expanded ? OPEN_MS : CLOSE_MS}ms ${EASE_OUT}`,
+            '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
             position: 'absolute',
             zIndex: (theme) => theme.zIndex.drawer,
           },
         },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', pl: 1, whiteSpace: 'nowrap', minWidth: 0 }}>
-        <NewQueryMenu ariaLabel="New query" store={store}>
-          <AddIcon />
-        </NewQueryMenu>
+      {/* Hidden, not removed, while collapsed, so the rows stay where they are when it opens. */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          pl: 1,
+          whiteSpace: 'nowrap',
+          minWidth: 0,
+          visibility: expanded ? 'visible' : 'hidden',
+        }}
+      >
+        <Box component="span" sx={{ typography: 'overline', color: 'text.secondary', mr: 'auto' }}>
+          Queries
+        </Box>
         <IconButton
           aria-label="Remove selected"
           title="Remove selected"
@@ -183,7 +215,7 @@ export function SideTree({ store = useTabsStore }: SideTreeProps) {
           <DeleteIcon />
         </IconButton>
       </Box>
-      <Divider />
+      <Divider sx={{ visibility: expanded ? 'visible' : 'hidden' }} />
       <ul style={{ margin: 0, padding: 0 }}>{roots.map((r) => renderNode(r, 0))}</ul>
     </Drawer>
   );

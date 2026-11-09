@@ -100,6 +100,20 @@ Routes are hash routes. Unknown hashes redirect to `#/`. Pages are lazy-loaded.
 | `#/view/:tabId`         | A tab (`tabId` is the tab's id)                                                                                                                                                                   |
 | `#/runs/:runId?row=<n>` | A share link to a run, and optionally to one of its rows (`n` is the row number). It opens an action tab holding the run and replaces the URL with `#/view/<tabId>` ([Share links](#share-links)) |
 
+### Page layout
+
+A signed-in page has the app bar, the action bar under it, and the query tree beside the page.
+
+- **App bar:** TIM, then the header of the action tab on show, then Help, Settings and Account.
+- **Action bar:** a grey bar across the page under the app bar (`ActionBar`).
+  - It holds **New**, which opens the [New menu](#the-tab-and-new-menu).
+  - The action tab on show puts its **Run** and its pills after New ([pills bar](#the-tab-and-new-menu)), through `InActionBar`.
+  - On a page without an action tab, Run is disabled. Its tooltip says "Open a query from the tree, or start a new one, to run it."
+- **Query tree:** a rail of tab icons down the left, below the action bar (`SideTree`). It opens over the page while the pointer is on it.
+  - Open, it has a **Queries** header with **Remove selected**. Each row shows a chevron, a checkbox, the tab's icon and its title.
+  - Closed, the header is hidden but keeps its space, and each row keeps its height, so the icons stay at the same height when it opens.
+  - It opens in 110 ms and closes in 80 ms. A row's chevron, checkbox and title fade in once it has started to open. With reduced motion, neither animates.
+
 ### Bundle
 
 The startup bundle (`index.html`'s script and module preloads) holds React, MUI, MSAL, react-router, zod and the app shell. Everything else loads on demand:
@@ -304,11 +318,11 @@ A From row query parameter is left unset too. A From row input that is still uns
   - The server never stores them.
 - The tree clamps a title to two lines and the app bar to one. Both show the full title in a tooltip.
 
-The action tab has a header in the app bar, a pills bar and inner tabs.
+The action tab has a header in the app bar, a pills bar in the action bar, and inner tabs.
 
 **Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params, pivot rows and `titleInputs`, and no `presetId`. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
 
-**Pills bar:** the first row of the tab is **New**, then **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
+**Pills bar:** while the tab is on show, the [action bar](#page-layout) holds, after **New**, the tab's **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
 - A `connection` param whose type has exactly one connection is filled in when the tab opens from the New menu. Its pill is greyed out.
 - A pill shows the param's title and value. It opens a popover that edits the param by kind:
