@@ -12,8 +12,8 @@ export const isNew = (t: Tab): boolean =>
   t.results !== null && !t.visited && t.status.error === null;
 
 /**
- * Icon precedence: spinner, error, needs input (the tab's pivot waits for a param), ringed 0 (the
- * run succeeded with no rows), badge (has row count), plain folder.
+ * Icon precedence: spinner, error, needs input (the tab's pivot waits for a param), badge (has row
+ * count, `0` when the run succeeded with no rows), plain folder.
  */
 export function nodeStatus(t: Tab): NodeStatus {
   if (t.status.executing) return 'executing';
