@@ -401,7 +401,8 @@ The tree shows an action tab's status like any tab's:
 
 - a spinner while running;
 - a red alert on error;
-- a row-count badge, with a `0` for a succeeded run with no rows ("Succeeded, no rows");
+- a row-count badge;
+- a `0` badge for a succeeded run with no rows ("Succeeded, no rows");
 - a "Needs input" icon for a tab waiting on the params a pivot left missing (`pivotMissing`). It goes once each is filled in on its pill, a From row query parameter by its `parameters.<name>` pill included.
 
 #### What the grid holds

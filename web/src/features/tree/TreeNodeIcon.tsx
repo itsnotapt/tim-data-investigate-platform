@@ -54,7 +54,6 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
       <Badge
         overlap="circular"
         badgeContent={badgeText(count)}
-        showZero
         color={tone === 'default' ? 'default' : tone}
         data-testid="tree-icon"
         data-status={status}
