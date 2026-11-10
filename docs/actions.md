@@ -788,7 +788,7 @@ Then deploy it with Helm or Compose.
 
 ## A sink
 
-A sink type subclasses `tim_actions.Sink` instead of `Action`. It writes the rows it is given and returns nothing. TIM ships no sinks. Its `File` model is a `SinkDocument`, which has only `type`, `key`, `name`, `menu` and `description`, plus the type's own fields.
+A sink type subclasses `tim_actions.Sink` instead of `Action`. It writes the rows it is given and returns nothing. TIM ships no sinks. The demo instance's provider has one, `kusto_save`, a worked example of a sink type in a provider ([`kusto_save.py`](../examples/demo/provider/src/tim_demo/kusto_save.py)). Its `File` model is a `SinkDocument`, which has only `type`, `key`, `name`, `menu` and `description`, plus the type's own fields.
 
 ```python
 from tim_actions import Sink, SinkDocument

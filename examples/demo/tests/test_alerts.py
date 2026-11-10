@@ -5,6 +5,7 @@ from tim_actions import Action
 from tim_actions.kusto import KqlQuery
 from tim_actions.testing import Connections, load_actions, run_action
 from tim_actions.testing.kusto import FakeKusto
+from tim_demo.kusto_save import KustoSave
 
 CONFIG = Path(__file__).parents[1] / "config"
 
@@ -15,7 +16,7 @@ def alerts(actions: dict[str, Action]) -> Action:
 
 
 def test_the_alerts_action_lists_the_alerts_in_the_security_logs() -> None:
-    actions = load_actions(CONFIG / "actions", [KqlQuery])
+    actions = load_actions(CONFIG / "actions", [KqlQuery, KustoSave])
 
     alerts = actions["demo.alerts"]
     assert isinstance(alerts, KqlQuery)

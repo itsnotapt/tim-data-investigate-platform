@@ -84,7 +84,14 @@ The data is from a staged attack on a company called Frothly, in August 2018. Si
 18. Open a private window and paste the link. Choose `bob@demo.example`.
 19. Bob sees the same rows, with that row open in **Row detail**. It shows Alice's Malicious label and her comment.
 
-Every action pivots from the columns in [Actions](#actions). Try others from any row.
+### Save rows and read them back
+
+20. Go back to the Alerts tab. Select the alert's row.
+21. Right-click it. Choose **Send to** ▸ **Save to Kusto**. TIM saves the row to the `SavedRows` table.
+22. Choose **Saved** ▸ **Saved events**, then **Run**. The alert is there, with **Saved by** `alice@demo.example` and **Saved at**.
+23. Save the alert again and run Saved events again. The alert is still one row, from its latest save, and it shows Alice's label.
+
+Every query action except Saved events pivots from the columns in [Actions](#actions). Try others from any row.
 
 ## Let colleagues join
 
@@ -126,7 +133,7 @@ The result grids use AG Grid Enterprise. Without a key, it runs in trial mode, w
 
 ## Actions
 
-The demo has the Alerts, Endpoint, Host and Logs menus.
+The demo has the Alerts, Endpoint, Host, Logs and Saved menus, and the Send to menu for its sink.
 
 | Action | Menu | Pivots from | Default window |
 |---|---|---|---|
@@ -142,11 +149,13 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 | Host timeline | Host | `Host`, `Timestamp` | ±15 minutes |
 | Host's other logs | Host | `Host`, `Timestamp` | ±1 hour |
 | Raw logs by sourcetype | Logs | Nothing; it is a starting point, with a list of every sourcetype | `since` 2018-08-01 to `until` 2018-09-01 |
+| Saved events | Saved | Nothing; it is a starting point | `since` 2018-08-01 to `until` 2018-09-01 |
+| Save to Kusto | Send to | A sink, not a query action; it takes the selected rows | None |
 
-- **Window:** every action is bounded by a time window. The analyst can change it.
-- **Row limit:** every action keeps at most 10,000 rows, with `take 10000`.
+- **Window:** every query action is bounded by a time window. The analyst can change it.
+- **Row limit:** every query action keeps at most 10,000 rows, with `take 10000`.
   - Host timeline and Host's other logs keep the events nearest the time, then sort them by `Timestamp`.
-- **Id:** every action uses `EventId` as the row's `id`, so an annotation follows an event across actions. No action declares `EventId`, and it comes after the fields.
+- **Id:** every query action uses `EventId` as the row's `id`, so an annotation follows an event across actions. No action declares `EventId`, and it comes after the fields.
 - **Process activity:** one row per Sysmon event of the process:
   - the processes it started
   - its file time changes
@@ -160,13 +169,20 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
 - **Filename seen on this host:** every Sysmon event on the host with a file path that ends in the file's name, or a `CommandLine` or `ParentCommandLine` that holds it. A file another process created shows its creation, then its runs.
 - **Host timeline:** one row per Sysmon event on the host, and one per alert on it. An alert's `EventType` is `Alert`, and its `Summary` is `Alert created [<Product>]: <Alert>`.
 - **Go to pivot row:** Host timeline offers it, with **Highlight pivot rows**, because it declares `find_pivot_rows: true`. An alert's row has the alert's `EventId`, so it is found from the Alerts tab.
+- **Save to Kusto:** the demo's sink, of the `kusto_save` type from the demo's provider.
+  - **Table:** it ingests the selected rows into `Security.SavedRows` with one `.ingest inline` command, as the analyst, through the `security` connection's hook.
+  - **Record:** each record has `SavedAt` (UTC), `SavedBy` (the analyst's upn) and `Row`, the row as `dynamic`.
+- **Saved events:** the rows in `SavedRows`, with the row's fields beside `SavedBy` and `SavedAt`.
+  - **Latest save:** it keeps each `EventId`'s latest save, so `EventId` is unique in a run and the event's annotations show.
+  - **Rows without an `EventId`:** it leaves them out.
 - **Columns:** the Endpoint actions and Host timeline show every field of the events, with `EventType` and `Summary` beside `Timestamp` and `Host`. Their `columns:` declare only the first columns, because TIM shows the declared columns first.
 
 ## In this folder
 
 - **`config/`**: the action files, the connections file and the labels file, mounted at `/etc/tim`. The connection uses `auth: none`.
+- **`provider/`**: `tim-demo`, the demo's provider, package `tim_demo`. It adds the `kusto_save` sink type, in `src/tim_demo/kusto_save.py`. The image installs it against its constraints ([actions.md](../../docs/actions.md#building-and-deploying)).
 - **`kusto/`**: the loader, `load.py`, and the Kusto scripts it runs.
-  - **`tables/*.kql`**: create the `Events` table and its ingestion mapping.
+  - **`tables/*.kql`**: create the `Events` table and its ingestion mapping, and the `SavedRows` table. The loader creates `SavedRows` on every start, and keeps the rows in it.
   - **`functions/*.kql`**: define the functions the actions call. `Alerts` is in `alerts.kql`. `ImageName` is a helper: the file name of an image's path, or `An unknown process`. The Sysmon functions are in [The Sysmon functions](#the-sysmon-functions).
   - **Order:** the loader runs the `functions/` files in name order. The `1-` files, `ImageName` and `SysmonEvents`, come before the `2-` files, which are built on them.
   - **Runs:** the loader runs the `functions/` files on every start, so a newer release's functions apply to the loaded data.
@@ -177,14 +193,14 @@ The demo has the Alerts, Endpoint, Host and Logs menus.
     - **`EventType`:** Sysmon's event name, such as `ProcessCreate`. Registry events are `Registry` and Sysmon's event type, such as `RegistrySetValue`.
     - **`Summary`:** one line, such as `notepad.exe created process: powershell.exe -enc …`.
     - **Time and host:** `Timestamp` is the time column. `Host` is the short name beside Sysmon's FQDN `Computer`. Sysmon's `UtcTime` is an ordinary column.
-- **`tests/`**: the action tests, run in the image. They check Raw logs by sourcetype's list of sourcetypes against `data/SHA256SUMS`, that no action over the Endpoint functions drops fields with `project`, and that its declared columns are the first columns of its rows.
+- **`tests/`**: the action tests, run in the image. They check Raw logs by sourcetype's list of sourcetypes against `data/SHA256SUMS`, that no action over the Endpoint functions drops fields with `project`, and that its declared columns are the first columns of its rows. They also check that Save to Kusto ingests each row with who saved it and when, and that Saved events reads the rows back, each event once.
 - **`data/`**: `SHA256SUMS` for the dataset's files, with its `LICENSE` and `NOTICE`. See [data/README.md](data/README.md).
-- **`Dockerfile`**: the demo image, TIM's api image with the instance files, the dataset and the loader.
+- **`Dockerfile`**: the demo image, TIM's api image with the demo's provider, the instance files, the dataset and the loader.
 - **`compose.yaml`**: the emulator, the loader, PostgreSQL, the api and the web container. Each release publishes it.
 - **`compose.override.yaml`**: builds TIM's images from this checkout, for `docker compose up --build`.
 - **`ci.sh`**: the checks that `.github/workflows/build-api.yml` runs, `./ci.sh <api image>`. They need Docker.
 - **`smoke.sh`**: the smoke test that `.github/workflows/demo-smoke.yml` runs, `./smoke.sh`. It builds the images, starts the demo, checks it and restarts it. It needs Docker and Python 3, and pulls the 4.6 GB emulator image. It runs as the Compose project `tim-demo-smoke`.
-- **`smoke.py`**: the checks over HTTP that `smoke.sh` runs. They run Alerts, Process creations (rows carry the full fields) and Host timeline from an alert, then label the alert. `TIM_DEMO_PORT` sets the port.
+- **`smoke.py`**: the checks over HTTP that `smoke.sh` runs. They run Alerts, Process creations (rows carry the full fields) and Host timeline from an alert, then label the alert. They also save the alert twice with Save to Kusto and check that Saved events holds it once, saved by Alice. `TIM_DEMO_PORT` sets the port.
 
 ### The Sysmon functions
 

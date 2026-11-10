@@ -1,0 +1,27 @@
+# The Saved events action: the rows Save to Kusto saved, each event once, as its latest save, so its
+# EventId is unique and its annotations show.
+type: kql_query
+key: demo.saved-events
+name: Saved events
+menu: Saved
+description: The rows saved with Save to Kusto, with who saved each and when
+pivot: none
+connection: security
+database: Security
+kql_file: saved-events.kql
+params:
+  - name: since
+    kind: datetime
+    title: Since
+    required: false       # left out, the KQL's declared default applies
+  - name: until
+    kind: datetime
+    title: Until
+    required: false
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: desc}
+  - {name: Host, type: string, width: 160}
+  - {name: SavedBy, type: string, title: Saved by}
+  - {name: SavedAt, type: datetime, title: Saved at}
+  - {name: EventId, type: string, title: Id}

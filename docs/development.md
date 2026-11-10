@@ -344,6 +344,7 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
   - the first start loads the dataset;
   - an analyst can run Alerts, pivot to the alert's host's process creations and timeline, and label the alert;
   - a second analyst sees that label;
+  - an analyst can save the alert twice with Save to Kusto, and Saved events holds it once, saved by her;
   - a restart attaches the dataset instead of loading it again.
 - The job's step summary lists how long each step took.
 

@@ -1,0 +1,9 @@
+declare query_parameters(since: datetime = datetime(2018-08-01), until: datetime = datetime(2018-09-01));
+SavedRows
+| extend EventId = tostring(Row.EventId), Timestamp = todatetime(Row.Timestamp), Host = tostring(Row.Host)
+| where isnotempty(EventId) and Timestamp between (since .. until)
+| summarize arg_max(SavedAt, *) by EventId
+| evaluate bag_unpack(Row, columnsConflict='keep_source')
+| project-reorder Timestamp, Host, SavedBy, SavedAt, EventId
+| order by Timestamp desc
+| take 10000

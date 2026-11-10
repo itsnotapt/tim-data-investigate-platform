@@ -5,6 +5,7 @@ import yaml
 from tim_actions import Action
 from tim_actions.kusto import KqlQuery, KustoConnection
 from tim_actions.testing import Connections, load_actions
+from tim_demo.kusto_save import KustoSave
 
 CONFIG = Path(__file__).parents[1] / "config"
 
@@ -20,5 +21,6 @@ def tim_connections() -> Connections:
 
 @pytest.fixture
 def actions() -> dict[str, Action]:
-    """The demo's action files, by key."""
-    return load_actions(CONFIG / "actions", [KqlQuery])
+    """The demo's query actions, by key: every action of its action files except its sink."""
+    loaded = load_actions(CONFIG / "actions", [KqlQuery, KustoSave])
+    return {key: action for key, action in loaded.items() if isinstance(action, Action)}

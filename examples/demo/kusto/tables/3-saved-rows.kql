@@ -1,0 +1,1 @@
+.create-merge table SavedRows (SavedAt: datetime, SavedBy: string, Row: dynamic) with (docstring = "The rows analysts saved with Save to Kusto, each with who saved it and when")

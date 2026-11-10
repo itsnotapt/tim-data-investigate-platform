@@ -7,6 +7,8 @@ Two analysts drive the api through the web container, with stub tokens:
 - **Host timeline:** she pivots from it to its host's timeline, which holds the alert and Sysmon events,
   each with a Summary.
 - **Annotations:** she labels the alert, and Bob reads her label.
+- **Save to Kusto:** she saves the alert twice, and Saved events holds it once, by its EventId,
+  saved by her.
 
 Runs on the standard library. ``TIM_DEMO_PORT`` is the web container's port, 8081 by default.
 """
@@ -37,9 +39,9 @@ def call(analyst: str, method: str, path: str, body: object = None) -> Any:
         return json.load(response)
 
 
-def run(analyst: str, action: str, params: dict[str, object]) -> list[dict[str, Any]]:
-    """The rows of a run of the action, once it has succeeded."""
-    started = call(analyst, "POST", "/runs", {"action": action, "params": params})
+def start_and_wait(analyst: str, action: str, body: dict[str, object]) -> dict[str, Any]:
+    """Start a run of the action with ``body``, and give its status once it has succeeded."""
+    started = call(analyst, "POST", "/runs", {"action": action, **body})
     deadline = time.monotonic() + RUN_TIMEOUT
     status = started
     while status["status"] == "running":
@@ -49,9 +51,15 @@ def run(analyst: str, action: str, params: dict[str, object]) -> list[dict[str, 
         status = call(analyst, "GET", f"/runs/{started['runId']}")
     if status["status"] != "succeeded":
         fail(f"{action} ended {status['status']}: {status.get('error')}")
+    return {**status, "runId": started["runId"]}
+
+
+def run(analyst: str, action: str, params: dict[str, object]) -> list[dict[str, Any]]:
+    """The rows of a run of the action, once it has succeeded."""
+    status = start_and_wait(analyst, action, {"params": params})
     rows: list[dict[str, Any]] = []
     while len(rows) < status["rowCount"]:
-        page = call(analyst, "GET", f"/runs/{started['runId']}/rows?startRow={len(rows)}")
+        page = call(analyst, "GET", f"/runs/{status['runId']}/rows?startRow={len(rows)}")
         if not page["rows"]:
             fail(f"{action} has {status['rowCount']} rows, but its rows stop at {len(rows)}.")
         rows += [row["data"] for row in page["rows"]]
@@ -109,6 +117,17 @@ def main() -> None:
     if label is None or label["key"] != LABEL or label["by"] != ALICE:
         fail(f"Bob sees the label {label} on the alert, not {LABEL} by {ALICE}.")
     print(f"Annotations: Bob sees the {LABEL} label {ALICE} set on the alert.")
+
+    columns = [{"name": name, "type": "string"} for name in alert]
+    for _ in range(2):
+        start_and_wait(ALICE, "demo.save-to-kusto", {"input": {"columns": columns, "rows": [alert]}})
+    saved_events = run(ALICE, "demo.saved-events", {})
+    saved = [row for row in saved_events if row["EventId"] == alert["EventId"]]
+    if len(saved) != 1:
+        fail(f"Saved events holds the alert {len(saved)} times, not once.")
+    if (saved[0]["SavedBy"], saved[0]["Host"]) != (ALICE, alert["Host"]):
+        fail(f"Saved events holds the alert saved by {saved[0]['SavedBy']} on {saved[0]['Host']}.")
+    print(f"Save to Kusto: Saved events holds the alert once, saved by {ALICE}.")
 
 
 if __name__ == "__main__":
