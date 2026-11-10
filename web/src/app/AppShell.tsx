@@ -34,6 +34,8 @@ import { getConfig } from '../lib/config/runtimeConfig';
 import { SIDE_TREE_COLLAPSED_WIDTH, SideTree } from '../features/tree';
 import { ActionBar } from './ActionBar';
 import { AuthGate } from './AuthGate';
+import { PrototypeSwitcher } from '../components/PrototypeSwitcher.prototype';
+import { NO_ROWS_VARIANTS } from '../features/tree/NoRowsIcon.prototype';
 import type { ThemeMode } from './themeKeys';
 
 interface ToolbarMenuProps {
@@ -262,6 +264,8 @@ export function AppShell() {
           <ShellContent />
         </AuthGate>
       </Box>
+      {/* PROTOTYPE: no-rows tree icon variants. */}
+      <PrototypeSwitcher variants={NO_ROWS_VARIANTS} />
     </Box>
   );
 }

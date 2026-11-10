@@ -3,10 +3,10 @@ import ErrorIcon from '@mui/icons-material/Warning';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Badge from '@mui/material/Badge';
-import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import type { Tab } from '../tabs';
 import { badgeText, badgeTone, nodeStatus } from './nodeStatus';
+import { NoRowsIconPrototype } from './NoRowsIcon.prototype';
 
 export interface TreeNodeIconProps {
   tab: Tab;
@@ -46,32 +46,8 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
     );
   }
   if (status === 'noRows') {
-    return (
-      <Box
-        component="span"
-        role="img"
-        aria-label="Succeeded, no rows"
-        title="Succeeded, no rows"
-        data-testid="tree-icon"
-        data-status="noRows"
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 18,
-          height: 18,
-          borderRadius: '50%',
-          border: 2,
-          borderColor: active ? 'primary.main' : 'text.secondary',
-          color: active ? 'primary.main' : 'text.secondary',
-          fontSize: 10,
-          fontWeight: 'bold',
-          lineHeight: 1,
-        }}
-      >
-        0
-      </Box>
-    );
+    // PROTOTYPE: variants of the no-rows icon.
+    return <NoRowsIconPrototype tab={tab} open={open} active={active} />;
   }
   if (status === 'results') {
     const count = tab.results?.rowCount ?? 0;
