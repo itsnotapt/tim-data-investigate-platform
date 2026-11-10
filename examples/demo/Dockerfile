@@ -1,4 +1,5 @@
-# The demo image: TIM's api image with the demo's instance files, the dataset and its loader.
+# The demo image: TIM's api image with the demo's provider, its instance files, the dataset and its
+# loader. The provider is installed against the image's constraints (docs/actions.md#building-and-deploying).
 #   docker build --build-arg BASE=<api image> --tag <image> .
 #   docker build --build-arg BASE=<api image> --target test .   # the action tests, in the image
 ARG BASE
@@ -6,9 +7,12 @@ ARG BASE
 ARG DATASET=demo-data-v1
 
 FROM ${BASE} AS instance
+COPY --chown=tim:tim provider/pyproject.toml /tmp/provider/
+COPY --chown=tim:tim provider/src /tmp/provider/src
+RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt /tmp/provider
 COPY config /etc/tim
 
-# The tests run against the tim-actions and the Kusto client the image ships.
+# The tests run against the provider, the tim-actions and the Kusto client the image ships.
 FROM instance AS test
 RUN uv pip install --python /app/.venv/bin/python -c /app/constraints.txt pytest
 COPY --chown=tim:tim tests /tmp/demo/tests

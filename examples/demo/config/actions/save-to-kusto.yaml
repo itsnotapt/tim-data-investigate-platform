@@ -1,0 +1,10 @@
+# The Save to Kusto sink: the selected rows, each with who saved it and when, in the SavedRows table
+# that kusto/tables/3-saved-rows.kql creates. Saved events reads them back.
+type: kusto_save
+key: demo.save-to-kusto
+name: Save to Kusto
+menu: Send to
+description: Saves the selected rows to the SavedRows table in the security logs
+connection: security
+database: Security
+table: SavedRows
