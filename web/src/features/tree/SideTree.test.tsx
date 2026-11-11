@@ -48,11 +48,13 @@ describe('SideTree', () => {
     expect(node('exec')).toHaveTextContent(/^T-exec$/);
   });
 
-  it('shows a ringed 0 for an action tab whose run succeeded with no rows', async () => {
+  it('shows a 0 badge, toned like the row-count badge, for an action tab whose run succeeded with no rows', async () => {
     const store = newTestStore();
     const action = (id: string, rowCount: number) =>
       store.getState().createTab(tab(id, null, { results: results(rowCount) }));
     action('none', 0);
+    action('seen', 0);
+    store.getState().markVisited('seen');
     action('some', 2);
     renderTree(store);
     await expand();
@@ -60,6 +62,9 @@ describe('SideTree', () => {
     expect(status('none')).toHaveAttribute('data-status', 'noRows');
     expect(status('none')).toHaveAccessibleName('Succeeded, no rows');
     expect(status('none')).toHaveTextContent('0');
+    expect(status('none')).toHaveAttribute('data-tone', 'info');
+    expect(status('seen')).toHaveAttribute('data-tone', 'default');
+    expect(status('seen')).toHaveTextContent('0');
     expect(status('some')).toHaveAttribute('data-status', 'results');
   });
 

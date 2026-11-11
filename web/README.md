@@ -293,7 +293,7 @@ One more piece lives beside it.
   - It reads the tab store, and takes the active node from the route with `useMatch('/view/:tabId')`.
   - Clicking a node marks the tab visited, and navigates to `/view/:tabId`.
 - Node labels: `[draft]` and `[new]` prefixes, then the tab's title from the action tab module's `title`, cut to two lines with the full title in a tooltip.
-- Node icons: a spinner, an error, a ringed 0, a row-count badge ("9+" above nine) or a faded folder. The ringed 0 is an action tab whose run succeeded with no rows (`nodeStatus.ts`).
+- Node icons: a spinner, an error, a row-count badge ("9+" above nine) or a faded folder. A run that succeeded with no rows shows the badge with a `0` (`nodeStatus.ts`).
 - Header: the New menu and "Remove selected".
 - `useTreeSelection(activeTabId)`: holds the checked set. Checking a node checks its descendants. Unchecking clears its descendants and ancestors (`toggleChecked`, pure).
 - Remove selected: calls `removeTab`, which cascades, then navigates to `/` with replace if the active tab is gone.

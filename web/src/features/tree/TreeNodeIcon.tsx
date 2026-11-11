@@ -3,7 +3,6 @@ import ErrorIcon from '@mui/icons-material/Warning';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import Badge from '@mui/material/Badge';
-import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import type { Tab } from '../tabs';
 import { badgeText, badgeTone, nodeStatus } from './nodeStatus';
@@ -14,7 +13,10 @@ export interface TreeNodeIconProps {
   active: boolean;
 }
 
-/** Spinner, red alert, a note for a pivot that needs input, ringed 0, row-count badge over a folder, or a faded folder. */
+/**
+ * Spinner, red alert, a note for a pivot that needs input, row-count badge over a folder (0 when the
+ * run succeeded with no rows), or a faded folder.
+ */
 export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
   const status = nodeStatus(tab);
   const Folder = open ? FolderOpenIcon : FolderIcon;
@@ -45,35 +47,7 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
       />
     );
   }
-  if (status === 'noRows') {
-    return (
-      <Box
-        component="span"
-        role="img"
-        aria-label="Succeeded, no rows"
-        title="Succeeded, no rows"
-        data-testid="tree-icon"
-        data-status="noRows"
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 18,
-          height: 18,
-          borderRadius: '50%',
-          border: 2,
-          borderColor: active ? 'primary.main' : 'text.secondary',
-          color: active ? 'primary.main' : 'text.secondary',
-          fontSize: 10,
-          fontWeight: 'bold',
-          lineHeight: 1,
-        }}
-      >
-        0
-      </Box>
-    );
-  }
-  if (status === 'results') {
+  if (status === 'noRows' || status === 'results') {
     const count = tab.results?.rowCount ?? 0;
     const tone = badgeTone(tab);
     return (
@@ -82,7 +56,12 @@ export function TreeNodeIcon({ tab, open, active }: TreeNodeIconProps) {
         badgeContent={badgeText(count)}
         color={tone === 'default' ? 'default' : tone}
         data-testid="tree-icon"
-        data-status="results"
+        data-status={status}
+        {...(status === 'noRows' && {
+          role: 'img',
+          'aria-label': 'Succeeded, no rows',
+          title: 'Succeeded, no rows',
+        })}
         data-tone={tone}
         sx={{
           '& .MuiBadge-badge': {
