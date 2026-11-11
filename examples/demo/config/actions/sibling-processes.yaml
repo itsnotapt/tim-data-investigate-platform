@@ -1,0 +1,40 @@
+# The other processes that a process's parent started, from the process's row.
+type: kql_query
+key: demo.sibling-processes
+name: Sibling processes
+title: "{{ action_name }} of {{ row.Image | default(process) | basename }} on {{ host }}"
+menu: Endpoint
+description: The other processes the parent of a process started
+pivot: row
+connection: security
+database: Security
+kql_file: sibling-processes.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: process
+    kind: string
+    title: Process GUID
+    from_columns: [ProcessGuid]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: EventType, type: string, title: Event type, width: 170}
+  - {name: Host, type: string, width: 120}
+  - {name: Summary, type: string, width: 640}
+  - {name: User, type: string, width: 200}
+  - {name: ParentImage, type: string, width: 320}
+  - {name: CommandLine, type: string, width: 480}
+  - {name: Image, type: string, width: 320}
+  - {name: ParentCommandLine, type: string, width: 360}
+  - {name: SHA256, type: string}

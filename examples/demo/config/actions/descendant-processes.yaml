@@ -1,0 +1,42 @@
+# Every process a process started, and every process those started, at any depth, from its row.
+# Depth is 1 for a child, 2 for a grandchild.
+type: kql_query
+key: demo.descendant-processes
+name: Descendant processes
+title: "{{ action_name }} of {{ row.Image | default(process) | basename }} on {{ host }}"
+menu: Endpoint
+description: The processes a process started, and theirs, at any depth
+pivot: row
+connection: security
+database: Security
+kql_file: descendant-processes.kql
+params:
+  - name: host
+    kind: string
+    title: Host
+    from_columns: [Host]
+  - name: process
+    kind: string
+    title: Process GUID
+    from_columns: [ProcessGuid]
+  - name: around
+    kind: datetime
+    title: Around
+    from_columns: [Timestamp]
+  - name: window
+    kind: timespan
+    title: Window (±)
+    default: P1D
+id: EventId
+columns:
+  - {name: Timestamp, type: datetime, pinned: left, sort: asc}
+  - {name: EventType, type: string, title: Event type, width: 170}
+  - {name: Host, type: string, width: 120}
+  - {name: Summary, type: string, width: 640}
+  - {name: Depth, type: number, width: 90}
+  - {name: User, type: string, width: 200}
+  - {name: ParentImage, type: string, width: 320}
+  - {name: CommandLine, type: string, width: 480}
+  - {name: Image, type: string, width: 320}
+  - {name: ParentCommandLine, type: string, width: 360}
+  - {name: SHA256, type: string}

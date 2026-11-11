@@ -1,0 +1,18 @@
+declare query_parameters(host: string, process: string, around: datetime, window: timespan);
+let creations = ProcessCreations()
+    | where Host == host and Timestamp between ((around - window) .. (around + window));
+let processes = creations
+    | summarize by ProcessGuid
+    | union (creations | summarize by ProcessGuid = ParentProcessGuid)
+    | distinct ProcessGuid;
+let descendants = creations
+    | make-graph ParentProcessGuid --> ProcessGuid with processes on ProcessGuid
+    | graph-match (root)-[spawned*1..50]->(descendant)
+        where root.ProcessGuid == process
+        project ProcessGuid = descendant.ProcessGuid, Depth = array_length(spawned);
+creations
+| lookup kind=inner descendants on ProcessGuid
+| project-reorder Timestamp, EventType, Host, Summary, Depth, User, ParentImage, CommandLine, Image, ParentCommandLine,
+    SHA256
+| order by Timestamp asc, Depth asc
+| take 10000

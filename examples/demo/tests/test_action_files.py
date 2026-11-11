@@ -60,6 +60,7 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         "demo.activity-by-user": "Activity by user alice",
         "demo.child-processes": "Child processes of powershell.exe on BGIST-L",
         "demo.connections-to-ip": "Connections to IP 203.0.113.7",
+        "demo.descendant-processes": "Descendant processes of powershell.exe on BGIST-L",
         "demo.filename-seen-on-host": "Filename update.exe seen on BGIST-L",
         "demo.hash-seen-anywhere": f"Events related to SHA256 {SHA256}",
         "demo.host-logs": "Other logs for host BGIST-L",
@@ -67,6 +68,8 @@ def test_every_pivot_is_titled_by_what_it_is_about(actions: dict[str, Action]) -
         "demo.parent-process": "Parent process browser_broker.exe on BGIST-L",
         "demo.process-activity": "Process activity for powershell.exe on BGIST-L",
         "demo.process-creations": "Process creations on BGIST-L",
+        "demo.process-tree": "Process tree of powershell.exe on BGIST-L",
+        "demo.sibling-processes": "Sibling processes of powershell.exe on BGIST-L",
     }
 
 
@@ -75,8 +78,11 @@ def test_a_run_without_pivot_rows_names_its_process_by_its_guid(actions: dict[st
 
     assert by_guid == {
         "demo.child-processes": "Child processes of {a1} on BGIST-L",
+        "demo.descendant-processes": "Descendant processes of {a1} on BGIST-L",
         "demo.parent-process": "Parent process {a0} on BGIST-L",
         "demo.process-activity": "Process activity for {a1} on BGIST-L",
+        "demo.process-tree": "Process tree of {a1} on BGIST-L",
+        "demo.sibling-processes": "Sibling processes of {a1} on BGIST-L",
     }
 
 

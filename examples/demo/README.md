@@ -72,7 +72,7 @@ The data is from a staged attack on a company called Frothly, in August 2018. Si
 
 ### Find the attacker's server
 
-12. Right-click the 10:01:41 PowerShell row. Choose **Pivot** ▸ **Endpoint** ▸ **Child processes**. It started a second PowerShell at 10:01:44.
+12. Right-click the 10:01:41 PowerShell row. Choose **Pivot** ▸ **Endpoint** ▸ **Child processes**. It started a second PowerShell at 10:01:44. **Descendant processes** shows everything below it, with each process's `Depth`.
 13. Right-click that row. Choose **Pivot** ▸ **Endpoint** ▸ **Process activity**. It connected to `45.77.53.176` on port 443, again and again.
 14. Right-click a **DestinationIp** cell of `45.77.53.176`. Choose **Pivot** ▸ **Endpoint** ▸ **Connections to IP**. ABUNGST-L connects to it too.
 
@@ -142,6 +142,9 @@ The demo has the Alerts, Endpoint, Host, Logs and Saved menus, and the Send to m
 | Activity by user | Endpoint | `User`, `Timestamp` | ±1 hour |
 | Parent process | Endpoint | `Host`, `ParentProcessGuid`, `Timestamp` | ±1 day |
 | Child processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
+| Descendant processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
+| Sibling processes | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
+| Process tree | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Process activity | Endpoint | `Host`, `ProcessGuid`, `Timestamp` | ±1 day |
 | Connections to IP | Endpoint | `DestinationIp`, `Timestamp` | ±1 day |
 | Filename seen on this host | Endpoint | `Host`, `TargetFilename` or else `ImageLoaded` or `Image`, `Timestamp` | ±1 day |
@@ -165,6 +168,10 @@ The demo has the Alerts, Endpoint, Host, Logs and Saved menus, and the Send to m
   - the files it created
   - its registry changes
   - its file streams
+- **Descendant processes:** the processes the process started, the processes those started, and so on, up to 50 generations down. `Depth` is 1 for a child, 2 for a grandchild.
+- **Sibling processes:** the other processes the process's parent started. It finds the parent from the process's own creation.
+- **Process tree:** the process and up to five generations above it, oldest first. `Depth` is 0 for the process, 1 for its parent, 2 for its grandparent.
+- **Window of a process's relatives:** Descendant processes, Sibling processes and Process tree see only the processes that started on the host in the window. A process tree whose oldest process started before the window ends at the process the window holds. A wider window finds more.
 - **Activity by user:** the user's process creations and network connections.
 - **Filename seen on this host:** every Sysmon event on the host with a file path that ends in the file's name, or a `CommandLine` or `ParentCommandLine` that holds it. A file another process created shows its creation, then its runs.
 - **Host timeline:** one row per Sysmon event on the host, and one per alert on it. An alert's `EventType` is `Alert`, and its `Summary` is `Alert created [<Product>]: <Alert>`.
