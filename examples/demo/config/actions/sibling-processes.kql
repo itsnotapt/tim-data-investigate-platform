@@ -1,0 +1,8 @@
+declare query_parameters(host: string, process: string, around: datetime, window: timespan);
+let creations = ProcessCreations()
+    | where Host == host and Timestamp between ((around - window) .. (around + window));
+creations
+| where ParentProcessGuid in ((creations | where ProcessGuid == process | distinct ParentProcessGuid))
+| where ProcessGuid != process
+| order by Timestamp asc
+| take 10000

@@ -84,11 +84,14 @@ def test_the_endpoint_menu_holds_the_actions_that_follow_an_alert_on_its_endpoin
         "Activity by user",
         "Child processes",
         "Connections to IP",
+        "Descendant processes",
         "Filename seen on this host",
         "Hash seen anywhere",
         "Parent process",
         "Process activity",
         "Process creations",
+        "Process tree",
+        "Sibling processes",
     ]
     for action in endpoint.values():
         assert isinstance(action, KqlQuery)
@@ -404,3 +407,80 @@ def test_a_child_process_in_process_activity_pivots_to_its_parent(
 
     assert "ProcessCreations()" in activity.kql
     assert resolved.params["parent"] == "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}"
+
+
+# The params each pivot from a process takes from PROCESS, and the parameters it sends Kusto.
+PROCESS_PARAMS = {
+    "host": "FYODOR-L",
+    "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    "around": "2018-08-20T10:01:41Z",
+}
+PROCESS_PARAMETERS = {
+    "host": "FYODOR-L",
+    "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    "around": "datetime(2018-08-20T10:01:41.0000000Z)",
+    "window": "timespan(1.00:00:00)",
+}
+PROCESS_DECLARATION = (
+    "declare query_parameters(host: string, process: string, around: datetime, window: timespan);\n"
+)
+PROCESS_WINDOW = (
+    "ProcessCreations()\n"
+    "    | where Host == host and Timestamp between ((around - window) .. (around + window));\n"
+)
+
+
+def pivot_from_process(action: Action, connections: Connections, kusto: FakeKusto) -> str:
+    """Pivot the action from PROCESS, check the params it took and the parameters it sent, and give its KQL."""
+    resolved = resolve_pivot(action, [PROCESS])
+    assert (resolved.params, resolved.missing) == (PROCESS_PARAMS, {})
+    kusto.respond([])
+
+    run_action(action, resolved.params, connections=connections)
+
+    [call] = kusto.calls
+    assert (call.connection, call.database) == ("security", "Security")
+    assert call.parameters == PROCESS_PARAMETERS
+    assert call.kql.startswith(PROCESS_DECLARATION)
+    assert PROCESS_WINDOW in call.kql
+    assert call.kql.endswith("| take 10000\n")
+    return call.kql
+
+
+def test_a_process_pivots_to_its_descendants_at_every_depth(
+    actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
+) -> None:
+    kql = pivot_from_process(actions["demo.descendant-processes"], tim_connections, tim_kusto)
+
+    assert "| graph-match (root)-[spawned*1..50]->(descendant)\n" in kql
+    assert "        where root.ProcessGuid == process\n" in kql
+    assert "        project ProcessGuid = descendant.ProcessGuid, Depth = array_length(spawned);\n" in kql
+
+
+def test_a_process_pivots_to_its_tree_of_up_to_five_generations_above_it(
+    actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
+) -> None:
+    kql = pivot_from_process(actions["demo.process-tree"], tim_connections, tim_kusto)
+
+    assert "| graph-match (ancestor)-[spawned*1..5]->(descendant)\n" in kql
+    assert "        where descendant.ProcessGuid == process\n" in kql
+    assert "        project ProcessGuid = ancestor.ProcessGuid, Depth = array_length(spawned)\n" in kql
+    assert "| union (print ProcessGuid = process, Depth = tolong(0));\n" in kql
+
+
+def test_a_process_pivots_to_the_other_processes_its_parent_started(
+    actions: dict[str, Action], tim_connections: Connections, tim_kusto: FakeKusto
+) -> None:
+    kql = pivot_from_process(actions["demo.sibling-processes"], tim_connections, tim_kusto)
+
+    assert (
+        "| where ParentProcessGuid in ((creations | where ProcessGuid == process | distinct ParentProcessGuid))\n"
+        "| where ProcessGuid != process\n"
+    ) in kql
+
+
+def test_every_event_of_a_process_pivots_to_its_tree_and_its_relatives(actions: dict[str, Action]) -> None:
+    for key in ["demo.descendant-processes", "demo.process-tree", "demo.sibling-processes"]:
+        resolved = resolve_pivot(actions[key], [CONNECTION])
+
+        assert (resolved.params["process"], resolved.missing) == (CONNECTION["ProcessGuid"], {}), key

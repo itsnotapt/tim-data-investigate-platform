@@ -6,6 +6,8 @@ Two analysts drive the api through the web container, with stub tokens:
 - **Pivot:** she pivots from it to its host's process creations, which have rows with every Sysmon field.
 - **Host timeline:** she pivots from it to its host's timeline, which holds the alert and Sysmon events,
   each with a Summary.
+- **Process tree:** the stager PowerShell on FYODOR-L pivots to its descendants and siblings, and the
+  PowerShell that wrote hdoor.exe pivots to the five generations above it.
 - **Annotations:** she labels the alert, and Bob reads her label.
 - **Save to Kusto:** she saves the alert twice, and Saved events holds it once, by its EventId,
   saved by her.
@@ -26,6 +28,18 @@ BOB = "bob@demo.example"
 ALERT = "Backdoor.PsEmpire"
 LABEL = "malicious"
 RUN_TIMEOUT = 120
+# The PowerShell stager that the browser started on FYODOR-L, and the PowerShell that wrote hdoor.exe,
+# five generations below it.
+STAGER = {
+    "host": "FYODOR-L",
+    "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    "around": "2018-08-20T10:01:41Z",
+}
+HDOOR_WRITER = {
+    "host": "FYODOR-L",
+    "process": "{EBF7A186-C442-5B58-0000-00109914D901}",
+    "around": "2018-08-20T10:42:49Z",
+}
 
 
 def call(analyst: str, method: str, path: str, body: object = None) -> Any:
@@ -112,6 +126,8 @@ def main() -> None:
         fail("Host timeline has a row without a Summary.")
     print(f"Host timeline: {len(timeline)} rows on {alert['Host']}, of {', '.join(sorted(types))}.")
 
+    check_process_tree()
+
     call(ALICE, "PATCH", "/annotations", {"ids": [alert["EventId"]], "label": LABEL})
     label = label_of(BOB, alert["EventId"])
     if label is None or label["key"] != LABEL or label["by"] != ALICE:
@@ -128,6 +144,32 @@ def main() -> None:
     if (saved[0]["SavedBy"], saved[0]["Host"]) != (ALICE, alert["Host"]):
         fail(f"Saved events holds the alert saved by {saved[0]['SavedBy']} on {saved[0]['Host']}.")
     print(f"Save to Kusto: Saved events holds the alert once, saved by {ALICE}.")
+
+
+def check_process_tree() -> None:
+    descendants = run(ALICE, "demo.descendant-processes", STAGER)
+    added_user = [row for row in descendants if "user /add svcvnc" in row["CommandLine"]]
+    if not added_user or min(row["Depth"] for row in added_user) < 2:
+        fail(f"Descendant processes of the stager has no grandchild adding svcvnc: {len(descendants)} rows.")
+
+    tree = run(ALICE, "demo.process-tree", HDOOR_WRITER)
+    if [row["Depth"] for row in tree] != [5, 4, 3, 2, 1, 0]:
+        fail(f"Process tree of the hdoor.exe writer has the depths {[r['Depth'] for r in tree]}, not 5 to 0.")
+    if tree[1]["ProcessGuid"] != STAGER["process"]:
+        fail(f"Process tree of the hdoor.exe writer has {tree[1]['ProcessGuid']} at depth 4, not the stager.")
+
+    net = added_user[0]
+    siblings = run(
+        ALICE,
+        "demo.sibling-processes",
+        {"host": net["Host"], "process": net["ProcessGuid"], "around": net["Timestamp"]},
+    )
+    if not siblings or net["ProcessGuid"] in {row["ProcessGuid"] for row in siblings}:
+        fail(f"Sibling processes of the svcvnc net.exe has {len(siblings)} rows, or holds the process itself.")
+    print(
+        f"Process tree: {len(descendants)} descendants of the stager, {len(tree)} processes in the hdoor.exe "
+        f"writer's tree, {len(siblings)} siblings of the svcvnc net.exe."
+    )
 
 
 if __name__ == "__main__":
