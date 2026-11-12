@@ -13,7 +13,7 @@ afterEach(async () => {
   await resetTimDb();
 });
 
-/** Two tabs of one browser: one IndexedDB, one channel hub. */
+/** Two browser tabs of one browser: one IndexedDB, one channel hub. */
 function twoTabs() {
   const hub = createChannelHub();
   const tabs = [createAnnotationStore(hub.open()), createAnnotationStore(hub.open())] as const;
@@ -23,7 +23,7 @@ function twoTabs() {
 }
 
 describe('the annotation store', () => {
-  it('keeps the newest version of each id and tells both tabs what changed', async () => {
+  it('keeps the newest version of each id and tells both browser tabs what changed', async () => {
     const {
       tabs: [a, b],
       heard,

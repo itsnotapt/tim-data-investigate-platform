@@ -32,4 +32,4 @@ Decided by the user. Related: 0018, 0019, [0021](0021-tim-actions-and-derived-im
 
 - Adding an action type means building a derived image; adding an action file means a restart.
 - A rolling update with a broken file never becomes ready, and the old pods keep serving.
-- The browser re-fetches `GET /api/instance` when its `version` changes, so a rolling update reaches open tabs.
+- The browser re-fetches `GET /api/instance` when its `version` changes, so a rolling update reaches open browser tabs.

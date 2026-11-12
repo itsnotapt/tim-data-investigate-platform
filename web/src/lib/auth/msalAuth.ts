@@ -43,7 +43,7 @@ export function createMsalAuthClient(config: MsalAuthConfig): MsalAuthClient {
       authority: config.auth.authority,
       redirectUri: config.redirectUri,
     },
-    // localStorage survives reloads and is shared between tabs, so neither prompts again.
+    // localStorage survives reloads and is shared between browser tabs, so neither prompts again.
     cache: { cacheLocation: 'localStorage' },
   });
   const loginScopes = apiScopes(config.auth.clientId);

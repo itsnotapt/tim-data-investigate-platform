@@ -24,16 +24,16 @@ export interface AnnotationPollerOptions {
 }
 
 export interface AnnotationPoller {
-  /** Reads the feed now, in whichever tab polls. */
+  /** Reads the feed now, in whichever browser tab polls. */
   pollSoon(): void;
-  /** Stops polling here, handing it to another tab. */
+  /** Stops polling here, handing it to another browser tab. */
   stop(): void;
 }
 
 /**
- * Reads the change feed into `store` while this tab holds the poller lock: at once, every
- * `intervalMs`, on focus, and when any tab asks. The other tabs queue for the lock and hear the
- * changes through the store's channel.
+ * Reads the change feed into `store` while this browser tab holds the poller lock: at once,
+ * every `intervalMs`, on focus, and when any browser tab asks. The other browser tabs queue for
+ * the lock and hear the changes through the store's channel.
  */
 export function startAnnotationPoller({
   store,

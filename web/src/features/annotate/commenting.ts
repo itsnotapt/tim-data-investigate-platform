@@ -7,7 +7,7 @@ const reasonOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export interface CommentingDeps {
   store: AnnotationStore;
   notify: Notify;
-  /** Reads the change feed soon, so the other tabs pick the change up. */
+  /** Reads the change feed soon, so the other browser tabs pick the change up. */
   pollSoon: () => void;
 }
 

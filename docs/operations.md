@@ -157,7 +157,7 @@ The change feed carries annotations ([architecture.md](architecture.md#annotatio
 - **Polling cost.**
   - Each browser reads the feed every `TIM_ANNOTATION_POLL_SECONDS` (30), when its window gets focus, and soon after the analyst's own change.
   - A read with nothing new is one indexed query and a body of a few bytes.
-  - Many tabs of one browser cost one poller: the tab holding a Web Lock reads, and tells the others.
+  - Many browser tabs of one browser cost one poller: the browser tab holding a Web Lock reads, and tells the others.
   - So the load is one request per open browser per interval. Raise the interval to lower it. Labels then reach other analysts later.
 - **Tombstones.** An `id` whose annotations are all removed keeps its row in `id_state`, with no label, so the removal reaches other browsers. Rows are never deleted, and nothing needs cleaning up.
 - **History.** `label_changes` keeps every label change with who made it and when. `comments` keeps each analyst's current comment on an `id`, with its author and time; a replaced comment, a cleared comment and removed tags are deleted.

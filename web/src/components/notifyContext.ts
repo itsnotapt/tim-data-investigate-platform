@@ -5,7 +5,7 @@ export interface NotifyOptions {
   /** Auto-hide delay in ms (default 5000). */
   timeout?: number;
   icon?: ReactNode;
-  /** Optional link button, opens in a new tab. */
+  /** Optional link button, opens in a new browser tab. */
   link?: string;
   linkText?: string;
   /** Optional button that runs `onClick` and hides the message. */
