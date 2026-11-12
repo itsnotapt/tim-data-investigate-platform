@@ -58,7 +58,7 @@ A preset whose inputs are all fixed. Opening it needs nothing more from the anal
 The nested, searchable menu of actions and presets from which an analyst starts a tab.
 
 **Param**:
-A named, typed value an action takes.
+A named, typed value an action takes. Analysts see its name as written.
 _Avoid_: argument, variable, field, input
 
 **Query parameter**:
@@ -129,8 +129,12 @@ One execution of an action by the server for the analyst who started it. It ends
 _Avoid_: action run, query run, job, execution
 
 **Run title**:
-The title of a tab that has run, from the values its latest run was for. An action formats its runs' titles from their params and the rows they were pivoted from, and may name itself in them; an action that doesn't gives its name. A preset's is its name, then the values of the inputs its owner shows in the title; a clone's starts with "Copy of" and its name.
+The title of a tab that has run: its action's or preset's title template, filled in with the values its latest run was for. An action without a title template gives its name; a clone's starts with "Copy of" and its name.
 _Avoid_: tab name, action run title
+
+**Title template**:
+The text an action or preset gives its run titles, with `{…}` placeholders for the values of its params, its query parameters and its pivot rows' columns.
+_Avoid_: title format, Show in title
 
 **Run details**:
 The key-value facts a run reports, such as its duration, row count or a warning.
