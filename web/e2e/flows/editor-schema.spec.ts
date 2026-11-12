@@ -18,18 +18,18 @@ test('the Query editor completes the tables and columns of the chosen connection
     await page.getByRole('button', { name: step, exact: true }).click();
   }
 
-  await page.getByRole('button', { name: 'Connection: not set' }).click();
+  await page.getByRole('button', { name: 'connection: not set' }).click();
   await page.getByRole('option', { name: 'Development audit' }).click();
-  await page.getByRole('button', { name: 'Database: not set' }).click();
+  await page.getByRole('button', { name: 'database: not set' }).click();
   const loaded = page.waitForResponse(
     (r) => new URL(r.url()).pathname === '/api/connections/dev-audit/schema' && r.ok(),
   );
-  await page.getByRole('textbox', { name: 'Database' }).fill('Logs');
+  await page.getByRole('textbox', { name: 'database' }).fill('Logs');
   await page.keyboard.press('Escape');
   expect((await loaded).status()).toBe(200);
 
   // Monaco's input is an invisible element over the text, so it is focused rather than clicked.
-  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.getByRole('textbox', { name: 'query' }).focus();
   // The worker takes the schema a moment after the response.
   await expect(async () => {
     await page.keyboard.press('Escape');
@@ -76,14 +76,14 @@ async function removeQueryParameter(page: Page, preset: string) {
 }
 
 async function pickConnection(page: Page) {
-  await page.getByRole('button', { name: 'Connection: not set' }).click();
+  await page.getByRole('button', { name: 'connection: not set' }).click();
   await page.getByRole('option', { name: 'Development audit' }).click();
 }
 
 /** Sets the database, whose schema loads, or comes from the cache, a moment later. */
 async function pickDatabase(page: Page) {
-  await page.getByRole('button', { name: 'Database: not set' }).click();
-  await page.getByRole('textbox', { name: 'Database' }).fill('Logs');
+  await page.getByRole('button', { name: 'database: not set' }).click();
+  await page.getByRole('textbox', { name: 'database' }).fill('Logs');
   await page.keyboard.press('Escape');
 }
 
@@ -108,7 +108,7 @@ test('a query parameter is declared above the query, and the editor suggests it'
   await openAction(page, ['Development', 'Run KQL (development)']);
   await pickConnection(page);
   await pickDatabase(page);
-  const editor = page.getByRole('group', { name: 'Query' });
+  const editor = page.getByRole('group', { name: 'kql' });
   await expect(editor.locator('.monaco-editor')).toBeVisible();
   await expect(editor.getByText(/^declare/)).toHaveCount(0);
 
@@ -119,7 +119,7 @@ test('a query parameter is declared above the query, and the editor suggests it'
   await expect(editor.locator('.line-numbers').first()).toHaveText('1');
 
   // A scalar is suggested where a scalar goes, not where the query starts.
-  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.getByRole('textbox', { name: 'kql' }).focus();
   await page.keyboard.type('print sin');
   await expectSuggested(page, [/^since, /]);
   await page.keyboard.press('Escape');
@@ -137,7 +137,7 @@ test('a schema that loads after a query parameter is added keeps it suggested', 
   await addQueryParameter(page, `${idPrefix} Since`, 'since', 'datetime');
   await pickDatabase(page);
 
-  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.getByRole('textbox', { name: 'kql' }).focus();
   await expectSuggested(page, [/^SignIns, /]);
   await page.keyboard.press('Escape');
   await page.keyboard.type('print sin');
@@ -165,7 +165,7 @@ test("each tab's editor suggests its own query parameters once focused, not the 
   await pickConnection(page);
   await pickDatabase(page);
   await addQueryParameter(page, `${idPrefix} Limit`, 'limit', 'long');
-  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.getByRole('textbox', { name: 'kql' }).focus();
   await page.keyboard.type('print lim');
   await expectSuggested(page, [/^limit, /]);
   await page.keyboard.press('Escape');
@@ -174,7 +174,7 @@ test("each tab's editor suggests its own query parameters once focused, not the 
   await tree.getByRole('button').filter({ hasText: first }).click();
   await page.mouse.move(900, 500);
   await expect(page.getByRole('heading', { name: first })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.getByRole('textbox', { name: 'kql' }).focus();
   await page.keyboard.type('print sin');
   await expectSuggested(page, [/^since, /]);
 });

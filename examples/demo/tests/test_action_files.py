@@ -34,11 +34,11 @@ def test_every_action_keys_its_rows_by_eventid_so_an_annotation_follows_the_even
 # The values of a row each pivot takes its params from, and the row's process.
 PARAMS = {
     "host": "BGIST-L",
-    "process": "{a1}",
-    "parent": "{a0}",
+    "process_guid": "{a1}",
+    "parent_process_guid": "{a0}",
     "file": r"C:\Users\Public\update.exe",
     "user": "alice",
-    "ip": "203.0.113.7",
+    "destination_ip": "203.0.113.7",
     "hash": SHA256,
 }
 PIVOT_ROW = {

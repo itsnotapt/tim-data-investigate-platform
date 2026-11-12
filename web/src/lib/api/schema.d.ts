@@ -590,8 +590,6 @@ export interface components {
             required: boolean;
             /** Schemafrom */
             schemaFrom?: string[] | null;
-            /** Title */
-            title: string;
         };
         /**
          * CataloguePivot

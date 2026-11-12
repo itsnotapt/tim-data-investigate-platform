@@ -9,7 +9,6 @@ id: CorrelationId
 params:
   - name: users
     kind: string
-    title: Users
     many: true
     required: false
     from_columns: [User, UserPrincipalName]

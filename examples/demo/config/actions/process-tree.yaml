@@ -3,7 +3,7 @@
 type: kql_query
 key: demo.process-tree
 name: Process tree
-title: "{{ action_name }} of {{ row.Image | default(process) | basename }} on {{ host }}"
+title: "{{ action_name }} of {{ row.Image | default(process_guid) | basename }} on {{ host }}"
 menu: Endpoint
 description: A process and up to five generations of the processes above it
 pivot: row
@@ -13,19 +13,15 @@ kql_file: process-tree.kql
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
-  - name: process
+  - name: process_guid
     kind: string
-    title: Process GUID
     from_columns: [ProcessGuid]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: P1D
 id: EventId
 columns:

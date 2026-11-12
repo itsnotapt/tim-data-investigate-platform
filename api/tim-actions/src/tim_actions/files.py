@@ -475,23 +475,22 @@ _Dumper.add_representer(str, _str)
 _PARAM_DEFAULTS: dict[str, Any] = {
     key: value
     for key, value in TypeAdapter(Param).dump_python(Param("name", "string"), mode="json").items()
-    if key not in ("name", "kind", "title")
+    if key not in ("name", "kind")
 }
 
 
 def _param_fields(param: dict[str, Any]) -> dict[str, Any]:
-    """A param's wire fields, without those at their default or a title that is its name."""
+    """A param's wire fields, without those at their default."""
     return {
         key: value
         for key, value in param.items()
         if not (key in _PARAM_DEFAULTS and value == _PARAM_DEFAULTS[key])
-        and not (key == "title" and value == param["name"])
     }
 
 
 def action_file_yaml(document: ActionDocument) -> str:
     """``document`` as the YAML of an action file: fields left at their defaults are left out,
-    as is a param's title that is its name, and ``params`` and ``columns`` come last."""
+    and ``params`` and ``columns`` come last."""
     fields = document.model_dump(mode="json", exclude_defaults=True, exclude={"params", "columns"})
     params = [
         _param_fields(param)

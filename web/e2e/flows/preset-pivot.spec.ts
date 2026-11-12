@@ -46,7 +46,7 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   await dialog.getByLabel('Name', { exact: true }).fill(name);
   await dialog.getByLabel('Menu folder').fill(idPrefix);
   await dialog.getByLabel('Share with everyone').check();
-  await dialog.getByRole('button', { name: 'Result from the row' }).click();
+  await dialog.getByRole('button', { name: 'result from the row' }).click();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();
 
@@ -54,7 +54,7 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   // its title shows after the preset's name.
   await runRows(page, 'Sign-ins', 4);
   await pivotWithPreset(page, 1, idPrefix, name);
-  await expect(page.getByRole('button', { name: 'Result: Failure' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'result: Failure' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
   await expect(page.getByRole('heading', { name: `${name} Failure`, exact: true })).toBeVisible();
 
@@ -67,7 +67,7 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   const preset = menuOption(page, name);
   await expect(preset).toHaveClass(/ag-menu-option-disabled/);
   await preset.hover();
-  await expect(page.getByText('The 2 selected rows have different Result values')).toBeVisible();
+  await expect(page.getByText('The 2 selected rows have different result values')).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Rows without a Result column don't offer it.
@@ -81,6 +81,6 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   const bob = await signIn(`${idPrefix}.bob@example.com`);
   await runRows(bob.page, 'Sign-ins', 4);
   await pivotWithPreset(bob.page, 0, idPrefix, name);
-  await expect(bob.page.getByRole('button', { name: 'Result: Success' })).toBeVisible();
+  await expect(bob.page.getByRole('button', { name: 'result: Success' })).toBeVisible();
   await expect(bob.page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
 });

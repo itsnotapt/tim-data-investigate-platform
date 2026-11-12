@@ -283,11 +283,11 @@ export function SavePresetDialog({
             return (
               <Stack key={p.name} spacing={0.5}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Typography sx={{ minWidth: 120 }}>{p.title}</Typography>
+                  <Typography sx={{ minWidth: 120 }}>{p.name}</Typography>
                   <ToggleButtonGroup
                     size="small"
                     exclusive
-                    aria-label={p.title}
+                    aria-label={p.name}
                     value={mode.fixed ? 'fixed' : 'row'}
                     onChange={(_, value: string | null) =>
                       value &&
@@ -298,10 +298,10 @@ export function SavePresetDialog({
                       })
                     }
                   >
-                    <ToggleButton value="fixed" aria-label={`${p.title} fixed`}>
+                    <ToggleButton value="fixed" aria-label={`${p.name} fixed`}>
                       Fixed
                     </ToggleButton>
-                    <ToggleButton value="row" aria-label={`${p.title} from the row`}>
+                    <ToggleButton value="row" aria-label={`${p.name} from the row`}>
                       From row
                     </ToggleButton>
                   </ToggleButtonGroup>
@@ -320,7 +320,7 @@ export function SavePresetDialog({
                         onChange={(e) =>
                           setMode(p.name, { ...mode, showInTitle: e.target.checked })
                         }
-                        slotProps={{ input: { 'aria-label': `Show ${p.title} in title` } }}
+                        slotProps={{ input: { 'aria-label': `Show ${p.name} in title` } }}
                       />
                     }
                   />

@@ -14,19 +14,15 @@ kql_file: filename-seen-on-host.kql
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
   - name: file
     kind: string
-    title: File
     from_columns: [TargetFilename, ImageLoaded, Image]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: P1D
 id: EventId
 columns:

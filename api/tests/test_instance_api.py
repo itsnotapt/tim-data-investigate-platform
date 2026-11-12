@@ -15,7 +15,7 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
         menu="Identity / Entra",
         description="Sign-ins for a user",
         params=(
-            Param("user", "string", title="User", from_columns=("UserPrincipalName", "Upn")),
+            Param("user", "string", from_columns=("UserPrincipalName", "Upn")),
             Param("since", "datetime", required=False, default="2026-10-01T00:00:00Z"),
             Param("level", "string", many=True, choices=("low", "high"), help="Risk"),
         ),
@@ -37,7 +37,6 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
             "params": [
                 {
                     "name": "user",
-                    "title": "User",
                     "kind": "string",
                     "required": True,
                     "many": False,
@@ -45,7 +44,6 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
                 },
                 {
                     "name": "since",
-                    "title": "since",
                     "kind": "datetime",
                     "required": False,
                     "default": "2026-10-01T00:00:00Z",
@@ -53,7 +51,6 @@ def test_a_providers_action_is_in_the_catalogue(auth: AuthKit) -> None:
                 },
                 {
                     "name": "level",
-                    "title": "level",
                     "kind": "string",
                     "required": True,
                     "many": True,

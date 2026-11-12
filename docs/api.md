@@ -118,7 +118,7 @@ What the browser needs to know about this instance, built once at startup from t
   - `kind` is `query`, or `sink` for an action that writes rows it is given ([Runs](#post-apiruns)). A sink has `params: []`, `pivot: {rows: "rows", columns: []}` and `actionFile: false`.
   - `menuPath` is the action's `/`-separated `menu`, one entry per folder, `[]` at the top level.
   - `connections` names the fixed connections the action uses.
-  - `params` is `[{name, title, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
+  - `params` is `[{name, kind, required, default?, many, choices?, connectionType?, fromColumns?, schemaFrom?, help?}]`. `default` and `choices` are values as the browser sends them.
   - `pivot` is `{rows: "row" | "rows", columns: [[alternatives]]}`, or `null` for an action that isn't offered in the grid's context menu. A row matches when it has one column from each group.
   - `columns` is `[{name, type, title?, hidden, width?, pinned?, sort?, group, calculated?}]`, the columns the action declares, including settings for TIM's own `tim:` columns ([actions.md](actions.md#columns)); it is left out when the action declares none.
   - `idColumn` is the column the action's results start with as their Id column: the `id` of its action file. It is left out when the action has none. A preset's `idColumn` takes its place in a tab opened from it ([architecture.md](architecture.md#the-id-column)).
@@ -154,7 +154,7 @@ For example:
 {
   "params": { "users": ["alice@example.com", "bob@example.com"] },
   "missing": ["result"],
-  "reasons": { "result": "The 2 selected rows have different Result values" }
+  "reasons": { "result": "The 2 selected rows have different result values" }
 }
 ```
 

@@ -34,8 +34,8 @@ export async function runJsonRows(
   idColumn = 'EventId',
 ) {
   await openAction(page, ['Development', 'JSON (development)']);
-  await page.getByRole('button', { name: /^Rows: / }).click();
-  await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
+  await page.getByRole('button', { name: /^rows: / }).click();
+  await page.getByRole('textbox', { name: 'rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
   await setIdColumn(page, idColumn);
   await page.getByRole('button', { name: 'Run' }).click();

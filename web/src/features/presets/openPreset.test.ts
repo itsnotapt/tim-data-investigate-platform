@@ -13,15 +13,14 @@ const runKql: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'kusto',
       required: true,
       many: false,
     },
-    { name: 'database', title: 'Database', kind: 'string', required: true, many: false },
-    { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
-    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+    { name: 'database', kind: 'string', required: true, many: false },
+    { name: 'kql', kind: 'kql', required: true, many: false },
+    { name: 'parameters', kind: 'json', required: false, many: false },
   ],
   pivot: null,
 };

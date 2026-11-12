@@ -667,13 +667,12 @@ RUN_KQL = RunKql(
     name="Run KQL",
     description="Ad-hoc KQL on a Kusto connection, as you.",
     params=(
-        Param("connection", "connection", title="Connection", connection_type="kusto"),
-        Param("database", "string", title="Database"),
-        Param("kql", "kql", title="Query", schema_from=("connection", "database")),
+        Param("connection", "connection", connection_type="kusto"),
+        Param("database", "string"),
+        Param("kql", "kql", schema_from=("connection", "database")),
         Param(
             "parameters",
             "json",
-            title="Query parameters",
             required=False,
             help="[{name, type, value}]: declared before the query and sent as Kusto query "
             "parameters",

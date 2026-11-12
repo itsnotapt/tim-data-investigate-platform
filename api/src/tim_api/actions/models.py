@@ -17,7 +17,6 @@ class CatalogueParam(ApiModel):
     """A param of an action, as the tab builds its form from it."""
 
     name: str
-    title: str
     kind: ParamKind
     required: bool
     default: JsonValue = omitted()

@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.parent-process
 name: Parent process
-title: "{{ action_name }} {{ row.ParentImage | default(parent) | basename }} on {{ host }}"
+title: "{{ action_name }} {{ row.ParentImage | default(parent_process_guid) | basename }} on {{ host }}"
 menu: Endpoint
 description: The process that started a process
 pivot: row
@@ -12,19 +12,15 @@ kql_file: parent-process.kql
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
-  - name: parent
+  - name: parent_process_guid
     kind: string
-    title: Parent process GUID
     from_columns: [ParentProcessGuid]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: P1D
 id: EventId
 columns:

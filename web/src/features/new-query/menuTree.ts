@@ -152,12 +152,11 @@ export function entryCaption(entry: NewMenuEntry): string {
   const { preset, action } = entry;
   const fromRow = (preset.inputs ?? []).filter((i) => !i.fixed);
   if (fromRow.length === 0) return `Bookmark · ${preset.owner}`;
-  const title = (name: string) => action?.params.find((p) => p.name === name)?.title ?? name;
   const columns = fromColumns(preset);
   const asks = fromRow.filter((i) => !i.fixed && i.fromColumns.length === 0);
   return [
     action?.name ?? preset.action,
     ...(columns.length > 0 ? [`pivot on ${columns.join(', ')}`] : []),
-    ...(asks.length > 0 ? [`asks for ${asks.map((i) => title(i.name)).join(', ')}`] : []),
+    ...(asks.length > 0 ? [`asks for ${asks.map((i) => i.name).join(', ')}`] : []),
   ].join(' · ');
 }

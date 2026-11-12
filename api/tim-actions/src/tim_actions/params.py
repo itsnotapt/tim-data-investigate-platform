@@ -43,7 +43,6 @@ class Param:
 
     name: str
     kind: ParamKind
-    title: NonBlankStr | None = None
     required: StrictBool = True
     default: Any = None
     many: StrictBool = False
@@ -81,8 +80,6 @@ class Param:
                 _convert(self, self.default, None)
             except _Invalid as exc:
                 raise ValueError(f"default: {exc}") from None
-        if self.title is None:
-            object.__setattr__(self, "title", self.name)
         return self
 
 

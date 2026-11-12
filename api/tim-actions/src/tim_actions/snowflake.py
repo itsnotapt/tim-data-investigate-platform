@@ -438,12 +438,11 @@ RUN_SQL = RunSql(
     name="Run SQL",
     description="Ad-hoc SQL on a Snowflake connection.",
     params=(
-        Param("connection", "connection", title="Connection", connection_type="snowflake"),
-        Param("sql", "sql", title="Query", schema_from=("connection",)),
+        Param("connection", "connection", connection_type="snowflake"),
+        Param("sql", "sql", schema_from=("connection",)),
         Param(
             "parameters",
             "json",
-            title="Query parameters",
             required=False,
             help="[{name, type, value}]: bound by position, :1 the first",
         ),

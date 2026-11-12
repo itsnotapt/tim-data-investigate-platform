@@ -12,7 +12,6 @@ const SIGN_INS: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'kusto',
       required: true,
@@ -20,7 +19,6 @@ const SIGN_INS: CatalogueAction = {
     },
     {
       name: 'users',
-      title: 'Users',
       kind: 'string',
       required: true,
       many: true,
@@ -28,13 +26,12 @@ const SIGN_INS: CatalogueAction = {
     },
     {
       name: 'result',
-      title: 'Result',
       kind: 'string',
       required: true,
       many: false,
       fromColumns: ['Result'],
     },
-    { name: 'limit', title: 'Limit', kind: 'number', required: true, many: false, default: 10 },
+    { name: 'limit', kind: 'number', required: true, many: false, default: 10 },
   ],
   pivot: null,
 };
@@ -49,8 +46,8 @@ const RUN_KQL: CatalogueAction = {
   menuPath: [],
   connections: [],
   params: [
-    { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
-    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+    { name: 'kql', kind: 'kql', required: true, many: false },
+    { name: 'parameters', kind: 'json', required: false, many: false },
   ],
   pivot: null,
 };
@@ -127,7 +124,7 @@ describe('presetPivot', () => {
 
   it("is disabled when the rows disagree on a single-valued input's value, saying which", () => {
     expect(pivot(RESULT_FROM_ROW, [{ Result: 'Failure' }, { Result: 'Success' }])).toEqual({
-      disabled: 'The 2 selected rows have different Result values',
+      disabled: 'The 2 selected rows have different result values',
     });
   });
 
@@ -162,7 +159,7 @@ describe('presetPivot', () => {
       ...SIGN_INS,
       params: [
         ...SIGN_INS.params.map((p) => (p.name === 'users' ? { ...p, required: false } : p)),
-        { name: 'region', title: 'Region', kind: 'string', required: true, many: false },
+        { name: 'region', kind: 'string', required: true, many: false },
       ],
     };
     const both = preset([

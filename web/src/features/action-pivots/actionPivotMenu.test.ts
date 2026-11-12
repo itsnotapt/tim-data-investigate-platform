@@ -37,7 +37,6 @@ const BY_RESULT: CatalogueAction = {
   params: [
     {
       name: 'result',
-      title: 'Result',
       kind: 'string',
       required: true,
       many: false,
@@ -191,7 +190,7 @@ describe('buildActionPivotMenu', () => {
             Identity: [
               {
                 Pivots: [
-                  'Same result (disabled: The 2 selected rows have different Result values)',
+                  'Same result (disabled: The 2 selected rows have different result values)',
                 ],
               },
             ],

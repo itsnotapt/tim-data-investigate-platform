@@ -47,9 +47,9 @@ import {
   stillNeeded,
   titleOf,
 } from './model';
-import { datetimeText, hasPill, paramTitles } from './paramValues';
+import { datetimeText, hasPill } from './paramValues';
 import { PillsBar } from './PillsBar';
-import { pills, queryParameters } from './queryParameters';
+import { pillLabels, pills, queryParameters } from './queryParameters';
 import { RunPanel } from './RunPanel';
 import { useResults } from './results';
 import { durationText, outcomeText } from './runText';
@@ -152,7 +152,7 @@ function QueryEditor({
   return (
     <Box
       role="group"
-      aria-label={param.title}
+      aria-label={param.name}
       aria-invalid={error !== undefined || undefined}
       aria-describedby={error !== undefined ? captionId : undefined}
       // Capturing, so the editor never sees the shortcut (Monaco inserts a line on Ctrl+Enter).
@@ -174,7 +174,7 @@ function QueryEditor({
         <CodeEditor
           language={EDITOR_LANGUAGES[param.kind] ?? 'plaintext'}
           path={`${tabId}.${param.name}.${param.kind}`}
-          ariaLabel={param.title}
+          ariaLabel={param.name}
           value={typeof value === 'string' ? value : ''}
           onChange={(text) => onChange(text === '' ? undefined : text)}
           onMount={setEditor}
@@ -488,7 +488,7 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
 
       {needed.length > 0 && !status.executing && (
         <Alert severity="warning" variant="outlined" sx={{ mx: 1, my: 0.5 }}>
-          <div>Fill in {paramTitles(pillsBar.params, needed)} to run this pivot</div>
+          <div>Fill in {pillLabels(needed)} to run this pivot</div>
           {neededReasons.map((reason) => (
             <div key={reason}>{reason}</div>
           ))}

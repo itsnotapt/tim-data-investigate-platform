@@ -11,6 +11,7 @@ import utc from 'dayjs/plugin/utc';
 import { useImperativeHandle, useRef } from 'react';
 import type { CatalogueParam } from '../../lib/api';
 import { parseParamText, type Focusable } from './paramValues';
+import { pillLabel } from './queryParameters';
 
 dayjs.extend(utc);
 
@@ -67,7 +68,7 @@ export function DatetimeEditor({ param, value, onChange, onDone, focusRef }: Dat
           fieldRef={field}
           fullWidth
           size="small"
-          label={`${param.title} (UTC)`}
+          label={`${pillLabel(param.name)} (UTC)`}
           format="YYYY-MM-DD HH:mm:ss"
           ampm={false}
           timezone={TIMEZONE}

@@ -325,7 +325,7 @@ The action tab has a header in the app bar, a pills bar in the action bar, and i
 **Pills bar:** while the tab is on show, the [action bar](#page-layout) holds, after **New**, the tab's **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
 - A `connection` param whose type has exactly one connection is filled in when the tab opens from the New menu. Its pill is greyed out.
-- A pill shows the param's title and value. It opens a popover that edits the param by kind:
+- A pill shows the param's name and value. It opens a popover that edits the param by kind:
 
   | Param              | Popover                                                                                                              |
   | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
@@ -447,7 +447,7 @@ The results grid's right-click menu has **Pivot ▸**. Its targets are the selec
   - A refused resolve shows the toast "Couldn't pivot into <action>: <reason>" and creates no tab.
 - **Pivot rows.** The child tab's `toRun` keeps `pivotRowIds`, the `id` of each pivot row under the parent's Id column at the time of the pivot, `null` for a row with none. Reruns of the child, with edited params too, keep them. A tab without `pivotRowIds` shows no **Go to pivot row**.
 - **Waiting tab.**
-  - Each needed pill is dashed, warning-coloured and labelled "<Title>: needed".
+  - Each needed pill is dashed, warning-coloured and labelled "<name>: needed".
   - A warning note says "Fill in <params> to run this pivot", with the reasons.
   - The first needed pill's popover opens when the tab is first shown.
   - The analyst presses Run once the params are filled.
@@ -494,7 +494,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
 
 - Each input takes the first non-empty column of its `fromColumns` in each row: the first match wins.
 - A many-valued param, or a `dynamic` query parameter, takes the distinct values of the rows.
-- Any other input takes the value the rows agree on. When they differ, the menu item is disabled with the tooltip "The N selected rows have different {Title} values". A query parameter's title is its name.
+- Any other input takes the value the rows agree on. When they differ, the menu item is disabled with the tooltip "The N selected rows have different {name} values".
 - A query parameter's value goes in its `parameters` entry.
 - A required param left unset is missing, as when the server resolves a pivot, and so is a query parameter left without a value, by its pill's name (`parameters.<name>`). The child tab sets `pivotMissing` and waits.
 - The other params come from the action's defaults and the preset's fixed values, as when [opening a preset](#the-tab-and-new-menu).
@@ -954,7 +954,7 @@ The registry serves the catalogue and the connections in `GET /api/instance` ([a
 - Actions run through `/api/runs` ([Runs and rows](#runs-and-rows)).
 - A pivot into an action is resolved through `POST /api/actions/{key}/resolve`. At most `TIM_MAX_PIVOT_ROWS` rows (default 100) are accepted.
 
-Params are declared as data: `Param(name, kind, title, required, default, many, choices, connection_type, schema_from, from_columns, help)`.
+Params are declared as data: `Param(name, kind, required, default, many, choices, connection_type, schema_from, from_columns, help)`.
 
 - **`kind`** is `string`, `number`, `boolean`, `datetime`, `timespan`, `json`, `kql`, `sql` or `connection`.
 - **`tim_actions.validate_params`** validates and converts the values in a request:
@@ -969,7 +969,7 @@ Params are declared as data: `Param(name, kind, title, required, default, many, 
 - **`Action.resolve(context)`** gives the params of a pivot from a `PivotContext` (`rows`, `cell`) as a `Resolved` (`params`, `missing`). `missing` maps each unfilled param's name to its reason, or `None`.
   - The default takes, for each param with `from_columns`, the first non-empty of those columns in each row.
   - A `many` param takes the distinct values in first-seen order.
-  - A single-valued param takes the value the rows agree on. When they disagree it is missing, with the reason "The N selected rows have different <Title> values".
+  - A single-valued param takes the value the rows agree on. When they disagree it is missing, with the reason "The N selected rows have different <name> values".
   - A required param with no value and no default is missing, with no reason.
 - **`resolve_pivot(action, rows, cell)`** trims the rows, and the cell, to the union of `pivot_columns()` and every param's `from_columns`, then calls `action.resolve()`. An overridden `resolve()` sees only those columns.
 - **`pivot`** is set by every action and has no default. `row` or `rows` offers the action on one or several selected rows. `none` keeps it out of the context menu.

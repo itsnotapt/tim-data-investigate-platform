@@ -19,8 +19,8 @@ async function runJson(page: Page, rows: Record<string, unknown>[], idColumn: st
   await page.getByRole('button', { name: 'Actions' }).click();
   await page.getByRole('button', { name: 'Development', exact: true }).click();
   await page.getByRole('button', { name: 'JSON (development)', exact: true }).click();
-  await page.getByRole('button', { name: /^Rows: / }).click();
-  await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
+  await page.getByRole('button', { name: /^rows: / }).click();
+  await page.getByRole('textbox', { name: 'rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
   if (idColumn !== null) {
     await setIdColumn(page, idColumn);

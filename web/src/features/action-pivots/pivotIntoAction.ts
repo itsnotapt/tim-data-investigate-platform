@@ -7,8 +7,8 @@ import {
   type Preset,
 } from '../../lib/api';
 import { isApiError } from '../../lib/api/errors';
-import { initialParams, paramTitles, stillMissing } from '../action-tab/paramValues';
-import { pills } from '../action-tab/queryParameters';
+import { initialParams, stillMissing } from '../action-tab/paramValues';
+import { pillLabels } from '../action-tab/queryParameters';
 import { fromPivot, type OpeningParams, type Pivot } from '../action-tab/model';
 import { useTabsStore, type TabsStore } from '../tabs';
 
@@ -51,7 +51,7 @@ function openChildTab(
   { parentTabId, notify, goTo, run, pivotRowIds, store = useTabsStore }: ChildTabInput,
   pivot: Omit<Pivot, 'pivotRowIds'>,
 ): string {
-  const { action, params, missing } = pivot;
+  const { missing } = pivot;
   const content = fromPivot({ ...pivot, pivotRowIds });
   const { title } = content;
   const tabId = store.getState().createTab({ parentId: parentTabId, content });
@@ -59,7 +59,7 @@ function openChildTab(
   const goToChild = { label: 'Go to', onClick: () => goTo(tabId) };
   if (needed.length > 0) {
     notify({
-      message: `Opened ${title}: needs ${paramTitles(pills(action.params, params).params, needed)}`,
+      message: `Opened ${title}: needs ${pillLabels(needed)}`,
       action: goToChild,
     });
   } else {

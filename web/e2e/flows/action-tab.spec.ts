@@ -9,12 +9,12 @@ test('an action opened from the New menu runs with a pill’s value, and its row
   await expect(page).toHaveURL(/\/view\//);
   await expect(page.getByRole('heading', { name: 'Sign-ins' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Users: not set' }).click();
-  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await page.getByRole('button', { name: 'users: not set' }).click();
+  const users = page.getByRole('textbox', { name: 'Add users' });
   await users.fill('alice@example.com');
   await users.press('Enter');
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Users: alice@example.com' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'users: alice@example.com' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
@@ -61,8 +61,8 @@ test('a long run is picked up again after a reload', async ({ page }) => {
 
 test('a run that succeeds with no rows says so', async ({ page }) => {
   await openAction(page, ['Development', 'Rows', 'Sign-ins']);
-  await page.getByRole('button', { name: 'Users: not set' }).click();
-  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await page.getByRole('button', { name: 'users: not set' }).click();
+  const users = page.getByRole('textbox', { name: 'Add users' });
   await users.fill('nobody@example.com');
   await users.press('Enter');
   await page.keyboard.press('Escape');
@@ -118,8 +118,8 @@ async function openJson(page: Page, rows: string) {
 }
 
 async function setRows(page: Page, rows: string) {
-  await page.getByRole('button', { name: /^Rows: / }).click();
-  await page.getByRole('textbox', { name: 'Rows' }).fill(rows);
+  await page.getByRole('button', { name: /^rows: / }).click();
+  await page.getByRole('textbox', { name: 'rows' }).fill(rows);
   await page.keyboard.press('Escape');
 }
 
@@ -135,7 +135,7 @@ test('a failed run keeps the last good results under a note; Edited resets the p
   await setRows(page, JSON.stringify({ Host: 'not a list' }));
   await page.getByRole('button', { name: 'Edited' }).click();
   await expect(page.getByRole('button', { name: 'Edited' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^Rows: .*web-1/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^rows: .*web-1/ })).toBeVisible();
 
   await setRows(page, JSON.stringify({ Host: 'not a list' }));
   await expect(page.getByRole('button', { name: 'Edited' })).toBeVisible();
@@ -152,7 +152,7 @@ test('a failed run keeps the last good results under a note; Edited resets the p
 test('a param the server refuses is marked on its pill', async ({ page }) => {
   await openAction(page, ['Development', 'JSON (development)']);
   await page.getByRole('button', { name: 'Run' }).click();
-  await expect(page.getByRole('button', { name: 'Rows: not set' })).toHaveAccessibleDescription(
+  await expect(page.getByRole('button', { name: 'rows: not set' })).toHaveAccessibleDescription(
     'Required',
   );
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -180,8 +180,8 @@ test('a run that cannot start says why on the Run tab', async ({ page }) => {
 
 test('Clone opens a copy of the tab with the same params', async ({ page }) => {
   await openAction(page, ['Development', 'Rows', 'Sign-ins']);
-  await page.getByRole('button', { name: 'Users: not set' }).click();
-  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await page.getByRole('button', { name: 'users: not set' }).click();
+  const users = page.getByRole('textbox', { name: 'Add users' });
   await users.fill('alice@example.com');
   await users.press('Enter');
   await page.keyboard.press('Escape');
@@ -190,17 +190,17 @@ test('Clone opens a copy of the tab with the same params', async ({ page }) => {
   await page.getByRole('button', { name: 'Clone' }).click();
   await expect(page.getByRole('heading', { name: 'Copy of Sign-ins' })).toBeVisible();
   expect(page.url()).not.toBe(original);
-  await expect(page.getByRole('button', { name: 'Users: alice@example.com' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'users: alice@example.com' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Results', exact: true })).toBeVisible();
 });
 
 test('the suggested databases open under the Database field, not over it', async ({ page }) => {
   await openAction(page, ['Development', 'Editor', 'KQL editor']);
-  await page.getByRole('button', { name: 'Connection: not set' }).click();
+  await page.getByRole('button', { name: 'connection: not set' }).click();
   await page.getByRole('option', { name: 'Development logs' }).click();
-  await page.getByRole('button', { name: 'Database: not set' }).click();
+  await page.getByRole('button', { name: 'database: not set' }).click();
 
-  const field = page.getByRole('combobox', { name: 'Database' });
+  const field = page.getByRole('combobox', { name: 'database' });
   await expect(field).toBeFocused();
   const suggestions = page.getByRole('listbox');
   await expect(suggestions.getByRole('option', { name: 'Research' })).toBeVisible();

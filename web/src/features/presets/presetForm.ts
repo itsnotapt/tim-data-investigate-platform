@@ -255,7 +255,7 @@ export function previewLines(
           }`,
       );
     }
-    const line = `${p.title} = ${mode && !mode.fixed ? fromRowText(mode.columns) : valueOrType(p, params[p.name])}`;
+    const line = `${p.name} = ${mode && !mode.fixed ? fromRowText(mode.columns) : valueOrType(p, params[p.name])}`;
     const query = p.kind === 'kql' || p.kind === 'sql';
     return query && declareStatement !== undefined ? [declareStatement, line] : [line];
   });

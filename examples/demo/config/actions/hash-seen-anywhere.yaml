@@ -12,15 +12,12 @@ kql_file: hash-seen-anywhere.kql
 params:
   - name: hash
     kind: string
-    title: Hash
     from_columns: [SHA256, MD5]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: P1D
 id: EventId
 columns:

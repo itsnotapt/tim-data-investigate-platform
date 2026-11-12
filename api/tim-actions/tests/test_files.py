@@ -112,6 +112,16 @@ def test_a_sidecar_in_a_subdirectory_is_refused(tmp_path: Path) -> None:
     ]
 
 
+def test_a_param_has_no_title(tmp_path: Path) -> None:
+    (tmp_path / "users.yaml").write_text(
+        "type: query\nkey: users\nname: Users\npivot: none\nquery: U\n"
+        "params:\n  - name: user_principal_name\n    kind: string\n    title: User\n"
+    )
+    assert load_action_files(tmp_path, TYPES).problems == [
+        f"{tmp_path / 'users.yaml'}:9: params[0].title: Unexpected keyword argument"
+    ]
+
+
 def test_problems_are_in_line_order(tmp_path: Path) -> None:
     (tmp_path / "users.yaml").write_text(
         "type: query\nkey: users\nname: Users\nmenu: a//b\npivot: none\npivot: row\nquery: U\n"

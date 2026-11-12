@@ -4,7 +4,6 @@ import { pills } from './queryParameters';
 
 const param = (name: string, kind: CatalogueParam['kind']): CatalogueParam => ({
   name,
-  title: name,
   kind,
   required: true,
   many: false,

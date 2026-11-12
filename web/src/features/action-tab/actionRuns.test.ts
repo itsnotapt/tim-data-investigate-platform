@@ -104,11 +104,10 @@ beforeEach(async () => {
           menuPath: [],
           connections: [],
           params: [
-            { name: 'users', title: 'Users', kind: 'string', required: false, many: true },
-            { name: 'query', title: 'Query', kind: 'kql', required: false, many: false },
+            { name: 'users', kind: 'string', required: false, many: true },
+            { name: 'query', kind: 'kql', required: false, many: false },
             {
               name: 'parameters',
-              title: 'Query parameters',
               kind: 'json',
               required: false,
               many: false,

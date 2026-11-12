@@ -11,7 +11,6 @@ kql_file: raw-logs.kql
 params:
   - name: sourcetype
     kind: string
-    title: Sourcetype
     # Every sourcetype in the dataset.
     choices:
       - access_combined
@@ -123,12 +122,10 @@ params:
       - yum-too_small
   - name: since
     kind: datetime
-    title: Since
     required: false       # left out, the KQL's declared default applies
     help: When not set, from 2018-08-01
   - name: until
     kind: datetime
-    title: Until
     required: false
     help: When not set, until 2018-09-01
 id: EventId

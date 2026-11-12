@@ -21,7 +21,6 @@ const SIGN_INS: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'kusto',
       required: true,
@@ -29,7 +28,6 @@ const SIGN_INS: CatalogueAction = {
     },
     {
       name: 'users',
-      title: 'Users',
       kind: 'string',
       required: true,
       many: true,
@@ -37,13 +35,12 @@ const SIGN_INS: CatalogueAction = {
     },
     {
       name: 'result',
-      title: 'Result',
       kind: 'string',
       required: true,
       many: false,
       fromColumns: ['Result'],
     },
-    { name: 'limit', title: 'Limit', kind: 'number', required: true, many: false, default: 10 },
+    { name: 'limit', kind: 'number', required: true, many: false, default: 10 },
   ],
   pivot: { rows: 'rows', columns: [['User', 'Upn']] },
 };
@@ -192,7 +189,7 @@ describe('pivotIntoAction', () => {
       resolving({
         params: { users: ['alice', 'bob'] },
         missing: ['result', 'limit'],
-        reasons: { result: 'The 2 selected rows have different Result values' },
+        reasons: { result: 'The 2 selected rows have different result values' },
       }),
     );
     const { store, run, notified, pivot } = setup();
@@ -212,10 +209,10 @@ describe('pivotIntoAction', () => {
     ]);
     const tab = store.getState().tabs[tabId!];
     expect(tab?.status.pivotMissing).toEqual({
-      result: 'The 2 selected rows have different Result values',
+      result: 'The 2 selected rows have different result values',
     });
     expect(run).not.toHaveBeenCalled();
-    expect(notified.map((n) => n.message)).toEqual(['Opened Sign-ins: needs Result']);
+    expect(notified.map((n) => n.message)).toEqual(['Opened Sign-ins: needs result']);
   });
 
   it('keeps the pivot rows’ ids on the child tab, null for a row without one', async () => {
@@ -310,7 +307,7 @@ describe('pivotIntoAction', () => {
 
     expect(store.getState().tabs[tabId]?.status.pivotMissing).toEqual({ users: null });
     expect(run).not.toHaveBeenCalled();
-    expect(notified.map((n) => n.message)).toEqual(['Opened Failures of users: needs Users']);
+    expect(notified.map((n) => n.message)).toEqual(['Opened Failures of users: needs users']);
   });
 
   it('names a query parameter a preset pivot misses by its name', () => {
@@ -320,10 +317,9 @@ describe('pivotIntoAction', () => {
       key: 'tim.run_kql',
       name: 'Run KQL',
       params: [
-        { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
+        { name: 'kql', kind: 'kql', required: true, many: false },
         {
           name: 'parameters',
-          title: 'Query parameters',
           kind: 'json',
           required: false,
           many: false,

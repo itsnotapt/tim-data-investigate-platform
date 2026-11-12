@@ -30,6 +30,7 @@ import {
   summarize,
   valueText,
 } from './paramValues';
+import { pillLabel } from './queryParameters';
 import { TimespanEditor } from './TimespanEditor';
 
 export interface PillsBarProps {
@@ -66,11 +67,13 @@ export interface IdColumnPill {
   onChange: (column: string | null) => void;
 }
 
+/** The Id column pill's label. */
+const ID_COLUMN_LABEL = 'Id column';
+
 /** The Id column pill's editor, as a param's. */
 const ID_COLUMN: CatalogueParam = {
   name: 'tim:idColumn',
   kind: 'string',
-  title: 'Id column',
   help: 'The column whose value is each row’s id',
   required: false,
   many: false,
@@ -99,7 +102,7 @@ function IdColumnEditor({
         size="small"
         fullWidth
         inputRef={focusRef}
-        label={ID_COLUMN.title}
+        label={ID_COLUMN_LABEL}
         helperText={ID_COLUMN.help}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value || null)}
@@ -193,7 +196,7 @@ function PickList({
     onChange(orUnset(next.map((each) => each.value)));
   };
   return (
-    <List dense role="listbox" aria-label={param.title} aria-multiselectable={param.many}>
+    <List dense role="listbox" aria-label={pillLabel(param.name)} aria-multiselectable={param.many}>
       {!param.many && (
         <ListItemButton
           role="option"
@@ -279,7 +282,7 @@ function ChipsEditor({ param, value, onChange, focusRef }: EditorProps) {
           setError(null);
           add(parts);
         }}
-        slotProps={{ htmlInput: { 'aria-label': `Add ${param.title}` } }}
+        slotProps={{ htmlInput: { 'aria-label': `Add ${pillLabel(param.name)}` } }}
       />
     </Box>
   );
@@ -294,7 +297,7 @@ function TextEditor({ param, value, onChange, focusRef }: EditorProps) {
     <TextField
       size="small"
       inputRef={focusRef}
-      label={param.title}
+      label={pillLabel(param.name)}
       value={draft}
       multiline={json}
       minRows={json ? 4 : undefined}
@@ -344,7 +347,7 @@ function SuggestEditor({
           {...input}
           inputRef={focusRef}
           size="small"
-          label={param.title}
+          label={pillLabel(param.name)}
           helperText={param.help}
         />
       )}
@@ -362,7 +365,7 @@ function Editor(props: EditorProps) {
   if (param.kind === 'boolean') {
     return (
       <FormControlLabel
-        label={param.title}
+        label={pillLabel(param.name)}
         control={
           <Switch
             checked={value === true}
@@ -452,7 +455,7 @@ export function PillsBar({
             variant="outlined"
             color={error !== undefined ? 'error' : isNeeded ? 'warning' : 'default'}
             disabled={fixed}
-            label={`${p.title}: ${isNeeded ? 'needed' : summarize(p, values[p.name], connections)}`}
+            label={`${pillLabel(p.name)}: ${isNeeded ? 'needed' : summarize(p, values[p.name], connections)}`}
             title={error ?? p.help ?? undefined}
             onClick={(e) => setOpen({ name: p.name, anchor: e.currentTarget })}
             sx={
@@ -472,8 +475,8 @@ export function PillsBar({
           icon={idDuplicates > 0 ? <WarningAmberIcon /> : undefined}
           label={
             idDuplicates > 0
-              ? `${ID_COLUMN.title}: ${idColumn.current} · ${duplicatesFound(idDuplicates)}`
-              : `${ID_COLUMN.title}: ${idColumn.current ?? 'not set'}`
+              ? `${ID_COLUMN_LABEL}: ${idColumn.current} · ${duplicatesFound(idDuplicates)}`
+              : `${ID_COLUMN_LABEL}: ${idColumn.current ?? 'not set'}`
           }
           title={
             idDuplicates > 0
@@ -508,7 +511,11 @@ export function PillsBar({
         onClose={close}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         slotProps={{
-          paper: { role: 'dialog', 'aria-label': editing?.title, sx: { p: 1.5 } },
+          paper: {
+            role: 'dialog',
+            'aria-label': editingIdColumn ? ID_COLUMN_LABEL : editing && pillLabel(editing.name),
+            sx: { p: 1.5 },
+          },
           transition: { onEntered: () => field.current?.focus() },
         }}
       >

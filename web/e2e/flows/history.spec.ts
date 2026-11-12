@@ -14,8 +14,8 @@ const rowsWith = (page: Page, host: string) =>
 /** Opens the development JSON action with `rows`, each row's id from `Host`, and runs it. */
 async function runJson(page: Page, rows: Record<string, unknown>[]) {
   await openAction(page, ['Development', 'JSON (development)']);
-  await page.getByRole('button', { name: /^Rows: / }).click();
-  await page.getByRole('textbox', { name: 'Rows' }).fill(JSON.stringify(rows));
+  await page.getByRole('button', { name: /^rows: / }).click();
+  await page.getByRole('textbox', { name: 'rows' }).fill(JSON.stringify(rows));
   await page.keyboard.press('Escape');
   await setIdColumn(page, 'Host');
   await page.getByRole('button', { name: 'Run' }).click();

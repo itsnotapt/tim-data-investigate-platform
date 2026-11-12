@@ -140,7 +140,7 @@ def test_a_process_pivots_to_its_activity_on_its_host(
     assert (resolved.params, resolved.missing) == (
         {
             "host": "FYODOR-L",
-            "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+            "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
             "around": "2018-08-20T10:01:41Z",
         },
         {},
@@ -152,12 +152,12 @@ def test_a_process_pivots_to_its_activity_on_its_host(
     [call] = tim_kusto.calls
     assert call.parameters == {
         "host": "FYODOR-L",
-        "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+        "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
         "around": "datetime(2018-08-20T10:01:41.0000000Z)",
         "window": "timespan(1.00:00:00)",
     }
     assert call.kql.startswith(
-        "declare query_parameters(host: string, process: string, "
+        "declare query_parameters(host: string, process_guid: string, "
         "around: datetime, window: timespan);\n"
     )
     assert "Timestamp between ((around - window) .. (around + window))" in call.kql
@@ -167,7 +167,7 @@ def test_a_process_pivots_to_its_activity_on_its_host(
 def test_process_activity_holds_every_event_of_the_process(actions: dict[str, Action]) -> None:
     kql = actions["demo.process-activity"].kql
 
-    legs = set(re.findall(r"(\w+)\(\)\)\s*\| where (\w+) == process", kql))
+    legs = set(re.findall(r"(\w+)\(\)\)\s*\| where (\w+) == process_guid", kql))
 
     assert legs == {
         ("ProcessCreations", "ParentProcessGuid"),
@@ -189,7 +189,7 @@ def test_a_process_pivots_to_its_child_processes(
     assert (resolved.params, resolved.missing) == (
         {
             "host": "FYODOR-L",
-            "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+            "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
             "around": "2018-08-20T10:01:41Z",
         },
         {},
@@ -201,16 +201,16 @@ def test_a_process_pivots_to_its_child_processes(
     [call] = tim_kusto.calls
     assert call.parameters == {
         "host": "FYODOR-L",
-        "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+        "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
         "around": "datetime(2018-08-20T10:01:41.0000000Z)",
         "window": "timespan(1.00:00:00)",
     }
     assert call.kql.startswith(
-        "declare query_parameters(host: string, process: string, "
+        "declare query_parameters(host: string, process_guid: string, "
         "around: datetime, window: timespan);\n"
         "ProcessCreations()\n"
         "| where Host == host and Timestamp between ((around - window) .. (around + window))\n"
-        "| where ParentProcessGuid == process\n"
+        "| where ParentProcessGuid == process_guid\n"
     )
     assert call.kql.endswith("| take 10000\n")
 
@@ -223,7 +223,7 @@ def test_a_process_pivots_to_its_parent_process(
     assert (resolved.params, resolved.missing) == (
         {
             "host": "FYODOR-L",
-            "parent": "{EBF7A186-C2DA-5B58-0000-0010B74CC801}",
+            "parent_process_guid": "{EBF7A186-C2DA-5B58-0000-0010B74CC801}",
             "around": "2018-08-20T10:01:41Z",
         },
         {},
@@ -235,16 +235,16 @@ def test_a_process_pivots_to_its_parent_process(
     [call] = tim_kusto.calls
     assert call.parameters == {
         "host": "FYODOR-L",
-        "parent": "{EBF7A186-C2DA-5B58-0000-0010B74CC801}",
+        "parent_process_guid": "{EBF7A186-C2DA-5B58-0000-0010B74CC801}",
         "around": "datetime(2018-08-20T10:01:41.0000000Z)",
         "window": "timespan(1.00:00:00)",
     }
     assert call.kql.startswith(
-        "declare query_parameters(host: string, parent: string, "
+        "declare query_parameters(host: string, parent_process_guid: string, "
         "around: datetime, window: timespan);\n"
         "ProcessCreations()\n"
         "| where Host == host and Timestamp between ((around - window) .. (around + window))\n"
-        "| where ProcessGuid == parent\n"
+        "| where ProcessGuid == parent_process_guid\n"
     )
     assert call.kql.endswith("| take 10000\n")
 
@@ -255,7 +255,7 @@ def test_a_connection_pivots_to_every_connection_to_its_ip(
     connections_to_ip = actions["demo.connections-to-ip"]
     resolved = resolve_pivot(connections_to_ip, [CONNECTION])
     assert (resolved.params, resolved.missing) == (
-        {"ip": "45.77.53.176", "around": "2018-08-20T10:01:46Z"},
+        {"destination_ip": "45.77.53.176", "around": "2018-08-20T10:01:46Z"},
         {},
     )
     tim_kusto.respond([])
@@ -264,14 +264,14 @@ def test_a_connection_pivots_to_every_connection_to_its_ip(
 
     [call] = tim_kusto.calls
     assert call.parameters == {
-        "ip": "45.77.53.176",
+        "destination_ip": "45.77.53.176",
         "around": "datetime(2018-08-20T10:01:46.0000000Z)",
         "window": "timespan(1.00:00:00)",
     }
     assert call.kql.startswith(
-        "declare query_parameters(ip: string, around: datetime, window: timespan);\n"
+        "declare query_parameters(destination_ip: string, around: datetime, window: timespan);\n"
         "NetworkConnections()\n"
-        "| where DestinationIp == ip"
+        "| where DestinationIp == destination_ip"
         " and Timestamp between ((around - window) .. (around + window))\n"
     )
     assert call.kql.endswith("| take 10000\n")
@@ -406,23 +406,23 @@ def test_a_child_process_in_process_activity_pivots_to_its_parent(
     resolved = resolve_pivot(actions["demo.parent-process"], [child])
 
     assert "ProcessCreations()" in activity.kql
-    assert resolved.params["parent"] == "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}"
+    assert resolved.params["parent_process_guid"] == "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}"
 
 
 # The params each pivot from a process takes from PROCESS, and the parameters it sends Kusto.
 PROCESS_PARAMS = {
     "host": "FYODOR-L",
-    "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
     "around": "2018-08-20T10:01:41Z",
 }
 PROCESS_PARAMETERS = {
     "host": "FYODOR-L",
-    "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
     "around": "datetime(2018-08-20T10:01:41.0000000Z)",
     "window": "timespan(1.00:00:00)",
 }
 PROCESS_DECLARATION = (
-    "declare query_parameters(host: string, process: string, around: datetime, window: timespan);\n"
+    "declare query_parameters(host: string, process_guid: string, around: datetime, window: timespan);\n"
 )
 PROCESS_WINDOW = (
     "ProcessCreations()\n"
@@ -453,7 +453,7 @@ def test_a_process_pivots_to_its_descendants_at_every_depth(
     kql = pivot_from_process(actions["demo.descendant-processes"], tim_connections, tim_kusto)
 
     assert "| graph-match (root)-[spawned*1..50]->(descendant)\n" in kql
-    assert "        where root.ProcessGuid == process\n" in kql
+    assert "        where root.ProcessGuid == process_guid\n" in kql
     assert "        project ProcessGuid = descendant.ProcessGuid, Depth = array_length(spawned);\n" in kql
 
 
@@ -463,9 +463,9 @@ def test_a_process_pivots_to_its_tree_of_up_to_five_generations_above_it(
     kql = pivot_from_process(actions["demo.process-tree"], tim_connections, tim_kusto)
 
     assert "| graph-match (ancestor)-[spawned*1..5]->(descendant)\n" in kql
-    assert "        where descendant.ProcessGuid == process\n" in kql
+    assert "        where descendant.ProcessGuid == process_guid\n" in kql
     assert "        project ProcessGuid = ancestor.ProcessGuid, Depth = array_length(spawned)\n" in kql
-    assert "| union (print ProcessGuid = process, Depth = tolong(0));\n" in kql
+    assert "| union (print ProcessGuid = process_guid, Depth = tolong(0));\n" in kql
 
 
 def test_a_process_pivots_to_the_other_processes_its_parent_started(
@@ -474,8 +474,8 @@ def test_a_process_pivots_to_the_other_processes_its_parent_started(
     kql = pivot_from_process(actions["demo.sibling-processes"], tim_connections, tim_kusto)
 
     assert (
-        "| where ParentProcessGuid in ((creations | where ProcessGuid == process | distinct ParentProcessGuid))\n"
-        "| where ProcessGuid != process\n"
+        "| where ParentProcessGuid in ((creations | where ProcessGuid == process_guid | distinct ParentProcessGuid))\n"
+        "| where ProcessGuid != process_guid\n"
     ) in kql
 
 
@@ -483,4 +483,4 @@ def test_every_event_of_a_process_pivots_to_its_tree_and_its_relatives(actions: 
     for key in ["demo.descendant-processes", "demo.process-tree", "demo.sibling-processes"]:
         resolved = resolve_pivot(actions[key], [CONNECTION])
 
-        assert (resolved.params["process"], resolved.missing) == (CONNECTION["ProcessGuid"], {}), key
+        assert (resolved.params["process_guid"], resolved.missing) == (CONNECTION["ProcessGuid"], {}), key

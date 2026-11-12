@@ -64,8 +64,9 @@ export function presetPivot(
     const many = input.source === 'queryParameter' ? input.type === 'dynamic' : param?.many;
     if (values.length === 0) continue;
     if (!many && values.length > 1) {
-      const title = param?.title ?? input.name;
-      return { disabled: `The ${rows.length} selected rows have different ${title} values` };
+      return {
+        disabled: `The ${rows.length} selected rows have different ${input.name} values`,
+      };
     }
     const value = many ? values : values[0];
     if (input.source === 'queryParameter') params = setPill(params, pillName(input.name), value);

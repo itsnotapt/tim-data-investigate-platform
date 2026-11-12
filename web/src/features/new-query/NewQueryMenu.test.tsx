@@ -17,10 +17,9 @@ const actions: CatalogueAction[] = [
     menuPath: ['Identity', 'Entra'],
     connections: [],
     params: [
-      { name: 'users', title: 'Users', kind: 'string', required: false, many: true },
+      { name: 'users', kind: 'string', required: false, many: true },
       {
         name: 'since',
-        title: 'Since',
         kind: 'timespan',
         required: false,
         many: false,
@@ -40,13 +39,12 @@ const actions: CatalogueAction[] = [
     params: [
       {
         name: 'connection',
-        title: 'Connection',
         kind: 'connection',
         connectionType: 'kusto',
         required: true,
         many: false,
       },
-      { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
+      { name: 'kql', kind: 'kql', required: true, many: false },
     ],
     pivot: null,
   },
