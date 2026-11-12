@@ -98,7 +98,7 @@ Annotations are kept by `id`, so a row needs one to be annotated. The browser co
 A tab that has run shows the title of its latest run: its **Run title**.
 
 - Without `title`, the title is the action's `name`.
-- With it, the server renders the template when it creates the run, in Jinja's sandbox with autoescape off ([ADR-0027](adr/0027-run-titles-from-jinja-templates.md)).
+- With it, the server renders the template when it creates the run, in Jinja's sandbox with autoescape off.
   - It can use each of the run's params by name, with defaults applied and a `many` param as a list, and `action_name`, the action's `name`.
   - `title: "{{ action_name }} {{ host }}"` gives "Host timeline BGIST-L".
   - Jinja's filters format values, such as `{{ users | join(', ') }}` or `{{ limit | default(10) }}`.
