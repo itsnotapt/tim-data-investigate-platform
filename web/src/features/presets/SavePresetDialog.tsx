@@ -42,6 +42,8 @@ import {
   type QueryParameterForm,
 } from './presetForm';
 import { usePresetsStore, type PresetsStore } from './presetsStore';
+import { PrototypeSwitcher, usePrototypeVariant } from '../../components/PrototypeSwitcher';
+import { SAVE_PRESET_VARIANTS, SavePresetDialogVariant } from './SavePresetDialog.prototype';
 
 export interface SavePresetDialogProps {
   action: CatalogueAction;
@@ -208,7 +210,7 @@ function QueryParameterFields({
  * takes query parameters, it declares them too. Your own preset is updated or saved as new; anyone
  * else's is saved as your own copy. Mount it to open it.
  */
-export function SavePresetDialog({
+function SavePresetDialogToday({
   action,
   params,
   source,
@@ -447,5 +449,20 @@ export function SavePresetDialog({
         )}
       </DialogActions>
     </Dialog>
+  );
+}
+
+/** PROTOTYPE: picks the dialog variant from `?variant=`, with the switcher bar. Not for main. */
+export function SavePresetDialog(props: SavePresetDialogProps) {
+  const variant = usePrototypeVariant(SAVE_PRESET_VARIANTS);
+  return (
+    <>
+      {variant === 'A' ? (
+        <SavePresetDialogToday {...props} />
+      ) : (
+        <SavePresetDialogVariant {...props} variant={variant} />
+      )}
+      <PrototypeSwitcher title="Save preset" variants={SAVE_PRESET_VARIANTS} />
+    </>
   );
 }

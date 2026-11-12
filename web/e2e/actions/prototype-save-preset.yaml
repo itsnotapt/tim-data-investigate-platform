@@ -1,0 +1,54 @@
+# PROTOTYPE: an action that gives the Save preset dialog everything at once, for the dialog
+# variants (`npm run prototype:save-preset`). Not for main.
+type: dev_rows
+key: proto-user-activity
+name: User activity
+menu: Prototype / Save preset
+description: Sign-ins of users on hosts, with a KQL query and its query parameters
+pivot: rows
+id: CorrelationId
+params:
+  - name: users
+    kind: string
+    title: Users
+    many: true
+    required: false
+    from_columns: [User, UserPrincipalName]
+  - name: host
+    kind: string
+    title: Host
+    required: false
+    from_columns: [Host, DeviceName, ComputerName]
+  - name: result
+    kind: string
+    title: Result
+    required: false
+    from_columns: [Result]
+  - name: connection
+    kind: connection
+    connection_type: dev_kql
+    title: Connection
+    required: false
+  - name: database
+    kind: string
+    title: Database
+    required: false
+  - name: query
+    kind: kql
+    title: Query
+    required: false
+    schema_from: [connection, database]
+  - name: parameters
+    kind: json
+    title: Query parameters
+    required: false
+columns:
+  - { name: Timestamp, type: datetime }
+  - { name: User, type: string }
+  - { name: Host, type: string }
+  - { name: Result, type: string }
+  - { name: CorrelationId, type: string, title: Correlation id }
+rows:
+  - { Timestamp: '2026-10-01T08:00:00Z', User: alice@example.com, Host: web-01, Result: Success, CorrelationId: c-1 }
+  - { Timestamp: '2026-10-01T08:05:00Z', User: bob@example.com, Host: web-02, Result: Failure, CorrelationId: c-2 }
+  - { Timestamp: '2026-10-01T08:07:00Z', User: alice@example.com, Host: db-01, Result: Failure, CorrelationId: c-3 }
