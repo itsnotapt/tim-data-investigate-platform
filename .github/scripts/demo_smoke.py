@@ -18,6 +18,8 @@ import subprocess
 import sys
 
 RELEASE_BRANCH = "release-please--"
+# Every release PR changes the manifest. The Compose file changes only when the version does.
+RELEASE_MANIFEST = ".release-please-manifest.json"
 COMPOSE = "examples/demo/compose.yaml"
 # The smoke test's own files.
 SMOKE_TEST = [

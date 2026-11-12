@@ -5,10 +5,12 @@
 # (.github/scripts/demo_smoke.py). It is not a required check.
 name: Demo smoke test
 
-# A release PR and an emulator bump both change the demo's Compose file.
+# Every release PR changes the manifest, and an emulator bump changes the demo's Compose file.
+# The changes job then decides from the PR's branch and its diff.
 on:
   pull_request:
     paths:
+      - .release-please-manifest.json
       - examples/demo/compose.yaml
       - examples/demo/smoke.sh
       - examples/demo/smoke.py
