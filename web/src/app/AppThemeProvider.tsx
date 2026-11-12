@@ -47,7 +47,7 @@ function TakeOverFromThemeInit() {
 /**
  * MUI theme and baseline for everything TIM renders, including the config error page. MUI holds
  * the light / dark / system mode (System by default), saves it in `localStorage` and follows
- * changes made in other tabs.
+ * changes made in other browser tabs.
  */
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   return (

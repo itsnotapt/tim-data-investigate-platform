@@ -3,7 +3,8 @@ import type { AnnotationsChannel, AnnotationsMessage } from '../lib/annotations'
 
 type Listener = (e: MessageEvent<AnnotationsMessage>) => void;
 
-/** A `BroadcastChannel` stand-in: what one tab posts reaches every other tab's channel. */
+/** A `BroadcastChannel` stand-in: what one browser tab posts reaches every other browser tab's
+ * channel. */
 export function createChannelHub() {
   const channels = new Set<FakeChannel>();
   class FakeChannel implements AnnotationsChannel {

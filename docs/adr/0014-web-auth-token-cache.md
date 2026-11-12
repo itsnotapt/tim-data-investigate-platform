@@ -5,11 +5,11 @@ date: 2026-10-06
 
 # Web sign-in: token cache in localStorage
 
-[0005](0005-auth-entra-popup-obo.md) chose one Entra app registration for the SPA and the API, with popup login, but did not say where MSAL keeps its tokens. MSAL supports `localStorage` and `sessionStorage`, and the choice decides whether a reload or a new tab prompts the user again. MSAL caches tokens in `localStorage`, so a reload or a second tab finds the cached account and does not prompt.
+[0005](0005-auth-entra-popup-obo.md) chose one Entra app registration for the SPA and the API, with popup login, but did not say where MSAL keeps its tokens. MSAL supports `localStorage` and `sessionStorage`, and the choice decides whether a reload or a new browser tab prompts the user again. MSAL caches tokens in `localStorage`, so a reload or a second browser tab finds the cached account and does not prompt.
 
 Code: `web/src/lib/auth/msalAuth.ts`, `web/src/lib/auth/index.ts`, `web/src/lib/auth/redirectBridge.ts`.
 
-- **MSAL caches tokens in `localStorage`.** `msalAuth.ts` fixes `cacheLocation` to `'localStorage'`; the config type has no cache option. A reload, or a second tab, finds the cached account and does not prompt.
+- **MSAL caches tokens in `localStorage`.** `msalAuth.ts` fixes `cacheLocation` to `'localStorage'`; the config type has no cache option. A reload, or a second browser tab, finds the cached account and does not prompt.
 - **One registration for web and API.** The SPA signs in with its own client id and requests the scope `api://<clientId>/user_impersonation` (`apiScopes`). The API then exchanges that token On-Behalf-Of ([0009](0009-obo-token-exchange.md)).
 - **Popup login.** `loginPopup` and `acquireTokenPopup` use the redirect URI `/blank.html`. That page loads only `redirectBridge.ts`, which hands the response to the main window. The SPA is not loaded in the popup.
 - **Silent before interactive.** On start, MSAL is initialised, any pending response is handled, and the cached account is made active. A token request then tries `acquireTokenSilent`. With no account it tries `ssoSilent`. A popup opens only when the silent attempt fails (for the cached-account path, only on `InteractionRequiredAuthError`).
@@ -21,8 +21,8 @@ Decided by the user. Related: [0005](0005-auth-entra-popup-obo.md), [0009](0009-
 
 | Option | Pros | Cons |
 |---|---|---|
-| `localStorage` (chosen) | No prompt on reload or in a new tab | Any script running on the origin can read the tokens |
-| `sessionStorage` | Cleared when the tab closes. Not shared between tabs | Every new tab signs in again. The config type does not offer it |
+| `localStorage` (chosen) | No prompt on reload or in a new browser tab | Any script running on the origin can read the tokens |
+| `sessionStorage` | Cleared when the browser tab closes. Not shared between browser tabs | Every new browser tab signs in again. The config type does not offer it |
 | In-memory only | Not readable after the page unloads | Every reload prompts. Not offered by the current config type |
 
 ## Consequences

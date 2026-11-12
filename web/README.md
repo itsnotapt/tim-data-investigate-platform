@@ -213,7 +213,7 @@ Tests use the shared MSW server.
 
 - `lib/uuid`: `generateUuid`, which wraps `crypto.randomUUID`.
 - `lib/isEmpty`: tells whether a value, array or object is empty.
-- `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are a TIM link, Help (Wiki Page and Report a bug, from config, in a new tab), Settings (Appearance) and Account (Sign in, Sign out).
+- `app/AppShell`: a flat, dense toolbar on the paper colour. Its menus are a TIM link, Help (Wiki Page and Report a bug, from config, in a new browser tab), Settings (Appearance) and Account (Sign in, Sign out).
 - `app/AuthGate`: wraps the routes. Signed out shows "You must sign-in first.", loading shows progress, and an error shows its message with Retry.
 - `SideTree`: rendered inside `AuthGate`. The main content is offset by `SIDE_TREE_COLLAPSED_WIDTH`.
 - `components/SnackbarHost` and `useNotify()`: show one message at a time, first in first out.
@@ -237,7 +237,7 @@ Choosing the scheme:
 
 - `app/AppThemeProvider` (`ThemeProvider` and `CssBaseline`) wraps both `App` and `ConfigError` in `main.tsx`. Tests that render either use it as their `wrapper`.
 - Users pick **Light**, **Dark** or **System** under **Settings › Appearance** (`AppShell.tsx`). System is the default. It follows the OS `prefers-color-scheme`, including live changes.
-- MUI's `useColorScheme()` holds the choice, saves it in `localStorage['tim-theme-mode']` and follows changes made in other tabs.
+- MUI's `useColorScheme()` holds the choice, saves it in `localStorage['tim-theme-mode']` and follows changes made in other browser tabs.
 - `public/theme-init.js` sets `data-ag-theme-mode` and `color-scheme` on `<html>` from the same key. So the page never shows the other scheme first.
   - A plain `<script src>` in the `<head>` of `index.html` loads it before the module bundle, because the CSP allows no inline script.
   - `AppThemeProvider` removes its inline `color-scheme` once MUI's styles take over.

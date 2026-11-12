@@ -23,7 +23,7 @@ const page = (changes: AnnotationChangesPage['changes'], next: number, hasMore =
   hasMore,
 });
 
-/** One browser: `count` tabs sharing IndexedDB, a channel hub and the locks. */
+/** One browser: `count` browser tabs sharing IndexedDB, a channel hub and the locks. */
 function browser(count: number, intervalMs = 60_000) {
   const hub = createChannelHub();
   const locks = createFakeLocks();
@@ -42,7 +42,7 @@ function browser(count: number, intervalMs = 60_000) {
 }
 
 describe('the annotation poller', () => {
-  it('polls in one tab only, for every tab', async () => {
+  it('polls in one browser tab only, for every browser tab', async () => {
     const { tabs, feed } = browser(3);
     const [leader, ...others] = tabs;
     await vi.waitFor(() => expect(leader!.fetchChanges).toHaveBeenCalledTimes(1));
@@ -81,7 +81,7 @@ describe('the annotation poller', () => {
     await vi.waitFor(() => expect(feed.mock.calls.length).toBeGreaterThan(before));
   });
 
-  it('hands polling to another tab when its tab closes', async () => {
+  it('hands polling to another browser tab when its browser tab closes', async () => {
     const { tabs } = browser(2);
     const [first, second] = tabs;
     await vi.waitFor(() => expect(first!.fetchChanges).toHaveBeenCalled());

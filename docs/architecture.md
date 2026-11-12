@@ -632,17 +632,17 @@ The Action file panel exports an action tab's column layout as the `columns:` bl
 
 `web/src/lib/annotations/` keeps the annotations of every `id` the browser has seen, apart from any tab's rows ([ADR-0020](adr/0020-annotations-in-postgres.md)).
 
-- **The store.** `apply` writes each `Annotations` newer than the stored one to IndexedDB `annotations`, so the newest `version` wins. It then tells the listeners of every tab of the browser, over a `BroadcastChannel` named `tim-annotations`.
+- **The store.** `apply` writes each `Annotations` newer than the stored one to IndexedDB `annotations`, so the newest `version` wins. It then tells the listeners in every browser tab, over a `BroadcastChannel` named `tim-annotations`.
 - **Where annotations come from.** Each applied change has a source:
   - `own`: the answer to the analyst's own `PATCH`;
   - `feed`: the change feed.
   - A run's rows carry none. Results read them from this store, so annotations show once the feed has been loaded.
-- **The poller.** One poller runs per browser: the tab that holds the Web Lock `tim-annotations-poller`. The other tabs queue for the lock, and take over when the holder closes.
+- **The poller.** One poller runs per browser: the browser tab that holds the Web Lock `tim-annotations-poller`. The other browser tabs queue for the lock, and take over when the holder closes.
   - It reads the feed from the cursor in `annotation_sync` when it starts, every `annotationPollSeconds` (30 by default), when its window gets focus, and when asked.
-  - It is asked soon after the analyst's own change. A tab that doesn't hold the lock asks the holder through the channel.
+  - It is asked soon after the analyst's own change. A browser tab that doesn't hold the lock asks the holder through the channel.
   - It reads page after page while the answer has `hasMore`, and saves the cursor after each page.
   - A failed read is tried again at the next poll.
-  - Without Web Locks every tab polls.
+  - Without Web Locks every browser tab polls.
 - **Starting.** Bootstrap (`web/src/app/useBootstrap.ts`) starts the poller once the instance is loaded, with the instance's `limits.annotationPollSeconds`.
 - **A new browser** starts at cursor `0` and reads the whole feed.
 

@@ -45,7 +45,7 @@ export interface LabellingDeps {
   store: AnnotationStore;
   labels: readonly InstanceLabel[];
   notify: Notify;
-  /** Reads the change feed soon, so the other tabs pick the change up. */
+  /** Reads the change feed soon, so the other browser tabs pick the change up. */
   pollSoon: () => void;
 }
 

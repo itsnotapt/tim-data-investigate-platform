@@ -9,7 +9,7 @@ import { startAnnotationPoller, type AnnotationPoller, type PollerLocks } from '
 let store: AnnotationStore | null = null;
 let poller: AnnotationPoller | null = null;
 
-/** The browser's annotations, shared with the other tabs. */
+/** The browser's annotations, shared with the other browser tabs. */
 export function getAnnotationStore(): AnnotationStore {
   store ??= createAnnotationStore(
     typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(ANNOTATIONS_CHANNEL),
@@ -17,15 +17,15 @@ export function getAnnotationStore(): AnnotationStore {
   return store;
 }
 
-/** Without Web Locks every tab polls. */
-const everyTab: PollerLocks = { request: (_name, _options, callback) => callback() };
+/** Without Web Locks every browser tab polls. */
+const everyBrowserTab: PollerLocks = { request: (_name, _options, callback) => callback() };
 
-/** Starts this tab's poller, polling every `intervalSeconds`; returns the stop. */
+/** Starts this browser tab's poller, polling every `intervalSeconds`; returns the stop. */
 export function startAnnotationSync(intervalSeconds: number): () => void {
   poller?.stop();
   const started = startAnnotationPoller({
     store: getAnnotationStore(),
-    locks: typeof navigator.locks === 'undefined' ? everyTab : navigator.locks,
+    locks: typeof navigator.locks === 'undefined' ? everyBrowserTab : navigator.locks,
     intervalMs: intervalSeconds * 1000,
     fetchChanges: (since) => getAnnotationChanges(since),
     focus: window,
