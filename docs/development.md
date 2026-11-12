@@ -337,7 +337,7 @@ Both build workflows run on every PR. A `changes` job skips the build jobs when 
   - An api-only PR also runs only the smoke flows.
 - Runs on release-please PRs wait for approval (**Approve and run** on the PR) before they report.
 - `demo-smoke.yml` is not a required check. It runs on a PR that is one of these:
-  - a `release-please--*` PR;
+  - a `release-please--*` PR. Its path filter lets these through by `.release-please-manifest.json`, which every release PR changes;
   - a PR that changes the emulator's image in `examples/demo/compose.yaml`, compared with the PR's branch point;
   - a PR that changes the smoke test's files: the workflow, `.github/scripts/demo_smoke.py`, `examples/demo/smoke.sh` and `examples/demo/smoke.py`.
 - Its `smoke` job runs `examples/demo/smoke.sh`, which checks that:
@@ -366,7 +366,6 @@ Things the workflows don't tell you:
   - the web port's host IP is `127.0.0.1` by default;
   - the web port's host IP is `0.0.0.0` with `TIM_DEMO_ADDRESS=0.0.0.0`;
   - the config with `compose.override.yaml` validates.
-- **New GHCR packages may be private.** After the first release that publishes them, check in the package settings on GitHub that the `demo` and `compose/demo` packages are public, so `docker compose -f oci://…` works without signing in. Do the same for every package a release creates for the first time, such as `api` and `web`.
 - **Every release restarts both Deployments.** An api restart ends runs in flight on replaced pods ("Run interrupted by server restart").
 - **Images come from mirrors, not Docker Hub.** Docker Hub's anonymous pull limit stalls CI.
   - Docker Hub images are pulled through `mirror.gcr.io`: the Dockerfile bases, the `# syntax` frontend, the BuildKit image in `setup-buildx-action` and the `postgres` service.

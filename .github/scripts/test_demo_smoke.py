@@ -34,7 +34,7 @@ class Workflow(unittest.TestCase):
             for line in WORKFLOW.read_text().splitlines()
             if line.startswith("      - ")
         }
-        for name in [demo_smoke.COMPOSE, *demo_smoke.SMOKE_TEST]:
+        for name in [demo_smoke.RELEASE_MANIFEST, demo_smoke.COMPOSE, *demo_smoke.SMOKE_TEST]:
             self.assertIn(name, paths)
 
 
