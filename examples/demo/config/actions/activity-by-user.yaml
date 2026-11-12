@@ -3,7 +3,7 @@
 type: kql_query
 key: demo.activity-by-user
 name: Activity by user
-title: "{{ action_name }} {{ user }}"
+title: "Activity by user {user}"
 menu: Endpoint
 description: The processes a user started and the network connections they made, on every host, in the window around a time
 pivot: row

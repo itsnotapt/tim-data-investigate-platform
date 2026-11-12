@@ -10,6 +10,7 @@ import { isApiError } from '../../lib/api/errors';
 import { initialParams, paramTitles, stillMissing } from '../action-tab/paramValues';
 import { pills } from '../action-tab/queryParameters';
 import { fromPivot, type OpeningParams, type Pivot } from '../action-tab/model';
+import { titleColumns } from '../action-tab/titleTemplate';
 import { useTabsStore, type TabsStore } from '../tabs';
 
 interface ChildTabInput {
@@ -69,13 +70,13 @@ function openChildTab(
   return tabId;
 }
 
-/** `rows` trimmed to the columns `action`'s title names, or none when it names none. */
+/** `rows` trimmed to `action`'s title columns, or none when it has none. */
 function pivotRowsFor(
   action: CatalogueAction,
   rows: readonly Record<string, unknown>[],
 ): Record<string, unknown>[] | undefined {
-  const columns = action.titleColumns;
-  if (!columns?.length) return undefined;
+  const columns = titleColumns(action.title);
+  if (columns.length === 0) return undefined;
   return rows.map((row) =>
     Object.fromEntries(Object.entries(row).filter(([column]) => columns.includes(column))),
   );

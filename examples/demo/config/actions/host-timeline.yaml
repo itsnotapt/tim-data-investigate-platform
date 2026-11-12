@@ -3,7 +3,7 @@
 type: kql_query
 key: demo.host-timeline
 name: Host timeline
-title: "{{ action_name }} for {{ host }}"
+title: "Host timeline for {host}"
 menu: Host
 description: What happened on the host nearest a time, one line per Sysmon event or alert
 pivot: row

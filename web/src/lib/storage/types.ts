@@ -57,7 +57,7 @@ export interface TabLatestRun {
   run: Run | null;
   /** The plain params it started with. */
   params: Record<string, unknown> | null;
-  /** The pivot rows it was sent with, which Reset puts back with its params. */
+  /** The pivot rows its title was filled in from, which Reset puts back with its params. */
   pivotRows?: Record<string, unknown>[];
   /** Its title, kept while the next run starts. */
   title: string | null;

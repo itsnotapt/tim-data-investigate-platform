@@ -72,7 +72,7 @@ The fields every action file takes:
 | `name` | yes | What analysts see. |
 | `menu` | no | A `/`-separated folder path; none puts the action at the top level. |
 | `description` | no | A longer description. |
-| `title` | no | A Jinja template of the titles of the action's runs, below. Query actions only; a sink file does not take it. |
+| `title` | no | A title template for the action's runs, below. Query actions only; a sink file does not take it. |
 | `pivot` | yes | `row` or `rows` offers the action in the grid's context menu (**Pivot ▸**) on one or several selected rows; `none` keeps it out. A pivot takes at most `TIM_MAX_PIVOT_ROWS` rows. |
 | `params` | no | The params, below. |
 | `id` | no | The column whose value is a row's `id`: the action's Id column. |
@@ -98,22 +98,25 @@ Annotations are kept by `id`, so a row needs one to be annotated. The browser co
 A tab that has run shows the title of its latest run: its **Run title**.
 
 - Without `title`, the title is the action's `name`.
-- With it, the server renders the template when it creates the run, in Jinja's sandbox with autoescape off.
-  - It can use each of the run's params by name, with defaults applied and a `many` param as a list, and `action_name`, the action's `name`.
-  - `title: "{{ action_name }} {{ host }}"` gives "Host timeline BGIST-L".
-  - Jinja's filters format values, such as `{{ users | join(', ') }}` or `{{ limit | default(10) }}`.
-  - `basename` is the last segment of a path split on `\` and `/`; `map('basename')` applies it to a list.
-- It can also use the rows the run was pivoted from:
-  - `row.X` is the value of column `X` the selected rows agree on, as a single-valued param with `from_columns: [X]` takes it.
-  - `cols.X` is the values of column `X` in the selected rows, as a `many` param with `from_columns: [X]` takes them: distinct, in first-seen order, with `None` and `""` skipped. One row gives a one-element list.
-  - Either is undefined when the rows disagree (`row` only), when no selected row has a value, or when the run has no pivot rows. A bare use then fails and the run is titled with the action's name. `{{ row.Image | default(process) }}` gives a fallback.
-  - `title: "{{ action_name }} {{ row.Image | basename }}"` gives "Child processes cmd.exe".
-  - `row` and `cols` hold only the columns, so a column named like `values` or `items` is that column: `row.values`.
-- The columns a template names as `row.X`, `row['X']`, `cols.X` or `cols['X']` with a literal name are the action's title columns. Whether a column exists is not checked.
-- `tim-api check` rejects a template with a syntax error and one that names something that is neither a param, `action_name`, `row` nor `cols`. It also rejects any other use of `row` or `cols` (a dynamic subscript, iterating, passing it whole). A param named `action_name`, `row` or `cols` is rejected too.
-- A sink's title may name only `action_name`, not params, `row` or `cols`.
-- A template that fails to render when the run starts does not stop the run: it is titled with the action's name, and the error is logged. A result that is blank also gives the name.
-- A title past 1,000 characters is cut to 1,000, ending in "…".
+- With it, `title` is a **Title template**: plain text with placeholders in `{…}`. The browser fills it in when it starts the run ([ADR 0029](adr/0029-run-titles-from-title-templates-filled-in-by-the-browser.md)).
+  - `{param}` is the value of that param the run is started with, or its default when it is unset.
+  - `{row.Column}` is the value of that column in the rows the run was pivoted from.
+  - The action's name is plain text: write it in the template.
+  - `title: "Host timeline {host}"` gives "Host timeline BGIST-L".
+- Every `{…}` is a placeholder. A template has no filters, defaults, conditionals or escapes.
+- A param's value shows as follows:
+  - A string shows as it is, and any other value as JSON.
+  - A `connection` param shows the connection's name.
+  - A list shows as `[a]`, `[a, b]` or `[a, b, … +N]`.
+  - A param with no value, `null`, `""` or `[]` shows as `<not set>`.
+- `{row.X}` is the value of column `X` that the pivot rows agree on.
+  - When they differ, it is their distinct values as a list, in first-seen order, leaving out `null` and `""`.
+  - With no pivot rows, or none with a value, it is `<not set>`.
+  - `title: "Process tree of {row.Image} on {host}"` gives "Process tree of C:\Windows\System32\cmd.exe on BGIST-L". A path shows in full.
+- The columns a template names with `row.` are the action's **title columns**. A tab keeps only those columns of its pivot rows.
+- The catalogue gives the template as the action's `title` ([api.md](api.md#get-apiinstance)). `POST /api/runs` takes the filled-in title as `title`.
+- The server stores the title as the run's title, and share links show it. A missing or blank title is the action's name. A title past 1,000 characters is cut to 1,000, ending in "…".
+- A sink has no title template.
 - A title is display text. It is never sent to a connection.
 
 ### Params
@@ -462,7 +465,6 @@ An action type is a subclass of `tim_actions.Action`. Its fields are its configu
   - `ctx` is the `RunContext`: `analyst`, `deadline`, `hook(name)`, `detail(key, value)` and `declare_columns(columns)`.
   - Raise `RunError` with a message safe to show the analyst. Any other exception ends the run with a generic message.
 - **`connections()`** returns the fixed connections, each name with the connection type it must be.
-- **`title_for(params, pivot_rows)`** returns the title of a run with the resolved `params`, pivoted from `pivot_rows` (the title columns of each selected row; none for a run that wasn't pivoted). The default renders `title` as in [Run titles](#run-titles), or gives the name. Override it to build a title in Python; the server falls back to the name when it raises.
 
 ```python
 class StormSummary(Action):
@@ -572,7 +574,7 @@ An action type can say how a preset of its actions becomes an action file by ove
   - The document of `RunSql.preset_file` is a `snowflake_query`, with a param per query parameter in the preset's order.
   - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
 - `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns, show_in_title)` entries, in order. `id_column` is the preset's Id column, which becomes the document's `id`.
-- The document's `title` is `{{ action_name }}` then each query parameter with `show_in_title`, as `{{ name }}`, or `{{ name | join(', ') }}` for a many-valued one. With none shown it has no `title`. `preset_file_params` returns it in `PresetFileParams.title`.
+- The document's `title` is the preset's name, then the `{Name}` placeholder of each query parameter with `show_in_title`, such as `Sign-ins by user {Upn} {Hosts}`. With none shown it has no `title`. `preset_file_params` takes the preset's `name` first and returns the title in `PresetFileParams.title`.
 - `tim_actions.query_parameters` holds what Run KQL and Run SQL share. `TakesQueryParameters` is their base class: it checks `parameters` against its `parameter_types`, each query parameter type with the param kind of its value. `checked_parameters` does the check, and `preset_file_params` turns a preset's query parameters into the file's params.
   - `declared_query_parameters(declared)` checks the names and types of a tab's query parameters, without values, with `check_declared`. Its problems are keyed `params.parameters`.
   - `declare_statement(query_parameters)` returns the declare statement, with no newline. The default is `""`, for an action that declares nothing. `RunKql` returns `declare query_parameters(name:type, ...);`, and its run and its `preset_file` put it on the line before the query.
