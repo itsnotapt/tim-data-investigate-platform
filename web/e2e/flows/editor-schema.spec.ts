@@ -54,10 +54,11 @@ async function addQueryParameter(page: Page, preset: string, name: string, type:
   const dialog = page.getByRole('dialog', { name: 'Save preset' });
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(preset);
   await dialog.getByRole('button', { name: 'Add query parameter' }).click();
-  const parameter = dialog.getByRole('group', { name: 'Query parameter 1' });
+  const parameter = dialog.getByRole('row', { name: 'Query parameter 1' });
   await parameter.getByRole('combobox', { name: 'Name' }).fill(name);
   await parameter.getByRole('combobox', { name: 'Type' }).selectOption(type);
-  await parameter.getByRole('button', { name: 'From row' }).click();
+  await parameter.getByRole('combobox', { name: 'Source' }).click();
+  await page.getByRole('option', { name: /^From row/ }).click();
   await expect(dialog.getByText(`declare query_parameters(${name}:${type});`)).toBeVisible();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();
@@ -71,7 +72,7 @@ async function removeQueryParameter(page: Page, preset: string) {
   await page.getByRole('button', { name: 'Save…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Save preset' });
   await dialog
-    .getByRole('group', { name: 'Query parameter 1' })
+    .getByRole('row', { name: 'Query parameter 1' })
     .getByRole('button', { name: 'Remove' })
     .click();
   const title = dialog.getByRole('textbox', { name: 'Tab title' });

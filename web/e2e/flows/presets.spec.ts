@@ -32,7 +32,9 @@ test('an analyst saves, shares, edits and deletes a preset, and another hides an
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Save…' }).click();
   let dialog = page.getByRole('dialog', { name: 'Save preset' });
-  await expect(dialog.getByText('Users = alice@example.com')).toBeVisible();
+  await expect(
+    dialog.getByRole('row', { name: 'users' }).getByText('alice@example.com'),
+  ).toBeVisible();
   await dialog.getByLabel('Name').fill(name);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();

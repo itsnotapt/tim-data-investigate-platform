@@ -357,7 +357,7 @@ The action tab has a header in the app bar, a pills bar in the action bar, and i
   - Above the editor, a status line shows the latest run: "Succeeded · N rows · duration" with **Show results**, or its error with **Details**. Details opens the Run tab. An error from the `POST` shows as "Couldn't start: …".
   - A `422` on the query param marks the editor's border and caption.
   - On a `kql` editor, a greyed line above the first line shows the tab's [declare statement](../GLOSSARY.md), a Monaco view zone set by `CodeEditor`'s `headerLine` prop. It isn't part of the query text.
-    - `useDeclareStatement` (`web/src/features/action-tab/declareStatement.ts`) asks `POST /api/actions/{key}/declareStatement` once the tab's query parameters, name and type, have stayed unchanged for 400 ms. The Save dialog's preview uses it too.
+    - `useDeclareStatement` (`web/src/features/action-tab/declareStatement.ts`) asks `POST /api/actions/{key}/declareStatement` once the tab's query parameters, name and type, have stayed unchanged for 400 ms. The Save dialog's query block uses it too.
     - The line is hidden when the tab has no query parameters, when the action declares nothing (`204`), and when the request fails.
     - The Kusto language service gets the query parameters (`setParameters` on a change, and as global scalar parameters with each schema load), so it suggests them where a scalar goes.
     - The page's Kusto editors share one language service, with one schema and one set of query parameters. The editor that holds it decides what every Kusto editor suggests.
@@ -500,18 +500,26 @@ A preset is an action with some params fixed and the rest filled in by the analy
 
 **Save….** The action tab's button in the app bar opens the Save dialog (`SavePresetDialog`).
 
-- Name, menu folder (folders separated by `/`) and **Share with everyone**.
-- For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
-- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. The field shows an error naming each placeholder that names nothing, such as "{since} names nothing". Save is disabled while it is blank or has an error.
-- A **Query parameters** section, on an action that takes them. Add a parameter: its name is suggested from the names in the query. Pick its type, then **Fixed** with a value, or **From row** with columns.
-  - Each row shows its number, `:N` for SQL and N for KQL, and has **Move up** and **Move down** buttons. For KQL the order sets the order of the `declare` statement. For SQL it sets the position each is bound to.
+The dialog shows, top to bottom:
+
+- **Name**.
+- **Menu folder**, as chips with `›` between them. One level is added per Enter, picked from the existing folders at that level, from the instance's actions and the presets, or typed. It starts at the preset's folder, or the action's for a new preset. Backspace removes the last level.
+- **Share with everyone**, a switch.
+- An **Inputs** table with the columns Input, Type and Value, and rows of equal height. It has a row for each param that rows can fill, and for each query parameter.
+  - The Value cell starts with a **Fixed** / **From row** dropdown. Its options describe each choice in labelled lines.
+  - **Fixed** then shows the value: a param's as text, a query parameter's in a field. An unset param shows a placeholder for its type, e.g. `<number>`, and an empty query parameter field shows its type, e.g. `<datetime>`.
+  - **From row** then shows the columns to read as chips: the param's columns, or typed freely for a query parameter, each trimmed and a blank one dropped. At most two show, then a count. With no columns, the tab asks for the value.
+- On an action that takes query parameters, a **+ Query parameter** button above the table. A query parameter's name is suggested from the names in the query.
+  - A query parameter's row has a name field, a type, the dropdown and value, and **Move up**, **Move down** and **Remove** buttons. For KQL the order sets the order of the `declare` statement. For SQL it sets the position each is bound to, which its name field starts with as `:N`.
   - SQL offers no `timespan` type.
-- A preview of what the action receives, one line for every param of the action.
-  - A From row input shows as `<column of the clicked row>`.
-  - For query parameters on KQL it shows the declare statement, from `useDeclareStatement`, before the query, and a line per query parameter.
-  - A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
-  - On SQL each query parameter's line starts with its `:N`, and a fixed value shows as its text, with no Kusto literal.
-  - A value that is unset, in its field and in the preview, shows as a placeholder for the param's type, e.g. `<number>`.
+  - Errors in query parameter fields are listed under the table.
+- Under the table, the other params that are saved as they are, set and neither an input nor the query, as "Also saved: name: value · …".
+- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. The field shows an error naming each placeholder that names nothing, such as "{since} names nothing". Save is disabled while it is blank or has an error.
+- For **Run KQL** and **Run SQL**, a query block with the action's query and line numbers.
+  - On KQL, its first line is the declare statement from the query parameters, from `useDeclareStatement`. It is highlighted, with the note "Line 1 is added from the query parameters".
+  - SQL declares nothing.
+  - With neither a query nor a declare statement, it says "No query yet".
+- **Cancel** and **Save**.
 - A preset of your own offers **Update "<name>"** or **Save as new**. Anyone else's offers **Save**, which makes your own private copy.
 - The preset saves the tab's Id column as `idColumn` when it isn't the action's ([The Id column](#the-id-column)).
 - After saving, the tab takes the preset's name and `presetId`. On an action tab of Run KQL or Run SQL it also takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.

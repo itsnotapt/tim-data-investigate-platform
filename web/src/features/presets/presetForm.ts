@@ -8,10 +8,8 @@ import type {
 import { isUnset, paramText } from '../action-tab/paramValues';
 import { unnamedPlaceholders } from '../action-tab/titleTemplate';
 import {
-  bindsByPosition,
   isParametersParam,
   parseValue,
-  positionLabel,
   queryParameters,
   valueText,
   type QueryParameterType,
@@ -32,15 +30,15 @@ export interface QueryParameterForm {
   fixed: boolean;
   /** Fixed only: the value. */
   value: string;
-  /** From row only: the columns to read, in order, separated by commas; none asks when opened. */
-  columns: string;
+  /** From row only: the columns to read, in order; none asks when opened. */
+  columns: string[];
 }
 
 /** What the Save… dialog edits. */
 export interface PresetForm {
   name: string;
-  /** Folders, separated by `/`. */
-  folder: string;
+  /** The folder in the New menu, a level each, the top level first; empty for the top level. */
+  folder: string[];
   visibility: Preset['visibility'];
   /** By param name, for each param of the action with `fromColumns`. */
   modes: Record<string, InputMode>;
@@ -76,7 +74,7 @@ export function initialForm(
   );
   return {
     name: source?.name ?? action.name,
-    folder: (source?.menuPath ?? action.menuPath).join(' / '),
+    folder: source?.menuPath ?? action.menuPath,
     visibility: source?.owned ? source.visibility : 'private',
     modes,
     queryParameters: queryParameters(params.parameters).map((entry) => {
@@ -87,8 +85,7 @@ export function initialForm(
         type: entry.type,
         fixed,
         value: valueText(entry.type, entry.value),
-        columns:
-          input?.source === 'queryParameter' && !input.fixed ? input.fromColumns.join(', ') : '',
+        columns: input?.source === 'queryParameter' && !input.fixed ? input.fromColumns : [],
       };
     }),
     title: source?.title ?? null,
@@ -169,18 +166,12 @@ export function suggestedNames(
   return kqlNames(text).filter((name) => !taken.has(name));
 }
 
-const columnList = (columns: string): string[] =>
-  columns
-    .split(',')
-    .map((c) => c.trim())
-    .filter((c) => c !== '');
-
 /** The query parameter inputs the form saves. */
 const queryParameterInputs = (form: PresetForm): PresetInput[] =>
   form.queryParameters.map(({ name, type, fixed, value, columns }) =>
     fixed
       ? { name, source: 'queryParameter', type, fixed, value: parseValue(type, value).value }
-      : { name, source: 'queryParameter', type, fixed, fromColumns: columnList(columns) },
+      : { name, source: 'queryParameter', type, fixed, fromColumns: columns },
   );
 
 /**
@@ -213,10 +204,7 @@ export function formFields(
   }
   return {
     name: form.name.trim(),
-    menuPath: form.folder
-      .split('/')
-      .map((s) => s.trim())
-      .filter((s) => s !== ''),
+    menuPath: form.folder,
     visibility: form.visibility,
     action: action.key,
     params: kept,
@@ -226,52 +214,48 @@ export function formFields(
   };
 }
 
-/** The types whose Kusto literals wrap the value in the type's name. */
-const WRAPPED = new Set<QueryParameterType>(['datetime', 'timespan', 'dynamic']);
-
 /**
- * A fixed query parameter as the connection receives it, or its type when it has no value yet:
- * a Kusto literal, or for a bound value its text, JSON for `dynamic`.
+ * The params of the action saved as they are, set and neither an input nor the query, each as
+ * its name and its value in one line.
  */
-function literalText({ type, value }: QueryParameterForm, bound: boolean): string {
-  const parsed = parseValue(type, value).value;
-  if (parsed === undefined) return `<${type}>`;
-  const text = valueText(type, parsed);
-  return !bound && WRAPPED.has(type) ? `${type}(${text})` : text;
-}
-
-/** What a From row input reads: the columns of the clicked row, or none to ask when opened. */
-const fromRowText = (columns: readonly string[]): string =>
-  columns.length > 0 ? `<${columns.join(' or ')} of the clicked row>` : 'asked for when opened';
-
-/**
- * One line per param of the action: its value, the columns of the clicked row it reads, or when
- * it is unset the placeholder for its type. Query parameters have a line each in place of the
- * `parameters` param's, for SQL with the position each is bound to. The action's
- * `declareStatement`, if any, is the line before its query.
- */
-export function previewLines(
+export const keptParams = (
   action: CatalogueAction,
   params: Record<string, unknown>,
-  form: PresetForm,
-  declareStatement?: string,
-): string[] {
-  const declared = form.queryParameters;
-  const bound = bindsByPosition(action.params);
-  return action.params.flatMap((p) => {
-    const mode = form.modes[p.name];
-    if (isParametersParam(p)) {
-      return declared.map(
-        (qp, i) =>
-          `${bound ? `${positionLabel(i, true)} ` : ''}${qp.name} = ${
-            qp.fixed ? literalText(qp, bound) : fromRowText(columnList(qp.columns))
-          }`,
-      );
-    }
-    const line = `${p.name} = ${mode && !mode.fixed ? fromRowText(mode.columns) : valueOrType(p, params[p.name])}`;
-    const query = p.kind === 'kql' || p.kind === 'sql';
-    return query && declareStatement !== undefined ? [declareStatement, line] : [line];
-  });
+): { name: string; text: string }[] =>
+  action.params
+    .filter(
+      (p) =>
+        (p.fromColumns ?? []).length === 0 &&
+        !isParametersParam(p) &&
+        !isQueryParam(p) &&
+        !isUnset(params[p.name]),
+    )
+    .map((p) => ({ name: p.name, text: paramText(params[p.name]) }));
+
+const isQueryParam = (p: CatalogueParam) => p.kind === 'kql' || p.kind === 'sql';
+
+/** The action's query in `params`: its KQL or SQL, `''` when unset; `undefined` when it has none. */
+export function queryText(
+  action: CatalogueAction,
+  params: Record<string, unknown>,
+): string | undefined {
+  const p = action.params.find(isQueryParam);
+  if (!p) return undefined;
+  const value = params[p.name];
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * The folders one level below `at` among `paths`, each once, sorted: the options for the next
+ * level of a folder in the New menu.
+ */
+export function subfolders(paths: readonly (readonly string[])[], at: readonly string[]): string[] {
+  const names = new Set<string>();
+  for (const path of paths) {
+    const next = path[at.length];
+    if (next !== undefined && at.every((level, i) => path[i] === level)) names.add(next);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
 }
 
 /** A value in one line, or when it is unset the placeholder for the param's type. */

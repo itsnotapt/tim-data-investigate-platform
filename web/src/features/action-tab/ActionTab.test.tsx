@@ -749,12 +749,13 @@ describe('ActionTab with a query param', () => {
     const add = within(dialog).getByRole('button', { name: 'Add query parameter' });
     await userEvent.click(add);
     await userEvent.click(add);
-    const [since, upn] = within(dialog).getAllByRole('group', { name: /^Query parameter/ });
+    const [since, upn] = within(dialog).getAllByRole('row', { name: /^Query parameter/ });
     await userEvent.type(within(since!).getByRole('combobox', { name: 'Name' }), 'Since');
     await userEvent.selectOptions(within(since!).getByRole('combobox', { name: 'Type' }), 'long');
     await userEvent.type(within(since!).getByRole('textbox', { name: 'Value' }), '7');
     await userEvent.type(within(upn!).getByRole('combobox', { name: 'Name' }), 'Upn');
-    await userEvent.click(within(upn!).getByRole('button', { name: 'From row' }));
+    await userEvent.click(within(upn!).getByRole('combobox', { name: 'Source' }));
+    await userEvent.click(screen.getByRole('option', { name: /^From row/ }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByRole('button', { name: 'Since: 7' })).toBeInTheDocument();
