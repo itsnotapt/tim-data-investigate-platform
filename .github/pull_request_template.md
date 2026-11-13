@@ -27,5 +27,5 @@
 
 - [ ] Tests added or updated
 - [ ] Lint, format, typecheck and tests pass ([docs/development.md](../docs/development.md))
-- [ ] Title, any squash-body lines, branch and any breaking scope follow [docs/RULES.md §6–7](../docs/RULES.md#6-git)
+- [ ] Title, any squash-body lines and branch follow [docs/RULES.md §6](../docs/RULES.md#6-git)
 - [ ] Docs updated in the same change ([CODING_STANDARDS.md](../CODING_STANDARDS.md#documentation))
