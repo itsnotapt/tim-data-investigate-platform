@@ -114,6 +114,47 @@ def test_migrations_upgrade_and_downgrade(scratch_dsn: str) -> None:
     assert _tables(scratch_dsn) == ALL_TABLES
 
 
+def test_a_preset_saved_before_title_templates_is_titled_with_its_name(scratch_dsn: str) -> None:
+    migrate(scratch_dsn, "0002")
+    asyncio.run(
+        _with_conn(
+            scratch_dsn,
+            lambda conn: conn.execute(
+                text(
+                    "INSERT INTO presets (preset_id, owner, name, menu_path, visibility, action,"
+                    " params, inputs, created_at, updated_at) VALUES (:id, 'alice',"
+                    " 'Failed sign-ins', '[]', 'private', 'sign-ins', '{}', :inputs, now(), now())"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "inputs": '[{"name": "users", "source": "param", "fixed": false,'
+                    ' "showInTitle": true, "fromColumns": ["User"]}]',
+                },
+            ),
+            autocommit=True,
+        )
+    )
+
+    def preset(conn: Connection) -> tuple[Any, ...]:
+        return tuple(conn.execute(text("SELECT title, inputs FROM presets")).one())
+
+    migrate(scratch_dsn)
+    assert asyncio.run(_with_conn(scratch_dsn, preset)) == (
+        "Failed sign-ins",
+        [{"name": "users", "source": "param", "fixed": False, "fromColumns": ["User"]}],
+    )
+    migrate(scratch_dsn, "0002", down=True)
+    assert "title" not in _preset_columns(scratch_dsn)
+
+
+def _preset_columns(dsn: str) -> set[str]:
+    def run(conn: Connection) -> set[str]:
+        return {str(c["name"]) for c in inspect(conn).get_columns("presets")}
+
+    result: set[str] = asyncio.run(_with_conn(dsn, run))
+    return result
+
+
 def test_run_rows_are_unlogged_and_runs_are_logged(scratch_dsn: str) -> None:
     migrate(scratch_dsn)
 

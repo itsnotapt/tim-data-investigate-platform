@@ -126,7 +126,6 @@ def upgrade() -> None:
         sa.Column("params", _jsonb(), nullable=False),
         sa.Column("inputs", _jsonb(), nullable=False),
         sa.Column("id_column", sa.Text(), nullable=True),
-        sa.Column("title", sa.Text(), nullable=False),
         sa.Column("created_at", _ts(), nullable=False),
         sa.Column("updated_at", _ts(), nullable=False),
     )
