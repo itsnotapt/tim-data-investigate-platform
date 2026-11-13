@@ -1,5 +1,6 @@
 """Tests for pr_conventions.py: pure functions plus the CLI against temporary git repos."""
 
+import json
 import shutil
 import subprocess
 import sys
@@ -59,7 +60,9 @@ class PureFunctions(unittest.TestCase):
         self.assertEqual(pc.packages_for_files(files, packages), [])
 
 
-class Pr(unittest.TestCase):
+class GitRepo(unittest.TestCase):
+    """A temporary repo with the release-please config, on a feature branch off main."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -91,15 +94,24 @@ class Pr(unittest.TestCase):
         self.git("add", ".")
         self.git("commit", "-q", "-m", message)
 
-    def pr(self, title):
+    def run_script(self, *args):
         result = subprocess.run(  # noqa: S603
-            [sys.executable, str(SCRIPT), "pr", self.base, "HEAD", "--title", title],
+            [sys.executable, str(SCRIPT), *args],
             cwd=self.repo,
             capture_output=True,
             text=True,
         )
         return result.returncode, result.stdout + result.stderr
 
+    def pr(self, title, labels=""):
+        return self.run_script("pr", self.base, "HEAD", "--title", title, "--labels", labels)
+
+    def major(self, title):
+        """The PR with the label a deliberate major release carries."""
+        return self.pr(title, labels=f"documentation,{pc.MAJOR_RELEASE_LABEL}")
+
+
+class Pr(GitRepo):
     def test_feature_pr_passes(self):
         self.commit("wip", "web/src/a.ts")
         self.commit("feat(web)!: not squashed", "web/src/b.ts")
@@ -118,18 +130,18 @@ class Pr(unittest.TestCase):
             code, out = self.pr(title)
             self.assertEqual(code, 1, title)
             self.assertIn("files of tim-actions,", out)
-        code, out = self.pr("feat(api,tim-actions)!: drop y")
+        code, out = self.major("feat(api,tim-actions)!: drop y")
         self.assertEqual(code, 0, out)
 
     def test_breaking_scope_is_free_form_without_tim_actions(self):
         self.commit("feat: a", "web/src/a.ts", "api/src/a.py", "deploy/helm/tim/values.yaml")
         for title in ["feat!: drop y", "feat(web)!: drop y", "feat(api,web,tim-actions)!: drop y"]:
-            code, out = self.pr(title)
+            code, out = self.major(title)
             self.assertEqual(code, 0, f"{title}: {out}")
 
     def test_tim_actions_tests_need_no_naming(self):
         self.commit("test: a", "api/tim-actions/tests/test_a.py")
-        self.assertEqual(self.pr("feat(api)!: drop y")[0], 0)
+        self.assertEqual(self.major("feat(api)!: drop y")[0], 0)
 
     def test_non_breaking_scope_is_free_form(self):
         self.commit("feat: a", "web/src/a.ts", "api/src/a.py", "deploy/helm/tim/values.yaml")
@@ -149,6 +161,62 @@ class Pr(unittest.TestCase):
         # The PR head is feat/x and its base is the new main tip.
         self.base = self.git("rev-parse", "main").strip()
         self.assertEqual(self.pr("fix!: a")[0], 0)
+
+    def test_a_breaking_title_that_releases_tim_needs_the_major_release_label(self):
+        self.commit("feat: a", "web/src/a.ts")
+        for title in ["feat!: drop y", "feat(web)!: drop y"]:
+            code, out = self.pr(title, labels="documentation")
+            self.assertEqual(code, 1, title)
+            self.assertIn("major-release", out)
+        self.assertEqual(self.major("feat!: drop y")[0], 0)
+
+    def test_a_breaking_title_that_releases_nothing_needs_no_label(self):
+        self.commit("docs: a", "docs/a.md", "examples/demo/a.yaml", ".github/workflows/a.yml")
+        self.assertEqual(self.pr("docs!: rename")[0], 0)
+
+
+class Release(GitRepo):
+    """release-please's release PR: its manifest at the base and at the head."""
+
+    def manifest(self, versions):
+        (self.repo / ".release-please-manifest.json").write_text(json.dumps(versions))
+        self.git("add", ".")
+        self.git("commit", "-q", "-m", "chore: release main")
+
+    def release(self, labels=""):
+        return self.run_script("release", self.base, "HEAD", "--labels", labels)
+
+    def setUp(self):
+        super().setUp()
+        self.git("checkout", "-q", "main")
+        self.manifest({".": "2.0.0", "api/tim-actions": "0.1.0"})
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.git("checkout", "-q", "-b", "release-please--branches--main")
+
+    def test_minor_and_patch_releases_pass(self):
+        self.manifest({".": "2.1.0", "api/tim-actions": "0.1.1"})
+        code, out = self.release()
+        self.assertEqual(code, 0, out)
+
+    def test_a_major_release_needs_the_major_release_label(self):
+        self.manifest({".": "3.0.0", "api/tim-actions": "0.2.0"})
+        code, out = self.release(labels="autorelease: pending")
+        self.assertEqual(code, 1)
+        self.assertIn("tim 2.0.0 -> 3.0.0", out)
+        self.assertIn('"release-as": "2.1.0"', out)
+        self.assertNotIn("tim-actions", out)
+        code, out = self.release(labels=f"autorelease: pending,{pc.MAJOR_RELEASE_LABEL}")
+        self.assertEqual(code, 0, out)
+
+    def test_tim_actions_1_0_needs_the_label_too(self):
+        self.manifest({".": "2.1.0", "api/tim-actions": "1.0.0"})
+        code, out = self.release()
+        self.assertEqual(code, 1)
+        self.assertIn("tim-actions 0.1.0 -> 1.0.0", out)
+
+    def test_a_package_new_in_the_release_is_no_major(self):
+        self.manifest({".": "2.1.0", "api/tim-actions": "0.1.1", "new": "1.0.0"})
+        self.assertEqual(self.release()[0], 0)
 
 
 if __name__ == "__main__":

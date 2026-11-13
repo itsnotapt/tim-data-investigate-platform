@@ -38,6 +38,8 @@ Process rules for everyone working on TIM, human or agent.
 - **A major release is deliberate and rare:** months of development, not one change.
   - Only a PR that makes the major takes `!` in its title. A `!` title always makes TIM a major release.
   - Any other change takes `feat` or `fix`, even when it breaks action files, providers or the API. Its title says what breaks, e.g. `feat: a param has only a name, and an action file that gives one a title is refused`.
+  - The PR that makes the major, and the release PR that releases it, carry the `major-release` label. `pr-conventions` fails a breaking title that releases TIM without it, and a release PR that raises any package's major version without it.
+  - A release PR that raises a major by mistake, such as from a `BREAKING CHANGE:` footer in a squash body, is fixed with `release-as` on the package in `release-please-config.json`, e.g. `"release-as": "2.1.0"`. The PR after the release removes it.
 - A breaking title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) is a breaking `tim-actions` release too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
 - A breaking `tim-actions` release in a PR without `!` sets `release-as` on the `api/tim-actions` package in `release-please-config.json`, e.g. `"release-as": "0.2.0"`. The PR after the release removes it.
 - While `tim-actions` is 0.x, its breaking release bumps the minor (0.1 → 0.2), and `feat` or `fix` the patch.
