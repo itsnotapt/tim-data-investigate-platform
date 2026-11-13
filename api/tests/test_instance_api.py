@@ -106,15 +106,16 @@ def test_an_action_that_does_not_pivot_has_a_null_pivot(auth: AuthKit) -> None:
     assert "description" not in action
     assert "columns" not in action
     assert "idColumn" not in action
-    assert "titleColumns" not in action
+    assert "title" not in action
 
 
-def test_the_columns_an_actions_title_names_are_in_the_catalogue(auth: AuthKit) -> None:
-    title = "{{ row.Image }} on {{ cols.Host | join(', ') }}"
+def test_an_actions_title_template_is_in_the_catalogue(auth: AuthKit) -> None:
+    title = "Tree of {row.Image} on {host}"
     [action] = get_instance(
         auth, [Provider(actions=[Rows(key="a", name="A", pivot="row", title=title)])]
     )["actions"]
-    assert action["titleColumns"] == ["Host", "Image"]
+    assert action["title"] == title
+    assert "titleColumns" not in action
 
 
 def test_an_actions_id_column_is_in_the_catalogue(auth: AuthKit) -> None:

@@ -4,7 +4,7 @@
 type: kql_query
 key: demo.process-activity
 name: Process activity
-title: "{{ action_name }} for {{ row.Image | default(process) | basename }} on {{ host }}"
+title: "Process activity for {row.Image} on {host}"
 menu: Endpoint
 description: Every Sysmon event of a process on its host, one line each
 pivot: row

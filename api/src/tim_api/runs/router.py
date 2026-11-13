@@ -7,7 +7,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
-from pydantic import JsonValue
 from tim_actions import Action, Analyst, Column, ParamsError, Sink, validate_params
 from tim_actions.action import run_connection_names
 
@@ -61,20 +60,6 @@ def _run_input(action: Action | Sink, body: StartRun, max_rows: int) -> RunInput
     return RunInput(columns, given.rows)
 
 
-def _pivot_rows(action: Action | Sink, body: StartRun, max_rows: int) -> list[dict[str, JsonValue]]:
-    """The body's pivot rows, each with only the columns the action's title names. Raises
-    ``UnprocessableError`` for a sink's or more than ``max_rows``."""
-    given = body.pivot_rows
-    if given and isinstance(action, Sink):
-        raise UnprocessableError({"pivotRows": ["Only a query action takes pivot rows"]})
-    if len(given) > max_rows:
-        raise UnprocessableError(
-            {"pivotRows": [f"At most {max_rows:,} rows; {len(given):,} given"]}
-        )
-    columns = action.title_columns
-    return [{column: row[column] for column in columns if column in row} for row in given]
-
-
 async def _known_run(store: PostgresRunStore, run_id: UUID) -> Run:
     run = await store.get(run_id, datetime.now(UTC))
     if run is None:  # unknown or expired
@@ -108,7 +93,6 @@ async def start_run(
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
     run_input = _run_input(action, body, settings.max_annotation_ids)
-    pivot_rows = _pivot_rows(action, body, settings.max_pivot_rows)
     try:
         if isinstance(action, Sink):
             params = validate_params((), body.params, connections=connections.types())
@@ -121,7 +105,7 @@ async def start_run(
         action,
         params,
         run_input=run_input,
-        pivot_rows=pivot_rows,
+        title=body.title,
         analyst=Analyst(name=principal.name, upn=principal.name),
         owner=principal.name,
         connections=run_connections,

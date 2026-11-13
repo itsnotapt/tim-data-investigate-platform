@@ -68,9 +68,10 @@ class CatalogueAction(ApiModel):
     ``id``. A preset's ``idColumn`` takes its place."""
     find_pivot_rows: bool
     """Whether the tabs pivoted into the action offer Go to pivot row."""
-    title_columns: list[str] | None = omitted()
-    """The columns the action's title names from the rows a run was pivoted from: the columns
-    of each row that ``POST /api/runs`` takes as ``pivotRows``."""
+    title: str | None = omitted()
+    """The action's title template: plain text with ``{param}`` and ``{row.Column}`` placeholders,
+    which the browser fills in to title a run (ADR 0029). Without one, runs are titled with
+    ``name``."""
     action_file: bool
     """Whether a preset of this action has an action file, from
     ``GET /api/presets/{presetId}/actionFile``."""

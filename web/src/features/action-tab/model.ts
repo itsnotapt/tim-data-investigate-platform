@@ -295,8 +295,8 @@ export const runRefused =
   });
 
 /**
- * `run` started with `params`, sent with `pivotRows`: it is the tab's latest run, and the tab no
- * longer waits for the params a pivot left missing.
+ * `run` started with `params`, its title filled in from `pivotRows`: it is the tab's latest run,
+ * and the tab no longer waits for the params a pivot left missing.
  */
 export const runStarted =
   (run: Run, { params, pivotRows }: Pick<TabToRun, 'params' | 'pivotRows'>): Transition =>

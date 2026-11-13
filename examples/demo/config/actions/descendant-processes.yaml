@@ -3,7 +3,7 @@
 type: kql_query
 key: demo.descendant-processes
 name: Descendant processes
-title: "{{ action_name }} of {{ row.Image | default(process) | basename }} on {{ host }}"
+title: "Descendant processes of {row.Image} on {host}"
 menu: Endpoint
 description: The processes a process started, and theirs, at any depth
 pivot: row

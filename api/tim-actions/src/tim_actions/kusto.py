@@ -612,7 +612,7 @@ class RunKql(TakesQueryParameters):
         """A ``kql_query`` action with the preset's connection, database and Id column, and its
         query parameters declared before the KQL, as params (``preset_file_params``); ``None``
         when the preset lacks the connection, database or KQL."""
-        file_params = self.preset_file_params(params, query_parameters, _PRESET_FILE_PARAMS)
+        file_params = self.preset_file_params(name, params, query_parameters, _PRESET_FILE_PARAMS)
         if file_params is None:
             return None
         declare = self.declare_statement(query_parameters)

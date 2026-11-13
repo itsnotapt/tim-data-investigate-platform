@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.sibling-processes
 name: Sibling processes
-title: "{{ action_name }} of {{ row.Image | default(process) | basename }} on {{ host }}"
+title: "Sibling processes of {row.Image} on {host}"
 menu: Endpoint
 description: The other processes the parent of a process started
 pivot: row
