@@ -32,6 +32,7 @@ const connections: InstanceConnection[] = [
 const preset = (inputs: Preset['inputs']): Preset => ({
   presetId: 'p-1',
   name: 'Sign-ins by user',
+  title: 'Sign-ins by user',
   menuPath: [],
   owner: 'alice@example.com',
   visibility: 'private',
@@ -53,7 +54,6 @@ describe('presetTabParams', () => {
           source: 'queryParameter',
           type: 'string',
           fixed: false,
-          showInTitle: true,
           fromColumns: ['UserPrincipalName'],
         },
         {
@@ -61,7 +61,6 @@ describe('presetTabParams', () => {
           source: 'queryParameter',
           type: 'datetime',
           fixed: true,
-          showInTitle: false,
           value: '2026-10-01T00:00:00Z',
         },
       ]),

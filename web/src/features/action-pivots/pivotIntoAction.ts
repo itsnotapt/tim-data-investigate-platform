@@ -70,12 +70,12 @@ function openChildTab(
   return tabId;
 }
 
-/** `rows` trimmed to `action`'s title columns, or none when it has none. */
+/** `rows` trimmed to the title columns of `template`, or none when it has none. */
 function pivotRowsFor(
-  action: CatalogueAction,
+  template: string | null | undefined,
   rows: readonly Record<string, unknown>[],
 ): Record<string, unknown>[] | undefined {
-  const columns = titleColumns(action.title);
+  const columns = titleColumns(template);
   if (columns.length === 0) return undefined;
   return rows.map((row) =>
     Object.fromEntries(Object.entries(row).filter(([column]) => columns.includes(column))),
@@ -129,7 +129,12 @@ export async function pivotIntoAction({
       (name) => [name, resolved.reasons[name] ?? null],
     ),
   );
-  return openChildTab(child, { action, params, missing, pivotRows: pivotRowsFor(action, rows) });
+  return openChildTab(child, {
+    action,
+    params,
+    missing,
+    pivotRows: pivotRowsFor(action.title, rows),
+  });
 }
 
 /**
@@ -148,6 +153,6 @@ export function pivotIntoPreset({
     action,
     preset,
     ...resolved,
-    pivotRows: pivotRowsFor(action, rows),
+    pivotRows: pivotRowsFor(preset.title, rows),
   });
 }

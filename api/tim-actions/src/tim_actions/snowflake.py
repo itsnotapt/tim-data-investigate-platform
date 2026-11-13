@@ -391,6 +391,7 @@ class RunSql(TakesQueryParameters):
         key: str,
         name: str,
         menu: str,
+        title: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
         id_column: str | None,
@@ -398,7 +399,7 @@ class RunSql(TakesQueryParameters):
         """A ``snowflake_query`` action with the preset's connection, SQL and Id column, and its
         query parameters as params in their order (``preset_file_params``); ``None`` when the
         preset lacks the connection or SQL."""
-        file_params = self.preset_file_params(name, params, query_parameters, ("connection", "sql"))
+        file_params = self.preset_file_params(params, query_parameters, ("connection", "sql"))
         if file_params is None:
             return None
         return SnowflakeQueryFile(
@@ -406,7 +407,7 @@ class RunSql(TakesQueryParameters):
             key=key,
             name=name,
             menu=menu,
-            title=file_params.title,
+            title=title,
             pivot=file_params.pivot,
             connection=params["connection"],
             sql=params["sql"],

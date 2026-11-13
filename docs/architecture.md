@@ -165,7 +165,7 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
   - the run's `runStarting`, `runRefused`, `runStarted`, `runUpdated`, `runSucceeded` and `runFailed`;
   - `cancelRequested`, `cancelFailed`, `resumed`, `stalled` and `linkedRowShown`;
   - `columnViewPicked`, `gridStateChanged` and `columnViewRenamed`.
-- **Questions:** `isEdited`, `idColumnOf`, `linkIdColumnOf`, `titleOf` and `stillNeeded`.
+- **Questions:** `isEdited`, `idColumnOf`, `linkIdColumnOf`, `titleOf`, `runTitleOf` and `stillNeeded`.
 - `actionRuns.ts` runs the run's lifecycle and applies the module's transitions through the tabs store.
 
 A stored tab is its content plus its place in the tree (`id`, `parentId`, `index`, `visited`). Its content is:
@@ -173,7 +173,7 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 | Field     | Holds                                                                                         |
 | --------- | --------------------------------------------------------------------------------------------- |
 | `title`   | The title the tab was opened with, before any run                                             |
-| `toRun`   | What the tab runs: `{action, params, presetId?, titleInputs?, pivotRows?, pivotRowIds?}`      |
+| `toRun`   | What the tab runs: `{action, params, presetId?, titleTemplate?, pivotRows?, pivotRowIds?}`      |
 | `latest`  | The latest run: `{run, params, pivotRows?, title}`                                            |
 | `results` | The run whose rows are stored, `{runId, columns, startedAt, rowCount}`, or `null`             |
 | `grid`    | How the tab shows its results: `{gridState, columnView, idColumn?}`                           |
@@ -231,7 +231,7 @@ From the rows, an analyst pivots:
 
 - **Pivot.** A context-menu pivot builds params from the clicked or selected rows.
   - **Action pivot.** The params come from `POST /api/actions/{key}/resolve` ([Action pivots](#action-pivots)). It creates a child action tab in the background, under the current tab.
-  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `toRun`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and `titleInputs` ([Tab titles](#tab-titles)). It keeps `pivotRows` too. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
+  - **Preset pivot.** The browser resolves the params from the preset's From row inputs, with `presetPivot` (`features/presets/presetPivot.ts`), into the child tab's `toRun`. There is no `/resolve` call ([Preset pivots](#presets-and-column-views)). The child tab is the same as an action pivot's, titled with the preset's name and holding its `presetId` and the preset's template as `titleTemplate` ([Tab titles](#tab-titles)). It keeps `pivotRows` too. It runs at once, or waits with the toast "Opened <preset>: needs <params>". The toast has a **Go to** button.
   - **Pivot rows.** Both pivots store the `id` of each pivot row on the child tab's `toRun` as `pivotRowIds` ([Go to pivot row](#go-to-pivot-row)).
 
 ### Share links
@@ -300,17 +300,17 @@ Opening a preset creates a root action tab in the same way, titled with the pres
 - then the preset's `params`;
 - then the preset's fixed values.
 
-A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` and `titleInputs` in its `toRun`. `titleInputs` are the preset's inputs with Show in title on.
+A From row query parameter is left unset too. A From row input that is still unset waits to be filled in, as after an [action pivot](#action-pivots): the tab sets `pivotMissing` and does not run. The tab keeps `presetId` and the preset's title template as `titleTemplate` in its `toRun`. It keeps that template when the preset changes later.
 
 **Tab titles.** An action tab shows a title that `title` of the action tab module chooses, in the tree and in the app bar.
 
 - Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone.
-- After a run, a tab with no `titleInputs` shows `latest.title`, the title of its latest run, which the browser filled in from the action's title template and the server stored ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
-- A preset tab, opened from a preset, pivoted into one or saved as one, has `toRun.titleInputs`, its inputs that show in the title. A clone keeps them. After a run it shows its stored title, then its latest run's values for those inputs, separated by spaces. Its stored title is the preset's name, or "Copy of <preset name>" for a clone.
-  - A list shows its first two values joined by ", ", then " +N" for the rest.
-  - An unset or empty value is left out.
+- After a run, a tab shows `latest.title`, the title of its latest run, which the browser filled in from the tab's title template and the server stored ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
+- A preset tab, opened from a preset, pivoted into one or saved as one, has the preset's title template as `toRun.titleTemplate`, in place of the action's. A clone's template is "Copy of " and the template.
+  - `runTitleOf` in the action tab module fills the template in with the tab's params, the values of its query parameters, the action's defaults for params left unset, and the pivot rows.
+  - A preset pivot keeps only the pivot rows' columns its template names (`pivotRowsFor`).
 - An action's title template can name the rows the tab was pivoted from as `{row.Column}`. `fillIn` in `features/action-tab/titleTemplate.ts` fills the template in with the run's params and those rows ([actions.md](actions.md#run-titles)).
-  - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed to the title columns of the action's `title` (`titleColumns` in `titleTemplate.ts`), or none when it has none.
+  - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed (`pivotRowsFor`) to the columns the title template names with `row.` (`titleColumns` in `titleTemplate.ts`), or none when it names none. An action pivot uses the action's `title`, a preset pivot the preset's.
   - Each run fills its title in from them, a plain rerun included, and sends it as `title` in `POST /api/runs`. The rows themselves are never sent.
   - Clone copies them.
   - Editing any param drops them. Reset puts back the pivot rows of the latest run, or none when it had none.
@@ -319,7 +319,7 @@ A From row query parameter is left unset too. A From row input that is still uns
 
 The action tab has a header in the app bar, a pills bar in the action bar, and inner tabs.
 
-**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params, pivot rows and `titleInputs`, and no `presetId`. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
+**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params, pivot rows and `titleTemplate` ("Copy of " first), and no `presetId`. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
 
 **Pills bar:** while the tab is on show, the [action bar](#page-layout) holds, after **New**, the tab's **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
@@ -502,7 +502,7 @@ A preset is an action with some params fixed and the rest filled in by the analy
 
 - Name, menu folder (folders separated by `/`) and **Share with everyone**.
 - For each param that rows can fill, a fixed input (**Fixed**) or a From row input (**From row**). From row offers the param's columns to read.
-- A **Show in title** switch for each of those params and each query parameter. It starts on for a From row input and off for a fixed one, and returns to that when the input is switched between Fixed and From row. The inputs it is on for follow the preset's name in the tab's title ([Tab titles](#tab-titles)).
+- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. The field shows an error naming each placeholder that names nothing, such as "{since} names nothing". Save is disabled while it is blank or has an error.
 - A **Query parameters** section, on an action that takes them. Add a parameter: its name is suggested from the names in the query. Pick its type, then **Fixed** with a value, or **From row** with columns.
   - Each row shows its number, `:N` for SQL and N for KQL, and has **Move up** and **Move down** buttons. For KQL the order sets the order of the `declare` statement. For SQL it sets the position each is bound to.
   - SQL offers no `timespan` type.
@@ -1089,7 +1089,7 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts the declare statement `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
-A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`. Its `title` template lists the query parameters shown in the title.
+A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`. Its `title` is the preset's title template.
 
 **Run SQL** (`tim.run_sql`) is the built-in action on a Snowflake connection. It sets `pivot: none`. Its params:
 
@@ -1099,7 +1099,7 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 
 The run sends `sql` unchanged through `SnowflakeHook.query`, with the parameters bound by position, `:1` the first. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
 
-A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter. Its `title` template lists the query parameters shown in the title.
+A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter. Its `title` is the preset's title template.
 
 **`snowflake_query`** (`SnowflakeQuery`, with `SnowflakeQueryFile` as its file model) is a file-capable action type with the fields `connection` and `sql`.
 

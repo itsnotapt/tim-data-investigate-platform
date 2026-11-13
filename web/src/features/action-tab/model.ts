@@ -10,9 +10,7 @@ import type {
   TabContent,
   TabStatus,
   TabToRun,
-  TitleInput,
 } from '../../lib/storage';
-import { presetTitleInputs } from '../presets/openPreset';
 import type { Transition } from '../tabs';
 import { isUnset, sameParams, stillMissing } from './paramValues';
 import {
@@ -22,6 +20,7 @@ import {
   takesQueryParameters,
   withPresetQueryParameters,
 } from './queryParameters';
+import { fillIn } from './titleTemplate';
 
 /** A tab that has not run, titled `title`, to run `toRun`. */
 const unrun = (title: string, toRun: TabToRun): TabContent => ({
@@ -50,16 +49,18 @@ export interface OpeningParams {
   missing: Record<string, string | null>;
 }
 
-/** The tab titled with `preset`'s name, holding its id and title inputs. */
+/** The tab titled with `preset`'s name, holding its id and title template. */
 const presetNamed =
   (preset: Preset): Transition =>
   (tab) => ({
     ...tab,
     title: preset.name,
-    toRun: { ...tab.toRun, presetId: preset.presetId, titleInputs: presetTitleInputs(preset) },
+    toRun: { ...tab.toRun, presetId: preset.presetId, titleTemplate: preset.title },
   });
 
-/** `tab` opened from `preset`: titled with its name, holding its id, title inputs and Id column. */
+/**
+ * `tab` opened from `preset`: titled with its name, holding its id, title template and Id column.
+ */
 function ofPreset(tab: TabContent, preset: Preset): TabContent {
   const named = presetNamed(preset)(tab);
   return {
@@ -133,16 +134,16 @@ export function fromShareLink(
 const copied = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /**
- * A copy of `tab` titled "Copy of <title>", with copies of its params, the rows it was pivoted from
- * and the inputs it shows in its title, and its Id column, not run. It is of no preset, so Save…
- * on it saves a new one.
+ * A copy of `tab` titled "Copy of <title>", with copies of its params and the rows it was pivoted
+ * from, its title template after "Copy of ", and its Id column, not run. It is of no preset, so
+ * Save… on it saves a new one.
  */
 export function cloneOf(tab: TabContent): TabContent {
-  const { action, params, pivotRows, titleInputs } = tab.toRun;
+  const { action, params, pivotRows, titleTemplate } = tab.toRun;
   const copy = unrun(`Copy of ${tab.title}`, {
     action,
     params: copied(params),
-    ...(titleInputs && { titleInputs: copied(titleInputs) }),
+    ...(titleTemplate !== undefined && { titleTemplate: `Copy of ${titleTemplate}` }),
     ...(pivotRows && { pivotRows: copied(pivotRows) }),
   });
   const { idColumn } = tab.grid;
@@ -212,37 +213,35 @@ export function linkIdColumnOf(
   return column !== (action?.idColumn ?? null) ? column : null;
 }
 
-/** A value as a tab's title shows it: text as it is, anything else as JSON. */
-const text = (value: unknown): string =>
-  typeof value === 'string' ? value : JSON.stringify(value);
-
-/** An input's value in a title: a list as up to two values, then how many more. */
-function titleValue(value: unknown): string {
-  if (!Array.isArray(value)) return text(value);
-  const shown = value.slice(0, 2).map(text).join(', ');
-  return value.length > 2 ? `${shown} +${value.length - 2}` : shown;
-}
-
-/** The value of `input` in `params`; a query parameter's is in the `parameters` param. */
-const inputValue = (input: TitleInput, params: Record<string, unknown>): unknown =>
-  input.source === 'param'
-    ? params[input.name]
-    : queryParameters(params.parameters).find((e) => e.name === input.name)?.value;
+/** The title a tab shows: its latest run's title, or until it has run, its stored title. */
+export const titleOf = (tab: TabContent): string => tab.latest.title ?? tab.title;
 
 /**
- * The title a tab shows. Until it has run, its stored title. A preset tab's is its stored title,
- * the preset's name, then the values its latest run had for the inputs it shows in its title,
- * leaving out those unset. Any other tab's is its latest run's title.
+ * The title a run of the tab, of `action`, is started with: the tab's title template, else the
+ * action's, filled in from its params and pivot rows. An unset param has its default, as the run
+ * gets it, and a query parameter its value in `parameters`. None without a template, so the run is
+ * titled with the action's name.
  */
-export function titleOf(tab: TabContent): string {
-  const { titleInputs } = tab.toRun;
-  const { params, title: runTitle } = tab.latest;
-  if (titleInputs) {
-    if (!params) return tab.title;
-    const values = titleInputs.map((i) => inputValue(i, params)).filter((v) => !isUnset(v));
-    return [tab.title, ...values.map(titleValue)].join(' ');
-  }
-  return runTitle ?? tab.title;
+export function runTitleOf(
+  tab: TabContent,
+  action: CatalogueAction | undefined,
+): string | undefined {
+  const template = tab.toRun.titleTemplate ?? action?.title;
+  if (!template) return undefined;
+  const { params, pivotRows } = tab.toRun;
+  const defaults = (action?.params ?? [])
+    .filter((p) => p.default !== undefined && isUnset(params[p.name]))
+    .map((p): [string, unknown] => [p.name, p.default]);
+  const queryParameterValues = queryParameters(params.parameters).map((e): [string, unknown] => [
+    e.name,
+    e.value,
+  ]);
+  const values = {
+    ...Object.fromEntries(queryParameterValues),
+    ...params,
+    ...Object.fromEntries(defaults),
+  };
+  return fillIn(template, { params: values, ...(pivotRows && { pivotRows }) });
 }
 
 /**
@@ -359,8 +358,8 @@ export const stalled: Transition = (tab) => withStatus(tab, { executing: false }
 export const linkedRowShown: Transition = (tab) => withStatus(tab, { linkedRow: null });
 
 /**
- * The tab was saved as `preset` of `action`: it holds the preset's id and the inputs its title
- * shows, is titled with its name, and takes the query parameters it declares.
+ * The tab was saved as `preset` of `action`: it holds the preset's id and title template, is titled
+ * with its name, and takes the query parameters it declares.
  */
 export const savedAsPreset =
   (preset: Preset, action: CatalogueAction | undefined): Transition =>

@@ -81,3 +81,12 @@ export const titleColumns = (template: string | null | undefined): string[] => [
       .filter((column) => column !== null),
   ),
 ];
+
+/**
+ * The placeholders of `template` that name nothing, as written: neither one of `names` nor `row.`
+ * and a column.
+ */
+export const unnamedPlaceholders = (template: string, names: ReadonlySet<string>): string[] =>
+  [...template.matchAll(PLACEHOLDER)]
+    .filter(([, name = '']) => !names.has(name) && !rowColumn(name))
+    .map(([placeholder]) => placeholder);

@@ -33,6 +33,7 @@ function preset(over: Partial<Preset>): Preset {
     visibility: 'private',
     hidden: false,
     action: 'dev-sign-ins',
+    title: 'Sign-ins',
     params: {},
     inputs: [],
     createdAt: '2026-10-22T00:00:00Z',
@@ -44,7 +45,7 @@ function preset(over: Partial<Preset>): Preset {
 const mine = preset({
   name: 'Alice bookmark',
   menuPath: ['Identity'],
-  inputs: [{ name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['alice'] }],
+  inputs: [{ name: 'users', source: 'param', fixed: true, value: ['alice'] }],
 });
 const theirs = preset({
   name: 'Bob pivot',
@@ -52,9 +53,7 @@ const theirs = preset({
   owned: false,
   visibility: 'shared',
   menuPath: ['Identity', 'Daily'],
-  inputs: [
-    { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Account'] },
-  ],
+  inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: ['Account'] }],
 });
 const hidden = preset({
   name: 'Carol hidden',
@@ -151,9 +150,7 @@ describe('entryCaption', () => {
 
   it('says which values a preset asks for when its From-row inputs have no columns', () => {
     const asks = preset({
-      inputs: [
-        { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: [] },
-      ],
+      inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: [] }],
     });
     expect(entryCaption({ kind: 'preset', preset: asks, action: signIns })).toBe(
       'Sign-ins · asks for users',

@@ -10,7 +10,7 @@ import {
 } from '../../lib/api';
 import { rowResultsDao } from '../../lib/storage';
 import { useInstanceStore } from '../instance';
-import type { ParamErrors, TabToRun } from '../../lib/storage';
+import type { ParamErrors } from '../../lib/storage';
 import { useTabsStore, type TabsStore } from '../tabs';
 import {
   cancelFailed,
@@ -23,13 +23,12 @@ import {
   runStarted,
   runStarting,
   runSucceeded,
+  runTitleOf,
   runUpdated,
   stalled,
   type Refusal,
 } from './model';
 import { pills } from './queryParameters';
-import { fillIn } from './titleTemplate';
-import { isUnset } from './paramValues';
 import { loadAbandoned, pageLoaded, runLoaded, runLoading } from './results';
 
 const FAST_POLL_MS = 1000;
@@ -98,25 +97,6 @@ const PARAM_KEY = /^params\.(.+)$/;
 /** The action `key` in the instance's catalogue. */
 const catalogueAction = (key: string) =>
   useInstanceStore.getState().instance?.actions.find((a) => a.key === key);
-
-/**
- * The title a run of `actionKey` with `params`, from a tab pivoted from `pivotRows`, is started
- * with: its title template filled in, an unset param with its default as the run gets it, or none
- * without a template, so the run is titled with its name.
- */
-function runTitle(
-  actionKey: string,
-  params: Record<string, unknown>,
-  pivotRows: TabToRun['pivotRows'],
-): string | undefined {
-  const action = catalogueAction(actionKey);
-  if (!action?.title) return undefined;
-  const defaults = action.params
-    .filter((p) => p.default !== undefined && isUnset(params[p.name]))
-    .map((p): [string, unknown] => [p.name, p.default]);
-  const resolved = { ...params, ...Object.fromEntries(defaults) };
-  return fillIn(action.title, { params: resolved, ...(pivotRows && { pivotRows }) });
-}
 
 /**
  * Why a run of `action` with `values` could not start: the reasons of each invalid param the tab
@@ -222,11 +202,12 @@ export async function runActionTab(tabId: string, options: ActionRunOptions = {}
   const tab = store.getState().tabs[tabId];
   if (!tab) return;
   const { action, params, pivotRows } = tab.toRun;
+  const title = runTitleOf(tab, catalogueAction(action));
   const signal = follow(tabId);
   store.getState().apply(tabId, runStarting);
   let run: Run;
   try {
-    run = await startRun(action, params, { signal, title: runTitle(action, params, pivotRows) });
+    run = await startRun(action, params, { signal, title });
   } catch (e) {
     if (signal.aborted) return;
     following.delete(tabId);

@@ -410,6 +410,7 @@ def test_a_preset_file_has_the_id_column_as_its_id(
         key="storms",
         name="Storms",
         menu="Kusto",
+        title="Storms",
         params={"connection": "security", "database": "Samples", "kql": "StormEvents"},
         query_parameters=[],
         id_column=id_column,

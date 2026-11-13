@@ -101,6 +101,7 @@ A tab that has run shows the title of its latest run: its **Run title**.
   - `{row.Column}` is the value of that column in the rows the run was pivoted from.
   - The action's name is plain text: write it in the template.
   - `title: "Host timeline {host}"` gives "Host timeline BGIST-L".
+  - A preset has its own title template, and its placeholders can also name its query parameters.
 - Every `{…}` is a placeholder. A template has no filters, defaults, conditionals or escapes.
 - A param's value shows as follows:
   - A string shows as it is, and any other value as JSON.
@@ -111,7 +112,7 @@ A tab that has run shows the title of its latest run: its **Run title**.
   - When they differ, it is their distinct values as a list, in first-seen order, leaving out `null` and `""`.
   - With no pivot rows, or none with a value, it is `<not set>`.
   - `title: "Process tree of {row.Image} on {host}"` gives "Process tree of C:\Windows\System32\cmd.exe on BGIST-L". A path shows in full.
-- The columns a template names with `row.` are the action's **title columns**. A tab keeps only those columns of its pivot rows.
+- The columns a template names with `row.` are the template's **title columns**. A tab keeps only those columns of its pivot rows.
 - The catalogue gives the template as the action's `title` ([api.md](api.md#get-apiinstance)). `POST /api/runs` takes the filled-in title as `title`.
 - The server stores the title as the run's title, and share links show it. A missing or blank title is the action's name. A title past 1,000 characters is cut to 1,000, ending in "…".
 - A sink has no title template.
@@ -563,15 +564,15 @@ def resolve(self, context: PivotContext) -> Resolved:
 
 ### Presets as action files
 
-An action type can say how a preset of its actions becomes an action file by overriding `Action.preset_file(*, key, name, menu, params, query_parameters, id_column)`.
+An action type can say how a preset of its actions becomes an action file by overriding `Action.preset_file(*, key, name, menu, title, params, query_parameters, id_column)`.
 
 - It returns an `ActionDocument`, or `None`, the default, when a preset of the action has no action file.
   - `RunKql.preset_file` returns `None` for a preset that lacks a connection, database or query.
   - `RunSql.preset_file` returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter.
   - The document of `RunSql.preset_file` is a `snowflake_query`, with a param per query parameter in the preset's order.
   - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
-- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns, show_in_title)` entries, in order. `id_column` is the preset's Id column, which becomes the document's `id`.
-- The document's `title` is the preset's name, then the `{Name}` placeholder of each query parameter with `show_in_title`, such as `Sign-ins by user {Upn} {Hosts}`. With none shown it has no `title`. `preset_file_params` takes the preset's `name` first and returns the title in `PresetFileParams.title`.
+- `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries, in order. `id_column` is the preset's Id column, which becomes the document's `id`.
+- The document's `title` is `title`, the preset's title template as it is, such as `Sign-ins by user {Upn} {Hosts}`.
 - `tim_actions.query_parameters` holds what Run KQL and Run SQL share. `TakesQueryParameters` is their base class: it checks `parameters` against its `parameter_types`, each query parameter type with the param kind of its value. `checked_parameters` does the check, and `preset_file_params` turns a preset's query parameters into the file's params.
   - `declared_query_parameters(declared)` checks the names and types of a tab's query parameters, without values, with `check_declared`. Its problems are keyed `params.parameters`.
   - `declare_statement(query_parameters)` returns the declare statement, with no newline. The default is `""`, for an action that declares nothing. `RunKql` returns `declare query_parameters(name:type, ...);`, and its run and its `preset_file` put it on the line before the query.

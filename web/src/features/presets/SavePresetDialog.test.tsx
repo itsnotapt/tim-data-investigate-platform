@@ -79,6 +79,7 @@ function setup(
   params: Record<string, unknown>,
   action: CatalogueAction = runKql,
   idColumn: string | null = null,
+  source?: Preset,
 ) {
   const saved: PresetFields[] = [];
   const api = {
@@ -97,6 +98,7 @@ function setup(
       action={action}
       params={params}
       idColumn={idColumn}
+      source={source}
       onClose={() => {}}
       store={createPresetsStore({ api })}
     />,
@@ -104,6 +106,7 @@ function setup(
   return { saved, dialog: screen.getByRole('dialog', { name: 'Save preset' }) };
 }
 
+const tabTitle = () => screen.getByRole('textbox', { name: 'Tab title' });
 const parameter = (n: number) => screen.getByRole('group', { name: `Query parameter ${n}` });
 const lines = () =>
   within(screen.getByRole('list', { name: 'Preview' }))
@@ -145,23 +148,111 @@ describe('SavePresetDialog params read from the row', () => {
       },
     ],
   };
-  const shown = (name: string) => screen.getByRole('switch', { name: `Show ${name} in title` });
 
-  it('shows a From row param in the title and a fixed one not, unless switched', async () => {
+  it('saves each param read from the row with its columns, and each fixed one with its value', async () => {
     const { saved, dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
-    expect(shown('users')).not.toBeChecked();
-    expect(shown('hosts')).toBeChecked();
-
-    await userEvent.click(within(dialog).getByRole('button', { name: 'users from the row' }));
-    expect(shown('users')).toBeChecked();
-    await userEvent.click(shown('hosts'));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]?.inputs).toEqual([
-      { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
-      { name: 'hosts', source: 'param', fixed: false, showInTitle: false, fromColumns: ['Host'] },
+      { name: 'users', source: 'param', fixed: true, value: ['alice'] },
+      { name: 'hosts', source: 'param', fixed: false, fromColumns: ['Host'] },
     ]);
+  });
+});
+
+describe('SavePresetDialog Tab title', () => {
+  const signIns: CatalogueAction = {
+    ...runKql,
+    key: 'dev-sign-ins',
+    name: 'Sign-ins',
+    params: [
+      { name: 'users', kind: 'string', required: true, many: true, fromColumns: ['User'] },
+      { name: 'hosts', kind: 'string', required: false, many: true, fromColumns: ['Host'] },
+    ],
+  };
+  const mine: Preset = {
+    presetId: 'p-1',
+    name: 'Mine',
+    title: 'Sign-ins of {users} on {hosts}',
+    menuPath: [],
+    owner: 'alice@example.com',
+    visibility: 'private',
+    owned: true,
+    hidden: false,
+    action: 'dev-sign-ins',
+    params: {},
+    inputs: [
+      { name: 'users', source: 'param', fixed: false, fromColumns: ['User'] },
+      { name: 'hosts', source: 'param', fixed: false, fromColumns: ['Host'] },
+    ],
+    createdAt: '2026-10-01T00:00:00Z',
+    updatedAt: '2026-10-01T00:00:00Z',
+  };
+  /** Replaces the text of `field` with `text`, which may hold `{`. */
+  const retype = async (field: HTMLElement, text: string) => {
+    await userEvent.clear(field);
+    await userEvent.paste(text);
+  };
+
+  it('is the name then a placeholder for each From row input, following both until edited', async () => {
+    const { dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    expect(tabTitle()).toHaveValue('Sign-ins {hosts}');
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'users from the row' }));
+    expect(tabTitle()).toHaveValue('Sign-ins {users} {hosts}');
+    await retype(within(dialog).getByRole('textbox', { name: 'Name' }), 'My sign-ins');
+    expect(tabTitle()).toHaveValue('My sign-ins {users} {hosts}');
+
+    await retype(tabTitle(), 'Hosts {hosts}');
+    await retype(within(dialog).getByRole('textbox', { name: 'Name' }), 'Renamed');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'users fixed' }));
+    expect(tabTitle()).toHaveValue('Hosts {hosts}');
+  });
+
+  it('is saved as the preset’s title template', async () => {
+    const { saved, dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    await retype(tabTitle(), 'Sign-ins on {hosts} for {users}');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toMatchObject({
+      name: 'Sign-ins',
+      title: 'Sign-ins on {hosts} for {users}',
+    });
+  });
+
+  it('of a preset being edited is its saved template, kept when it is renamed', async () => {
+    const { saved, dialog } = setup({ users: [], hosts: [] }, signIns, null, mine);
+    expect(tabTitle()).toHaveValue('Sign-ins of {users} on {hosts}');
+
+    await retype(within(dialog).getByRole('textbox', { name: 'Name' }), 'Also mine');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save as new' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toMatchObject({ name: 'Also mine', title: 'Sign-ins of {users} on {hosts}' });
+  });
+
+  it('must not be blank', async () => {
+    const { dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    await userEvent.clear(tabTitle());
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('says which placeholder names nothing, and saves once each names a param or a row column', async () => {
+    const { dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    await retype(tabTitle(), 'Sign-ins of {user} on {row.}');
+    expect(tabTitle()).toHaveAccessibleDescription('{user} and {row.} name nothing');
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+    await retype(tabTitle(), 'Sign-ins of {users} on {row.Host}');
+    expect(tabTitle()).not.toHaveAccessibleDescription(/nothing/);
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('replaces the Show in title switches', () => {
+    const { dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    expect(within(dialog).queryByRole('switch', { name: /in title/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Show in title')).not.toBeInTheDocument();
   });
 });
 
@@ -181,13 +272,7 @@ describe('SavePresetDialog query parameters', () => {
       within(parameter(1)).getByRole('textbox', { name: 'Columns' }),
       'UserPrincipalName, Upn',
     );
-    // From row is shown in the tab's title, fixed isn't, until switched.
-    const shown = (n: number) =>
-      within(parameter(n)).getByRole('switch', { name: 'Show in title' });
-    expect(shown(1)).toBeChecked();
-    expect(shown(2)).not.toBeChecked();
-    expect(shown(3)).not.toBeChecked();
-    await userEvent.click(shown(3));
+    expect(tabTitle()).toHaveValue('Run KQL {Upn}');
 
     // The declare statement is the api's, before the query.
     await vi.waitFor(() =>
@@ -215,13 +300,13 @@ describe('SavePresetDialog query parameters', () => {
     expect(saved).toEqual([
       expect.objectContaining({
         params: tab,
+        title: 'Run KQL {Upn}',
         inputs: [
           {
             name: 'Upn',
             source: 'queryParameter',
             type: 'string',
             fixed: false,
-            showInTitle: true,
             fromColumns: ['UserPrincipalName', 'Upn'],
           },
           {
@@ -229,7 +314,6 @@ describe('SavePresetDialog query parameters', () => {
             source: 'queryParameter',
             type: 'datetime',
             fixed: true,
-            showInTitle: false,
             value: '2026-10-01T00:00:00Z',
           },
           {
@@ -237,7 +321,6 @@ describe('SavePresetDialog query parameters', () => {
             source: 'queryParameter',
             type: 'dynamic',
             fixed: true,
-            showInTitle: true,
             value: ['TEXAS', 'FLORIDA'],
           },
         ],
@@ -277,7 +360,6 @@ describe('SavePresetDialog query parameters', () => {
         source: 'queryParameter',
         type: 'datetime',
         fixed: true,
-        showInTitle: false,
         value: '2026-10-01T00:00:00Z',
       },
     ]);

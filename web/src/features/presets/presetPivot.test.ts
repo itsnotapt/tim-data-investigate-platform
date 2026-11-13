@@ -55,6 +55,7 @@ const RUN_KQL: CatalogueAction = {
 const preset = (inputs: Preset['inputs'], params: Preset['params'] = {}): Preset => ({
   presetId: 'p-1',
   name: 'Failed sign-ins',
+  title: 'Failed sign-ins',
   menuPath: ['Mine'],
   owner: 'alice@example.com',
   visibility: 'shared',
@@ -73,7 +74,6 @@ const RESULT_FROM_ROW = preset(
       name: 'result',
       source: 'param',
       fixed: false,
-      showInTitle: true,
       fromColumns: ['Status', 'Result'],
     },
   ],
@@ -101,10 +101,9 @@ describe('presetPivot', () => {
         name: 'users',
         source: 'param',
         fixed: false,
-        showInTitle: true,
         fromColumns: ['Upn', 'User'],
       },
-      { name: 'result', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Result'] },
+      { name: 'result', source: 'param', fixed: false, fromColumns: ['Result'] },
     ]);
     const rows = [
       { User: 'alice', Result: 'Failure' },
@@ -130,8 +129,8 @@ describe('presetPivot', () => {
 
   it('leaves an input that no row has a value for missing, so the tab waits for it', () => {
     const both = preset([
-      { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
-      { name: 'result', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Result'] },
+      { name: 'users', source: 'param', fixed: false, fromColumns: ['User'] },
+      { name: 'result', source: 'param', fixed: false, fromColumns: ['Result'] },
     ]);
     expect(pivot(both, [{ User: '', Result: null }])).toEqual({
       params: { connection: 'kusto-dev', limit: 10 },
@@ -141,12 +140,10 @@ describe('presetPivot', () => {
 
   it("doesn't pivot unless every From row input has columns that every row has one of", () => {
     const rows = [{ User: 'alice', Result: 'Failure' }];
-    const bookmark = preset([
-      { name: 'result', source: 'param', fixed: true, showInTitle: false, value: 'Failure' },
-    ]);
+    const bookmark = preset([{ name: 'result', source: 'param', fixed: true, value: 'Failure' }]);
     const asks = preset([
-      { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
-      { name: 'result', source: 'param', fixed: false, showInTitle: true, fromColumns: [] },
+      { name: 'users', source: 'param', fixed: false, fromColumns: ['User'] },
+      { name: 'result', source: 'param', fixed: false, fromColumns: [] },
     ]);
     expect(pivot(bookmark, rows)).toBeNull();
     expect(pivot(preset(undefined), rows)).toBeNull();
@@ -163,8 +160,8 @@ describe('presetPivot', () => {
       ],
     };
     const both = preset([
-      { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
-      { name: 'result', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Result'] },
+      { name: 'users', source: 'param', fixed: false, fromColumns: ['User'] },
+      { name: 'result', source: 'param', fixed: false, fromColumns: ['Result'] },
     ]);
     expect(presetPivot(both, optional, [{ User: null, Result: 'Failure' }], CONNECTIONS)).toEqual({
       params: { connection: 'kusto-dev', limit: 10, result: 'Failure' },
@@ -178,7 +175,6 @@ describe('presetPivot', () => {
         name: 'result',
         source: 'param',
         fixed: false,
-        showInTitle: true,
         fromColumns: ['constructor'],
       },
     ]);
@@ -193,7 +189,6 @@ describe('presetPivot', () => {
           source: 'queryParameter',
           type: 'string',
           fixed: false,
-          showInTitle: true,
           fromColumns: ['UserPrincipalName', 'Upn'],
         },
         {
@@ -201,7 +196,6 @@ describe('presetPivot', () => {
           source: 'queryParameter',
           type: 'datetime',
           fixed: true,
-          showInTitle: false,
           value: '2026-10-01T00:00:00Z',
         },
         {
@@ -209,7 +203,6 @@ describe('presetPivot', () => {
           source: 'queryParameter',
           type: 'dynamic',
           fixed: false,
-          showInTitle: true,
           fromColumns: ['Host'],
         },
       ],

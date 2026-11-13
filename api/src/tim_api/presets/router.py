@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -36,10 +37,25 @@ def _now() -> datetime:
     return now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
+_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+"""Each ``{…}`` placeholder of a title template, capturing what it names."""
+
+
+def _title_errors(title: str, names: set[str]) -> list[str]:
+    """One error per placeholder of ``title`` that names nothing: none of ``names``, nor ``row.``
+    and a column."""
+    return [
+        f"{{{name}}} names nothing"
+        for name in _PLACEHOLDER.findall(title)
+        if name not in names and not (name.startswith("row.") and name != "row.")
+    ]
+
+
 def _check(body: PresetFields, actions: dict[str, Action | Sink]) -> None:
     """The preset's ``action`` must be a query action in the catalogue. Each param input must be a
     param of it with ``from_columns``, and each query parameter a name for an action that takes
-    them. Values are checked when a run starts."""
+    them. Each placeholder of its title template must name a param of the action, a query
+    parameter of the preset, or ``row.`` and a column. Values are checked when a run starts."""
     action = actions.get(body.action)
     if action is None:
         raise UnprocessableError({"action": ["Unknown action"]})
@@ -66,6 +82,9 @@ def _check(body: PresetFields, actions: dict[str, Action | Sink]) -> None:
             errors[f"inputs.{index}.name"] = ["Unknown param"]
         elif not param.from_columns:
             errors[f"inputs.{index}.name"] = [f"{item.name} has no from_columns"]
+    query_parameters = {i.name for i in body.inputs if i.source == "queryParameter"}
+    if unnamed := _title_errors(body.title, set(params) | query_parameters):
+        errors["title"] = unnamed
     if errors:
         raise UnprocessableError(errors)
 

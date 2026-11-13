@@ -64,10 +64,9 @@ const preset = (
   owned: false,
   hidden: false,
   action: 'by-result',
+  title: name,
   params: {},
-  inputs: [
-    { name: 'result', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Result'] },
-  ],
+  inputs: [{ name: 'result', source: 'param', fixed: false, fromColumns: ['Result'] }],
   createdAt: '2026-10-01T00:00:00Z',
   updatedAt: '2026-10-01T00:00:00Z',
   ...overrides,
@@ -78,9 +77,7 @@ const PRESETS = [
   preset('p-hidden', 'Hidden preset', [], { hidden: true }),
   preset('p-gone', 'Of a removed action', [], { action: 'gone' }),
   preset('p-bookmark', 'Bookmark', [], {
-    inputs: [
-      { name: 'result', source: 'param', fixed: true, showInTitle: false, value: 'Failure' },
-    ],
+    inputs: [{ name: 'result', source: 'param', fixed: true, value: 'Failure' }],
   }),
 ];
 

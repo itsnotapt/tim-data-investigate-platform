@@ -31,9 +31,11 @@ import {
 import {
   canSave,
   formFields,
+  formTitle,
   initialForm,
   previewLines,
   queryParameterErrors,
+  titleError,
   rowParams,
   suggestedNames,
   valueOrType,
@@ -132,9 +134,7 @@ function QueryParameterFields({
         exclusive
         aria-label="Value"
         value={qp.fixed ? 'fixed' : 'row'}
-        onChange={(_, value: string | null) =>
-          value && onChange({ fixed: value === 'fixed', showInTitle: value !== 'fixed' })
-        }
+        onChange={(_, value: string | null) => value && onChange({ fixed: value === 'fixed' })}
       >
         <ToggleButton value="fixed">Fixed</ToggleButton>
         <ToggleButton value="row">From row</ToggleButton>
@@ -159,16 +159,6 @@ function QueryParameterFields({
           sx={{ flex: 1, minWidth: 160 }}
         />
       )}
-      <FormControlLabel
-        label="Show in title"
-        control={
-          <Switch
-            size="small"
-            checked={qp.showInTitle}
-            onChange={(e) => onChange({ showInTitle: e.target.checked })}
-          />
-        }
-      />
       <Tooltip title="Move up">
         <span>
           <IconButton
@@ -203,10 +193,10 @@ function QueryParameterFields({
 }
 
 /**
- * Saves params of an action as a preset: its name, folder and who sees it, and for each param rows
- * can fill whether its value is fixed or read from columns of the clicked row. For an action that
- * takes query parameters, it declares them too. Your own preset is updated or saved as new; anyone
- * else's is saved as your own copy. Mount it to open it.
+ * Saves params of an action as a preset: its name, folder and who sees it, for each param rows
+ * can fill whether its value is fixed or read from columns of the clicked row, and the title
+ * template of its tabs. For an action that takes query parameters, it declares them too. Your own
+ * preset is updated or saved as new; anyone else's is saved as your own copy. Mount it to open it.
  */
 export function SavePresetDialog({
   action,
@@ -249,7 +239,8 @@ export function SavePresetDialog({
     }
   };
   const create = () => save((fields) => store.getState().create(fields));
-  const unsavable = !canSave(form);
+  const unsavable = !canSave(action, form);
+  const tabTitleError = titleError(action, form);
 
   return (
     <Dialog open onClose={onClose} aria-labelledby="save-preset-title" fullWidth maxWidth="sm">
@@ -279,7 +270,7 @@ export function SavePresetDialog({
             }
           />
           {rowParams(action).map((p) => {
-            const mode = form.modes[p.name] ?? { fixed: true, columns: [], showInTitle: false };
+            const mode = form.modes[p.name] ?? { fixed: true, columns: [] };
             return (
               <Stack key={p.name} spacing={0.5}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -294,7 +285,6 @@ export function SavePresetDialog({
                       setMode(p.name, {
                         fixed: value === 'fixed',
                         columns: mode.columns.length > 0 ? mode.columns : (p.fromColumns ?? []),
-                        showInTitle: value !== 'fixed',
                       })
                     }
                   >
@@ -310,20 +300,6 @@ export function SavePresetDialog({
                       {valueOrType(p, params[p.name])}
                     </Typography>
                   )}
-                  <FormControlLabel
-                    label="Show in title"
-                    sx={{ ml: 'auto' }}
-                    control={
-                      <Switch
-                        size="small"
-                        checked={mode.showInTitle}
-                        onChange={(e) =>
-                          setMode(p.name, { ...mode, showInTitle: e.target.checked })
-                        }
-                        slotProps={{ input: { 'aria-label': `Show ${p.name} in title` } }}
-                      />
-                    }
-                  />
                 </Stack>
                 {!mode.fixed && (
                   <Stack direction="row" sx={{ flexWrap: 'wrap', pl: 2 }}>
@@ -383,7 +359,6 @@ export function SavePresetDialog({
                         name: '',
                         type: 'string',
                         fixed: true,
-                        showInTitle: false,
                         value: '',
                         columns: '',
                       },
@@ -395,6 +370,13 @@ export function SavePresetDialog({
               </div>
             </Stack>
           )}
+          <TextField
+            label="Tab title"
+            value={formTitle(action, form)}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            error={tabTitleError !== undefined}
+            helperText={tabTitleError}
+          />
           <div>
             <Typography variant="subtitle2" id="save-preset-preview">
               Preview

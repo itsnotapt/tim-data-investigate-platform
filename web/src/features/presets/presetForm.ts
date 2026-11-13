@@ -6,6 +6,7 @@ import type {
   PresetInput,
 } from '../../lib/api';
 import { isUnset, paramText } from '../action-tab/paramValues';
+import { unnamedPlaceholders } from '../action-tab/titleTemplate';
 import {
   bindsByPosition,
   isParametersParam,
@@ -22,8 +23,6 @@ export interface InputMode {
   fixed: boolean;
   /** From row only: the columns to read, in order; none asks for the value when opened. */
   columns: string[];
-  /** Whether a tab opened from the preset shows the value in its title. */
-  showInTitle: boolean;
 }
 
 /** One query parameter the Save… dialog declares, as typed. */
@@ -35,8 +34,6 @@ export interface QueryParameterForm {
   value: string;
   /** From row only: the columns to read, in order, separated by commas; none asks when opened. */
   columns: string;
-  /** Whether a tab opened from the preset shows the value in its title. */
-  showInTitle: boolean;
 }
 
 /** What the Save… dialog edits. */
@@ -49,6 +46,8 @@ export interface PresetForm {
   modes: Record<string, InputMode>;
   /** For an action that takes query parameters, in the order they're declared. */
   queryParameters: QueryParameterForm[];
+  /** The Tab title as typed; `null` until it is edited, while it is the default (`formTitle`). */
+  title: string | null;
 }
 
 /** The params of `action` that rows can fill: those with `fromColumns`. */
@@ -56,9 +55,9 @@ export const rowParams = (action: CatalogueAction): CatalogueParam[] =>
   action.params.filter((p) => (p.fromColumns ?? []).length > 0);
 
 /**
- * The form for saving `params` of `action`. From an existing preset, its name, folder and inputs;
- * otherwise each set value is fixed and each unset one is read from all its columns, or for a
- * query parameter asked for when opened, and those read from the row are shown in the title. A
+ * The form for saving `params` of `action`. From an existing preset, its name, folder, inputs and
+ * title template; otherwise each set value is fixed and each unset one is read from all its
+ * columns, or for a query parameter asked for when opened, and the Tab title is the default. A
  * copy of someone else's preset starts private.
  */
 export function initialForm(
@@ -72,7 +71,7 @@ export function initialForm(
       const input = inputs.get(p.name);
       const fixed = input ? input.fixed : !isUnset(params[p.name]);
       const columns = input && !input.fixed ? input.fromColumns : (p.fromColumns ?? []);
-      return [p.name, { fixed, columns, showInTitle: input ? input.showInTitle : !fixed }];
+      return [p.name, { fixed, columns }];
     }),
   );
   return {
@@ -87,13 +86,46 @@ export function initialForm(
         name: entry.name,
         type: entry.type,
         fixed,
-        showInTitle: input?.source === 'queryParameter' ? input.showInTitle : !fixed,
         value: valueText(entry.type, entry.value),
         columns:
           input?.source === 'queryParameter' && !input.fixed ? input.fromColumns.join(', ') : '',
       };
     }),
+    title: source?.title ?? null,
   };
+}
+
+/**
+ * The Tab title of the form: as typed, or until it is edited, the name then a placeholder for each
+ * From row input, in the action's order of params, with the query parameters in place of
+ * `parameters`.
+ */
+export function formTitle(action: CatalogueAction, form: PresetForm): string {
+  if (form.title !== null) return form.title;
+  const fromRow = action.params.flatMap((p) => {
+    if (isParametersParam(p)) {
+      return form.queryParameters.filter((qp) => !qp.fixed && qp.name !== '').map((qp) => qp.name);
+    }
+    const mode = form.modes[p.name];
+    return mode && !mode.fixed ? [p.name] : [];
+  });
+  return [form.name.trim(), ...fromRow.map((name) => `{${name}}`)].join(' ');
+}
+
+/**
+ * What's wrong with the Tab title of the form, if anything: the placeholders that name neither a
+ * param of the action, a query parameter of the form, nor `row.` and a column.
+ */
+export function titleError(action: CatalogueAction, form: PresetForm): string | undefined {
+  const names = new Set([
+    ...action.params.map((p) => p.name),
+    ...form.queryParameters.map((qp) => qp.name),
+  ]);
+  const unnamed = unnamedPlaceholders(formTitle(action, form), names);
+  if (unnamed.length === 0) return undefined;
+  const listed =
+    unnamed.length === 1 ? unnamed[0] : `${unnamed.slice(0, -1).join(', ')} and ${unnamed.at(-1)}`;
+  return `${listed} ${unnamed.length === 1 ? 'names' : 'name'} nothing`;
 }
 
 /** What's wrong with a query parameter of the form, by field; empty when nothing is. */
@@ -113,9 +145,14 @@ export function queryParameterErrors(
   };
 }
 
-/** Whether the form can be saved: it has a name, and no query parameter has an error. */
-export const canSave = (form: PresetForm): boolean =>
+/**
+ * Whether the form can be saved: it has a name, and a Tab title that names only what it can, and
+ * no query parameter has an error.
+ */
+export const canSave = (action: CatalogueAction, form: PresetForm): boolean =>
   form.name.trim() !== '' &&
+  formTitle(action, form).trim() !== '' &&
+  titleError(action, form) === undefined &&
   form.queryParameters.every((_, i) =>
     Object.values(queryParameterErrors(form, i)).every((e) => !e),
   );
@@ -140,29 +177,16 @@ const columnList = (columns: string): string[] =>
 
 /** The query parameter inputs the form saves. */
 const queryParameterInputs = (form: PresetForm): PresetInput[] =>
-  form.queryParameters.map(({ name, type, fixed, showInTitle, value, columns }) =>
+  form.queryParameters.map(({ name, type, fixed, value, columns }) =>
     fixed
-      ? {
-          name,
-          source: 'queryParameter',
-          type,
-          fixed,
-          showInTitle,
-          value: parseValue(type, value).value,
-        }
-      : {
-          name,
-          source: 'queryParameter',
-          type,
-          fixed,
-          showInTitle,
-          fromColumns: columnList(columns),
-        },
+      ? { name, source: 'queryParameter', type, fixed, value: parseValue(type, value).value }
+      : { name, source: 'queryParameter', type, fixed, fromColumns: columnList(columns) },
   );
 
 /**
- * The preset the form saves, with `idColumn`: unset values are left out, From row inputs keep no
- * value, and query parameters are inputs in place of the `parameters` param.
+ * The preset the form saves, with `idColumn` and the form's Tab title: unset values are left out,
+ * From row inputs keep no value, and query parameters are inputs in place of the `parameters`
+ * param.
  */
 export function formFields(
   action: CatalogueAction,
@@ -178,23 +202,11 @@ export function formFields(
     if (isParametersParam(p)) {
       inputs.push(...queryParameterInputs(form));
     } else if (mode && !mode.fixed) {
-      inputs.push({
-        name: p.name,
-        source: 'param',
-        fixed: false,
-        showInTitle: mode.showInTitle,
-        fromColumns: mode.columns,
-      });
+      inputs.push({ name: p.name, source: 'param', fixed: false, fromColumns: mode.columns });
     } else if (isUnset(value)) {
       continue;
     } else if (mode) {
-      inputs.push({
-        name: p.name,
-        source: 'param',
-        fixed: true,
-        showInTitle: mode.showInTitle,
-        value,
-      });
+      inputs.push({ name: p.name, source: 'param', fixed: true, value });
     } else {
       kept[p.name] = value;
     }
@@ -210,6 +222,7 @@ export function formFields(
     params: kept,
     inputs,
     idColumn,
+    title: formTitle(action, form),
   };
 }
 
@@ -273,6 +286,7 @@ export const presetFields = ({
   action,
   params,
   inputs,
+  title,
 }: Preset): PresetFields => ({
   name,
   menuPath,
@@ -280,4 +294,5 @@ export const presetFields = ({
   action,
   params,
   inputs,
+  title,
 });
