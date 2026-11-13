@@ -62,10 +62,12 @@ test('pivots from rows with different users are titled by their users once run, 
     await pivot(page, index, 'User', ['Development', 'Pivots', 'Sessions for users']);
   const tree = page.getByLabel('Query tree');
   await tree.hover();
-  await expect(tree.getByText('Sessions for users bob@example.com', { exact: true })).toBeVisible();
-  await tree.getByText('Sessions for users carol@example.com', { exact: true }).click();
+  await expect(
+    tree.getByText('Sessions for users [bob@example.com]', { exact: true }),
+  ).toBeVisible();
+  await tree.getByText('Sessions for users [carol@example.com]', { exact: true }).click();
   await page.mouse.move(900, 500);
-  const title = page.getByRole('heading', { name: 'Sessions for users carol@example.com' });
+  const title = page.getByRole('heading', { name: 'Sessions for users [carol@example.com]' });
   await expect(title).toBeVisible();
 
   // Editing a param leaves the title to the latest run, until the tab runs again.
@@ -77,7 +79,9 @@ test('pivots from rows with different users are titled by their users once run, 
   await expect(title).toBeVisible();
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Sessions for users carol@example.com, alice@example.com' }),
+    page.getByRole('heading', {
+      name: 'Sessions for users [carol@example.com, alice@example.com]',
+    }),
   ).toBeVisible();
 });
 

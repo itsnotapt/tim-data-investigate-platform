@@ -3,7 +3,7 @@
 type: dev_rows
 key: dev-sessions
 name: Sessions for users
-title: "{{ action_name }} {{ users | join(', ') }}"
+title: 'Sessions for users {users}'
 menu: Development / Pivots
 description: The sessions of the users in the selected rows
 pivot: rows

@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.hash-seen-anywhere
 name: Hash seen anywhere
-title: "Events related to {{ 'SHA256' if hash | length == 64 else 'MD5' if hash | length == 32 else 'hash' }} {{ hash }}"
+title: "Events related to {hash}"
 menu: Endpoint
 description: The events in every log that hold a SHA256 or MD5 hash, in the window around a time
 pivot: row

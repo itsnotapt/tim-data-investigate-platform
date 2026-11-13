@@ -267,19 +267,16 @@
               }
             ]
           },
-          "titleColumns": {
+          "title": {
             "anyOf": [
               {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Titlecolumns"
+            "title": "Title"
           }
         },
         "required": [
@@ -1630,7 +1627,7 @@
         "type": "object"
       },
       "Run": {
-        "description": "A run without its rows. Server-produced only, never a request.\n\n``title`` is the run title, from the action and the resolved params. ``params`` are the\nresolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``\n(seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the\naction's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a\nquery action's run succeeds, never for a sink; ``error`` is a message safe to show.",
+        "description": "A run without its rows. Server-produced only, never a request.\n\n``title`` is the run title it was started with, or the action's name. ``params`` are the\nresolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``\n(seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the\naction's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a\nquery action's run succeeds, never for a sink; ``error`` is a message safe to show.",
         "properties": {
           "action": {
             "$ref": "#/components/schemas/RunAction"
@@ -1892,7 +1889,7 @@
         "type": "object"
       },
       "StartRun": {
-        "description": "Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is\nfor a sink, and only a sink. ``pivotRows`` are the rows a query action's run was pivoted\nfrom, for its title.",
+        "description": "Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is\nfor a sink, and only a sink. ``title`` is the run title, the action's title template filled\nin by the browser (ADR 0029); without one, or with a blank one, the run is titled with the\naction's name.",
         "properties": {
           "action": {
             "title": "Action",
@@ -1915,15 +1912,16 @@
             "title": "Params",
             "type": "object"
           },
-          "pivotRows": {
-            "items": {
-              "additionalProperties": {
-                "$ref": "#/components/schemas/JsonValue"
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "type": "object"
-            },
-            "title": "Pivotrows",
-            "type": "array"
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           }
         },
         "required": [

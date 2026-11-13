@@ -433,7 +433,13 @@ describe('ActionTab', () => {
     beforeEach(() => configureTestApp());
     afterEach(resetTestApp);
 
-    it('sends the rows the tab was pivoted from again when it reruns after Edited and Reset', async () => {
+    it('titles the run from the rows the tab was pivoted from again when it reruns after Edited and Reset', async () => {
+      useInstanceStore.setState({
+        instance: {
+          ...instance,
+          actions: [{ ...action, title: 'Sign-ins of {row.User}' }, runKql, runSql],
+        },
+      });
       let body: unknown;
       server.use(
         http.post(apiUrl('/api/runs'), async ({ request }) => {
@@ -460,7 +466,11 @@ describe('ActionTab', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Edited' }));
       await userEvent.click(screen.getByRole('button', { name: 'Run' }));
       await waitFor(() => {
-        expect(body).toEqual({ action: 'dev-sign-ins', params: { users: ['alice'] }, pivotRows });
+        expect(body).toEqual({
+          action: 'dev-sign-ins',
+          params: { users: ['alice'] },
+          title: 'Sign-ins of alice',
+        });
       });
     });
   });

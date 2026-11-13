@@ -165,7 +165,17 @@ describe('runActionTab', () => {
     });
   });
 
-  it('sends the rows the tab was pivoted from, for the run’s title', async () => {
+  it('sends the action’s title template filled in, and not the rows the tab was pivoted from', async () => {
+    const { instance } = useInstanceStore.getState();
+    useInstanceStore.setState({
+      instance: {
+        ...instance!,
+        actions: instance!.actions.map((a) => ({
+          ...a,
+          title: 'Sign-ins for {users} in {row.App}',
+        })),
+      },
+    });
     let body: unknown;
     server.use(
       http.post(apiUrl('/api/runs'), async ({ request }) => {
@@ -179,8 +189,32 @@ describe('runActionTab', () => {
     expect(body).toEqual({
       action: 'dev-sign-ins',
       params: { users: ['alice'] },
-      pivotRows: [{ App: 'Teams' }],
+      title: 'Sign-ins for [alice] in Teams',
     });
+  });
+
+  it('fills in an unset param with its default, as the run gets it', async () => {
+    const { instance } = useInstanceStore.getState();
+    useInstanceStore.setState({
+      instance: {
+        ...instance!,
+        actions: instance!.actions.map((a) => ({
+          ...a,
+          title: 'Sign-ins for {users}',
+          params: a.params.map((p) => (p.name === 'users' ? { ...p, default: ['bob'] } : p)),
+        })),
+      },
+    });
+    let body: { title?: string } = {};
+    server.use(
+      http.post(apiUrl('/api/runs'), async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return HttpResponse.json(succeeded(0));
+      }),
+    );
+    createActionTab('b', { toRun: { params: { users: [] } } });
+    await runActionTab('b', { store, sleep });
+    expect(body.title).toBe('Sign-ins for [bob]');
   });
 
   it('shows each page of rows as it arrives, before every page is stored', async () => {

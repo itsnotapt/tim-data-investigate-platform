@@ -17,12 +17,12 @@ Process rules for everyone working on TIM, human or agent.
   - A worktree for the branch sits in `.claude/worktrees/<ticket>-<short-name>`: the branch name without its type.
 - Use [Conventional Commits](https://www.conventionalcommits.org/), optionally scoped, e.g. `feat(web): …`.
 - Do not merge with failing or skipped tests unless the user agrees.
-- PRs into `main` are squash-merged: the PR title is the release commit and its first changelog entry. Mark a breaking change with `!` in the title, not with a footer.
+- PRs into `main` are squash-merged: the PR title is the release commit and its first changelog entry. `!` goes only in a title, never in a footer, and only for a major release ([§7](#7-releases)).
 - **Squash body:** for each further user-visible change, add one Conventional Commit line to the squash body.
   - release-please makes each line a changelog entry in TIM's changelog, and in `tim-actions`' when the PR changes `api/tim-actions`.
   - It counts the line's type toward the version like the title's. A `feat` line under a `fix` title makes a minor release.
   - Write each line for the changelog reader, with the UI's own labels, e.g. `fix: colour contrast of the snackbar Dismiss button`.
-  - Use `feat`, `fix` or `perf`, with no scope and no `!`. A breaking change goes in the title.
+  - Use `feat`, `fix` or `perf`, with no scope and no `!`.
   - The body holds only these lines, one per line. Replace GitHub's pre-filled text.
   - Tests, refactors and CI changes get no line.
   - When a PR has such lines, list them under **Changelog entries** in the PR description. Otherwise the title alone is the entry.
@@ -35,8 +35,11 @@ Process rules for everyone working on TIM, human or agent.
 - **TIM** has one version for the api image, the web image and the Helm chart. It is tagged `vX.Y.Z`.
 - **`tim-actions`** has its own version, tagged `tim-actions-vX.Y.Z`.
 - A commit's type counts toward TIM's next version unless all its files are under `.claude`, `.github`, `docs`, `examples`, `api/tests`, `api/tim-actions/tests`, `web/e2e` or `deploy/helm/tim/ci`.
-- A breaking title (`!`) always makes TIM a major release.
+- **A major release is deliberate and rare:** months of development, not one change.
+  - Only a PR that makes the major takes `!` in its title. A `!` title always makes TIM a major release.
+  - Any other change takes `feat` or `fix`, even when it breaks action files, providers or the API. Its title says what breaks, e.g. `feat: a param has only a name, and an action file that gives one a title is refused`.
 - A breaking title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) is a breaking `tim-actions` release too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
+- A breaking `tim-actions` release in a PR without `!` sets `release-as` on the `api/tim-actions` package in `release-please-config.json`, e.g. `"release-as": "0.2.0"`. The PR after the release removes it.
 - While `tim-actions` is 0.x, its breaking release bumps the minor (0.1 → 0.2), and `feat` or `fix` the patch.
 - Other scopes are optional and free-form. By convention they name `web`, `api`, `chart` or `tim-actions`.
 - Versions come from the commit types. Never edit versions by hand; release-please owns them.

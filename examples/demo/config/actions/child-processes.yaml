@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.child-processes
 name: Child processes
-title: "Child processes of {{ row.Image | default(process_guid) | basename }} on {{ host }}"
+title: "Child processes of {row.Image} on {host}"
 menu: Endpoint
 description: The processes a process started
 pivot: row

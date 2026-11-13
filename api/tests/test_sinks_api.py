@@ -76,11 +76,6 @@ SIGN_INS = Rows(key="acme.sign_ins", name="Sign-ins", pivot="none", rows=({"n": 
             {"input.columns": ["Column names must be unique"]},
         ),
         ("acme.save_event", {"input": INPUT, "params": {"x": 1}}, {"params.x": ["Unknown param"]}),
-        (
-            "acme.save_event",
-            {"input": INPUT, "pivotRows": [{"Host": "BGIST-L"}]},
-            {"pivotRows": ["Only a query action takes pivot rows"]},
-        ),
     ],
 )
 async def test_a_sink_takes_input_and_only_a_sink_does(

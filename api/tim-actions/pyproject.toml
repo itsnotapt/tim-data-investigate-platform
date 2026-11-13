@@ -5,7 +5,6 @@ description = "The interface TIM providers build against: actions, params, colum
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "jinja2>=3.1.6",
     "pydantic>=2.13",
     "pyyaml>=6.0.3",
 ]

@@ -160,7 +160,10 @@ describe('pivotIntoAction', () => {
         reasons: {},
       }),
     );
-    const { store, pivot } = setup(FAILURES, { ...SIGN_INS, titleColumns: ['App', 'Host'] });
+    const { store, pivot } = setup(FAILURES, {
+      ...SIGN_INS,
+      title: 'Sign-ins in {row.App} on {row.Host} for {users}',
+    });
 
     const tabId = await pivot([
       { User: 'alice', Result: 'Failure', App: 'Teams', Secret: 's' },
@@ -266,8 +269,11 @@ describe('pivotIntoAction', () => {
     expect(goTo).toHaveBeenCalledWith(tabId);
   });
 
-  it('keeps the rows trimmed to the columns the action’s title names in a preset pivot', () => {
-    const { store, pivotPreset } = setup(FAILURES, { ...SIGN_INS, titleColumns: ['App'] });
+  it('keeps the rows trimmed to the action’s title columns in a preset pivot', () => {
+    const { store, pivotPreset } = setup(FAILURES, {
+      ...SIGN_INS,
+      title: 'Sign-ins in {row.App}',
+    });
 
     const tabId = pivotPreset(
       {

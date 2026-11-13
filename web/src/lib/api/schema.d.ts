@@ -533,8 +533,8 @@ export interface components {
             /** Params */
             params: components["schemas"]["CatalogueParam"][];
             pivot: components["schemas"]["CataloguePivot"] | null;
-            /** Titlecolumns */
-            titleColumns?: string[] | null;
+            /** Title */
+            title?: string | null;
         };
         /**
          * CatalogueColumn
@@ -1140,7 +1140,7 @@ export interface components {
          * Run
          * @description A run without its rows. Server-produced only, never a request.
          *
-         *     ``title`` is the run title, from the action and the resolved params. ``params`` are the
+         *     ``title`` is the run title it was started with, or the action's name. ``params`` are the
          *     resolved params, ``{}`` for a sink. ``details`` holds TIM's ``duration``
          *     (seconds) and ``rowCount`` first, or a sink's ``duration`` and ``inputRowCount``, then the
          *     action's own, in the order they were reported. ``columns`` and ``rowCount`` are set once a
@@ -1248,8 +1248,9 @@ export interface components {
         /**
          * StartRun
          * @description Body of ``POST /api/runs``. The params are validated against the action's; ``input`` is
-         *     for a sink, and only a sink. ``pivotRows`` are the rows a query action's run was pivoted
-         *     from, for its title.
+         *     for a sink, and only a sink. ``title`` is the run title, the action's title template filled
+         *     in by the browser (ADR 0029); without one, or with a blank one, the run is titled with the
+         *     action's name.
          */
         StartRun: {
             /** Action */
@@ -1259,10 +1260,8 @@ export interface components {
             params?: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
-            /** Pivotrows */
-            pivotRows?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            }[];
+            /** Title */
+            title?: string | null;
         };
         /**
          * TagSuggestions

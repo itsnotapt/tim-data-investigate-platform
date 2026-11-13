@@ -136,6 +136,10 @@ _Avoid_: tab name, action run title
 The text an action or preset gives its run titles, with `{…}` placeholders for the values of its params, its query parameters and its pivot rows' columns.
 _Avoid_: title format, Show in title
 
+**Title columns**:
+The pivot row columns a title template names with `row.`. They are the only columns a tab keeps of the rows it was pivoted from.
+_Avoid_: title fields, row placeholders
+
 **Run details**:
 The key-value facts a run reports, such as its duration, row count or a warning.
 

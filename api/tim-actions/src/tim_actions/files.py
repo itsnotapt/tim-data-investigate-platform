@@ -101,7 +101,8 @@ class ActionDocument(DocumentBase):
     and adds the type's own fields.
 
     ``id`` is the Id column the results open with; leaving it out opens them with none. ``title``
-    is a Jinja template of its runs' titles; leaving it out titles them with ``name``.
+    is the title template of its runs, with ``{param}`` and ``{row.Column}`` placeholders;
+    leaving it out titles them with ``name``.
     ``find_pivot_rows`` offers Go to pivot row on the tabs pivoted into the action.
     """
 

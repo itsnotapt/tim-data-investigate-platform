@@ -107,14 +107,16 @@ class PresetFileParams:
 
 
 def preset_file_params(
-    query_parameters: Sequence[QueryParameter], types: Mapping[QueryParameterType, ParamKind]
+    name: str,
+    query_parameters: Sequence[QueryParameter],
+    types: Mapping[QueryParameterType, ParamKind],
 ) -> PresetFileParams | None:
     """Each query parameter of a preset as a param, in order: a fixed one with its value as the
     default, a From row one with its columns. A ``dynamic`` one is a ``json`` param, ``many``
     unless its fixed value is not a list. Like the preset, it pivots on ``rows`` when every From
-    row query parameter has columns. The title template is ``action_name`` then each query
-    parameter shown in the title, a ``many`` one joined by ", "; without any, there is none.
-    ``None`` when a type isn't one of ``types``."""
+    row query parameter has columns. The title template is ``name`` then a placeholder of each
+    query parameter shown in the title; without any, there is none. ``None`` when a type isn't
+    one of ``types``."""
     if any(p.type not in types for p in query_parameters):
         return None
     params = []
@@ -127,9 +129,9 @@ def preset_file_params(
         else:
             params.append(Param(p.name, kind, many=many, from_columns=p.from_columns))
         if p.show_in_title:
-            shown.append(f"{{{{ {p.name} | join(', ') }}}}" if many else f"{{{{ {p.name} }}}}")
+            shown.append(f"{{{p.name}}}")
     from_row = [p.from_columns for p in query_parameters if p.from_columns is not None]
-    title = " ".join(["{{ action_name }}", *shown]) if shown else None
+    title = " ".join([name, *shown]) if shown else None
     return PresetFileParams(tuple(params), "rows" if from_row and all(from_row) else "none", title)
 
 
@@ -177,13 +179,14 @@ class TakesQueryParameters(Action):
 
     def preset_file_params(
         self,
+        name: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
         required: Sequence[str],
     ) -> PresetFileParams | None:
-        """The params of the action file of a preset (``preset_file_params``), by this action's
-        ``parameter_types``; ``None`` when a ``required`` param of the preset isn't a non-empty
-        string or a query parameter's type isn't one of them."""
+        """The params of the action file of preset ``name`` (``preset_file_params``), by this
+        action's ``parameter_types``; ``None`` when a ``required`` param of the preset isn't a
+        non-empty string or a query parameter's type isn't one of them."""
         if not all(isinstance(params.get(n), str) and params[n] for n in required):
             return None
-        return preset_file_params(query_parameters, self.parameter_types)
+        return preset_file_params(name, query_parameters, self.parameter_types)

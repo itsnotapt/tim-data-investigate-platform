@@ -305,17 +305,16 @@ A From row query parameter is left unset too. A From row input that is still uns
 **Tab titles.** An action tab shows a title that `title` of the action tab module chooses, in the tree and in the app bar.
 
 - Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone.
-- After a run, a tab with no `titleInputs` shows `latest.title`, the title of its latest run, which the server made from the action's `title` template ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
+- After a run, a tab with no `titleInputs` shows `latest.title`, the title of its latest run, which the browser filled in from the action's title template and the server stored ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
 - A preset tab, opened from a preset, pivoted into one or saved as one, has `toRun.titleInputs`, its inputs that show in the title. A clone keeps them. After a run it shows its stored title, then its latest run's values for those inputs, separated by spaces. Its stored title is the preset's name, or "Copy of <preset name>" for a clone.
   - A list shows its first two values joined by ", ", then " +N" for the rest.
   - An unset or empty value is left out.
-- An action's template can name the rows the tab was pivoted from as `row` and `cols`.
-  - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed to the action's `titleColumns`, or none when it has none.
-  - Each run sends them as `pivotRows`, a plain rerun included.
+- An action's title template can name the rows the tab was pivoted from as `{row.Column}`. `fillIn` in `features/action-tab/titleTemplate.ts` fills the template in with the run's params and those rows ([actions.md](actions.md#run-titles)).
+  - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed to the title columns of the action's `title` (`titleColumns` in `titleTemplate.ts`), or none when it has none.
+  - Each run fills its title in from them, a plain rerun included, and sends it as `title` in `POST /api/runs`. The rows themselves are never sent.
   - Clone copies them.
   - Editing any param drops them. Reset puts back the pivot rows of the latest run, or none when it had none.
-  - The latest run (`latest.pivotRows`) records the pivot rows it was sent with.
-  - The server never stores them.
+  - The latest run (`latest.pivotRows`) records the pivot rows its title was filled in from.
 - The tree clamps a title to two lines and the app bar to one. Both show the full title in a tooltip.
 
 The action tab has a header in the app bar, a pills bar in the action bar, and inner tabs.
@@ -836,7 +835,7 @@ Database migrations are in `api/migrations` (Alembic).
 
 | Module                | Responsibility                                                                                                                                                                                                                                                                                                                                                                |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `action.py`           | `Action`, the base of query action types, with its menu path, title template (`title_for`), pivot columns and `resolve()`                                                                                                                                                                                                                                                     |
+| `action.py`           | `Action`, the base of query action types, with its menu path, title template (`title`), pivot columns and `resolve()`                                                                                                                                                                                                                                                         |
 | `pivots.py`           | `PivotContext`, `PivotCell`, `Resolved`, `resolve_pivot` and the default `resolve()`                                                                                                                                                                                                                                                                                          |
 | `params.py`           | `Param` and `validate_params`: declaration checks, then validation and conversion of values                                                                                                                                                                                                                                                                                   |
 | `columns.py`          | `Column`                                                                                                                                                                                                                                                                                                                                                                      |
@@ -1125,7 +1124,7 @@ Runs of an action go through `/api/runs` (`runs/`). They follow [ADR-0012](adr/0
 
 A run:
 
-1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. `Runner.start` gets the run's title from the action's `title_for`, given the params and the request's `pivotRows` (trimmed to the action's title columns). The title is the action's name when `title_for` raises, which is logged, or returns a blank. The title is cut to 1,000 characters. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`. It then starts a tracked asyncio task.
+1. **Start.** `POST /api/runs` looks up the action and validates the params with the action's `check_params`. A `422` comes before a run exists. The run's title is the request's `title`, which the browser filled in, or the action's name when it is missing or blank. The title is cut to 1,000 characters. `Runner.start` stores the run (table `runs`) as `running`, with `expiresAt = now + TIM_RUN_RETENTION_SECONDS`. It then starts a tracked asyncio task.
 2. **Execute.** The task waits for a concurrency slot, still `running`. Then it runs the action's synchronous `run(params, ctx)` in its own daemon thread.
    - `ctx` gives `analyst`, `deadline` (when the timeout ends), `hook(connection)`, `detail(key, value)` and `declare_columns(columns)`.
    - `hook` refuses a connection the action doesn't declare, either in `connections()` or as a `connection` param's value. It gives one hook per connection per run.
