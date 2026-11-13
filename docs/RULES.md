@@ -33,19 +33,20 @@ Process rules for everyone working on TIM, human or agent.
 ## 7. Releases
 
 - **TIM** has one version for the api image, the web image and the Helm chart. It is tagged `vX.Y.Z`.
-- **`tim-actions`** has its own version, tagged `tim-actions-vX.Y.Z`.
-- A commit's type counts toward TIM's next version unless all its files are under `.claude`, `.github`, `docs`, `examples`, `api/tests`, `api/tim-actions/tests`, `web/e2e` or `deploy/helm/tim/ci`.
+- **`tim-actions`** has its own version, tagged `tim-actions-vX.Y.Z`. While it is 0.x, a breaking release bumps its minor (0.1 → 0.2), and `feat` or `fix` its patch.
+- **Versions come from the commit types.** release-please owns them; never edit a version by hand.
+  - A commit counts toward TIM's next version unless all its files are under `.claude`, `.github`, `docs`, `examples`, `api/tests`, `api/tim-actions/tests`, `web/e2e` or `deploy/helm/tim/ci`.
+  - Scopes are optional and free-form. By convention they name `web`, `api`, `chart` or `tim-actions`.
 - **A major release is deliberate and rare:** months of development, not one change.
-  - Only a PR that makes the major takes `!` in its title. A `!` title always makes TIM a major release.
+  - Only the PR that makes the major takes `!` in its title, and a `!` title always makes TIM a major release. That PR, and the release PR that releases it, carry the `major-release` label.
   - Any other change takes `feat` or `fix`, even when it breaks action files, providers or the API. Its title says what breaks, e.g. `feat: a param has only a name, and an action file that gives one a title is refused`.
-  - The PR that makes the major, and the release PR that releases it, carry the `major-release` label. `pr-conventions` fails a breaking title that releases TIM without it, and a release PR that raises any package's major version without it.
-  - A release PR that raises a major by mistake, such as from a `BREAKING CHANGE:` footer in a squash body, is fixed with `release-as` on the package in `release-please-config.json`, e.g. `"release-as": "2.1.0"`. The PR after the release removes it.
-- A breaking title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) is a breaking `tim-actions` release too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
-- A breaking `tim-actions` release in a PR without `!` sets `release-as` on the `api/tim-actions` package in `release-please-config.json`, e.g. `"release-as": "0.2.0"`. The PR after the release removes it.
-- While `tim-actions` is 0.x, its breaking release bumps the minor (0.1 → 0.2), and `feat` or `fix` the patch.
-- Other scopes are optional and free-form. By convention they name `web`, `api`, `chart` or `tim-actions`.
-- Versions come from the commit types. Never edit versions by hand; release-please owns them.
+  - `pr-conventions` fails a breaking title that releases TIM without the label, and a release PR that raises any package's major version without it.
+  - A release PR that raises a major by mistake, such as from a `BREAKING CHANGE:` footer in a squash body, is pinned back with `release-as`.
+- **A break of `tim-actions` is a release of its own.**
+  - A `!` title on a PR that changes `api/tim-actions` (outside `api/tim-actions/tests`) is a breaking `tim-actions` release too, so its scope must name `tim-actions`, e.g. `feat(api,tim-actions)!: …`. Keep `api/tim-actions` out of a breaking PR when its interface doesn't break.
+  - A PR that breaks `tim-actions` without `!` sets `release-as` to its next minor.
+- **`release-as`** on a package in `release-please-config.json` sets its next version, e.g. `"release-as": "2.1.0"` on `.` or `"release-as": "0.2.0"` on `api/tim-actions`. A PR sets it, and the PR after the release removes it.
 - Releasing is merging the release PR. It publishes the api and web images, the chart, and the demo instance's image and Compose file.
 - A GitHub release tagged `demo-data-vN` carries the demo dataset (`examples/demo/data/`). It is not a TIM release, and release-please doesn't make it.
 
-[ADR-0024](adr/0024-one-release-version.md) describes the packages and which commits bump them.
+[ADR-0024](adr/0024-one-release-version.md) describes the packages, which commits bump them, and why a major is deliberate.
