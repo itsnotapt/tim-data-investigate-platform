@@ -11,7 +11,6 @@ id: SessionId
 params:
   - name: users
     kind: string
-    title: Users
     many: true
     from_columns: [User, UserPrincipalName]
 rows:
@@ -30,7 +29,6 @@ id: CorrelationId
 params:
   - name: result
     kind: string
-    title: Result
     from_columns: [Result]
 rows:
   - { User: alice@example.com, CorrelationId: c-1, Result: Success }
@@ -48,7 +46,6 @@ id: Host
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
 generate: 3
 columns:

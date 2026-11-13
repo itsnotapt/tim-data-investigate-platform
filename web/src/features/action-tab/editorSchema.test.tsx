@@ -22,11 +22,10 @@ const expectedSchema = (connection: string, database: string) => ({
 
 const wrapper = ({ children }: { children: ReactNode }) => <SnackbarHost>{children}</SnackbarHost>;
 const runKql: CatalogueParam[] = [
-  { name: 'connection', title: 'Connection', kind: 'connection', required: true, many: false },
-  { name: 'database', title: 'Database', kind: 'string', required: true, many: false },
+  { name: 'connection', kind: 'connection', required: true, many: false },
+  { name: 'database', kind: 'string', required: true, many: false },
   {
     name: 'kql',
-    title: 'Query',
     kind: 'kql',
     required: true,
     many: false,

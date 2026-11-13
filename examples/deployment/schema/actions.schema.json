@@ -133,18 +133,6 @@
           "title": "Kind",
           "type": "string"
         },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Title"
-        },
         "required": {
           "default": true,
           "title": "Required",

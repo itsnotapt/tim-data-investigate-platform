@@ -56,7 +56,6 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
             "params": [
                 {
                     "name": "user",
-                    "title": "User",
                     "kind": "string",
                     "required": True,
                     "many": True,
@@ -64,7 +63,6 @@ def test_actions_from_the_instance_directory_are_in_the_catalogue(
                 },
                 {
                     "name": "since",
-                    "title": "since",
                     "kind": "datetime",
                     "required": False,
                     "default": "2026-10-01T00:00:00Z",
@@ -139,6 +137,12 @@ def test_an_unknown_type_stops_startup() -> None:
 def test_an_unknown_field_stops_startup() -> None:
     assert startup_problems("unknown_field") == [
         f"{at('unknown_field', 8)}: params[0].from_column: Unexpected keyword argument"
+    ]
+
+
+def test_a_param_title_stops_startup() -> None:
+    assert startup_problems("param_title") == [
+        f"{at('param_title', 8)}: params[0].title: Unexpected keyword argument"
     ]
 
 

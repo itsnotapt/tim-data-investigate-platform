@@ -14,15 +14,12 @@ kql_file: host-timeline.kql
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: PT15M
 id: EventId
 columns:

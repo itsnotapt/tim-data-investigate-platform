@@ -12,19 +12,15 @@ kql_file: parent-process.kql
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
-  - name: parent
+  - name: parent_process_guid
     kind: string
-    title: Parent process GUID
     from_columns: [ParentProcessGuid]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: P1D
 id: EventId
 columns:

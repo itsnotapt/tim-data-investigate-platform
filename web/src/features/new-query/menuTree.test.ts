@@ -13,7 +13,6 @@ const signIns: CatalogueAction = {
   params: [
     {
       name: 'users',
-      title: 'Users',
       kind: 'string',
       required: false,
       many: true,
@@ -157,7 +156,7 @@ describe('entryCaption', () => {
       ],
     });
     expect(entryCaption({ kind: 'preset', preset: asks, action: signIns })).toBe(
-      'Sign-ins · asks for Users',
+      'Sign-ins · asks for users',
     );
   });
 });

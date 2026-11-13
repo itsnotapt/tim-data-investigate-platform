@@ -18,7 +18,7 @@ SIGN_INS = Rows(
     name="Sign-ins",
     params=(
         Param("users", "string", many=True, from_columns=("User", "Upn")),
-        Param("at", "datetime", title="Timestamp", required=False, from_columns=("Timestamp",)),
+        Param("occurred_at", "datetime", required=False, from_columns=("Timestamp",)),
         Param("limit", "number", default=10),
     ),
     pivot="rows",
@@ -41,7 +41,7 @@ def test_the_params_resolve_from_the_rows_by_their_from_columns(auth: AuthKit) -
         )
     assert response.status_code == 200
     assert response.json() == {
-        "params": {"users": ["alice", "bob"], "at": "2026-01-01T00:00:00Z"},
+        "params": {"users": ["alice", "bob"], "occurred_at": "2026-01-01T00:00:00Z"},
         "missing": [],
         "reasons": {},
     }
@@ -63,8 +63,8 @@ def test_a_param_the_rows_disagree_on_is_missing_with_the_reason(auth: AuthKit) 
     assert response.status_code == 200
     assert response.json() == {
         "params": {"users": ["alice"]},
-        "missing": ["at"],
-        "reasons": {"at": "The 2 selected rows have different Timestamp values"},
+        "missing": ["occurred_at"],
+        "reasons": {"occurred_at": "The 2 selected rows have different occurred_at values"},
     }
 
 

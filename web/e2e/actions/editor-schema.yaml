@@ -9,13 +9,10 @@ params:
   - name: connection
     kind: connection
     connection_type: dev_kql
-    title: Connection
   - name: database
     kind: string
-    title: Database
   - name: query
     kind: kql
-    title: Query
     schema_from: [connection, database]
 rows:
   - { Step: done }

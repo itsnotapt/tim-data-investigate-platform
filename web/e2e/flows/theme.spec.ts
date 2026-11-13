@@ -145,7 +145,7 @@ async function expectColourContrast(page: Page) {
 async function expectKqlEditor(page: Page, colours: Colours) {
   await openAction(page, ['Development', 'Editor', 'KQL editor']);
   // The editor starts empty: type a line so it has text to render.
-  await page.getByRole('textbox', { name: 'Query' }).focus();
+  await page.getByRole('textbox', { name: 'query' }).focus();
   await page.keyboard.type('SignIns | take 10');
   await waitForEditor(page);
   await expect(page.locator('.monaco-editor').first()).toHaveCSS(

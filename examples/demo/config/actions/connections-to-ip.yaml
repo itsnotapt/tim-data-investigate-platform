@@ -2,7 +2,7 @@
 type: kql_query
 key: demo.connections-to-ip
 name: Connections to IP
-title: "Connections to IP {ip}"
+title: "Connections to IP {destination_ip}"
 menu: Endpoint
 description: The network connections to an IP from every host, in the window around a time
 pivot: row
@@ -10,17 +10,14 @@ connection: security
 database: Security
 kql_file: connections-to-ip.kql
 params:
-  - name: ip
+  - name: destination_ip
     kind: string
-    title: Destination IP
     from_columns: [DestinationIp]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: P1D
 id: EventId
 columns:

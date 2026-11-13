@@ -41,7 +41,7 @@ test('a pivot from one row opens a child tab in the background, which runs, and 
   await toast.getByRole('button', { name: 'Go to' }).click();
   await expect(page.getByRole('heading', { name: 'Sessions for users' })).toBeVisible();
   expect(page.url()).not.toBe(parent);
-  await expect(page.getByRole('button', { name: 'Users: bob@example.com' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'users: bob@example.com' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Results · 1' })).toBeVisible();
   await expect(grid(page).getByText('s-bob-1')).toBeVisible();
 
@@ -71,8 +71,8 @@ test('pivots from rows with different users are titled by their users once run, 
   await expect(title).toBeVisible();
 
   // Editing a param leaves the title to the latest run, until the tab runs again.
-  await page.getByRole('button', { name: 'Users: carol@example.com' }).click();
-  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await page.getByRole('button', { name: 'users: carol@example.com' }).click();
+  const users = page.getByRole('textbox', { name: 'Add users' });
   await users.fill('alice@example.com');
   await users.press('Enter');
   await page.keyboard.press('Escape');
@@ -99,7 +99,7 @@ test('a pivot from several rows takes the selected rows, and a right-click outsi
     .getByRole('button', { name: 'Go to' })
     .click();
   await expect(
-    page.getByRole('button', { name: 'Users: alice@example.com, bob@example.com' }),
+    page.getByRole('button', { name: 'users: alice@example.com, bob@example.com' }),
   ).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Results · 3' })).toBeVisible();
 
@@ -114,7 +114,7 @@ test('a pivot from several rows takes the selected rows, and a right-click outsi
     .filter({ hasText: 'Running Sessions for users' })
     .getByRole('button', { name: 'Go to' })
     .click();
-  await expect(page.getByRole('button', { name: 'Users: carol@example.com' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'users: carol@example.com' })).toBeVisible();
 });
 
 test('a pivot whose rows disagree waits for the param, with the reason, and runs once it is filled', async ({
@@ -127,7 +127,7 @@ test('a pivot whose rows disagree waits for the param, with the reason, and runs
   await pivot(page, 0, 'Result', ['Development', 'Pivots', 'Sign-ins with a result']);
   const toast = page
     .getByRole('alert')
-    .filter({ hasText: 'Opened Sign-ins with a result: needs Result' });
+    .filter({ hasText: 'Opened Sign-ins with a result: needs result' });
   await expect(toast).toBeVisible();
 
   const tree = page.getByLabel('Query tree');
@@ -136,14 +136,14 @@ test('a pivot whose rows disagree waits for the param, with the reason, and runs
 
   await toast.getByRole('button', { name: 'Go to' }).click();
   // The first missing pill's popover is open.
-  const result = page.getByRole('textbox', { name: 'Result' });
+  const result = page.getByRole('textbox', { name: 'result' });
   await expect(result).toBeVisible();
   await expect(page.getByText('Fill in Result to run this pivot')).toBeVisible();
-  await expect(page.getByText('The 2 selected rows have different Result values')).toBeVisible();
+  await expect(page.getByText('The 2 selected rows have different result values')).toBeVisible();
   await result.fill('Failure');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Sign-ins with a result' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Result: Failure' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'result: Failure' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();

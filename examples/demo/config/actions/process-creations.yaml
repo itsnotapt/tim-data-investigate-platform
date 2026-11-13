@@ -12,15 +12,12 @@ kql_file: process-creations.kql
 params:
   - name: host
     kind: string
-    title: Host
     from_columns: [Host]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: PT1H
 id: EventId
 columns:

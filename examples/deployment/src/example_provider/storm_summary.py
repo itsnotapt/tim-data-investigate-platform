@@ -31,9 +31,9 @@ StormEvents
 """
 
 PARAMS = (
-    Param("states", "string", title="States", many=True, from_columns=("State",)),
-    Param("since", "datetime", title="Since"),
-    Param("until", "datetime", title="Until"),
+    Param("states", "string", many=True, from_columns=("State",)),
+    Param("since", "datetime"),
+    Param("until", "datetime"),
 )
 
 

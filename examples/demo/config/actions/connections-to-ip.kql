@@ -1,5 +1,5 @@
-declare query_parameters(ip: string, around: datetime, window: timespan);
+declare query_parameters(destination_ip: string, around: datetime, window: timespan);
 NetworkConnections()
-| where DestinationIp == ip and Timestamp between ((around - window) .. (around + window))
+| where DestinationIp == destination_ip and Timestamp between ((around - window) .. (around + window))
 | order by Timestamp asc
 | take 10000

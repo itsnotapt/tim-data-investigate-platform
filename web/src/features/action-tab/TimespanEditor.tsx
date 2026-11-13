@@ -12,6 +12,7 @@ import {
   timespanValue,
   type TimespanUnit,
 } from './paramValues';
+import { pillLabel } from './queryParameters';
 
 /** The lookbacks analysts use most. */
 const PRESETS = [
@@ -67,7 +68,7 @@ export function TimespanEditor({ param, value, onChange, onDone, focusRef }: Tim
           size="small"
           type="number"
           inputRef={focusRef}
-          label={param.title}
+          label={pillLabel(param.name)}
           value={draft.amount}
           helperText={param.help}
           onChange={(e) => commit(e.target.value, draft.unit)}

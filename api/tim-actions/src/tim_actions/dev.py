@@ -40,7 +40,7 @@ DEV_JSON = DevJson(
     name="JSON (development)",
     menu="Development",
     description="Rows pasted as JSON. As a pivot, the selected rows.",
-    params=(Param("rows", "json", title="Rows", help="A JSON array of objects, one per row"),),
+    params=(Param("rows", "json", help="A JSON array of objects, one per row"),),
     pivot="rows",
 )
 
@@ -67,13 +67,12 @@ DEV_RUN_KQL = DevRunKql(
     menu="Development",
     description="Run KQL's query and query parameters on a dev_kql connection. Yields no rows.",
     params=(
-        Param("connection", "connection", title="Connection", connection_type="dev_kql"),
-        Param("database", "string", title="Database"),
-        Param("kql", "kql", title="Query", schema_from=("connection", "database")),
+        Param("connection", "connection", connection_type="dev_kql"),
+        Param("database", "string"),
+        Param("kql", "kql", schema_from=("connection", "database")),
         Param(
             "parameters",
             "json",
-            title="Query parameters",
             required=False,
             help="[{name, type, value}]: declared before the query",
         ),

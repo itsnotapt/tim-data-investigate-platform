@@ -70,7 +70,7 @@ def resolve_from_columns(params: Sequence[Param], context: PivotContext) -> Reso
             resolved.params[param.name] = values[0]
         elif values:
             resolved.missing[param.name] = (
-                f"The {len(context.rows)} selected rows have different {param.title} values"
+                f"The {len(context.rows)} selected rows have different {param.name} values"
             )
         elif param.required and param.default is None:
             resolved.missing[param.name] = None

@@ -13,15 +13,12 @@ kql_file: activity-by-user.kql
 params:
   - name: user
     kind: string
-    title: User
     from_columns: [User]
   - name: around
     kind: datetime
-    title: Around
     from_columns: [Timestamp]
   - name: window
     kind: timespan
-    title: Window (±)
     default: PT1H
 id: EventId
 columns:

@@ -16,7 +16,7 @@ STATE_REGIONS = LookupAction(
     pivot="rows",
     connection="regions",
     key_column="State",
-    params=(Param("keys", "string", title="States", many=True, from_columns=("State",)),),
+    params=(Param("keys", "string", many=True, from_columns=("State",)),),
     id="State",
     columns=(
         Column("State", "string", pinned="left", sort="asc"),

@@ -20,15 +20,14 @@ const runKql: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'kusto',
       required: true,
       many: false,
     },
-    { name: 'database', title: 'Database', kind: 'string', required: true, many: false },
-    { name: 'kql', title: 'Query', kind: 'kql', required: true, many: false },
-    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+    { name: 'database', kind: 'string', required: true, many: false },
+    { name: 'kql', kind: 'kql', required: true, many: false },
+    { name: 'parameters', kind: 'json', required: false, many: false },
   ],
   pivot: null,
 };
@@ -40,14 +39,13 @@ const runSql: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'snowflake',
       required: true,
       many: false,
     },
-    { name: 'sql', title: 'Query', kind: 'sql', required: true, many: false },
-    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+    { name: 'sql', kind: 'sql', required: true, many: false },
+    { name: 'parameters', kind: 'json', required: false, many: false },
   ],
 };
 
@@ -133,7 +131,6 @@ describe('SavePresetDialog params read from the row', () => {
     params: [
       {
         name: 'users',
-        title: 'Users',
         kind: 'string',
         required: true,
         many: true,
@@ -141,7 +138,6 @@ describe('SavePresetDialog params read from the row', () => {
       },
       {
         name: 'hosts',
-        title: 'Hosts',
         kind: 'string',
         required: false,
         many: true,
@@ -149,16 +145,16 @@ describe('SavePresetDialog params read from the row', () => {
       },
     ],
   };
-  const shown = (title: string) => screen.getByRole('switch', { name: `Show ${title} in title` });
+  const shown = (name: string) => screen.getByRole('switch', { name: `Show ${name} in title` });
 
   it('shows a From row param in the title and a fixed one not, unless switched', async () => {
     const { saved, dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
-    expect(shown('Users')).not.toBeChecked();
-    expect(shown('Hosts')).toBeChecked();
+    expect(shown('users')).not.toBeChecked();
+    expect(shown('hosts')).toBeChecked();
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Users from the row' }));
-    expect(shown('Users')).toBeChecked();
-    await userEvent.click(shown('Hosts'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'users from the row' }));
+    expect(shown('users')).toBeChecked();
+    await userEvent.click(shown('hosts'));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await vi.waitFor(() => expect(saved).toHaveLength(1));
@@ -196,10 +192,10 @@ describe('SavePresetDialog query parameters', () => {
     // The declare statement is the api's, before the query.
     await vi.waitFor(() =>
       expect(lines()).toEqual([
-        'Connection = security',
-        'Database = Samples',
+        'connection = security',
+        'database = Samples',
         'declare query_parameters(Upn:string, Since:datetime, States:dynamic);',
-        `Query = ${KQL}`,
+        `kql = ${KQL}`,
         'Upn = <UserPrincipalName or Upn of the clicked row>',
         'Since = datetime(2026-10-01T00:00:00Z)',
         'States = dynamic(["TEXAS","FLORIDA"])',
@@ -353,8 +349,8 @@ describe('SavePresetDialog query parameters of SQL', () => {
     );
     expect(within(parameter(1)).getByText(':1')).toBeInTheDocument();
     expect(lines()).toEqual([
-      'Connection = warehouse',
-      `Query = ${SQL}`,
+      'connection = warehouse',
+      `sql = ${SQL}`,
       ':1 since = 2026-10-01T00:00:00Z',
       ':2 upns = ["alice@example.com","bob@example.com"]',
     ]);

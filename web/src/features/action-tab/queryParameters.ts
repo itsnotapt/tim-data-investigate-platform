@@ -54,6 +54,15 @@ const PILL_PREFIX = 'parameters.';
 /** The name of a query parameter's pill, which no param name can be. */
 export const pillName = (name: string): string => `${PILL_PREFIX}${name}`;
 
+/** What a pill named `name` is labelled: a param's name, or a query parameter's own name. */
+export const pillLabel = (name: string): string =>
+  name.startsWith(PILL_PREFIX) ? name.slice(PILL_PREFIX.length) : name;
+
+const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
+
+/** The labels of the pills `names`, as an English list: "result and host". */
+export const pillLabels = (names: readonly string[]): string => LIST.format(names.map(pillLabel));
+
 const isQueryParameter = (entry: unknown): entry is QueryParameter =>
   typeof entry === 'object' &&
   entry !== null &&
@@ -124,7 +133,6 @@ export function pills(
       isParametersParam(p)
         ? entries.map((entry, i): CatalogueParam => ({
             name: pillName(entry.name),
-            title: entry.name,
             required: true,
             ...PILL_KINDS[entry.type],
             help: `Query parameter${position(i)}, ${entry.type}`,

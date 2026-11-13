@@ -32,12 +32,12 @@ RUN_TIMEOUT = 120
 # five generations below it.
 STAGER = {
     "host": "FYODOR-L",
-    "process": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
+    "process_guid": "{EBF7A186-C2FD-5B58-0000-00107E5CCA01}",
     "around": "2018-08-20T10:01:41Z",
 }
 HDOOR_WRITER = {
     "host": "FYODOR-L",
-    "process": "{EBF7A186-C442-5B58-0000-00109914D901}",
+    "process_guid": "{EBF7A186-C442-5B58-0000-00109914D901}",
     "around": "2018-08-20T10:42:49Z",
 }
 
@@ -155,14 +155,14 @@ def check_process_tree() -> None:
     tree = run(ALICE, "demo.process-tree", HDOOR_WRITER)
     if [row["Depth"] for row in tree] != [5, 4, 3, 2, 1, 0]:
         fail(f"Process tree of the hdoor.exe writer has the depths {[r['Depth'] for r in tree]}, not 5 to 0.")
-    if tree[1]["ProcessGuid"] != STAGER["process"]:
+    if tree[1]["ProcessGuid"] != STAGER["process_guid"]:
         fail(f"Process tree of the hdoor.exe writer has {tree[1]['ProcessGuid']} at depth 4, not the stager.")
 
     net = added_user[0]
     siblings = run(
         ALICE,
         "demo.sibling-processes",
-        {"host": net["Host"], "process": net["ProcessGuid"], "around": net["Timestamp"]},
+        {"host": net["Host"], "process_guid": net["ProcessGuid"], "around": net["Timestamp"]},
     )
     if not siblings or net["ProcessGuid"] in {row["ProcessGuid"] for row in siblings}:
         fail(f"Sibling processes of the svcvnc net.exe has {len(siblings)} rows, or holds the process itself.")

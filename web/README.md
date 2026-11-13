@@ -383,7 +383,7 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
 - `PillsBar.tsx`: one pill per param except `kql`/`sql`, each edited in a popover.
   - `DatetimeEditor.tsx` (MUI X date pickers with dayjs, in UTC) and `TimespanEditor.tsx` (preset chips, or an amount and a unit) edit those kinds.
   - `paramValues.ts` parses and shows values.
-  - On an action tab of Run KQL each query parameter has its own pill, named after it and typed by its type (`dynamic` is a list), in place of a "Query parameters" pill. `queryParameters.ts` holds the types, the pill names and the entries of the `parameters` param.
+  - On an action tab of Run KQL each query parameter has its own pill, named after it and typed by its type (`dynamic` is a list), in place of a `parameters` pill. `queryParameters.ts` holds the types, the pill names and the entries of the `parameters` param.
   - A pill shows the server's reason for a refused param.
   - An Edited chip resets the params to the latest run's, and clears the marks.
 - `RunPanel.tsx`: the Run tab: status, start, duration, run id, the tab's error, details, columns and params. `runText.ts` words the status and durations.

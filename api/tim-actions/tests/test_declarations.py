@@ -26,18 +26,12 @@ def test_a_param_with_every_field() -> None:
     param = Param(
         "kql",
         "kql",
-        title="Query",
         required=False,
         default="T | take 10",
         schema_from=("connection", "database"),
         help="Any KQL",
     )
-    assert param.title == "Query"
     assert param.from_columns == ()
-
-
-def test_the_title_defaults_to_the_name() -> None:
-    assert Param("user", "string").title == "user"
 
 
 @pytest.mark.parametrize(
@@ -60,7 +54,7 @@ def test_the_title_defaults_to_the_name() -> None:
         (("kql", "kql"), {"many": True}, "many is not allowed"),
         (("user", "string"), {"schema_from": ("connection",)}, "only for kind kql or sql"),
         (("user", "string"), {"from_columns": ("User", " ")}, "from_columns"),
-        (("user", "string"), {"title": " "}, "title"),
+        (("user", "string"), {"title": "User"}, "title"),
         (("user", "string"), {"colour": "red"}, "colour"),
     ],
 )

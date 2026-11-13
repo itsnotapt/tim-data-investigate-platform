@@ -34,12 +34,10 @@ kql_file: storm-events.kql
 params:
   - name: states
     kind: string
-    title: States
     many: true
     from_columns: [State]
   - name: since
     kind: datetime
-    title: Since
     required: false       # left out, the KQL's declared default applies
 id: EventId
 columns:
@@ -123,9 +121,8 @@ A tab that has run shows the title of its latest run: its **Run title**.
 
 | Field | Default | Description |
 |---|---|---|
-| `name` | required | Starts with a letter or `_`; letters, digits and `_`. |
+| `name` | required | Starts with a letter or `_`; letters, digits and `_`. Analysts see it as written. |
 | `kind` | required | `string`, `number`, `boolean`, `datetime`, `timespan`, `json`, `kql`, `sql` or `connection`. |
-| `title` | the name | What the tab shows. |
 | `required` | `true` | |
 | `default` | none | A value as the browser sends it: a `datetime` is an ISO 8601 string, a `timespan` an ISO 8601 duration or `HH:MM:SS`. |
 | `many` | `false` | A list of values. Not for `kql`, `sql` or `connection`. In a pivot it takes the distinct values of the selected rows, in first-seen order. |
@@ -311,7 +308,7 @@ The built-in provider adds, for each extra of `tim-actions` that is installed, t
 | `connection` | A `kusto` connection. When there is exactly one, a new tab fills it in. |
 | `database` | The database to query. The tab suggests the chosen connection's `databases`. |
 | `kql` | The query, written in the tab's Query editor, scoped by the `connection` and `database` params. |
-| `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-kql). |
+| `parameters` | Optional, `json`. The query's [query parameters](#query-parameters-of-run-kql). |
 
 The run's time limit is passed to Kusto as the server timeout, cancelling the run cancels the query, and Kusto's execution metrics (`executionTime`, `cpuTime`, `memoryPeakPerNode`, `extentsScanned` and `extentsTotal`) appear in the run's details. Run KQL is not offered as a pivot.
 
@@ -369,7 +366,7 @@ An optional param without a value is not sent, so the default in `declare query_
 |---|---|
 | `connection` | A `snowflake` connection. |
 | `sql` | The query, written in the tab's Query editor. It completes databases, and the columns of the tables the query names in `FROM` and `JOIN` (`db.schema.table`, the path perhaps shortened, with an optional alias), from the connection. After `DB.` it offers schemas, after a table's alias or name its columns; `DB.SCHEMA.` gives tables and `DB.SCHEMA.TABLE.` gives columns. |
-| `parameters` | Optional, `json`, titled "Query parameters". The query's [query parameters](#query-parameters-of-run-sql). |
+| `parameters` | Optional, `json`. The query's [query parameters](#query-parameters-of-run-sql). |
 
 - The query is sent as written, with its query parameters bound by position ([How Snowflake binds params](#how-snowflake-binds-params)).
 - The run's time limit is the session's `STATEMENT_TIMEOUT_IN_SECONDS`, and cancelling the run aborts the query on Snowflake.

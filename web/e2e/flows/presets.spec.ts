@@ -25,8 +25,8 @@ test('an analyst saves, shares, edits and deletes a preset, and another hides an
 
   // Alice saves a tab as a private bookmark.
   await openAction(page, ['Development', 'Rows', 'Sign-ins']);
-  await page.getByRole('button', { name: 'Users: not set' }).click();
-  const users = page.getByRole('textbox', { name: 'Add Users' });
+  await page.getByRole('button', { name: 'users: not set' }).click();
+  const users = page.getByRole('textbox', { name: 'Add users' });
   await users.fill('alice@example.com');
   await users.press('Enter');
   await page.keyboard.press('Escape');
@@ -43,7 +43,7 @@ test('an analyst saves, shares, edits and deletes a preset, and another hides an
   await expect(menu.getByText(`Bookmark · ${analyst.upn}`)).toBeVisible();
   await menu.getByText(name, { exact: true }).click();
   await expect(page.getByRole('heading', { name })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Users: alice@example.com' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'users: alice@example.com' })).toBeVisible();
 
   // She shares it.
   await searchNewMenu(page, idPrefix);

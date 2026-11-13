@@ -490,15 +490,10 @@
               }
             ],
             "title": "Schemafrom"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
           }
         },
         "required": [
           "name",
-          "title",
           "kind",
           "required",
           "many"

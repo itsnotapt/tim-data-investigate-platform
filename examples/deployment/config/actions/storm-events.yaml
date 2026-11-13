@@ -12,16 +12,13 @@ kql_file: storm-events.kql
 params:
   - name: states
     kind: string
-    title: States
     many: true
     from_columns: [State]
   - name: since
     kind: datetime
-    title: Since
     required: false       # left out, the KQL's declared default applies
   - name: until
     kind: datetime
-    title: Until
     required: false
 id: EventId
 columns:
@@ -41,7 +38,6 @@ database: Samples
 params:
   - name: episode
     kind: number
-    title: Episode
     from_columns: [EpisodeId]
 id: EventId
 kql: |

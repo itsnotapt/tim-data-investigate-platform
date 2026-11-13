@@ -965,7 +965,6 @@ describe('ActionResultsGrid acting after the Id column changes', () => {
     params: [
       {
         name: 'hosts',
-        title: 'Hosts',
         kind: 'string',
         required: true,
         many: true,

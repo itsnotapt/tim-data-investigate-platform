@@ -25,7 +25,6 @@ from tim_api.config import Settings
 def _param(param: Param) -> CatalogueParam:
     return CatalogueParam(
         name=param.name,
-        title=param.title or param.name,
         kind=param.kind,
         required=param.required,
         default=param.default,

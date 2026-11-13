@@ -1,16 +1,16 @@
-declare query_parameters(host: string, process: string, around: datetime, window: timespan);
+declare query_parameters(host: string, process_guid: string, around: datetime, window: timespan);
 let onHostInWindow = (T: (Timestamp: datetime, Host: string)) {
     T | where Host == host and Timestamp between ((around - window) .. (around + window))
 };
 union
-    (onHostInWindow(ProcessCreations()) | where ParentProcessGuid == process),
-    (onHostInWindow(FileCreateTimeChanges()) | where ProcessGuid == process),
-    (onHostInWindow(NetworkConnections()) | where ProcessGuid == process),
-    (onHostInWindow(ProcessTerminations()) | where ProcessGuid == process),
-    (onHostInWindow(RemoteThreads()) | where SourceProcessGuid == process),
-    (onHostInWindow(FileCreations()) | where ProcessGuid == process),
-    (onHostInWindow(RegistryEvents()) | where ProcessGuid == process),
-    (onHostInWindow(FileStreamCreations()) | where ProcessGuid == process)
+    (onHostInWindow(ProcessCreations()) | where ParentProcessGuid == process_guid),
+    (onHostInWindow(FileCreateTimeChanges()) | where ProcessGuid == process_guid),
+    (onHostInWindow(NetworkConnections()) | where ProcessGuid == process_guid),
+    (onHostInWindow(ProcessTerminations()) | where ProcessGuid == process_guid),
+    (onHostInWindow(RemoteThreads()) | where SourceProcessGuid == process_guid),
+    (onHostInWindow(FileCreations()) | where ProcessGuid == process_guid),
+    (onHostInWindow(RegistryEvents()) | where ProcessGuid == process_guid),
+    (onHostInWindow(FileStreamCreations()) | where ProcessGuid == process_guid)
 | project-reorder Timestamp, EventType, Host, Summary
 | order by Timestamp asc
 | take 10000

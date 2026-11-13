@@ -12,11 +12,9 @@ kql_file: saved-events.kql
 params:
   - name: since
     kind: datetime
-    title: Since
     required: false       # left out, the KQL's declared default applies
   - name: until
     kind: datetime
-    title: Until
     required: false
 id: EventId
 columns:

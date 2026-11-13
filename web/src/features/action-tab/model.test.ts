@@ -43,8 +43,8 @@ const HOST_TIMELINE: CatalogueAction = {
   idColumn: 'EventId',
   pivot: null,
   params: [
-    { name: 'host', title: 'Host', kind: 'string', required: true, many: false },
-    { name: 'limit', title: 'Limit', kind: 'number', required: true, many: false, default: 10 },
+    { name: 'host', kind: 'string', required: true, many: false },
+    { name: 'limit', kind: 'number', required: true, many: false, default: 10 },
   ],
 };
 
@@ -602,8 +602,8 @@ describe('Save…', () => {
     key: 'tim.run_kql',
     name: 'Run KQL',
     params: [
-      { name: 'kql', title: 'Query', kind: 'string', required: true, many: false },
-      { name: 'parameters', title: 'Parameters', kind: 'json', required: false, many: false },
+      { name: 'kql', kind: 'string', required: true, many: false },
+      { name: 'parameters', kind: 'json', required: false, many: false },
     ],
   };
 

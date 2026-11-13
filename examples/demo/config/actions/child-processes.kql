@@ -1,6 +1,6 @@
-declare query_parameters(host: string, process: string, around: datetime, window: timespan);
+declare query_parameters(host: string, process_guid: string, around: datetime, window: timespan);
 ProcessCreations()
 | where Host == host and Timestamp between ((around - window) .. (around + window))
-| where ParentProcessGuid == process
+| where ParentProcessGuid == process_guid
 | order by Timestamp asc
 | take 10000

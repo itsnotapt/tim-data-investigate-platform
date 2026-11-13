@@ -1,4 +1,4 @@
-declare query_parameters(host: string, process: string, around: datetime, window: timespan);
+declare query_parameters(host: string, process_guid: string, around: datetime, window: timespan);
 let creations = ProcessCreations()
     | where Host == host and Timestamp between ((around - window) .. (around + window));
 let processes = creations
@@ -8,7 +8,7 @@ let processes = creations
 let descendants = creations
     | make-graph ParentProcessGuid --> ProcessGuid with processes on ProcessGuid
     | graph-match (root)-[spawned*1..50]->(descendant)
-        where root.ProcessGuid == process
+        where root.ProcessGuid == process_guid
         project ProcessGuid = descendant.ProcessGuid, Depth = array_length(spawned);
 creations
 | lookup kind=inner descendants on ProcessGuid

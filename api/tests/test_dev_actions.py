@@ -70,7 +70,6 @@ def test_the_catalogue_lists_the_dev_actions(auth: AuthKit, dev_env: Path) -> No
         "params": [
             {
                 "name": "rows",
-                "title": "Rows",
                 "kind": "json",
                 "required": True,
                 "many": False,

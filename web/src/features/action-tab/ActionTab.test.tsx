@@ -34,7 +34,7 @@ const action: CatalogueAction = {
   name: 'Sign-ins',
   menuPath: ['Development', 'Rows'],
   connections: [],
-  params: [{ name: 'users', title: 'Users', kind: 'string', required: false, many: true }],
+  params: [{ name: 'users', kind: 'string', required: false, many: true }],
   pivot: null,
   idColumn: 'User',
 };
@@ -49,22 +49,20 @@ const runKql: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'kusto',
       required: true,
       many: false,
     },
-    { name: 'database', title: 'Database', kind: 'string', required: true, many: false },
+    { name: 'database', kind: 'string', required: true, many: false },
     {
       name: 'kql',
-      title: 'Query',
       kind: 'kql',
       required: true,
       many: false,
       schemaFrom: ['connection', 'database'],
     },
-    { name: 'parameters', title: 'Query parameters', kind: 'json', required: false, many: false },
+    { name: 'parameters', kind: 'json', required: false, many: false },
   ],
   pivot: null,
 };
@@ -79,7 +77,6 @@ const runSql: CatalogueAction = {
   params: [
     {
       name: 'connection',
-      title: 'Connection',
       kind: 'connection',
       connectionType: 'snowflake',
       required: true,
@@ -87,7 +84,6 @@ const runSql: CatalogueAction = {
     },
     {
       name: 'sql',
-      title: 'Query',
       kind: 'sql',
       required: true,
       many: false,
@@ -234,7 +230,7 @@ describe('ActionTab', () => {
     setup();
     const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
     expect(actionBar.getByRole('button', { name: 'Run' })).toBeEnabled();
-    expect(actionBar.getByRole('button', { name: 'Users: alice' })).toBeInTheDocument();
+    expect(actionBar.getByRole('button', { name: 'users: alice' })).toBeInTheDocument();
   });
 
   it('leaves the app bar and the action bar to the tab on show', () => {
@@ -250,7 +246,7 @@ describe('ActionTab', () => {
     setup();
     const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));
     const run = actionBar.getByRole('button', { name: 'Run' });
-    const pill = actionBar.getByRole('button', { name: 'Users: alice' });
+    const pill = actionBar.getByRole('button', { name: 'users: alice' });
     expect(run.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -271,8 +267,8 @@ describe('ActionTab', () => {
 
   it('keeps the params edited in a pill on the tab, and runs from them', async () => {
     const { tabId, onRun } = setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'users: alice' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Add users' }), 'bob{Enter}');
     await userEvent.keyboard('{Escape}');
     expect(useTabsStore.getState().tabs[tabId]?.toRun).toEqual({
       action: 'dev-sign-ins',
@@ -401,24 +397,24 @@ describe('ActionTab', () => {
 
   it('marks a param the server refused, until it is edited', async () => {
     setup({ status: { paramErrors: { users: 'Value 1: Must be an email' } } });
-    const pill = screen.getByRole('button', { name: 'Users: alice' });
+    const pill = screen.getByRole('button', { name: 'users: alice' });
     expect(pill).toHaveAccessibleDescription('Value 1: Must be an email');
     await userEvent.click(pill);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Add users' }), 'bob{Enter}');
     await userEvent.keyboard('{Escape}');
     expect(
-      screen.getByRole('button', { name: 'Users: alice, bob' }),
+      screen.getByRole('button', { name: 'users: alice, bob' }),
     ).not.toHaveAccessibleDescription('Value 1: Must be an email');
   });
 
   it('shows Edited when the params differ from the last run, and resets them', async () => {
     setup({ ...withResults, latest: { ...withResults.latest, params: { users: ['alice'] } } });
     expect(screen.queryByRole('button', { name: 'Edited' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'users: alice' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Add users' }), 'bob{Enter}');
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'Edited' }));
-    expect(screen.getByRole('button', { name: 'Users: alice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'users: alice' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edited' })).not.toBeInTheDocument();
   });
 
@@ -428,7 +424,7 @@ describe('ActionTab', () => {
       status: { paramErrors: { users: 'Value 1: Must be an email' } },
     });
     await userEvent.click(screen.getByRole('button', { name: 'Edited' }));
-    expect(screen.getByRole('button', { name: 'Users: bob' })).not.toHaveAccessibleDescription(
+    expect(screen.getByRole('button', { name: 'users: bob' })).not.toHaveAccessibleDescription(
       'Value 1: Must be an email',
     );
   });
@@ -464,8 +460,8 @@ describe('ActionTab', () => {
         'dev-sign-ins',
         { run: false },
       );
-      await userEvent.click(screen.getByRole('button', { name: 'Users: alice' }));
-      await userEvent.type(screen.getByRole('textbox', { name: 'Add Users' }), 'bob{Enter}');
+      await userEvent.click(screen.getByRole('button', { name: 'users: alice' }));
+      await userEvent.type(screen.getByRole('textbox', { name: 'Add users' }), 'bob{Enter}');
       await userEvent.keyboard('{Escape}');
       await userEvent.click(screen.getByRole('button', { name: 'Edited' }));
       await userEvent.click(screen.getByRole('button', { name: 'Run' }));
@@ -578,8 +574,8 @@ describe('ActionTab with a query param', () => {
   it('edits the query in the Query tab, without a pill, and runs it on Ctrl+Enter', async () => {
     const { tabId, onRun } = setupKql();
     expect(selectedTab()).toHaveAccessibleName('Query');
-    expect(screen.queryByRole('button', { name: /^Query:/ })).not.toBeInTheDocument();
-    const editor = screen.getByRole('textbox', { name: 'Query' });
+    expect(screen.queryByRole('button', { name: /^kql:/ })).not.toBeInTheDocument();
+    const editor = screen.getByRole('textbox', { name: 'kql' });
     await userEvent.clear(editor);
     await userEvent.type(editor, 'StormEvents | count');
     expect(useTabsStore.getState().tabs[tabId]?.toRun).toMatchObject({
@@ -593,18 +589,15 @@ describe('ActionTab with a query param', () => {
 
   it('edits KQL as Kusto and SQL as SQL', () => {
     setupKql();
-    expect(screen.getByRole('textbox', { name: 'Query' })).toHaveAttribute(
-      'data-language',
-      'kusto',
-    );
+    expect(screen.getByRole('textbox', { name: 'kql' })).toHaveAttribute('data-language', 'kusto');
     cleanup();
     setup({}, 'tim.run_sql', { params: { connection: 'warehouse', sql: 'SELECT 1' } });
-    expect(screen.getByRole('textbox', { name: 'Query' })).toHaveAttribute('data-language', 'sql');
+    expect(screen.getByRole('textbox', { name: 'sql' })).toHaveAttribute('data-language', 'sql');
   });
 
   it('greys out the only connection', () => {
     setupKql();
-    expect(screen.getByRole('button', { name: 'Connection: Security' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'connection: Security' })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -672,10 +665,10 @@ describe('ActionTab with a query param', () => {
     );
     setupKql({}, false);
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
-    const editor = await screen.findByRole('group', { name: 'Query' });
+    const editor = await screen.findByRole('group', { name: 'kql' });
     await vi.waitFor(() => expect(editor).toHaveAttribute('aria-invalid', 'true'));
     expect(editor).toHaveAccessibleDescription('Must not be empty');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Query' }), ' ');
+    await userEvent.type(screen.getByRole('textbox', { name: 'kql' }), ' ');
     expect(editor).not.toHaveAttribute('aria-invalid');
   });
 
@@ -694,7 +687,7 @@ describe('ActionTab with a query param', () => {
     expect(screen.getByText('Fill in Upn to run this pivot')).toBeInTheDocument();
     // The needed pill's popover opens by itself.
     await userEvent.keyboard('{Escape}');
-    expect(screen.queryByRole('button', { name: /^Query parameters:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^parameters:/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Limit: 10' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Upn: needed' }));
@@ -807,7 +800,7 @@ describe('ActionTab with a query param', () => {
           ],
         },
       ]);
-      expect(screen.getByRole('textbox', { name: 'Query' })).toHaveValue('StormEvents | take 2');
+      expect(screen.getByRole('textbox', { name: 'kql' })).toHaveValue('StormEvents | take 2');
     });
 
     it('asks again once the query parameters settle, and hides it without any', async () => {

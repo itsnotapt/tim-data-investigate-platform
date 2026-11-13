@@ -48,7 +48,7 @@ def test_a_single_param_takes_the_value_the_rows_agree_on_from_the_first_non_emp
 
 def test_a_single_param_whose_rows_disagree_is_missing_with_the_reason() -> None:
     action = lookup(
-        Param("at", "datetime", title="Timestamp", from_columns=("Timestamp",)),
+        Param("occurred_at", "datetime", from_columns=("Timestamp",)),
         Param("host", "string", from_columns=("Host",)),
     )
     resolved = action.resolve(
@@ -61,7 +61,9 @@ def test_a_single_param_whose_rows_disagree_is_missing_with_the_reason() -> None
         )
     )
     assert resolved.params == {"host": "pc-1"}
-    assert resolved.missing == {"at": "The 3 selected rows have different Timestamp values"}
+    assert resolved.missing == {
+        "occurred_at": "The 3 selected rows have different occurred_at values"
+    }
 
 
 def test_a_required_param_the_rows_give_no_value_is_missing_unless_it_has_a_default() -> None:

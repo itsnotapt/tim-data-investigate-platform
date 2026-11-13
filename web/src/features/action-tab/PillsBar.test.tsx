@@ -9,7 +9,6 @@ import { PillsBar } from './PillsBar';
 const param = (
   p: Partial<CatalogueParam> & Pick<CatalogueParam, 'name' | 'kind'>,
 ): CatalogueParam => ({
-  title: p.name,
   required: false,
   many: false,
   ...p,
@@ -62,37 +61,37 @@ describe('PillsBar', () => {
     vi.useRealTimers();
   });
 
-  it('shows one pill per param except the editor params, with its value', () => {
+  it('shows one pill per param except the editor params, named as written, with its value', () => {
     render(
       <Harness
         params={[
-          param({ name: 'users', kind: 'string', title: 'Users', many: true }),
-          param({ name: 'kql', kind: 'kql', title: 'Query' }),
-          param({ name: 'since', kind: 'datetime', title: 'Since' }),
+          param({ name: 'user_principal_name', kind: 'string', many: true }),
+          param({ name: 'kql', kind: 'kql' }),
+          param({ name: 'process_guid', kind: 'string' }),
         ]}
-        initial={{ users: ['alice', 'bob'] }}
+        initial={{ user_principal_name: ['alice', 'bob'] }}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Users: alice, bob' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Since: not set' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Query/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'user_principal_name: alice, bob' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'process_guid: not set' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /kql/ })).not.toBeInTheDocument();
   });
 
   it('switches a boolean param', async () => {
-    render(<Harness params={[param({ name: 'blocked', kind: 'boolean', title: 'Blocked' })]} />);
-    await openPill(/Blocked/);
-    await userEvent.click(within(popover()).getByRole('switch', { name: 'Blocked' }));
+    render(<Harness params={[param({ name: 'blocked', kind: 'boolean' })]} />);
+    await openPill(/blocked/);
+    await userEvent.click(within(popover()).getByRole('switch', { name: 'blocked' }));
     expect(values()).toEqual({ blocked: true });
     await userEvent.keyboard('{Escape}');
-    expect(screen.getByRole('button', { name: 'Blocked: on' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'blocked: on' })).toBeInTheDocument();
   });
 
   it('splits pasted text into chips for a many-valued param, and removes a chip', async () => {
-    render(
-      <Harness params={[param({ name: 'users', kind: 'string', title: 'Users', many: true })]} />,
-    );
-    await openPill(/Users/);
-    const input = within(popover()).getByRole('textbox', { name: 'Add Users' });
+    render(<Harness params={[param({ name: 'users', kind: 'string', many: true })]} />);
+    await openPill(/users/);
+    const input = within(popover()).getByRole('textbox', { name: 'Add users' });
     fireEvent.paste(input, {
       clipboardData: { getData: () => 'alice@example.com\nbob@example.com, carol@example.com\n' },
     });
@@ -110,27 +109,21 @@ describe('PillsBar', () => {
   });
 
   it('converts each chip of a many-valued number param', async () => {
-    render(
-      <Harness params={[param({ name: 'ports', kind: 'number', title: 'Ports', many: true })]} />,
-    );
-    await openPill(/Ports/);
-    const input = within(popover()).getByRole('textbox', { name: 'Add Ports' });
+    render(<Harness params={[param({ name: 'ports', kind: 'number', many: true })]} />);
+    await openPill(/ports/);
+    const input = within(popover()).getByRole('textbox', { name: 'Add ports' });
     fireEvent.paste(input, { clipboardData: { getData: () => '80\t443' } });
     expect(values()).toEqual({ ports: [80, 443] });
   });
 
   it('picks a choice, and clears it', async () => {
     render(
-      <Harness
-        params={[
-          param({ name: 'level', kind: 'string', title: 'Level', choices: ['low', 'high'] }),
-        ]}
-      />,
+      <Harness params={[param({ name: 'level', kind: 'string', choices: ['low', 'high'] })]} />,
     );
-    await openPill(/Level/);
+    await openPill(/level/);
     await userEvent.click(within(popover()).getByRole('option', { name: 'high' }));
     expect(values()).toEqual({ level: 'high' });
-    await openPill(/Level: high/);
+    await openPill(/level: high/);
     await userEvent.click(within(popover()).getByRole('option', { name: 'Not set' }));
     expect(values()).toEqual({});
   });
@@ -142,14 +135,13 @@ describe('PillsBar', () => {
           param({
             name: 'level',
             kind: 'string',
-            title: 'Level',
             many: true,
             choices: ['low', 'mid', 'high'],
           }),
         ]}
       />,
     );
-    await openPill(/Level/);
+    await openPill(/level/);
     await userEvent.click(within(popover()).getByRole('option', { name: 'high' }));
     await userEvent.click(within(popover()).getByRole('option', { name: 'low' }));
     expect(values()).toEqual({ level: ['low', 'high'] });
@@ -162,17 +154,16 @@ describe('PillsBar', () => {
           param({
             name: 'connection',
             kind: 'connection',
-            title: 'Connection',
             connectionType: 'kusto',
           }),
         ]}
       />,
     );
-    await openPill(/Connection/);
+    await openPill(/connection/);
     expect(within(popover()).queryByRole('option', { name: 'Warehouse' })).not.toBeInTheDocument();
     await userEvent.click(within(popover()).getByRole('option', { name: 'Test' }));
     expect(values()).toEqual({ connection: 'test' });
-    expect(screen.getByRole('button', { name: 'Connection: Test' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'connection: Test' })).toBeInTheDocument();
   });
 
   it('greys out a connection pill with only one choice', async () => {
@@ -182,14 +173,13 @@ describe('PillsBar', () => {
           param({
             name: 'warehouse',
             kind: 'connection',
-            title: 'Warehouse',
             connectionType: 'snowflake',
           }),
         ]}
         initial={{ warehouse: 'wh' }}
       />,
     );
-    const pill = screen.getByRole('button', { name: 'Warehouse: Warehouse' });
+    const pill = screen.getByRole('button', { name: 'warehouse: Warehouse' });
     expect(pill).toHaveAttribute('aria-disabled', 'true');
     await userEvent.setup({ pointerEventsCheck: 0 }).click(pill);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -200,32 +190,32 @@ describe('PillsBar', () => {
       <Harness
         params={[
           param({ name: 'connection', kind: 'connection', connectionType: 'kusto' }),
-          param({ name: 'database', kind: 'string', title: 'Database' }),
+          param({ name: 'database', kind: 'string' }),
           param({ name: 'kql', kind: 'kql', schemaFrom: ['connection', 'database'] }),
         ]}
         initial={{ connection: 'prod' }}
       />,
     );
-    await openPill(/Database/);
+    await openPill(/database/);
     await userEvent.click(screen.getByRole('option', { name: 'Logs' }));
     expect(values()).toEqual({ connection: 'prod', database: 'Logs' });
 
-    await openPill(/Database/);
-    const typed = within(popover()).getByRole('combobox', { name: 'Database' });
+    await openPill(/database/);
+    const typed = within(popover()).getByRole('combobox', { name: 'database' });
     await userEvent.clear(typed);
     await userEvent.type(typed, 'Other');
     expect(values()).toEqual({ connection: 'prod', database: 'Other' });
   });
 
   it.each([
-    ['number', 'Limit', '42', 42, 'abc', 'Must be a number'],
-    ['string', 'User', 'alice', 'alice', null, null],
-  ] as const)('edits a %s param as text', async (kind, title, good, parsed, bad, message) => {
-    render(<Harness params={[param({ name: 'p', kind, title })]} />);
-    await openPill(new RegExp(title));
-    const input = within(popover()).getByRole('textbox', { name: title });
+    ['number', 'limit', '42', 42, 'abc', 'Must be a number'],
+    ['string', 'user', 'alice', 'alice', null, null],
+  ] as const)('edits a %s param as text', async (kind, name, good, parsed, bad, message) => {
+    render(<Harness params={[param({ name, kind })]} />);
+    await openPill(new RegExp(name));
+    const input = within(popover()).getByRole('textbox', { name });
     await userEvent.type(input, good);
-    expect(values()).toEqual({ p: parsed });
+    expect(values()).toEqual({ [name]: parsed });
     if (bad === null) return;
     await userEvent.clear(input);
     expect(values()).toEqual({});
@@ -237,9 +227,9 @@ describe('PillsBar', () => {
   it('sets a datetime in UTC by pasting an ISO datetime, picking a day and an hour', async () => {
     // Today is in the pasted month, so the calendar opens on it.
     vi.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z'), toFake: ['Date'] });
-    render(<Harness params={[param({ name: 'since', kind: 'datetime', title: 'Since' })]} />);
-    await openPill(/Since/);
-    const field = within(popover()).getByRole('group', { name: 'Since (UTC)' });
+    render(<Harness params={[param({ name: 'since', kind: 'datetime' })]} />);
+    await openPill(/since/);
+    const field = within(popover()).getByRole('group', { name: 'since (UTC)' });
     fireEvent.paste(field, { clipboardData: { getData: () => '2026-10-01T10:00:00+02:00' } });
     expect(values()).toEqual({ since: '2026-10-01T08:00:00Z' });
     await userEvent.click(within(popover()).getByRole('gridcell', { name: '15' }));
@@ -248,34 +238,34 @@ describe('PillsBar', () => {
     expect(values()).toEqual({ since: '2026-10-15T21:00:00Z' });
     await userEvent.keyboard('{Escape}');
     expect(
-      screen.getByRole('button', { name: 'Since: 2026-10-15 21:00:00 UTC' }),
+      screen.getByRole('button', { name: 'since: 2026-10-15 21:00:00 UTC' }),
     ).toBeInTheDocument();
   });
 
   it('unsets a datetime', async () => {
     render(
       <Harness
-        params={[param({ name: 'since', kind: 'datetime', title: 'Since' })]}
+        params={[param({ name: 'since', kind: 'datetime' })]}
         initial={{ since: '2026-10-01T08:00:00Z' }}
       />,
     );
-    await openPill(/Since/);
+    await openPill(/since/);
     await userEvent.click(within(popover()).getByRole('button', { name: 'Not set' }));
     expect(values()).toEqual({});
   });
 
   it('picks a timespan preset', async () => {
-    render(<Harness params={[param({ name: 'window', kind: 'timespan', title: 'Window' })]} />);
-    await openPill(/Window/);
+    render(<Harness params={[param({ name: 'window', kind: 'timespan' })]} />);
+    await openPill(/window/);
     await userEvent.click(within(popover()).getByRole('button', { name: '7 days' }));
     expect(values()).toEqual({ window: 'P7D' });
-    expect(screen.getByRole('button', { name: 'Window: 7 days' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'window: 7 days' })).toBeInTheDocument();
   });
 
   it('sets a timespan as an amount of a unit', async () => {
-    render(<Harness params={[param({ name: 'window', kind: 'timespan', title: 'Window' })]} />);
-    await openPill(/Window/);
-    const amount = within(popover()).getByRole('spinbutton', { name: 'Window' });
+    render(<Harness params={[param({ name: 'window', kind: 'timespan' })]} />);
+    await openPill(/window/);
+    const amount = within(popover()).getByRole('spinbutton', { name: 'window' });
     await userEvent.type(amount, '90');
     expect(values()).toEqual({ window: 'PT90M' });
     await userEvent.click(within(popover()).getByRole('combobox', { name: 'Unit' }));
@@ -286,19 +276,19 @@ describe('PillsBar', () => {
   });
 
   it.each([
-    ['PT2H', '2', 'hours', 'Window: 2 hours'],
-    ['01:30:00', '90', 'minutes', 'Window: 90 minutes'],
-    ['P1DT12H', '36', 'hours', 'Window: 36 hours'],
-    ['PT1S', '1', 'seconds', 'Window: 1 second'],
+    ['PT2H', '2', 'hours', 'window: 2 hours'],
+    ['01:30:00', '90', 'minutes', 'window: 90 minutes'],
+    ['P1DT12H', '36', 'hours', 'window: 36 hours'],
+    ['PT1S', '1', 'seconds', 'window: 1 second'],
   ])('shows the timespan %s in its largest whole unit', async (value, amount, unit, pill) => {
     render(
       <Harness
-        params={[param({ name: 'window', kind: 'timespan', title: 'Window' })]}
+        params={[param({ name: 'window', kind: 'timespan' })]}
         initial={{ window: value }}
       />,
     );
-    await openPill(/Window/);
-    expect(within(popover()).getByRole('spinbutton', { name: 'Window' })).toHaveValue(
+    await openPill(/window/);
+    expect(within(popover()).getByRole('spinbutton', { name: 'window' })).toHaveValue(
       Number(amount),
     );
     expect(within(popover()).getByRole('combobox', { name: 'Unit' })).toHaveTextContent(unit);
@@ -307,9 +297,9 @@ describe('PillsBar', () => {
   });
 
   it('edits a JSON param', async () => {
-    render(<Harness params={[param({ name: 'rows', kind: 'json', title: 'Rows' })]} />);
-    await openPill(/Rows/);
-    const input = within(popover()).getByRole('textbox', { name: 'Rows' });
+    render(<Harness params={[param({ name: 'rows', kind: 'json' })]} />);
+    await openPill(/rows/);
+    const input = within(popover()).getByRole('textbox', { name: 'rows' });
     fireEvent.change(input, { target: { value: '[{"User": "alice"}]' } });
     expect(values()).toEqual({ rows: [{ User: 'alice' }] });
     fireEvent.change(input, { target: { value: '[{"User": ' } });
@@ -321,8 +311,8 @@ describe('PillsBar', () => {
     render(
       <PillsBar
         params={[
-          param({ name: 'users', kind: 'string', title: 'Users', many: true }),
-          param({ name: 'since', kind: 'datetime', title: 'Since' }),
+          param({ name: 'users', kind: 'string', many: true }),
+          param({ name: 'since', kind: 'datetime' }),
         ]}
         values={{}}
         connections={connections}
@@ -330,13 +320,13 @@ describe('PillsBar', () => {
         errors={{ users: 'Required' }}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Users: not set' })).toHaveAccessibleDescription(
+    expect(screen.getByRole('button', { name: 'users: not set' })).toHaveAccessibleDescription(
       'Required',
     );
-    expect(screen.getByRole('button', { name: 'Users: not set' })).toHaveClass(
+    expect(screen.getByRole('button', { name: 'users: not set' })).toHaveClass(
       'MuiChip-colorError',
     );
-    expect(screen.getByRole('button', { name: 'Since: not set' })).not.toHaveClass(
+    expect(screen.getByRole('button', { name: 'since: not set' })).not.toHaveClass(
       'MuiChip-colorError',
     );
   });
@@ -344,7 +334,7 @@ describe('PillsBar', () => {
   it('shows Edited when the params differ from the last run, and resets them', async () => {
     const onReset = vi.fn();
     const props = {
-      params: [param({ name: 'users', kind: 'string', title: 'Users', many: true })],
+      params: [param({ name: 'users', kind: 'string', many: true })],
       values: {},
       connections,
       onChange: () => {},
@@ -362,45 +352,30 @@ describe('PillsBar', () => {
     render(
       <Harness
         params={[
-          param({ name: 'host', kind: 'string', title: 'Host' }),
-          param({ name: 'result', kind: 'string', title: 'Result' }),
-          param({ name: 'at', kind: 'string', title: 'At' }),
+          param({ name: 'host', kind: 'string' }),
+          param({ name: 'result', kind: 'string' }),
+          param({ name: 'at', kind: 'string' }),
         ]}
         needed={['result', 'at']}
       />,
     );
-    const result = within(popover()).getByRole('textbox', { name: 'Result' });
+    const result = within(popover()).getByRole('textbox', { name: 'result' });
     await userEvent.type(result, 'Failure');
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Result: Failure' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'At: needed' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Host: not set' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'result: Failure' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'at: needed' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'host: not set' })).toBeInTheDocument();
   });
 
   it.each([
-    ['text', param({ name: 'user', kind: 'string', title: 'User' }), 'textbox', 'User'],
-    ['number', param({ name: 'limit', kind: 'number', title: 'Limit' }), 'textbox', 'Limit'],
-    [
-      'many-valued',
-      param({ name: 'users', kind: 'string', title: 'Users', many: true }),
-      'textbox',
-      'Add Users',
-    ],
-    [
-      'suggestions',
-      param({ name: 'database', kind: 'string', title: 'Database' }),
-      'combobox',
-      'Database',
-    ],
-    ['datetime', param({ name: 'since', kind: 'datetime', title: 'Since' }), 'spinbutton', 'Year'],
-    [
-      'timespan',
-      param({ name: 'window', kind: 'timespan', title: 'Window' }),
-      'spinbutton',
-      'Window',
-    ],
-    ['boolean', param({ name: 'blocked', kind: 'boolean', title: 'Blocked' }), 'switch', 'Blocked'],
+    ['text', param({ name: 'user', kind: 'string' }), 'textbox', 'user'],
+    ['number', param({ name: 'limit', kind: 'number' }), 'textbox', 'limit'],
+    ['many-valued', param({ name: 'users', kind: 'string', many: true }), 'textbox', 'Add users'],
+    ['suggestions', param({ name: 'database', kind: 'string' }), 'combobox', 'database'],
+    ['datetime', param({ name: 'since', kind: 'datetime' }), 'spinbutton', 'Year'],
+    ['timespan', param({ name: 'window', kind: 'timespan' }), 'spinbutton', 'window'],
+    ['boolean', param({ name: 'blocked', kind: 'boolean' }), 'switch', 'blocked'],
   ] as const)(
     'focuses the %s editor’s field once its popover has opened',
     async (_, p, role, name) => {
@@ -414,7 +389,7 @@ describe('PillsBar', () => {
           initial={{ connection: 'prod' }}
         />,
       );
-      await openPill(new RegExp(`^${p.title}:`));
+      await openPill(new RegExp(`^${p.name}:`));
       const field = within(popover()).getByRole(role, { name });
       await waitFor(() => expect(field).toHaveFocus());
     },
@@ -439,7 +414,7 @@ describe('PillsBar Id column', () => {
     return (
       <NotifyContext.Provider value={notify}>
         <PillsBar
-          params={[param({ name: 'host', kind: 'string', title: 'Host' })]}
+          params={[param({ name: 'host', kind: 'string' })]}
           values={{}}
           connections={connections}
           onChange={() => {}}
@@ -471,7 +446,7 @@ describe('PillsBar Id column', () => {
     const apply = vi.fn();
     render(<IdColumnHarness apply={apply} />);
     const pills = screen.getAllByRole('button').map((b) => b.textContent);
-    expect(pills).toEqual(['Host: not set', 'Id column: User']);
+    expect(pills).toEqual(['host: not set', 'Id column: User']);
 
     await openPill(/^Id column:/);
     await userEvent.click(columnOption(/^Sid/));
