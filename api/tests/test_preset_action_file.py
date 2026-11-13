@@ -27,6 +27,7 @@ RUN_KQL_PRESET: dict[str, Any] = {
     "action": "tim.run_kql",
     "params": {"connection": "security", "database": "Samples", "kql": KQL},
     "idColumn": "CorrelationId",
+    "title": "Sign-ins of {Upn} on {Hosts} in {row.App}",
     "inputs": [
         {
             "name": "Upn",
@@ -34,7 +35,6 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "string",
             "fixed": False,
             "fromColumns": ["UserPrincipalName", "Upn"],
-            "showInTitle": True,
         },
         {
             "name": "Since",
@@ -49,7 +49,6 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "dynamic",
             "fixed": False,
             "fromColumns": ["Host"],
-            "showInTitle": True,
         },
         {
             "name": "Limit",
@@ -57,7 +56,6 @@ RUN_KQL_PRESET: dict[str, Any] = {
             "type": "long",
             "fixed": False,
             "fromColumns": ["Limit"],
-            "showInTitle": False,
         },
     ],
 }
@@ -74,6 +72,7 @@ RUN_SQL_PRESET: dict[str, Any] = {
     "action": "tim.run_sql",
     "params": {"connection": "warehouse", "sql": SQL},
     "idColumn": "ID",
+    "title": "Sign-ins of {upns} since {since}",
     "inputs": [
         {
             "name": "upns",
@@ -81,7 +80,6 @@ RUN_SQL_PRESET: dict[str, Any] = {
             "type": "dynamic",
             "fixed": False,
             "fromColumns": ["UPN"],
-            "showInTitle": False,
         },
         {
             "name": "since",
@@ -121,7 +119,7 @@ async def test_a_run_kql_preset_is_a_kql_query_action_file(client: httpx.AsyncCl
         "key": "sign-ins-by-user",
         "name": "Sign-ins by user",
         "menu": "Identity/Daily",
-        "title": "Sign-ins by user {Upn} {Hosts}",
+        "title": "Sign-ins of {Upn} on {Hosts} in {row.App}",
         "pivot": "rows",
         "connection": "security",
         "database": "Samples",
@@ -135,15 +133,6 @@ async def test_a_run_kql_preset_is_a_kql_query_action_file(client: httpx.AsyncCl
             {"name": "Limit", "kind": "number", "from_columns": ["Limit"]},
         ],
     }
-
-
-async def test_a_preset_without_inputs_in_its_title_gives_an_action_file_without_one(
-    client: httpx.AsyncClient,
-) -> None:
-    inputs = [{**i, "showInTitle": False} for i in RUN_KQL_PRESET["inputs"]]
-    response = await action_file(client, {**RUN_KQL_PRESET, "inputs": inputs})
-
-    assert "title" not in yaml.safe_load(response.text)
 
 
 async def test_a_from_row_input_without_columns_makes_the_action_file_no_pivot(
@@ -187,6 +176,7 @@ async def test_a_preset_of_an_action_without_an_action_file_is_a_conflict(
         "action": "acme.storms",
         "params": {"source": "Trained Spotter"},
         "inputs": [],
+        "title": "Storms",
     }
     response = await action_file(client, storms)
 
@@ -236,6 +226,7 @@ async def test_a_run_sql_preset_is_a_snowflake_query_action_file_with_its_params
         "key": "sign-ins-of-users",
         "name": "Sign-ins of users",
         "menu": "Identity",
+        "title": "Sign-ins of {upns} since {since}",
         "pivot": "rows",
         "connection": "warehouse",
         "sql": SQL,

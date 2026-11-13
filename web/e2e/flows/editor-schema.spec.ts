@@ -63,7 +63,10 @@ async function addQueryParameter(page: Page, preset: string, name: string, type:
   await expect(dialog).toBeHidden();
 }
 
-/** Removes the only query parameter in Save…, updating the tab's preset. */
+/**
+ * Removes the only query parameter in Save…, and its placeholder from the Tab title, updating the
+ * tab's preset.
+ */
 async function removeQueryParameter(page: Page, preset: string) {
   await page.getByRole('button', { name: 'Save…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Save preset' });
@@ -71,6 +74,9 @@ async function removeQueryParameter(page: Page, preset: string) {
     .getByRole('group', { name: 'Query parameter 1' })
     .getByRole('button', { name: 'Remove' })
     .click();
+  const title = dialog.getByRole('textbox', { name: 'Tab title' });
+  await expect(title).toHaveAccessibleDescription(/names nothing/);
+  await title.fill(preset);
   await dialog.getByRole('button', { name: `Update "${preset}"` }).click();
   await expect(dialog).toBeHidden();
 }

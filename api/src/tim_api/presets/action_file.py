@@ -25,11 +25,9 @@ def preset_action_file(preset: Preset, action: Action | Sink | None) -> str:
     params = dict(preset.params)
     params.update({i.name: i.value for i in preset.inputs if isinstance(i, FixedInput)})
     query_parameters = [
-        QueryParameter(i.name, i.type, value=i.value, show_in_title=i.show_in_title)
+        QueryParameter(i.name, i.type, value=i.value)
         if isinstance(i, FixedQueryParameter)
-        else QueryParameter(
-            i.name, i.type, from_columns=tuple(i.from_columns), show_in_title=i.show_in_title
-        )
+        else QueryParameter(i.name, i.type, from_columns=tuple(i.from_columns))
         for i in preset.inputs
         if isinstance(i, FixedQueryParameter | FromRowQueryParameter)
     ]
@@ -37,6 +35,7 @@ def preset_action_file(preset: Preset, action: Action | Sink | None) -> str:
         key=_key(preset.name),
         name=preset.name,
         menu="/".join(preset.menu_path),
+        title=preset.title,
         params=params,
         query_parameters=query_parameters,
         id_column=preset.id_column,

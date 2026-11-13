@@ -60,6 +60,7 @@ def make_preset(
                 {"name": "users", "source": "param", "fixed": True, "value": ["alice"]},
                 {"name": "hosts", "source": "param", "fixed": False, "fromColumns": ["Host"]},
             ],
+            "title": f"{name} for {{users}} on {{row.Host}}",
             "owner": owner,
             "createdAt": created,
             "updatedAt": created,
@@ -410,6 +411,7 @@ class PresetContract:
                 "action": "other",
                 "params": {},
                 "inputs": [],
+                "title": "Renamed on {row.Host}",
             }
         )
         await storage.presets.replace(preset.preset_id, fields, updated_at=_minutes(5))

@@ -36,6 +36,7 @@ const base = {
   owned: false,
   hidden: false,
   action: 'dev-sign-ins',
+  title: 'Sign-ins for {users}',
   createdAt: '2026-10-22T00:00:00Z',
   updatedAt: '2026-10-22T00:00:00Z',
 };
@@ -48,7 +49,7 @@ const PRESETS: Preset[] = [
     owned: true,
     visibility: 'private',
     params: { limit: 5 },
-    inputs: [{ name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['alice'] }],
+    inputs: [{ name: 'users', source: 'param', fixed: true, value: ['alice'] }],
   },
   {
     ...base,
@@ -56,7 +57,7 @@ const PRESETS: Preset[] = [
     name: 'Bob asks',
     owner: 'bob@example.com',
     params: {},
-    inputs: [{ name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: [] }],
+    inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: [] }],
   },
   {
     ...base,
@@ -66,7 +67,7 @@ const PRESETS: Preset[] = [
     owner: ME,
     owned: true,
     params: {},
-    inputs: [{ name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['bob'] }],
+    inputs: [{ name: 'users', source: 'param', fixed: true, value: ['bob'] }],
   },
   {
     ...base,
@@ -162,7 +163,7 @@ describe('NewQueryMenu presets', () => {
       action: 'dev-sign-ins',
       params: { limit: 5, users: ['alice'] },
       presetId: 'p-mine',
-      titleInputs: [],
+      titleTemplate: 'Sign-ins for {users}',
     });
     expect(tab?.status.pivotMissing).toBeNull();
   });
@@ -176,7 +177,7 @@ describe('NewQueryMenu presets', () => {
       action: 'dev-sign-ins',
       params: { limit: 10 },
       presetId: 'p-bob',
-      titleInputs: [{ source: 'param', name: 'users' }],
+      titleTemplate: 'Sign-ins for {users}',
     });
     expect(tab?.status.pivotMissing).toEqual({ users: null });
   });
@@ -297,7 +298,7 @@ describe('NewQueryMenu presets', () => {
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]?.params).toEqual({});
     expect(saved[0]?.inputs).toEqual([
-      { name: 'users', source: 'param', fixed: true, showInTitle: false, value: ['bob'] },
+      { name: 'users', source: 'param', fixed: true, value: ['bob'] },
     ]);
   });
 });

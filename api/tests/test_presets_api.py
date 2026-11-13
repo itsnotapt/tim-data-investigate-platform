@@ -45,15 +45,8 @@ def bookmark(**changes: Any) -> dict[str, Any]:
         "visibility": "private",
         "action": "sign-ins",
         "params": {"limit": 5},
-        "inputs": [
-            {
-                "name": "users",
-                "source": "param",
-                "fixed": True,
-                "value": ["alice"],
-                "showInTitle": False,
-            }
-        ],
+        "inputs": [{"name": "users", "source": "param", "fixed": True, "value": ["alice"]}],
+        "title": "Alice's sign-ins",
         **changes,
     }
 
@@ -216,7 +209,7 @@ def test_a_param_input_takes_its_type_from_the_param_so_a_sent_type_is_dropped(
 
     assert created.status_code == 201
     assert created.json()["inputs"] == [
-        {"name": "users", "source": "param", "fixed": True, "value": ["a"], "showInTitle": False}
+        {"name": "users", "source": "param", "fixed": True, "value": ["a"]}
     ]
 
 
@@ -227,7 +220,6 @@ QUERY_PARAMETER_INPUTS = [
         "type": "string",
         "fixed": False,
         "fromColumns": ["UserPrincipalName", "Upn"],
-        "showInTitle": True,
     },
     {
         "name": "Since",
@@ -235,7 +227,6 @@ QUERY_PARAMETER_INPUTS = [
         "type": "datetime",
         "fixed": True,
         "value": "2026-10-01T00:00:00Z",
-        "showInTitle": False,
     },
     {
         "name": "Hosts",
@@ -243,7 +234,6 @@ QUERY_PARAMETER_INPUTS = [
         "type": "dynamic",
         "fixed": False,
         "fromColumns": [],
-        "showInTitle": True,
     },
 ]
 
@@ -265,50 +255,54 @@ def test_a_preset_keeps_its_query_parameter_inputs(auth: AuthKit) -> None:
     assert listed[0]["inputs"] == QUERY_PARAMETER_INPUTS
 
 
-def test_an_input_shows_in_the_title_by_default_when_it_is_from_row(auth: AuthKit) -> None:
-    inputs = [
-        {
-            "name": "Upn",
-            "source": "queryParameter",
-            "type": "string",
-            "fixed": False,
-            "fromColumns": ["Upn"],
-        },
-        {
-            "name": "Since",
-            "source": "queryParameter",
-            "type": "datetime",
-            "fixed": True,
-            "value": "2026-10-01T00:00:00Z",
-        },
-    ]
+def test_a_preset_keeps_its_title_template(auth: AuthKit) -> None:
     with client_for(auth) as client:
-        from_row = client.post(
-            "/api/presets",
-            json=bookmark(
-                inputs=[
-                    {"name": "users", "source": "param", "fixed": False, "fromColumns": ["User"]}
-                ]
-            ),
-        )
-        fixed = client.post("/api/presets", json=bookmark())
-        query_parameters = client.post("/api/presets", json=ad_hoc(inputs=inputs))
-
-    assert [i["showInTitle"] for i in from_row.json()["inputs"]] == [True]
-    assert [i["showInTitle"] for i in fixed.json()["inputs"]] == [False]
-    assert [i["showInTitle"] for i in query_parameters.json()["inputs"]] == [True, False]
-
-
-def test_a_preset_keeps_which_inputs_show_in_the_title(auth: AuthKit) -> None:
-    shown = [False, True, False]
-    inputs = [
-        {**i, "showInTitle": show} for i, show in zip(QUERY_PARAMETER_INPUTS, shown, strict=True)
-    ]
-    with client_for(auth) as client:
-        client.post("/api/presets", json=ad_hoc(inputs=inputs))
+        created = client.post("/api/presets", json=bookmark()).json()
+        url = f"/api/presets/{created['presetId']}"
+        replaced = client.put(url, json=bookmark(title="{users} signed in to {row.App}")).json()
         listed = client.get("/api/presets").json()
 
-    assert [i["showInTitle"] for i in listed[0]["inputs"]] == [False, True, False]
+    assert created["title"] == "Alice's sign-ins"
+    assert replaced["title"] == "{users} signed in to {row.App}"
+    assert [p["title"] for p in listed] == ["{users} signed in to {row.App}"]
+
+
+def test_a_title_template_names_params_query_parameters_and_row_columns(auth: AuthKit) -> None:
+    title = "Ad hoc {kql} for {Upn} since {Since} in {Hosts} on {row.Computer}"
+    with client_for(auth) as client:
+        created = client.post("/api/presets", json=ad_hoc(title=title))
+
+    assert created.status_code == 201
+    assert created.json()["title"] == title
+
+
+def test_a_title_template_naming_nothing_is_refused(auth: AuthKit) -> None:
+    title = "{users} {Upn} {row.} {} {limit}"
+    with client_for(auth) as client:
+        created = client.post("/api/presets", json=bookmark(title=title))
+        preset = client.post("/api/presets", json=bookmark()).json()
+        replaced = client.put(f"/api/presets/{preset['presetId']}", json=bookmark(title="{nope}"))
+
+    assert (created.status_code, created.json()["errors"]) == (
+        422,
+        {"title": ["{Upn} names nothing", "{row.} names nothing", "{} names nothing"]},
+    )
+    assert (replaced.status_code, replaced.json()["errors"]) == (
+        422,
+        {"title": ["{nope} names nothing"]},
+    )
+
+
+def test_a_preset_needs_a_title_template(auth: AuthKit) -> None:
+    without = {k: v for k, v in bookmark().items() if k != "title"}
+    with client_for(auth) as client:
+        missing = client.post("/api/presets", json=without)
+        blank = client.post("/api/presets", json=bookmark(title=" "))
+
+    assert missing.status_code == 422
+    assert "title" in missing.json()["errors"]
+    assert blank.status_code == 422
+    assert "title" in blank.json()["errors"]
 
 
 def test_query_parameter_inputs_need_an_action_that_takes_them_and_unique_names(

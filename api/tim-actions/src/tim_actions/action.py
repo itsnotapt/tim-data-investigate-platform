@@ -31,14 +31,12 @@ QueryParameterType = Literal["string", "long", "real", "bool", "datetime", "time
 class QueryParameter:
     """A query parameter of a preset: a name in its query, declared with ``type`` (``string``,
     ``long``, ``real``, ``bool``, ``datetime``, ``timespan`` or ``dynamic``). It is fixed to
-    ``value``, or with ``from_columns`` filled from the rows; no columns asks the analyst.
-    ``show_in_title`` is whether its value follows the preset's name in run titles."""
+    ``value``, or with ``from_columns`` filled from the rows; no columns asks the analyst."""
 
     name: str
     type: QueryParameterType
     value: Any = None
     from_columns: tuple[str, ...] | None = None
-    show_in_title: bool = False
 
 
 class ActionBase(BaseModel, ABC):
@@ -164,12 +162,14 @@ class Action(ActionBase):
         key: str,
         name: str,
         menu: str,
+        title: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
         id_column: str | None,
     ) -> ActionDocument | None:
         """The action file document of an action that runs what a preset of this action runs:
-        ``params`` are the preset's fixed values, ``query_parameters`` its query parameters and
+        ``title`` is the preset's title template, the document's ``title`` as it is, ``params``
+        are the preset's fixed values, ``query_parameters`` its query parameters and
         ``id_column`` the Id column its results open with, the document's ``id``. ``None`` when
         the preset has none; by default no preset of this action has one."""
         return None

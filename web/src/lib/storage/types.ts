@@ -23,12 +23,6 @@ export interface TabColumnView {
   baseline: GridState;
 }
 
-/** An input of a preset whose value a preset tab shows in its title: a param or a query parameter. */
-export interface TitleInput {
-  source: 'param' | 'queryParameter';
-  name: string;
-}
-
 /** What an action tab runs: its action and param values, and where they came from. */
 export interface TabToRun {
   /** The action's key. */
@@ -38,13 +32,13 @@ export interface TabToRun {
   /** The preset the tab was opened from or last saved as, which Save… offers to update. */
   presetId?: string;
   /**
-   * A preset tab's inputs shown in its title, in order, as the preset had them when the tab opened
-   * from it or was saved as it.
+   * A preset tab's title template, as the preset had it when the tab opened from it or was saved
+   * as it; its runs are titled from it in place of the action's.
    */
-  titleInputs?: TitleInput[];
+  titleTemplate?: string;
   /**
-   * The rows the tab was pivoted from, each with only the columns its action's title names, for
-   * its runs' titles. Editing a param drops them; Reset puts back the latest run's.
+   * The rows the tab was pivoted from, each with only its title columns, for its runs' titles.
+   * Editing a param drops them; Reset puts back the latest run's.
    */
   pivotRows?: Record<string, unknown>[];
   /** The `id`s of the pivot rows, each `null` for a row without one. Kept across runs and edits. */

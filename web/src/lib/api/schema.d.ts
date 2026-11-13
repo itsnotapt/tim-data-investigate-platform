@@ -759,11 +759,6 @@ export interface components {
             /** Name */
             name: string;
             /**
-             * Showintitle
-             * @default false
-             */
-            showInTitle: boolean;
-            /**
              * Source
              * @constant
              */
@@ -784,11 +779,6 @@ export interface components {
             fixed: true;
             /** Name */
             name: string;
-            /**
-             * Showintitle
-             * @default false
-             */
-            showInTitle: boolean;
             /**
              * Source
              * @constant
@@ -818,11 +808,6 @@ export interface components {
             /** Name */
             name: string;
             /**
-             * Showintitle
-             * @default true
-             */
-            showInTitle: boolean;
-            /**
              * Source
              * @constant
              */
@@ -843,11 +828,6 @@ export interface components {
             fromColumns: string[];
             /** Name */
             name: string;
-            /**
-             * Showintitle
-             * @default true
-             */
-            showInTitle: boolean;
             /**
              * Source
              * @constant
@@ -1061,6 +1041,8 @@ export interface components {
              * Format: uuid
              */
             presetId: string;
+            /** Title */
+            title: string;
             /** Updatedat */
             updatedAt: string;
             /**
@@ -1089,6 +1071,8 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+            /** Title */
+            title: string;
             /**
              * Visibility
              * @default private

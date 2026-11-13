@@ -793,11 +793,6 @@
             "title": "Name",
             "type": "string"
           },
-          "showInTitle": {
-            "default": false,
-            "title": "Showintitle",
-            "type": "boolean"
-          },
           "source": {
             "const": "param",
             "title": "Source",
@@ -827,11 +822,6 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "showInTitle": {
-            "default": false,
-            "title": "Showintitle",
-            "type": "boolean"
           },
           "source": {
             "const": "queryParameter",
@@ -884,11 +874,6 @@
             "title": "Name",
             "type": "string"
           },
-          "showInTitle": {
-            "default": true,
-            "title": "Showintitle",
-            "type": "boolean"
-          },
           "source": {
             "const": "param",
             "title": "Source",
@@ -922,11 +907,6 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "showInTitle": {
-            "default": true,
-            "title": "Showintitle",
-            "type": "boolean"
           },
           "source": {
             "const": "queryParameter",
@@ -1441,6 +1421,10 @@
             "title": "Presetid",
             "type": "string"
           },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
           "updatedAt": {
             "title": "Updatedat",
             "type": "string"
@@ -1458,6 +1442,7 @@
         "required": [
           "name",
           "action",
+          "title",
           "presetId",
           "owner",
           "createdAt",
@@ -1522,6 +1507,10 @@
             "title": "Params",
             "type": "object"
           },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
           "visibility": {
             "default": "private",
             "enum": [
@@ -1534,7 +1523,8 @@
         },
         "required": [
           "name",
-          "action"
+          "action",
+          "title"
         ],
         "title": "PresetFields",
         "type": "object"

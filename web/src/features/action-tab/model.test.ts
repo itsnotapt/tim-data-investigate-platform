@@ -1,6 +1,7 @@
 import type { GridState } from 'ag-grid-community';
 import { describe, expect, it } from 'vitest';
 import type { CatalogueAction, Preset, Run } from '../../lib/api';
+import type { TabContent } from '../../lib/storage';
 import {
   cancelFailed,
   cancelRequested,
@@ -28,6 +29,7 @@ import {
   runUpdated,
   savedAsPreset,
   stalled,
+  runTitleOf,
   stillNeeded,
   titleOf,
 } from './model';
@@ -59,9 +61,10 @@ const MY_HOSTS: Preset = {
   action: 'host-timeline',
   params: {},
   idColumn: 'Host',
+  title: 'My hosts: {host}',
   inputs: [
-    { name: 'host', source: 'param', fixed: false, showInTitle: true, fromColumns: ['Host'] },
-    { name: 'limit', source: 'param', fixed: true, value: 5, showInTitle: false },
+    { name: 'host', source: 'param', fixed: false, fromColumns: ['Host'] },
+    { name: 'limit', source: 'param', fixed: true, value: 5 },
   ],
   createdAt: '2026-10-01T00:00:00Z',
   updatedAt: '2026-10-01T00:00:00Z',
@@ -88,7 +91,7 @@ describe('opening a tab', () => {
     expect(tab.status.executing).toBe(false);
   });
 
-  it("from a preset holds its id, the inputs its title shows and its Id column, and waits for what's missing", () => {
+  it("from a preset holds its id, its title template and its Id column, and waits for what's missing", () => {
     const tab = fromPreset(MY_HOSTS, HOST_TIMELINE, {
       params: { limit: 5 },
       missing: { host: null },
@@ -98,7 +101,7 @@ describe('opening a tab', () => {
       action: 'host-timeline',
       params: { limit: 5 },
       presetId: 'p-1',
-      titleInputs: [{ source: 'param', name: 'host' }],
+      titleTemplate: 'My hosts: {host}',
     });
     expect(tab.grid.idColumn).toBe('Host');
     expect(tab.status.pivotMissing).toEqual({ host: null });
@@ -144,7 +147,7 @@ describe('opening a tab', () => {
       action: 'host-timeline',
       params: { host: 'web01', limit: 5 },
       presetId: 'p-1',
-      titleInputs: [{ source: 'param', name: 'host' }],
+      titleTemplate: 'My hosts: {host}',
       pivotRowIds: ['e1'],
     });
     expect(tab.grid.idColumn).toBe('Host');
@@ -180,7 +183,7 @@ describe('cloning a tab', () => {
   });
   const ran = {
     ...pivoted,
-    latest: { run: RUNNING, params: pivoted.toRun.params, title: 'My hosts web01' },
+    latest: { run: RUNNING, params: pivoted.toRun.params, title: 'My hosts: [web01, web02]' },
     results: { runId: 'r-1', columns: null, startedAt: RUNNING.startedAt, rowCount: 4 },
   };
 
@@ -190,7 +193,7 @@ describe('cloning a tab', () => {
     expect(copy.toRun).toEqual({
       action: 'host-timeline',
       params: { host: ['web01', 'web02'], limit: 5 },
-      titleInputs: [{ source: 'param', name: 'host' }],
+      titleTemplate: 'Copy of My hosts: {host}',
       pivotRows: [{ Host: 'web01' }],
     });
     expect(copy.grid.idColumn).toBe('Host');
@@ -198,12 +201,10 @@ describe('cloning a tab', () => {
     expect(copy.results).toBeNull();
   });
 
-  it("of a preset tab keeps the inputs shown in its title, without the preset's id", () => {
+  it("of a preset tab keeps its title template, without the preset's id", () => {
     const copy = cloneOf(ran);
-    expect(copy.toRun.titleInputs).toEqual([{ source: 'param', name: 'host' }]);
+    expect(copy.toRun.titleTemplate).toBe('Copy of My hosts: {host}');
     expect(copy.toRun).not.toHaveProperty('presetId');
-    const copyRan = runStarted(RUNNING, { params: { host: ['web03'], limit: 5 } })(copy);
-    expect(titleOf(copyRan)).toBe('Copy of My hosts web03');
   });
 
   it('shares no values with the tab, so editing one leaves the other', () => {
@@ -342,79 +343,85 @@ describe('the Id column', () => {
 
 describe('the title', () => {
   const plain = fromAction(HOST_TIMELINE, {});
-  /** A tab of a preset that shows `shown` in its title, whose latest run had `params`. */
-  const presetTab = (params: Record<string, unknown> | null, shown = ['host']) => {
-    const tab = fromPreset(
-      {
-        ...MY_HOSTS,
-        inputs: shown.map((name) => ({
-          name,
-          source: 'param',
-          fixed: false,
-          showInTitle: true,
-          fromColumns: [],
-        })),
-      },
-      HOST_TIMELINE,
-      { params: {}, missing: {} },
-    );
-    return { ...tab, latest: { run: null, params, title: 'Host timeline' } };
+  const TITLED: CatalogueAction = { ...HOST_TIMELINE, title: 'Timeline of {host}, {limit} rows' };
+  const RUN_KQL: CatalogueAction = {
+    ...HOST_TIMELINE,
+    key: 'tim.run_kql',
+    name: 'Run KQL',
+    title: 'Run KQL',
+    params: [
+      { name: 'database', kind: 'string', required: true, many: false },
+      { name: 'parameters', kind: 'json', required: false, many: false },
+    ],
   };
+  /** `tab` as after a run titled `title`. */
+  const ran = (tab: TabContent, title: string | undefined): TabContent =>
+    runStarted({ ...RUNNING, title: title ?? tab.title }, tab.toRun)(tab);
 
   it('is the stored title until the tab has run', () => {
     expect(titleOf(plain)).toBe('Host timeline');
   });
 
   it("is the latest run's title once the tab has run", () => {
-    const ran = { ...plain, latest: { run: null, params: {}, title: 'Host timeline BGIST-L' } };
-    expect(titleOf(ran)).toBe('Host timeline BGIST-L');
+    expect(titleOf(ran(plain, 'Host timeline BGIST-L'))).toBe('Host timeline BGIST-L');
   });
 
-  it("is a preset tab's name then its latest run's values of the inputs it shows", () => {
-    const tab = fromPreset(
-      {
-        ...MY_HOSTS,
-        inputs: [
-          {
-            name: 'Upn',
-            source: 'queryParameter',
-            type: 'string',
-            fixed: false,
-            showInTitle: true,
-            fromColumns: [],
-          },
-          { name: 'host', source: 'param', fixed: false, showInTitle: true, fromColumns: [] },
+  it("of a run is the action's title template filled in, an unset param with its default", () => {
+    const tab = fromAction(TITLED, { host: 'BGIST-L' });
+    expect(runTitleOf(tab, TITLED)).toBe('Timeline of BGIST-L, 10 rows');
+  });
+
+  it('of a run is none without a title template, so the run is titled with its name', () => {
+    expect(runTitleOf(plain, HOST_TIMELINE)).toBeUndefined();
+    expect(runTitleOf(plain, undefined)).toBeUndefined();
+  });
+
+  it("of a tab from a preset is the preset's template filled in from its params, query parameters and pivot rows", () => {
+    const preset: Preset = {
+      ...MY_HOSTS,
+      action: 'tim.run_kql',
+      title: 'Sign-ins of {Upn} in {database} on {row.App} since {Since}',
+      inputs: [
+        { name: 'Upn', source: 'queryParameter', type: 'string', fixed: false, fromColumns: [] },
+        { name: 'Since', source: 'queryParameter', type: 'long', fixed: false, fromColumns: [] },
+      ],
+    };
+    const tab = fromPivot({
+      action: RUN_KQL,
+      preset,
+      params: {
+        database: 'Samples',
+        parameters: [
+          { name: 'Upn', type: 'string', value: 'alice@contoso.com' },
+          { name: 'Since', type: 'long', value: null },
         ],
       },
-      HOST_TIMELINE,
-      { params: {}, missing: {} },
-    );
-    const params = {
-      host: 'BGIST-L',
-      parameters: [{ name: 'Upn', type: 'string', value: 'alice@contoso.com' }],
-    };
-    const ran = { ...tab, latest: { run: null, params, title: 'Run KQL' } };
-    expect(titleOf(ran)).toBe('My hosts alice@contoso.com BGIST-L');
+      missing: {},
+      pivotRows: [{ App: 'Teams' }],
+      pivotRowIds: ['e1'],
+    });
+    const title = runTitleOf(tab, RUN_KQL);
+    expect(title).toBe('Sign-ins of alice@contoso.com in Samples on Teams since <not set>');
+    expect(titleOf(ran(tab, title))).toBe(title);
   });
 
-  it('shows up to two values of a list, then how many more', () => {
-    expect(titleOf(presetTab({ host: ['a', 'b', 'c', 'd'] }))).toBe('My hosts a, b +2');
-    expect(titleOf(presetTab({ host: ['a', 'b'] }))).toBe('My hosts a, b');
+  it('of a tab from a preset keeps the template it opened with when the preset changes', () => {
+    const opened = { params: { host: 'web01' }, missing: {} };
+    const kept = fromPreset(MY_HOSTS, TITLED, opened);
+    const savedOver = savedAsPreset(
+      { ...MY_HOSTS, title: 'Hosts {host}' },
+      TITLED,
+    )(fromPreset(MY_HOSTS, TITLED, opened));
+    expect(runTitleOf(kept, TITLED)).toBe('My hosts: web01');
+    expect(runTitleOf(savedOver, TITLED)).toBe('Hosts web01');
   });
 
-  it('leaves out a value that is unset or empty', () => {
-    const tab = presetTab({ host: '', user: null, ids: [], limit: 0 }, [
-      'host',
-      'user',
-      'ids',
-      'limit',
-    ]);
-    expect(titleOf(tab)).toBe('My hosts 0');
-  });
-
-  it("is a preset tab's name when it shows no inputs, or hasn't run", () => {
-    expect(titleOf(presetTab({ host: 'BGIST-L' }, []))).toBe('My hosts');
-    expect(titleOf(presetTab(null))).toBe('My hosts');
+  it('of a clone of a preset tab is "Copy of" and its source\'s template filled in', () => {
+    const tab = fromPreset(MY_HOSTS, TITLED, { params: { host: 'web01' }, missing: {} });
+    const clone = cloneOf(ran(tab, 'My hosts: web01'));
+    expect(titleOf(clone)).toBe('Copy of My hosts');
+    const title = runTitleOf(paramEdited('host', 'web03')(clone), TITLED);
+    expect(title).toBe('Copy of My hosts: web03');
   });
 });
 
@@ -607,7 +614,7 @@ describe('Save…', () => {
     ],
   };
 
-  it("makes the tab the preset's: its id, the inputs its title shows, and its name", () => {
+  it("makes the tab the preset's: its id, its title template, and its name", () => {
     const tab = fromPivot({
       action: HOST_TIMELINE,
       params: { host: 'web01' },
@@ -620,7 +627,7 @@ describe('Save…', () => {
     expect(saved.toRun).toEqual({
       ...tab.toRun,
       presetId: 'p-1',
-      titleInputs: [{ source: 'param', name: 'host' }],
+      titleTemplate: 'My hosts: {host}',
     });
   });
 
@@ -639,14 +646,12 @@ describe('Save…', () => {
           type: 'long',
           fixed: true,
           value: 7,
-          showInTitle: false,
         },
         {
           name: 'Upn',
           source: 'queryParameter',
           type: 'string',
           fixed: false,
-          showInTitle: true,
           fromColumns: [],
         },
       ],

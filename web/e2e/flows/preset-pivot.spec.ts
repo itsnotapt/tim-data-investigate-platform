@@ -47,6 +47,7 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   await dialog.getByLabel('Menu folder').fill(idPrefix);
   await dialog.getByLabel('Share with everyone').check();
   await dialog.getByRole('button', { name: 'result from the row' }).click();
+  await expect(dialog.getByLabel('Tab title')).toHaveValue(`${name} {result}`);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();
 

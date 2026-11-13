@@ -457,7 +457,7 @@ Returns an array of `Preset`: the caller's own presets and the shared ones, olde
 - Errors:
   - `404` for an unknown preset, or someone else's private one.
   - `403` for a `PUT` or `DELETE` on a preset the caller does not own.
-  - `422` for an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter input on an action that takes no query parameters (`errors["inputs.<i>.source"]`), a query parameter name that is not a Kusto identifier, or a name used by two inputs (`errors["inputs.<i>.name"]`).
+  - `422` for a blank or missing `title` (`errors.title`), a `title` placeholder that names nothing (`errors.title`, such as `{"title": ["{Upn} names nothing"]}`), an `action` that is not in the catalogue (`errors.action`), an input that is not a param of the action with `from_columns` (`errors["inputs.<i>.name"]`), a query parameter input on an action that takes no query parameters (`errors["inputs.<i>.source"]`), a query parameter name that is not a Kusto identifier, or a name used by two inputs (`errors["inputs.<i>.name"]`).
 - Param and query parameter values are not checked here. They are validated when a run starts.
 
 ### GET /api/presets/{presetId}/actionFile
@@ -471,7 +471,7 @@ Returns the preset as an action file ([actions.md](actions.md#action-files)): th
   - `key` is a slug of the preset's name, and `menu` is its `menuPath` joined with `/`.
   - `pivot` is `rows` when the preset has From row query parameters and every one of them has columns, as a preset is a pivot. Otherwise it is `none`.
   - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from the preset's `idColumn`. For Run SQL, `sql` is the query as it is.
-  - `title` is the preset's name, then the `{Name}` placeholder of each query parameter with `showInTitle`, such as `Sign-ins by user {Upn} {Hosts}`. It is none when no query parameter shows.
+  - `title` is the preset's title template as it is, such as `Sign-ins by user {Upn} {Hosts}`.
   - Each query parameter is a param of the file, in the preset's order. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`. In a `snowflake_query`, the order sets the position each is bound to, `:1` the first.
 
 ### PUT, DELETE /api/presets/{presetId}/hidden
@@ -488,6 +488,7 @@ Returns the preset as an action file ([actions.md](actions.md#action-files)): th
 |---|---|---|
 | `presetId` | uuid | Server-set. |
 | `name` | string | Not blank. |
+| `title` | string | Required, not blank. The preset's title template ([actions.md](actions.md#run-titles)): plain text with `{…}` placeholders, filled in by the browser. Each placeholder names a param of the action, a query parameter of the preset, or `row.` and a column. |
 | `menuPath` | string[] | Menu folders, none blank. Default `[]`. |
 | `owner` | string | Server-set, from the token. |
 | `visibility` | `private` \| `shared` | Default `private`. |
@@ -511,7 +512,6 @@ An input is a param of the preset's action that declares `from_columns` (`source
 | `fixed` | boolean | `true` for a fixed input, `false` for a From row input. |
 | `value` | JSON | Fixed only: the value saved with the preset. |
 | `fromColumns` | string[] | From row only: the columns to read, in order. The input takes the first one the rows have. With none, the form asks for the value. |
-| `showInTitle` | boolean | Whether its value follows the preset's name in the title of a tab opened from the preset. Default `false` for a fixed input, `true` for a From row input. |
 
 ## Column views
 

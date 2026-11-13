@@ -111,9 +111,8 @@ const FAILURES: Preset = {
   hidden: false,
   action: 'sign-ins',
   params: {},
-  inputs: [
-    { name: 'users', source: 'param', fixed: false, showInTitle: true, fromColumns: ['User'] },
-  ],
+  title: 'Failures of {users}',
+  inputs: [{ name: 'users', source: 'param', fixed: false, fromColumns: ['User'] }],
   createdAt: '2026-10-01T00:00:00Z',
   updatedAt: '2026-10-01T00:00:00Z',
 };
@@ -260,7 +259,7 @@ describe('pivotIntoAction', () => {
         action: 'sign-ins',
         params: { connection: 'kusto-dev', users: ['alice'], result: 'Failure', limit: 10 },
         presetId: 'p-1',
-        titleInputs: [{ source: 'param', name: 'users' }],
+        titleTemplate: 'Failures of {users}',
       },
     });
     expect(run).toHaveBeenCalledWith(tabId);
@@ -269,11 +268,11 @@ describe('pivotIntoAction', () => {
     expect(goTo).toHaveBeenCalledWith(tabId);
   });
 
-  it('keeps the rows trimmed to the action’s title columns in a preset pivot', () => {
-    const { store, pivotPreset } = setup(FAILURES, {
-      ...SIGN_INS,
-      title: 'Sign-ins in {row.App}',
-    });
+  it('keeps the rows trimmed to the preset’s title columns in a preset pivot', () => {
+    const { store, pivotPreset } = setup(
+      { ...FAILURES, title: 'Failures in {row.App}' },
+      { ...SIGN_INS, title: 'Sign-ins of {row.User}' },
+    );
 
     const tabId = pivotPreset(
       {

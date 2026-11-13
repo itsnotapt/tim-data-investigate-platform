@@ -18,7 +18,7 @@ const server = setupMswServer();
 const makeClient = (getToken = () => Promise.resolve('tok-1'), timeoutMs?: number) =>
   createApiClient({ baseUrl: TEST_API, getToken, timeoutMs });
 
-const preset: PresetFields = { action: 'kusto', name: 'P', visibility: 'private' };
+const preset: PresetFields = { action: 'kusto', name: 'P', visibility: 'private', title: 'P' };
 
 describe('request basics', () => {
   it('sends bearer token, accept and no content-type without a body', async () => {

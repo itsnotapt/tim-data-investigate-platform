@@ -745,6 +745,7 @@ def test_a_preset_file_has_the_id_column_as_its_id(
         key="signins",
         name="Sign-ins",
         menu="Snowflake",
+        title="Sign-ins",
         params={"connection": "warehouse", "sql": "SELECT * FROM T"},
         query_parameters=[],
         id_column=id_column,

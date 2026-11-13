@@ -605,6 +605,7 @@ class RunKql(TakesQueryParameters):
         key: str,
         name: str,
         menu: str,
+        title: str,
         params: Mapping[str, Any],
         query_parameters: Sequence[QueryParameter],
         id_column: str | None,
@@ -612,7 +613,7 @@ class RunKql(TakesQueryParameters):
         """A ``kql_query`` action with the preset's connection, database and Id column, and its
         query parameters declared before the KQL, as params (``preset_file_params``); ``None``
         when the preset lacks the connection, database or KQL."""
-        file_params = self.preset_file_params(name, params, query_parameters, _PRESET_FILE_PARAMS)
+        file_params = self.preset_file_params(params, query_parameters, _PRESET_FILE_PARAMS)
         if file_params is None:
             return None
         declare = self.declare_statement(query_parameters)
@@ -621,7 +622,7 @@ class RunKql(TakesQueryParameters):
             key=key,
             name=name,
             menu=menu,
-            title=file_params.title,
+            title=title,
             pivot=file_params.pivot,
             connection=params["connection"],
             database=params["database"],

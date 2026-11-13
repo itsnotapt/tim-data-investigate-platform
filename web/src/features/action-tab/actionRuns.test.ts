@@ -193,6 +193,28 @@ describe('runActionTab', () => {
     });
   });
 
+  it('sends a preset tab’s title template filled in, in place of the action’s', async () => {
+    const { instance } = useInstanceStore.getState();
+    useInstanceStore.setState({
+      instance: {
+        ...instance!,
+        actions: instance!.actions.map((a) => ({ ...a, title: 'Sign-ins for {users}' })),
+      },
+    });
+    let body: { title?: string } = {};
+    server.use(
+      http.post(apiUrl('/api/runs'), async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return HttpResponse.json(succeeded(0));
+      }),
+    );
+    createActionTab('b', {
+      toRun: { presetId: 'p-1', titleTemplate: 'My sign-ins: {users} in {row.App}' },
+    });
+    await runActionTab('b', { store, sleep });
+    expect(body.title).toBe('My sign-ins: [alice] in <not set>');
+  });
+
   it('fills in an unset param with its default, as the run gets it', async () => {
     const { instance } = useInstanceStore.getState();
     useInstanceStore.setState({
