@@ -64,6 +64,7 @@
             "release-type": "simple",
             "package-name": "tim-actions",
             "initial-version": "0.1.0",
+            "release-as": "0.2.0",
             "bump-minor-pre-major": true,
             "bump-patch-for-minor-pre-major": true,
             "exclude-paths": [
