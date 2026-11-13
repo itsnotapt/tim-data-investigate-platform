@@ -13,7 +13,7 @@ Rules a reviewer judges. Tools already enforce the mechanical rules, so this fil
 | API type hints | mypy (strict) | `api/pyproject.toml` |
 | API test coverage of at least 80% | pytest-cov | `api/pyproject.toml` |
 | API contract matches its snapshot and the web copy of the OpenAPI schema | OpenAPI contract test | `api/tests/test_openapi_contract.py` |
-| Branch names, PR titles, release scopes | `pr-conventions` workflow | `.github/workflows/pr-conventions.yml` |
+| PR titles | `pr-conventions` workflow | `.github/workflows/pr-conventions.yml` |
 
 Commands are in [docs/development.md](docs/development.md).
 

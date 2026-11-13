@@ -75,7 +75,7 @@ Numbers are never reused, so the sequence has gaps.
 | [0021](0021-tim-actions-and-derived-images.md) | The `tim-actions` distribution and derived images | accepted | 2026-10-20 |
 | [0022](0022-column-views-store-grid-state.md) | Column views store AG Grid's own state | accepted | 2026-10-20 |
 | [0023](0023-one-comment-per-analyst.md) | One comment per analyst per `id`, the latest kept | accepted | 2026-10-27 |
-| [0024](0024-one-release-version.md) | One release version for TIM, its own for `tim-actions` | accepted | 2026-10-29 |
+| [0024](0024-one-release-version.md) | One release version for TIM, its own for `tim-actions` | accepted | 2026-11-13 |
 | [0025](0025-ids-from-the-id-column-in-the-browser.md) | A row's `id` is the value of the Id column, computed in the browser | accepted | 2026-10-30 |
 | [0026](0026-a-demo-instance-needs-no-accounts.md) | A demo instance needs no accounts | accepted | 2026-10-31 |
 | [0028](0028-an-id-is-unique-within-a-run.md) | An `id` is unique within a run, and the api counts duplicates | accepted | 2026-11-07 |

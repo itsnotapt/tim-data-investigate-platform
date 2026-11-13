@@ -313,17 +313,12 @@ The api image ships the migrations, so deployments run them with the same image 
 
 The rules live elsewhere:
 
-- Branches, titles, the merge method and how titles decide releases: [RULES.md §6–7](RULES.md#6-git).
+- Branches, titles, the merge method and how versions are released: [RULES.md §6–7](RULES.md#6-git).
 - Which commits release TIM and `tim-actions`: [ADR-0024](adr/0024-one-release-version.md).
 
 The required checks are:
 
-- **`pr-conventions`** (`pr-conventions.yml`), run by `.github/scripts/pr_conventions.py`. It checks:
-  - that the PR title is a Conventional Commit;
-  - that a breaking title on a PR that changes `api/tim-actions` names `tim-actions` in its scope;
-  - that a breaking title on a PR that releases TIM has the `major-release` label.
-
-  On a `release-please--*` branch it checks only that a release raising any package's major version has the `major-release` label. It reruns when a label is added or removed.
+- **`pr-conventions`** (`pr-conventions.yml`), run by `.github/scripts/pr_conventions.py`. It checks that the PR title is a Conventional Commit, except on a `release-please--*` branch.
 - **`build-web-gate`** (`build-web.yml`) and **`build-api-gate`** (`build-api.yml`), the build checks.
 
 Both build workflows run on every PR. A `changes` job skips the build jobs when the PR touches none of these paths:
