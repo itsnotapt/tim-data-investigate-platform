@@ -320,9 +320,10 @@ The required checks are:
 
 - **`pr-conventions`** (`pr-conventions.yml`), run by `.github/scripts/pr_conventions.py`. It checks:
   - that the PR title is a Conventional Commit;
-  - that a breaking title on a PR that changes `api/tim-actions` names `tim-actions` in its scope.
+  - that a breaking title on a PR that changes `api/tim-actions` names `tim-actions` in its scope;
+  - that a breaking title on a PR that releases TIM has the `major-release` label.
 
-  It is skipped for `release-please--*` branches.
+  On a `release-please--*` branch it checks only that a release raising any package's major version has the `major-release` label. It reruns when a label is added or removed.
 - **`build-web-gate`** (`build-web.yml`) and **`build-api-gate`** (`build-api.yml`), the build checks.
 
 Both build workflows run on every PR. A `changes` job skips the build jobs when the PR touches none of these paths:

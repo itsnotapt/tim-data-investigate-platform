@@ -2,9 +2,10 @@
 # The pr-conventions job is a required status check on main.
 name: PR conventions
 
+# labeled and unlabeled rerun it when the major-release label changes.
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
 
 concurrency:
   group: pr-conventions-${{ github.event.pull_request.number }}
@@ -16,8 +17,6 @@ permissions:
 jobs:
   pr-conventions:
     name: pr-conventions
-    # release-please writes the release PRs and their titles.
-    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -26,9 +25,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # release-please writes the release PRs and their titles, so only their versions are checked.
       - name: Check PR conventions
+        if: ${{ !startsWith(github.head_ref, 'release-please--') }}
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
           TITLE: ${{ github.event.pull_request.title }}
-        run: python3 .github/scripts/pr_conventions.py pr "$BASE" "$HEAD" --title "$TITLE"
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python3 .github/scripts/pr_conventions.py pr "$BASE" "$HEAD" --title "$TITLE" --labels "$LABELS"
+
+      - name: Check the release makes no unlabelled major
+        if: ${{ startsWith(github.head_ref, 'release-please--') }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python3 .github/scripts/pr_conventions.py release "$BASE" "$HEAD" --labels "$LABELS"
