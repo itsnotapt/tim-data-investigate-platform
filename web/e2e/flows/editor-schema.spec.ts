@@ -94,10 +94,19 @@ async function pickDatabase(page: Page) {
   await page.keyboard.press('Escape');
 }
 
-/** Retries Ctrl+Space until each of `items` is suggested: the worker takes changes a moment later. */
-async function expectSuggested(page: Page, items: RegExp[]) {
+/**
+ * Types `word`, then retries Ctrl+Space until each of `items` is suggested: the worker takes
+ * changes a moment later. Each try types `word` again, as monaco-kusto reuses its last
+ * suggestions while the word grows on the same line, even once the schema or the query parameters
+ * have changed.
+ */
+async function expectSuggested(page: Page, word: string, items: RegExp[]) {
+  let typed = false;
   await expect(async () => {
     await page.keyboard.press('Escape');
+    if (typed) for (let i = 0; i < word.length; i++) await page.keyboard.press('Backspace');
+    await page.keyboard.type(word);
+    typed = true;
     const suggestions = await suggest(page);
     for (const item of items) {
       await expect(suggestions.getByRole('listitem', { name: item })).toBeVisible({
@@ -127,8 +136,8 @@ test('a query parameter is declared above the query, and the editor suggests it'
 
   // A scalar is suggested where a scalar goes, not where the query starts.
   await page.getByRole('textbox', { name: 'kql' }).focus();
-  await page.keyboard.type('print sin');
-  await expectSuggested(page, [/^since, /]);
+  await page.keyboard.type('print ');
+  await expectSuggested(page, 'sin', [/^since, /]);
   await page.keyboard.press('Escape');
 
   await removeQueryParameter(page, preset);
@@ -145,10 +154,10 @@ test('a schema that loads after a query parameter is added keeps it suggested', 
   await pickDatabase(page);
 
   await page.getByRole('textbox', { name: 'kql' }).focus();
-  await expectSuggested(page, [/^SignIns, /]);
+  await expectSuggested(page, '', [/^SignIns, /]);
   await page.keyboard.press('Escape');
-  await page.keyboard.type('print sin');
-  await expectSuggested(page, [/^since, /]);
+  await page.keyboard.type('print ');
+  await expectSuggested(page, 'sin', [/^since, /]);
 });
 
 test("each tab's editor suggests its own query parameters once focused, not the last tab's", async ({
@@ -173,8 +182,8 @@ test("each tab's editor suggests its own query parameters once focused, not the 
   await pickDatabase(page);
   await addQueryParameter(page, `${idPrefix} Limit`, 'limit', 'long');
   await page.getByRole('textbox', { name: 'kql' }).focus();
-  await page.keyboard.type('print lim');
-  await expectSuggested(page, [/^limit, /]);
+  await page.keyboard.type('print ');
+  await expectSuggested(page, 'lim', [/^limit, /]);
   await page.keyboard.press('Escape');
 
   await tree.hover();
@@ -182,6 +191,6 @@ test("each tab's editor suggests its own query parameters once focused, not the 
   await page.mouse.move(900, 500);
   await expect(page.getByRole('heading', { name: first })).toBeVisible();
   await page.getByRole('textbox', { name: 'kql' }).focus();
-  await page.keyboard.type('print sin');
-  await expectSuggested(page, [/^since, /]);
+  await page.keyboard.type('print ');
+  await expectSuggested(page, 'sin', [/^since, /]);
 });
