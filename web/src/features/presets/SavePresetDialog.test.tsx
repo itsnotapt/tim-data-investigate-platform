@@ -1,3 +1,4 @@
+import { createTheme } from '@mui/material/styles';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -82,6 +83,7 @@ function setup(
   idColumn: string | null = null,
   source?: Preset,
   presets: Preset[] = [],
+  onClose: () => void = () => {},
 ) {
   const saved: PresetFields[] = [];
   const api = {
@@ -103,14 +105,19 @@ function setup(
       params={params}
       idColumn={idColumn}
       source={source}
-      onClose={() => {}}
+      onClose={onClose}
       store={store}
     />,
   );
   return { saved, dialog: screen.getByRole('dialog', { name: 'Save preset' }) };
 }
 
-const tabTitle = () => screen.getByRole('textbox', { name: 'Tab title' });
+const tabTitle = () => screen.getByRole('combobox', { name: 'Tab title' });
+/** The placeholders the Tab title suggests, in order. */
+const suggestions = () =>
+  within(screen.getByRole('listbox', { name: 'Placeholders' }))
+    .getAllByRole('option')
+    .map((o) => o.textContent);
 /** The row of the inputs table for the param `name`. */
 const inputRow = (name: string) => screen.getByRole('row', { name });
 /** Picks `option` ('Fixed' or 'From row') in the Source dropdown of `row`. */
@@ -384,6 +391,138 @@ describe('SavePresetDialog Tab title', () => {
     await retype(tabTitle(), 'Sign-ins of {users} on {row.Host}');
     expect(tabTitle()).not.toHaveAccessibleDescription(/nothing/);
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  /** An action with inputs, other params and query parameters. */
+  const hunt: CatalogueAction = {
+    ...runKql,
+    key: 'dev-hunt',
+    name: 'Hunt',
+    params: [
+      {
+        name: 'users',
+        kind: 'string',
+        required: true,
+        many: true,
+        fromColumns: ['User', 'UserPrincipalName'],
+      },
+      { name: 'host', kind: 'string', required: false, many: false, fromColumns: ['Host'] },
+      ...runKql.params,
+    ],
+  };
+  const hunting = {
+    ...tab,
+    users: [],
+    host: 'web-01',
+    parameters: [
+      { name: 'Since', type: 'datetime', value: '2026-10-01T00:00:00Z' },
+      { name: 'Upn', type: 'string' },
+    ],
+  };
+
+  it('suggests on { the inputs, the other params, the query parameters, then the From row columns', async () => {
+    setup(hunting, hunt);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt for {{');
+
+    expect(suggestions()).toEqual([
+      '{users}',
+      '{host}',
+      '{connection}',
+      '{database}',
+      '{kql}',
+      '{Since}',
+      '{Upn}',
+      '{row.User}',
+      '{row.UserPrincipalName}',
+    ]);
+  });
+
+  it('filters the suggestions by what follows the {, and closes them with the }', async () => {
+    setup(hunting, hunt);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt for {{u');
+    expect(suggestions()).toEqual(['{users}', '{Upn}', '{row.User}', '{row.UserPrincipalName}']);
+
+    await userEvent.type(tabTitle(), 'ser');
+    expect(suggestions()).toEqual(['{users}', '{row.User}', '{row.UserPrincipalName}']);
+    await userEvent.type(tabTitle(), 's}');
+    expect(screen.queryByRole('listbox', { name: 'Placeholders' })).not.toBeInTheDocument();
+  });
+
+  it('suggests any row column from row., and still takes a column it doesn’t suggest', async () => {
+    const { dialog } = setup(hunting, hunt);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt on {{row.');
+    expect(suggestions()).toEqual(['{row.User}', '{row.UserPrincipalName}']);
+
+    await userEvent.type(tabTitle(), 'Computer}');
+    expect(tabTitle()).toHaveValue('Hunt on {row.Computer}');
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('inserts the first suggestion on Enter or Tab, where the { was typed', async () => {
+    setup(hunting, hunt);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt for {{us{Enter}');
+    expect(tabTitle()).toHaveValue('Hunt for {users}');
+    expect(screen.queryByRole('listbox', { name: 'Placeholders' })).not.toBeInTheDocument();
+
+    await userEvent.type(tabTitle(), ' on {{ho');
+    await userEvent.tab();
+    expect(tabTitle()).toHaveValue('Hunt for {users} on {host}');
+    expect(tabTitle()).toHaveFocus();
+
+    await userEvent.type(tabTitle(), ' in {{dat{Enter}', {
+      initialSelectionStart: 4,
+      initialSelectionEnd: 4,
+    });
+    expect(tabTitle()).toHaveValue('Hunt in {database} for {users} on {host}');
+  });
+
+  it('closes the suggestions on Escape, leaving the dialog open', async () => {
+    const onClose = vi.fn();
+    setup(hunting, hunt, null, undefined, [], onClose);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt for {{us');
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox', { name: 'Placeholders' })).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Enter}');
+    expect(tabTitle()).toHaveValue('Hunt for {us');
+
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('gives an example of the name and the first inputs as placeholders, following the name', async () => {
+    const { dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    expect(tabTitle()).toHaveAccessibleDescription('e.g. Sign-ins for {users} on {hosts}');
+
+    await retype(within(dialog).getByRole('textbox', { name: 'Name' }), 'Logons');
+    expect(tabTitle()).toHaveAccessibleDescription('e.g. Logons for {users} on {hosts}');
+  });
+
+  it('gives an example of the query parameters when they are the only inputs', () => {
+    setup({ ...tab, parameters: [{ name: 'Upn', type: 'string' }] });
+    expect(tabTitle()).toHaveAccessibleDescription('e.g. Run KQL for {Upn}');
+  });
+
+  it('gives an example of the action’s params when it has no inputs', () => {
+    setup(tab);
+    expect(tabTitle()).toHaveAccessibleDescription('e.g. Run KQL for {connection} on {database}');
+  });
+
+  it('highlights the placeholders that name something in the primary colour, and the others as errors', async () => {
+    const { dialog } = setup({ users: ['alice'], hosts: [] }, signIns);
+    await retype(tabTitle(), 'Sign-ins of {users} on {host} at {row.Host}');
+
+    const { palette } = createTheme();
+    expect(within(dialog).getByText('{users}')).toHaveStyle({ color: palette.primary.main });
+    expect(within(dialog).getByText('{row.Host}')).toHaveStyle({ color: palette.primary.main });
+    expect(within(dialog).getByText('{host}')).toHaveStyle({ color: palette.error.main });
+    expect(within(dialog).getByText('on')).not.toHaveStyle({ color: palette.primary.main });
   });
 
   it('replaces the Show in title switches', () => {

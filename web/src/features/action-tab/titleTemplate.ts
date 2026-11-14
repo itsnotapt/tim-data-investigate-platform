@@ -82,11 +82,31 @@ export const titleColumns = (template: string | null | undefined): string[] => [
   ),
 ];
 
+/** Whether a placeholder naming `name` names something: one of `names`, or `row.` and a column. */
+export const namesSomething = (name: string, names: ReadonlySet<string>): boolean =>
+  names.has(name) || Boolean(rowColumn(name));
+
 /**
  * The placeholders of `template` that name nothing, as written: neither one of `names` nor `row.`
  * and a column.
  */
 export const unnamedPlaceholders = (template: string, names: ReadonlySet<string>): string[] =>
   [...template.matchAll(PLACEHOLDER)]
-    .filter(([, name = '']) => !names.has(name) && !rowColumn(name))
+    .filter(([, name = '']) => !namesSomething(name, names))
     .map(([placeholder]) => placeholder);
+
+/** A run of a title template: plain text, or a placeholder as written and the name it holds. */
+export type TemplatePart = { text: string } | { placeholder: string; name: string };
+
+/** `template` split into its plain text and its placeholders, in order. */
+export function templateParts(template: string): TemplatePart[] {
+  const parts: TemplatePart[] = [];
+  let at = 0;
+  for (const { 0: placeholder, 1: name = '', index } of template.matchAll(PLACEHOLDER)) {
+    if (index > at) parts.push({ text: template.slice(at, index) });
+    parts.push({ placeholder, name });
+    at = index + placeholder.length;
+  }
+  if (at < template.length) parts.push({ text: template.slice(at) });
+  return parts;
+}
