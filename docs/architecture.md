@@ -1101,7 +1101,7 @@ In the browser, an editor param with `schemaFrom` loads its schema once its conn
 - `kql`: a `kql` param scoped by the `connection` and `database` params;
 - `parameters`, optional, `json`: the query parameters, an ordered list of `[{name, type, value}]` ([actions.md](actions.md#query-parameters-of-run-kql)). TIM puts the declare statement `declare query_parameters(...);` before the KQL and sends the values as Kusto query parameters. `check_params`, from `TakesQueryParameters`, checks the entries and answers `params.parameters.<name>` or `params.parameters`.
 
-A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`. Its `title` is the preset's title template.
+A preset of Run KQL has an action file: `preset_file` returns a `kql_query` document ([api.md](api.md#get-apipresetspresetidactionfile)). It returns `None` for a preset that lacks a connection, database or query. The document pivots on `rows` when the preset has From row query parameters and every one of them has columns, else `none`. Its `title` is the preset's title template, with each placeholder that names a value the file fixes replaced by that value.
 
 **Run SQL** (`tim.run_sql`) is the built-in action on a Snowflake connection. It sets `pivot: none`. Its params:
 
@@ -1111,7 +1111,7 @@ A preset of Run KQL has an action file: `preset_file` returns a `kql_query` docu
 
 The run sends `sql` unchanged through `SnowflakeHook.query`, with the parameters bound by position, `:1` the first. A login or query failure is a run error. An `obo` error answers `POST /api/runs`, because TIM gets each `obo` token before the run exists.
 
-A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter. Its `title` is the preset's title template.
+A preset of Run SQL has an action file: `preset_file` returns a `snowflake_query` document whose params are the query parameters in order. It returns `None` for a preset that lacks a connection or SQL, or has a `timespan` query parameter. Its `title` is the preset's title template, with each placeholder that names a value the file fixes replaced by that value.
 
 **`snowflake_query`** (`SnowflakeQuery`, with `SnowflakeQueryFile` as its file model) is a file-capable action type with the fields `connection` and `sql`.
 

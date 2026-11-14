@@ -103,6 +103,11 @@ A tab that has run shows the title of its latest run: its **Run title**.
   - `title: "Host timeline {host}"` gives "Host timeline BGIST-L".
   - A preset has its own title template, and its placeholders can also name its query parameters.
 - Every `{…}` is a placeholder. A template has no filters, defaults, conditionals or escapes.
+- A placeholder must name one of the action's params, or be `row.` and a column.
+  - Otherwise the action fails to load, with one error per placeholder, such as `a.yaml:6: title: {hostt} names nothing`.
+  - Names match exactly: `{}`, `{row.}` and `{ host }` fail.
+  - A `{` with no closing `}` is plain text.
+  - A query action declared in Python is checked the same way.
 - A param's value shows as follows:
   - A string shows as it is, and any other value as JSON.
   - A `connection` param shows the connection's name.
@@ -572,7 +577,9 @@ An action type can say how a preset of its actions becomes an action file by ove
   - The document of `RunSql.preset_file` is a `snowflake_query`, with a param per query parameter in the preset's order.
   - Its document pivots on `rows` when the preset has From row query parameters and every one of them has columns. Otherwise it has `pivot: none`.
 - `params` are the preset's fixed values, and `query_parameters` its `tim_actions.QueryParameter(name, type, value, from_columns)` entries, in order. `id_column` is the preset's Id column, which becomes the document's `id`.
-- The document's `title` is `title`, the preset's title template as it is, such as `Sign-ins by user {Upn} {Hosts}`.
+- The document's `title` is `title`, the preset's title template, such as `Sign-ins by user {Upn} {Hosts}`.
+  - TIM then replaces each placeholder that names a value the document fixes, not a param, with that value, shown as in [Run titles](#run-titles). `Sign-ins of {Upn} in {database}` becomes `Sign-ins of {Upn} in Samples`.
+  - The placeholders that name the document's params and `row.` columns stay, so the action file passes the title check.
 - `tim_actions.query_parameters` holds what Run KQL and Run SQL share. `TakesQueryParameters` is their base class: it checks `parameters` against its `parameter_types`, each query parameter type with the param kind of its value. `checked_parameters` does the check, and `preset_file_params` turns a preset's query parameters into the file's params.
   - `declared_query_parameters(declared)` checks the names and types of a tab's query parameters, without values, with `check_declared`. Its problems are keyed `params.parameters`.
   - `declare_statement(query_parameters)` returns the declare statement, with no newline. The default is `""`, for an action that declares nothing. `RunKql` returns `declare query_parameters(name:type, ...);`, and its run and its `preset_file` put it on the line before the query.

@@ -146,13 +146,27 @@ async def test_a_from_row_input_without_columns_makes_the_action_file_no_pivot(
     assert document["params"][3] == {"name": "Limit", "kind": "number"}
 
 
+async def test_the_action_file_title_has_the_preset_values_that_are_not_its_params(
+    client: httpx.AsyncClient,
+) -> None:
+    title = "Sign-ins of {Upn} in {database} on {connection}: {row.App}"
+    response = await action_file(client, {**RUN_KQL_PRESET, "title": title})
+
+    assert (
+        yaml.safe_load(response.text)["title"]
+        == "Sign-ins of {Upn} in Samples on security: {row.App}"
+    )
+
+
+@pytest.mark.parametrize("title", [RUN_KQL_PRESET["title"], "Sign-ins in {database}"])
 async def test_tim_api_check_accepts_the_action_file(
     client: httpx.AsyncClient,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
+    title: str,
 ) -> None:
-    response = await action_file(client, RUN_KQL_PRESET)
+    response = await action_file(client, {**RUN_KQL_PRESET, "title": title})
     actions = tmp_path / "actions"
     actions.mkdir()
     (actions / "preset.yaml").write_text(response.text)

@@ -3,6 +3,7 @@
 import re
 
 from tim_actions import Action, QueryParameter, Sink, action_file_yaml
+from tim_actions.titles import fill_title
 
 from tim_api.presets.models import FixedInput, FixedQueryParameter, FromRowQueryParameter, Preset
 
@@ -19,7 +20,8 @@ def _key(name: str) -> str:
 
 def preset_action_file(preset: Preset, action: Action | Sink | None) -> str:
     """The action file of ``preset``, a preset of ``action``; raises ``NoActionFileError`` when
-    the action is gone or is a sink, or it gives the preset none."""
+    the action is gone or is a sink, or it gives the preset none. A placeholder of its title
+    template that names a value the file fixes, rather than a param, is filled in with it."""
     if action is None or isinstance(action, Sink):
         raise NoActionFileError
     params = dict(preset.params)
@@ -42,4 +44,8 @@ def preset_action_file(preset: Preset, action: Action | Sink | None) -> str:
     )
     if document is None:
         raise NoActionFileError
+    if document.title is not None:
+        names = {param.name for param in document.params}
+        fixed = {name: value for name, value in params.items() if name not in names}
+        document = document.model_copy(update={"title": fill_title(document.title, fixed)})
     return action_file_yaml(document)

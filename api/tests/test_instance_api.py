@@ -109,7 +109,20 @@ def test_an_action_that_does_not_pivot_has_a_null_pivot(auth: AuthKit) -> None:
 def test_an_actions_title_template_is_in_the_catalogue(auth: AuthKit) -> None:
     title = "Tree of {row.Image} on {host}"
     [action] = get_instance(
-        auth, [Provider(actions=[Rows(key="a", name="A", pivot="row", title=title)])]
+        auth,
+        [
+            Provider(
+                actions=[
+                    Rows(
+                        key="a",
+                        name="A",
+                        pivot="row",
+                        params=[Param("host", "string")],
+                        title=title,
+                    )
+                ]
+            )
+        ],
     )["actions"]
     assert action["title"] == title
     assert "titleColumns" not in action
