@@ -19,7 +19,7 @@ Run:
 <!-- x-release-please-start-version -->
 
 ```bash
-docker compose -f oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:2.0.0 up
+docker compose -f oci://ghcr.io/itsnotapt/tim-data-investigate-platform/compose/demo:2.1.0 up
 ```
 
 <!-- x-release-please-end -->
