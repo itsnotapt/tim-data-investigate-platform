@@ -110,19 +110,72 @@ export function formTitle(action: CatalogueAction, form: PresetForm): string {
 }
 
 /**
+ * The names a placeholder of the Tab title can hold besides `row.` and a column: the action's
+ * params and the form's query parameters.
+ */
+export const titleNames = (action: CatalogueAction, form: PresetForm): Set<string> =>
+  new Set([...action.params.map((p) => p.name), ...form.queryParameters.map((qp) => qp.name)]);
+
+/**
  * What's wrong with the Tab title of the form, if anything: the placeholders that name neither a
  * param of the action, a query parameter of the form, nor `row.` and a column.
  */
 export function titleError(action: CatalogueAction, form: PresetForm): string | undefined {
-  const names = new Set([
-    ...action.params.map((p) => p.name),
-    ...form.queryParameters.map((qp) => qp.name),
-  ]);
-  const unnamed = unnamedPlaceholders(formTitle(action, form), names);
+  const unnamed = unnamedPlaceholders(formTitle(action, form), titleNames(action, form));
   if (unnamed.length === 0) return undefined;
   const listed =
     unnamed.length === 1 ? unnamed[0] : `${unnamed.slice(0, -1).join(', ')} and ${unnamed.at(-1)}`;
   return `${listed} ${unnamed.length === 1 ? 'names' : 'name'} nothing`;
+}
+
+/** The params of `action` that neither rows fill nor hold the query parameters. */
+const otherParams = (action: CatalogueAction): CatalogueParam[] =>
+  action.params.filter((p) => (p.fromColumns ?? []).length === 0 && !isParametersParam(p));
+
+/** The query parameters of `form` that have a name. */
+const namedQueryParameters = (form: PresetForm): QueryParameterForm[] =>
+  form.queryParameters.filter((qp) => qp.name !== '');
+
+/**
+ * The placeholders the Tab title suggests, each once, in order: the inputs, the action's other
+ * params, the query parameters, then `row.` and each column the From row inputs read.
+ */
+export function titleSuggestions(action: CatalogueAction, form: PresetForm): string[] {
+  const rowInputs = rowParams(action);
+  const queryParameters = namedQueryParameters(form);
+  const columns = [
+    ...rowInputs.flatMap((p) => {
+      const mode = form.modes[p.name];
+      return mode && !mode.fixed ? mode.columns : [];
+    }),
+    ...queryParameters.flatMap((qp) => (qp.fixed ? [] : qp.columns)),
+  ];
+  return [
+    ...new Set([
+      ...[...rowInputs, ...otherParams(action)].map((p) => p.name),
+      ...queryParameters.map((qp) => qp.name),
+      ...columns.filter((column) => column !== '').map((column) => `row.${column}`),
+    ]),
+  ];
+}
+
+/**
+ * An example Tab title for the form: its name, then its first two inputs as placeholders, or when
+ * it has none the action's first two other params: "e.g. Sign-ins for {users} on {host}".
+ */
+export function titleExample(action: CatalogueAction, form: PresetForm): string {
+  const inputs = [
+    ...rowParams(action).map((p) => p.name),
+    ...namedQueryParameters(form).map((qp) => qp.name),
+  ];
+  const [first, second] = inputs.length > 0 ? inputs : otherParams(action).map((p) => p.name);
+  return [
+    `e.g. ${form.name.trim() || action.name}`,
+    first !== undefined && `for {${first}}`,
+    second !== undefined && `on {${second}}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** What's wrong with a query parameter of the form, by field; empty when nothing is. */
