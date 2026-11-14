@@ -44,9 +44,18 @@ test('a shared From row preset pivots from a row into a child tab, for its owner
   await page.getByRole('button', { name: 'Save…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Save preset' });
   await dialog.getByLabel('Name', { exact: true }).fill(name);
-  await dialog.getByLabel('Menu folder').fill(idPrefix);
+  const folder = dialog.getByLabel('Menu folder');
+  // The preset starts in its action's folder, Development › Rows: Backspace goes up a level each.
+  await folder.press('Backspace');
+  await folder.press('Backspace');
+  await folder.fill(idPrefix);
+  await folder.press('Enter');
   await dialog.getByLabel('Share with everyone').check();
-  await dialog.getByRole('button', { name: 'result from the row' }).click();
+  await dialog
+    .getByRole('row', { name: 'result' })
+    .getByRole('combobox', { name: 'Source' })
+    .click();
+  await page.getByRole('option', { name: /^From row/ }).click();
   await expect(dialog.getByLabel('Tab title')).toHaveValue(`${name} {result}`);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();

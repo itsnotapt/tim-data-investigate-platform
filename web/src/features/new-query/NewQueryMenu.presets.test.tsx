@@ -268,13 +268,15 @@ describe('NewQueryMenu presets', () => {
     await userEvent.click(more('My bookmark'));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }));
     const dialog = screen.getByRole('dialog', { name: 'Save preset' });
-    expect(within(dialog).getByText('users = alice')).toBeInTheDocument();
-    expect(within(dialog).getByText('limit = 5')).toBeInTheDocument();
+    const users = within(dialog).getByRole('row', { name: 'users' });
+    expect(within(users).getByText('alice')).toBeInTheDocument();
+    expect(within(dialog).getByText('Also saved: limit: 5')).toBeInTheDocument();
 
     await userEvent.clear(within(dialog).getByLabelText('Name'));
     await userEvent.type(within(dialog).getByLabelText('Name'), 'Sign-ins of a user');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'users from the row' }));
-    expect(within(dialog).getByText('users = <User of the clicked row>')).toBeInTheDocument();
+    await userEvent.click(within(users).getByRole('combobox', { name: 'Source' }));
+    await userEvent.click(screen.getByRole('option', { name: /^From row/ }));
+    expect(within(users).getByText('User')).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Update "My bookmark"' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -283,7 +285,7 @@ describe('NewQueryMenu presets', () => {
     expect(calls).toEqual(['replace p-mine private']);
   });
 
-  it('edits a preset without adding the values it leaves to the action, which show their type', async () => {
+  it('edits a preset without adding the values it leaves to the action', async () => {
     const { saved } = setup();
     await userEvent.click(screen.getByRole('button', { name: 'New' }));
     await userEvent.click(screen.getByText('Actions and presets'));
@@ -291,8 +293,10 @@ describe('NewQueryMenu presets', () => {
     await userEvent.click(more('Daily users'));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }));
     const dialog = screen.getByRole('dialog', { name: 'Save preset' });
-    expect(within(dialog).getByText('users = bob')).toBeInTheDocument();
-    expect(within(dialog).getByText('limit = <number>')).toBeInTheDocument();
+    expect(
+      within(within(dialog).getByRole('row', { name: 'users' })).getByText('bob'),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Also saved/)).not.toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Update "Daily users"' }));
 
     await waitFor(() => expect(saved).toHaveLength(1));

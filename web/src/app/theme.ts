@@ -22,6 +22,18 @@ interface EditorColours {
   border: string;
   background: string;
 }
+/**
+ * A code block, dark in both schemes: background, text, line numbers, and a line TIM adds (its
+ * stripe, fill and text).
+ */
+interface CodeColours {
+  background: string;
+  text: string;
+  lineNumber: string;
+  added: string;
+  addedBackground: string;
+  addedText: string;
+}
 /** Results grid header / chrome and odd-row fill. */
 interface GridColours {
   header: string;
@@ -37,17 +49,28 @@ declare module '@mui/material/styles' {
   }
   interface Palette {
     editor: EditorColours;
+    code: CodeColours;
     grid: GridColours;
     label: LabelColours;
     labelStripe: LabelColours;
   }
   interface PaletteOptions {
     editor?: EditorColours;
+    code?: CodeColours;
     grid?: GridColours;
     label?: LabelColours;
     labelStripe?: LabelColours;
   }
 }
+
+const code: CodeColours = {
+  background: '#1e1e1e',
+  text: '#d4d4d4',
+  lineNumber: '#6e7681',
+  added: '#569cd6',
+  addedBackground: 'rgba(86, 156, 214, 0.15)',
+  addedText: '#9cdcfe',
+};
 
 /**
  * The only place colours are defined in `web/src`: one palette, light and dark.
@@ -66,6 +89,7 @@ export const theme = createTheme({
         text: { primary: '#212121', secondary: '#616161' },
         divider: '#e0e0e0',
         editor: { border: '#8a8a8a', background: '#ffffff' },
+        code,
         grid: { header: '#f5f7f7', oddRow: '#fcfdfe' },
         label: {
           red: '#fecaca',
@@ -97,6 +121,7 @@ export const theme = createTheme({
         text: { primary: '#e0e0e0', secondary: '#a0a0a0' },
         divider: '#333333',
         editor: { border: '#6e6e6e', background: '#1e1e1e' },
+        code,
         grid: { header: '#262626', oddRow: '#232323' },
         label: {
           red: '#7f1d1d',
