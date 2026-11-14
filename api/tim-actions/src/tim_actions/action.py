@@ -15,6 +15,7 @@ from tim_actions.columns import Column
 from tim_actions.params import Param, validate_params
 from tim_actions.pivots import PivotContext, Resolved, resolve_from_columns
 from tim_actions.run import RunContext
+from tim_actions.titles import title_errors
 
 if TYPE_CHECKING:
     from tim_actions.files import ActionDocument, DocumentBase, SinkDocument
@@ -83,11 +84,19 @@ class ActionBase(BaseModel, ABC):
         return {}
 
 
-def _field_error(field: str, value: Any, message: str) -> ValidationError:
-    """A validation error of ``field``, which a model validator raises to report it there."""
-    error = PydanticCustomError(field, "{message}", {"message": message})
+def _field_error(field: str, value: Any, *messages: str) -> ValidationError:
+    """A validation error of ``field`` for each message, which a model validator raises to report
+    them there."""
     return ValidationError.from_exception_data(
-        field, [InitErrorDetails(type=error, loc=(field,), input=value)]
+        field,
+        [
+            InitErrorDetails(
+                type=PydanticCustomError(field, "{message}", {"message": message}),
+                loc=(field,),
+                input=value,
+            )
+            for message in messages
+        ],
     )
 
 
@@ -136,6 +145,14 @@ class Action(ActionBase):
             raise _field_error(
                 "find_pivot_rows", True, f"{self.key} has no id to match the pivot rows by"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _title(self) -> Self:
+        if self.title is not None and (
+            errors := title_errors(self.title, {param.name for param in self.params})
+        ):
+            raise _field_error("title", self.title, *errors)
         return self
 
     @field_validator("columns")

@@ -146,6 +146,7 @@ def test_an_action_with_its_menu_path_and_pivot_columns() -> None:
         ({"id": ["Upn"]}, "id"),
         ({"id": " "}, "id"),
         ({"colour": "red"}, "colour"),
+        ({"title": "Users {nobody}"}, r"title\n  \{nobody\} names nothing"),
     ],
 )
 def test_an_invalid_action_fails_on_construction(kwargs: dict[str, Any], message: str) -> None:
@@ -202,6 +203,39 @@ def test_finding_pivot_rows_needs_a_pivot_and_an_id(
     with pytest.raises(ActionFilesError) as raised:
         load_actions(tmp_path, [dev.DevRows])
     assert [problem.replace(f"{tmp_path}/", "") for problem in raised.value.problems] == [message]
+
+
+_TITLED = (
+    "type: dev_rows\nkey: acme.rows\nname: Rows\npivot: row\n"
+    "params: [{name: host, kind: string}]\ntitle: 'TITLE'\n"
+)
+
+
+@pytest.mark.parametrize(
+    "title", ["Rows on {host}", "Process tree of {row.Image} on {host}", "Rows", "Rows {"]
+)
+def test_a_title_template_naming_params_and_columns_loads(tmp_path: Path, title: str) -> None:
+    assert _file_action(tmp_path, _TITLED.replace("TITLE", title)).title == title
+
+
+def test_a_title_template_naming_nothing_fails_to_load(tmp_path: Path) -> None:
+    (tmp_path / "a.yaml").write_text(_TITLED.replace("TITLE", "Rows on {hostt} by {user}"))
+    with pytest.raises(ActionFilesError) as raised:
+        load_actions(tmp_path, [dev.DevRows])
+    assert [problem.replace(f"{tmp_path}/", "") for problem in raised.value.problems] == [
+        "a.yaml:6: title: {hostt} names nothing",
+        "a.yaml:6: title: {user} names nothing",
+    ]
+
+
+@pytest.mark.parametrize("placeholder", ["{}", "{row.}", "{ host }"])
+def test_a_placeholder_names_a_param_or_column_exactly(tmp_path: Path, placeholder: str) -> None:
+    (tmp_path / "a.yaml").write_text(_TITLED.replace("TITLE", f"Rows on {placeholder}"))
+    with pytest.raises(ActionFilesError) as raised:
+        load_actions(tmp_path, [dev.DevRows])
+    assert [problem.replace(f"{tmp_path}/", "") for problem in raised.value.problems] == [
+        f"a.yaml:6: title: {placeholder} names nothing"
+    ]
 
 
 def test_an_action_type_must_implement_run() -> None:

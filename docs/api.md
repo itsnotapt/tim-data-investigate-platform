@@ -471,7 +471,9 @@ Returns the preset as an action file ([actions.md](actions.md#action-files)): th
   - `key` is a slug of the preset's name, and `menu` is its `menuPath` joined with `/`.
   - `pivot` is `rows` when the preset has From row query parameters and every one of them has columns, as a preset is a pivot. Otherwise it is `none`.
   - `kql` is the query with the `declare query_parameters(...)` statement in front, and `id` comes from the preset's `idColumn`. For Run SQL, `sql` is the query as it is.
-  - `title` is the preset's title template as it is, such as `Sign-ins by user {Upn} {Hosts}`.
+  - `title` is the preset's title template, such as `Sign-ins by user {Upn} {Hosts}`.
+    - A placeholder that names a value the file fixes, not a param, is replaced by that value as the browser shows it ([actions.md](actions.md#run-titles)): `Sign-ins of {Upn} in {database}` becomes `Sign-ins of {Upn} in Samples`.
+    - The placeholders that name the file's params and `row.` columns stay.
   - Each query parameter is a param of the file, in the preset's order. A fixed one has its value as `default`, a From row one has `from_columns`. A `dynamic` one is `many`. In a `snowflake_query`, the order sets the position each is bound to, `:1` the first.
 
 ### PUT, DELETE /api/presets/{presetId}/hidden

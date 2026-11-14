@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -10,6 +9,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, Path, Response, status
 from tim_actions import Action, Sink
 from tim_actions.params import PARAM_NAME
+from tim_actions.titles import title_errors
 
 from tim_api.auth import Principal, get_current_principal
 from tim_api.deps import get_preset_store
@@ -35,20 +35,6 @@ def _now() -> datetime:
     # Millisecond precision: it is what the JSON form carries.
     now = datetime.now(UTC)
     return now.replace(microsecond=now.microsecond // 1000 * 1000)
-
-
-_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
-"""Each ``{…}`` placeholder of a title template, capturing what it names."""
-
-
-def _title_errors(title: str, names: set[str]) -> list[str]:
-    """One error per placeholder of ``title`` that names nothing: none of ``names``, nor ``row.``
-    and a column."""
-    return [
-        f"{{{name}}} names nothing"
-        for name in _PLACEHOLDER.findall(title)
-        if name not in names and not (name.startswith("row.") and name != "row.")
-    ]
 
 
 def _check(body: PresetFields, actions: dict[str, Action | Sink]) -> None:
@@ -83,7 +69,7 @@ def _check(body: PresetFields, actions: dict[str, Action | Sink]) -> None:
         elif not param.from_columns:
             errors[f"inputs.{index}.name"] = [f"{item.name} has no from_columns"]
     query_parameters = {i.name for i in body.inputs if i.source == "queryParameter"}
-    if unnamed := _title_errors(body.title, set(params) | query_parameters):
+    if unnamed := title_errors(body.title, set(params) | query_parameters):
         errors["title"] = unnamed
     if errors:
         raise UnprocessableError(errors)
