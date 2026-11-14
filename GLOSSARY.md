@@ -121,7 +121,7 @@ Running an action or a preset from a grid row's context menu, with its params fi
 _Avoid_: drill-down
 
 **Pivot rows**:
-The rows of the parent tab that a pivot took its params from: the clicked row, or the selected rows. The child tab keeps their `id`s.
+The rows of the parent tab that a pivot took its params from: the clicked row, or the selected rows. The child tab keeps them whole, with their `id`s.
 _Avoid_: source row, origin row, related event
 
 **Run**:
@@ -135,10 +135,6 @@ _Avoid_: tab name, action run title
 **Title template**:
 The text an action or preset gives its run titles, with `{…}` placeholders for the values of its params, its query parameters and its pivot rows' columns.
 _Avoid_: title format, Show in title
-
-**Title columns**:
-The pivot row columns a title template names with `row.`. They are the only columns a tab keeps of the rows it was pivoted from.
-_Avoid_: title fields, row placeholders
 
 **Run details**:
 The key-value facts a run reports, such as its duration, row count or a warning.
