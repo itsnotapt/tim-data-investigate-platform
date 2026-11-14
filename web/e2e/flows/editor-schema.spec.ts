@@ -75,7 +75,7 @@ async function removeQueryParameter(page: Page, preset: string) {
     .getByRole('row', { name: 'Query parameter 1' })
     .getByRole('button', { name: 'Remove' })
     .click();
-  const title = dialog.getByRole('textbox', { name: 'Tab title' });
+  const title = dialog.getByRole('combobox', { name: 'Tab title' });
   await expect(title).toHaveAccessibleDescription(/names nothing/);
   await title.fill(preset);
   await dialog.getByRole('button', { name: `Update "${preset}"` }).click();

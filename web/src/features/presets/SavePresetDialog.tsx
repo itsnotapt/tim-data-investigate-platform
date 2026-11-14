@@ -41,6 +41,9 @@ import {
   rowParams,
   suggestedNames,
   titleError,
+  titleExample,
+  titleNames,
+  titleSuggestions,
   valueOrType,
   type InputMode,
   type PresetForm,
@@ -48,6 +51,7 @@ import {
 } from './presetForm';
 import { usePresetsStore, type PresetsStore } from './presetsStore';
 import { QueryBlock } from './QueryBlock';
+import { TitleTemplateField } from './TitleTemplateField';
 
 export interface SavePresetDialogProps {
   action: CatalogueAction;
@@ -387,12 +391,13 @@ export function SavePresetDialog({
               )}
             </div>
           )}
-          <TextField
-            label="Tab title"
+          <TitleTemplateField
             value={formTitle(action, form)}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            error={tabTitleError !== undefined}
-            helperText={tabTitleError}
+            onChange={(title) => setForm((f) => ({ ...f, title }))}
+            names={titleNames(action, form)}
+            suggestions={titleSuggestions(action, form)}
+            example={titleExample(action, form)}
+            error={tabTitleError}
           />
           {query !== undefined && (
             <Box>
