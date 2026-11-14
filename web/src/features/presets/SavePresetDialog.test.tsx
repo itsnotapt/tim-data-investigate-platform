@@ -410,7 +410,7 @@ describe('SavePresetDialog Tab title', () => {
       ...runKql.params,
     ],
   };
-  const hunting = {
+  const huntValues = {
     ...tab,
     users: [],
     host: 'web-01',
@@ -421,7 +421,7 @@ describe('SavePresetDialog Tab title', () => {
   };
 
   it('suggests on { the inputs, the other params, the query parameters, then the From row columns', async () => {
-    setup(hunting, hunt);
+    setup(huntValues, hunt);
     await userEvent.clear(tabTitle());
     await userEvent.type(tabTitle(), 'Hunt for {{');
 
@@ -439,7 +439,7 @@ describe('SavePresetDialog Tab title', () => {
   });
 
   it('filters the suggestions by what follows the {, and closes them with the }', async () => {
-    setup(hunting, hunt);
+    setup(huntValues, hunt);
     await userEvent.clear(tabTitle());
     await userEvent.type(tabTitle(), 'Hunt for {{u');
     expect(suggestions()).toEqual(['{users}', '{Upn}', '{row.User}', '{row.UserPrincipalName}']);
@@ -451,7 +451,7 @@ describe('SavePresetDialog Tab title', () => {
   });
 
   it('suggests any row column from row., and still takes a column it doesn’t suggest', async () => {
-    const { dialog } = setup(hunting, hunt);
+    const { dialog } = setup(huntValues, hunt);
     await userEvent.clear(tabTitle());
     await userEvent.type(tabTitle(), 'Hunt on {{row.');
     expect(suggestions()).toEqual(['{row.User}', '{row.UserPrincipalName}']);
@@ -462,7 +462,7 @@ describe('SavePresetDialog Tab title', () => {
   });
 
   it('inserts the first suggestion on Enter or Tab, where the { was typed', async () => {
-    setup(hunting, hunt);
+    setup(huntValues, hunt);
     await userEvent.clear(tabTitle());
     await userEvent.type(tabTitle(), 'Hunt for {{us{Enter}');
     expect(tabTitle()).toHaveValue('Hunt for {users}');
@@ -480,9 +480,25 @@ describe('SavePresetDialog Tab title', () => {
     expect(tabTitle()).toHaveValue('Hunt in {database} for {users} on {host}');
   });
 
+  it('replaces the whole placeholder the caret is in', async () => {
+    setup({ users: ['alice'], hosts: [] }, signIns);
+    await retype(tabTitle(), 'Sign-ins on {hosts}');
+    await userEvent.type(tabTitle(), 'u{Enter}', {
+      initialSelectionStart: 13,
+      initialSelectionEnd: 13,
+    });
+    expect(tabTitle()).toHaveValue('Sign-ins on {users}');
+
+    await userEvent.type(tabTitle(), '{Tab}', {
+      initialSelectionStart: 15,
+      initialSelectionEnd: 15,
+    });
+    expect(tabTitle()).toHaveValue('Sign-ins on {users}');
+  });
+
   it('closes the suggestions on Escape, leaving the dialog open', async () => {
     const onClose = vi.fn();
-    setup(hunting, hunt, null, undefined, [], onClose);
+    setup(huntValues, hunt, null, undefined, [], onClose);
     await userEvent.clear(tabTitle());
     await userEvent.type(tabTitle(), 'Hunt for {{us');
 

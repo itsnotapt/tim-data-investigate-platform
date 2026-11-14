@@ -514,7 +514,11 @@ The dialog shows, top to bottom:
   - SQL offers no `timespan` type.
   - Errors in query parameter fields are listed under the table.
 - Under the table, the other params that are saved as they are, set and neither an input nor the query, as "Also saved: name: value · …".
-- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. The field shows an error naming each placeholder that names nothing, such as "{since} names nothing". Save is disabled while it is blank or has an error.
+- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. Save is disabled while it is blank or has an error.
+  - It highlights each placeholder: a known one in the primary colour, an unknown one as an error (red, wavy underline). Under the field, an error naming each unknown placeholder, such as "{since} names nothing", replaces the helper text.
+  - Typing `{` opens suggestions, filtered by what follows (case-insensitive, anywhere in the name). They are, in order, the preset's inputs, the action's other params (not `parameters`), the query parameters, then `row.` and each column the From row inputs read. Any column can still be typed.
+  - **Enter** or **Tab** inserts the first suggestion, and a click inserts the one clicked. **Escape** closes the list and leaves the dialog open.
+  - The helper text is an example, "e.g. <name> for {<first input>} on {<second input>}". The inputs are the params that rows can fill, then the query parameters. With no inputs, they are the action's first two other params.
 - For **Run KQL** and **Run SQL**, a query block with the action's query and line numbers.
   - On KQL, its first line is the declare statement from the query parameters, from `useDeclareStatement`. It is highlighted, with the note "Line 1 is added from the query parameters".
   - SQL declares nothing.

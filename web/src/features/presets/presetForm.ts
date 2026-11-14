@@ -128,16 +128,23 @@ export function titleError(action: CatalogueAction, form: PresetForm): string | 
   return `${listed} ${unnamed.length === 1 ? 'names' : 'name'} nothing`;
 }
 
+/** The params of `action` that neither rows fill nor hold the query parameters. */
+const otherParams = (action: CatalogueAction): CatalogueParam[] =>
+  action.params.filter((p) => (p.fromColumns ?? []).length === 0 && !isParametersParam(p));
+
+/** The query parameters of `form` that have a name. */
+const namedQueryParameters = (form: PresetForm): QueryParameterForm[] =>
+  form.queryParameters.filter((qp) => qp.name !== '');
+
 /**
  * The placeholders the Tab title suggests, each once, in order: the inputs, the action's other
  * params, the query parameters, then `row.` and each column the From row inputs read.
  */
 export function titleSuggestions(action: CatalogueAction, form: PresetForm): string[] {
-  const inputs = rowParams(action);
-  const others = action.params.filter((p) => !inputs.includes(p) && !isParametersParam(p));
-  const queryParameters = form.queryParameters.filter((qp) => qp.name !== '');
+  const rowInputs = rowParams(action);
+  const queryParameters = namedQueryParameters(form);
   const columns = [
-    ...inputs.flatMap((p) => {
+    ...rowInputs.flatMap((p) => {
       const mode = form.modes[p.name];
       return mode && !mode.fixed ? mode.columns : [];
     }),
@@ -145,7 +152,7 @@ export function titleSuggestions(action: CatalogueAction, form: PresetForm): str
   ];
   return [
     ...new Set([
-      ...[...inputs, ...others].map((p) => p.name),
+      ...[...rowInputs, ...otherParams(action)].map((p) => p.name),
       ...queryParameters.map((qp) => qp.name),
       ...columns.filter((column) => column !== '').map((column) => `row.${column}`),
     ]),
@@ -159,12 +166,9 @@ export function titleSuggestions(action: CatalogueAction, form: PresetForm): str
 export function titleExample(action: CatalogueAction, form: PresetForm): string {
   const inputs = [
     ...rowParams(action).map((p) => p.name),
-    ...form.queryParameters.map((qp) => qp.name).filter((name) => name !== ''),
+    ...namedQueryParameters(form).map((qp) => qp.name),
   ];
-  const others = action.params
-    .filter((p) => (p.fromColumns ?? []).length === 0 && !isParametersParam(p))
-    .map((p) => p.name);
-  const [first, second] = inputs.length > 0 ? inputs : others;
+  const [first, second] = inputs.length > 0 ? inputs : otherParams(action).map((p) => p.name);
   return [
     `e.g. ${form.name.trim() || action.name}`,
     first !== undefined && `for {${first}}`,

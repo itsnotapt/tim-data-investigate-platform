@@ -21,14 +21,25 @@ export interface TitleTemplateFieldProps {
 }
 
 /**
- * The `{` being typed before `caret` in `text`: its index, or `-1` when the text before the caret
- * has no `{` left open.
+ * The index of the `{` of the placeholder being typed at `caret` in `text`: the last `{` before
+ * the caret, unless a `}` closes it first.
  */
-function openBrace(text: string, caret: number | null): number {
-  if (caret === null) return -1;
+function openBrace(text: string, caret: number | null): number | undefined {
+  if (caret === null) return undefined;
   const before = text.slice(0, caret);
-  const open = before.lastIndexOf('{');
-  return open > before.lastIndexOf('}') ? open : -1;
+  const brace = before.lastIndexOf('{');
+  return brace > before.lastIndexOf('}') ? brace : undefined;
+}
+
+/**
+ * Where the placeholder being typed at `caret` in `text` ends: past its `}` when the caret is
+ * inside a closed one, otherwise at the caret.
+ */
+function placeholderEnd(text: string, caret: number): number {
+  const after = text.slice(caret);
+  const close = after.indexOf('}');
+  const nextBrace = after.indexOf('{');
+  return close >= 0 && (nextBrace < 0 || close < nextBrace) ? caret + close + 1 : caret;
 }
 
 /**
@@ -44,15 +55,17 @@ export function TitleTemplateField({
   example,
   error,
 }: TitleTemplateFieldProps) {
-  const ids = useId();
+  const id = useId();
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
   const overlay = useRef<HTMLDivElement>(null);
   const [caret, setCaret] = useState<number | null>(null);
-  const open = openBrace(value, caret);
-  const typed = open >= 0 ? value.slice(open + 1, caret ?? open + 1).toLowerCase() : '';
-  const matches = open >= 0 ? suggestions.filter((name) => name.toLowerCase().includes(typed)) : [];
-  const listId = `${ids}-placeholders`;
-  const optionId = (i: number) => `${ids}-placeholder-${i}`;
+  const brace = openBrace(value, caret);
+  const typed =
+    brace === undefined || caret === null ? '' : value.slice(brace + 1, caret).toLowerCase();
+  const matches =
+    brace === undefined ? [] : suggestions.filter((name) => name.toLowerCase().includes(typed));
+  const listId = `${id}-placeholders`;
+  const optionId = (i: number) => `${id}-placeholder-${i}`;
   const input = useRef<HTMLInputElement>(null);
   /** Where the caret goes once an inserted placeholder is in the field. */
   const insertedAt = useRef<number | null>(null);
@@ -71,13 +84,13 @@ export function TitleTemplateField({
     alignOverlay();
   }, [value, caret]);
 
-  /** Replaces the `{` being typed, and what follows it up to the caret, with `{name}`. */
+  /** Replaces the placeholder being typed, from its `{` to its end, with `{name}`. */
   const insert = (name: string) => {
+    if (brace === undefined || caret === null) return;
     const placeholder = `{${name}}`;
-    const end = caret ?? value.length;
-    insertedAt.current = open + placeholder.length;
+    insertedAt.current = brace + placeholder.length;
     setCaret(null);
-    onChange(value.slice(0, open) + placeholder + value.slice(end));
+    onChange(value.slice(0, brace) + placeholder + value.slice(placeholderEnd(value, caret)));
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {

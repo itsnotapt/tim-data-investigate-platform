@@ -95,7 +95,7 @@ export const unnamedPlaceholders = (template: string, names: ReadonlySet<string>
     .filter(([, name = '']) => !namesSomething(name, names))
     .map(([placeholder]) => placeholder);
 
-/** A run of a title template: plain text, or a placeholder as written and the name it holds. */
+/** A part of a title template: plain text, or a placeholder as written and the name it holds. */
 export type TemplatePart = { text: string } | { placeholder: string; name: string };
 
 /** `template` split into its plain text and its placeholders, in order. */
