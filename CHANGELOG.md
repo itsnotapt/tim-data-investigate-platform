@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.1.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/v2.0.0...v2.1.0) (2026-11-14)
+
+
+### Features
+
+* **api,tim-actions,web,demo:** a param has only a name ([#296](https://github.com/itsnotapt/tim-data-investigate-platform/issues/296)) ([e7105b7](https://github.com/itsnotapt/tim-data-investigate-platform/commit/e7105b734526c9b32c6977fd05adce193860c4ab))
+* **api,web,tim-actions:** a preset's title template replaces Show in title ([#303](https://github.com/itsnotapt/tim-data-investigate-platform/issues/303)) ([0ad4c75](https://github.com/itsnotapt/tim-data-investigate-platform/commit/0ad4c751c5c7d1d39eae62fb4cb5288aa3cb90c3))
+* **api,web,tim-actions:** action run titles from {…} title templates, filled in by the browser, and a Jinja title in an action file is no longer rendered ([#298](https://github.com/itsnotapt/tim-data-investigate-platform/issues/298)) ([bdb21a0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/bdb21a0233487e1fea9f616b973404cedc2869d6))
+* **web:** the Save preset dialog as a table ([#308](https://github.com/itsnotapt/tim-data-investigate-platform/issues/308)) ([cd43706](https://github.com/itsnotapt/tim-data-investigate-platform/commit/cd43706ee149dd1231a44db02582c59ee6fad88e))
+
 ## 2.0.0 (2026-11-11)
 
 
