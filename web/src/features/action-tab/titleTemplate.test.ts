@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillIn, titleColumns } from './titleTemplate';
+import { fillIn } from './titleTemplate';
 
 describe('fillIn', () => {
   it('replaces each placeholder with its param and keeps the plain text', () => {
@@ -79,19 +79,5 @@ describe('fillIn', () => {
 
   it('shows 0 and false, which are set', () => {
     expect(fillIn('{limit} {live}', { params: { limit: 0, live: false } })).toBe('0 false');
-  });
-});
-
-describe('titleColumns', () => {
-  it('is the columns the template names with row., each once', () => {
-    expect(titleColumns('{row.Image} of {row.Pid} on {host}, {row.Image}')).toEqual([
-      'Image',
-      'Pid',
-    ]);
-  });
-
-  it('is none without a template, or when it names no column', () => {
-    expect(titleColumns(undefined)).toEqual([]);
-    expect(titleColumns('Sign-ins for {user}')).toEqual([]);
   });
 });

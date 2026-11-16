@@ -86,7 +86,7 @@ export const fromPreset = (
 export interface Pivot extends OpeningParams {
   action: CatalogueAction;
   preset?: Preset;
-  /** The rows pivoted from, trimmed to the columns the action's title names. */
+  /** The rows pivoted from, whole. */
   pivotRows?: Record<string, unknown>[];
   /** The pivot rows' `id`s, each `null` for a row without one. */
   pivotRowIds: readonly (string | null)[];

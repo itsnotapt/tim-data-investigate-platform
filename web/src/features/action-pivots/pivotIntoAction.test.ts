@@ -151,7 +151,7 @@ describe('pivotIntoAction', () => {
     expect(goTo).toHaveBeenCalledWith(tabId);
   });
 
-  it('keeps the rows trimmed to the columns the action’s title names in the child tab', async () => {
+  it('keeps the rows whole in the child tab', async () => {
     server.use(
       resolving({
         params: { users: ['alice', 'bob'], result: 'Failure' },
@@ -161,7 +161,7 @@ describe('pivotIntoAction', () => {
     );
     const { store, pivot } = setup(FAILURES, {
       ...SIGN_INS,
-      title: 'Sign-ins in {row.App} on {row.Host} for {users}',
+      title: 'Sign-ins in {row.App} for {users}',
     });
 
     const tabId = await pivot([
@@ -170,12 +170,12 @@ describe('pivotIntoAction', () => {
     ]);
 
     expect(store.getState().tabs[tabId!]?.toRun.pivotRows).toEqual([
-      { App: 'Teams' },
-      { App: 'Outlook', Host: 'BGIST-L' },
+      { User: 'alice', Result: 'Failure', App: 'Teams', Secret: 's' },
+      { User: 'bob', Result: 'Failure', App: 'Outlook', Host: 'BGIST-L' },
     ]);
   });
 
-  it('keeps no rows in the child tab when the action’s title names no columns', async () => {
+  it('keeps the rows in the child tab when the action’s title names no columns', async () => {
     server.use(
       resolving({ params: { users: ['alice'], result: 'Failure' }, missing: [], reasons: {} }),
     );
@@ -183,7 +183,9 @@ describe('pivotIntoAction', () => {
 
     const tabId = await pivot([{ User: 'alice', Result: 'Failure' }]);
 
-    expect(store.getState().tabs[tabId!]?.toRun).not.toHaveProperty('pivotRows');
+    expect(store.getState().tabs[tabId!]?.toRun.pivotRows).toEqual([
+      { User: 'alice', Result: 'Failure' },
+    ]);
   });
 
   it('opens a child tab that waits for the params still missing, with their reasons', async () => {
@@ -268,7 +270,7 @@ describe('pivotIntoAction', () => {
     expect(goTo).toHaveBeenCalledWith(tabId);
   });
 
-  it('keeps the rows trimmed to the preset’s title columns in a preset pivot', () => {
+  it('keeps the rows whole in a preset pivot', () => {
     const { store, pivotPreset } = setup(
       { ...FAILURES, title: 'Failures in {row.App}' },
       { ...SIGN_INS, title: 'Sign-ins of {row.User}' },
@@ -283,7 +285,9 @@ describe('pivotIntoAction', () => {
       [{ User: 'alice', App: 'Teams' }],
     );
 
-    expect(store.getState().tabs[tabId]?.toRun.pivotRows).toEqual([{ App: 'Teams' }]);
+    expect(store.getState().tabs[tabId]?.toRun.pivotRows).toEqual([
+      { User: 'alice', App: 'Teams' },
+    ]);
   });
 
   it('opens a preset pivot with the preset’s Id column', () => {

@@ -10,7 +10,6 @@ import { isApiError } from '../../lib/api/errors';
 import { initialParams, stillMissing } from '../action-tab/paramValues';
 import { pillLabels } from '../action-tab/queryParameters';
 import { fromPivot, type OpeningParams, type Pivot } from '../action-tab/model';
-import { titleColumns } from '../action-tab/titleTemplate';
 import { useTabsStore, type TabsStore } from '../tabs';
 
 interface ChildTabInput {
@@ -70,18 +69,6 @@ function openChildTab(
   return tabId;
 }
 
-/** `rows` trimmed to the title columns of `template`, or none when it has none. */
-function pivotRowsFor(
-  template: string | null | undefined,
-  rows: readonly Record<string, unknown>[],
-): Record<string, unknown>[] | undefined {
-  const columns = titleColumns(template);
-  if (columns.length === 0) return undefined;
-  return rows.map((row) =>
-    Object.fromEntries(Object.entries(row).filter(([column]) => columns.includes(column))),
-  );
-}
-
 /** The columns a pivot into `action` reads: its pivot columns and each param's `fromColumns`. */
 function pivotInputColumns(action: CatalogueAction): Set<string> {
   return new Set([
@@ -133,7 +120,7 @@ export async function pivotIntoAction({
     action,
     params,
     missing,
-    pivotRows: pivotRowsFor(action.title, rows),
+    pivotRows: [...rows],
   });
 }
 
@@ -153,6 +140,6 @@ export function pivotIntoPreset({
     action,
     preset,
     ...resolved,
-    pivotRows: pivotRowsFor(preset.title, rows),
+    pivotRows: [...rows],
   });
 }

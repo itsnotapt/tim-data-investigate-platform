@@ -416,6 +416,20 @@ describe('the title', () => {
     expect(runTitleOf(savedOver, TITLED)).toBe('Hosts web01');
   });
 
+  it("of a pivoted tab saved as a preset fills in a pivot row column only the preset's template names", () => {
+    const signIns: CatalogueAction = { ...HOST_TIMELINE, title: 'Sign-ins of {row.User}' };
+    const tab = fromPivot({
+      action: signIns,
+      params: { host: 'web01' },
+      missing: {},
+      pivotRows: [{ User: 'alice', App: 'Teams' }],
+      pivotRowIds: ['e1'],
+    });
+    const saved = savedAsPreset({ ...MY_HOSTS, title: 'Sign-ins in {row.App}' }, signIns)(tab);
+    expect(runTitleOf(tab, signIns)).toBe('Sign-ins of alice');
+    expect(runTitleOf(saved, signIns)).toBe('Sign-ins in Teams');
+  });
+
   it('of a clone of a preset tab is "Copy of" and its source\'s template filled in', () => {
     const tab = fromPreset(MY_HOSTS, TITLED, { params: { host: 'web01' }, missing: {} });
     const clone = cloneOf(ran(tab, 'My hosts: web01'));

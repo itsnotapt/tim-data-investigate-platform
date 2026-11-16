@@ -13,7 +13,7 @@ const PLACEHOLDER = /\{([^{}]*)\}/g;
 const ROW = 'row.';
 
 /** The pivot row column a placeholder names with `row.`, or `null` when it names a param. */
-const rowColumn = (name: string): string | null =>
+export const rowColumn = (name: string): string | null =>
   name.startsWith(ROW) ? name.slice(ROW.length) : null;
 
 /** What a title template is filled in from: a run's params and the tab's pivot rows. */
@@ -70,16 +70,9 @@ export const fillIn = (template: string, { params, pivotRows = [] }: TitleValues
     return shown(column === null ? own(params, name) : rowValue(pivotRows, column));
   });
 
-/**
- * The title columns of `template`: the pivot row columns it names with `row.`, each once, in order.
- * They are the only columns a tab keeps of its pivot rows.
- */
-export const titleColumns = (template: string | null | undefined): string[] => [
-  ...new Set(
-    [...(template ?? '').matchAll(PLACEHOLDER)]
-      .map(([, name = '']) => rowColumn(name))
-      .filter((column) => column !== null),
-  ),
+/** The columns of `rows`, each once, in first-seen order. */
+export const pivotRowColumns = (rows: readonly Record<string, unknown>[]): string[] => [
+  ...new Set(rows.flatMap((row) => Object.keys(row))),
 ];
 
 /** Whether a placeholder naming `name` names something: one of `names`, or `row.` and a column. */
