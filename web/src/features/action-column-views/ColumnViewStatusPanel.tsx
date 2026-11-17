@@ -6,7 +6,9 @@ import { useTabColumnView } from './useTabColumnView';
 export function ColumnViewStatusPanel(props: CustomStatusPanelProps) {
   const { tabId } = (props.context as { columnViews: ColumnViewController }).columnViews;
   const { name, edited } = useTabColumnView(tabId);
-  if (name === null) return null;
+  // Never null: AG Grid leaves out a React status panel that renders no element within a second,
+  // and the tab's column view can take longer than that to be put on the grid.
+  if (name === null) return <span hidden />;
   return (
     <div data-testid="column-view-status" className="ag-status-name-value ag-status-panel">
       <span>View:</span>
