@@ -194,6 +194,45 @@ test('Clone opens a copy of the tab with the same params', async ({ page }) => {
   await expect(page.getByRole('tab', { name: 'Results', exact: true })).toBeVisible();
 });
 
+test('a renamed tab keeps its rename after a reload, and its next run is started with it filled in', async ({
+  page,
+}) => {
+  await openAction(page, ['Development', 'Rows', 'Sign-ins']);
+  await page.getByRole('button', { name: 'users: not set' }).click();
+  const users = page.getByRole('textbox', { name: 'Add users' });
+  await users.fill('alice@example.com');
+  await users.press('Enter');
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Sign-ins', exact: true }).click();
+  const tabTitle = page
+    .getByRole('dialog', { name: 'Rename tab' })
+    .getByRole('combobox', { name: 'Tab title' });
+  await expect(tabTitle).toHaveValue('Sign-ins');
+  await tabTitle.fill('Sign-ins of {users}');
+  await tabTitle.press('Enter');
+  await expect(
+    page.getByRole('heading', { name: 'Sign-ins of [alice@example.com]' }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Sign-ins of [alice@example.com]' }),
+  ).toBeVisible();
+
+  const started = page.waitForRequest(
+    (r) => new URL(r.url()).pathname === '/api/runs' && r.method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Run' }).click();
+  expect((await started).postDataJSON()).toMatchObject({
+    title: 'Sign-ins of [alice@example.com]',
+  });
+  await expect(page.getByRole('tab', { name: 'Results · 2' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Sign-ins of [alice@example.com]' }),
+  ).toBeVisible();
+});
+
 test('the suggested databases open under the Database field, not over it', async ({ page }) => {
   await openAction(page, ['Development', 'Editor', 'KQL editor']);
   await page.getByRole('button', { name: 'connection: not set' }).click();

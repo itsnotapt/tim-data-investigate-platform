@@ -6,7 +6,7 @@ import type {
   PresetInput,
 } from '../../lib/api';
 import { isUnset, paramText } from '../action-tab/paramValues';
-import { pivotRowColumns, unnamedPlaceholders } from '../action-tab/titleTemplate';
+import { pivotRowColumns, unnamedError } from '../action-tab/titleTemplate';
 import {
   isParametersParam,
   parseValue,
@@ -56,12 +56,14 @@ export const rowParams = (action: CatalogueAction): CatalogueParam[] =>
  * The form for saving `params` of `action`. From an existing preset, its name, folder, inputs and
  * title template; otherwise each set value is fixed and each unset one is read from all its
  * columns, or for a query parameter asked for when opened, and the Tab title is the default. A
- * copy of someone else's preset starts private.
+ * tab's `titleTemplate` that differs from that Tab title replaces it, as edited. A copy of someone
+ * else's preset starts private.
  */
 export function initialForm(
   action: CatalogueAction,
   params: Record<string, unknown>,
   source: Preset | undefined,
+  titleTemplate?: string,
 ): PresetForm {
   const inputs = new Map((source?.inputs ?? []).map((i) => [i.name, i]));
   const modes = Object.fromEntries(
@@ -72,7 +74,7 @@ export function initialForm(
       return [p.name, { fixed, columns }];
     }),
   );
-  return {
+  const form: PresetForm = {
     name: source?.name ?? action.name,
     folder: source?.menuPath ?? action.menuPath,
     visibility: source?.owned ? source.visibility : 'private',
@@ -90,6 +92,9 @@ export function initialForm(
     }),
     title: source?.title ?? null,
   };
+  return titleTemplate !== undefined && titleTemplate !== formTitle(action, form)
+    ? { ...form, title: titleTemplate }
+    : form;
 }
 
 /**
@@ -120,13 +125,8 @@ export const titleNames = (action: CatalogueAction, form: PresetForm): Set<strin
  * What's wrong with the Tab title of the form, if anything: the placeholders that name neither a
  * param of the action, a query parameter of the form, nor `row.` and a column.
  */
-export function titleError(action: CatalogueAction, form: PresetForm): string | undefined {
-  const unnamed = unnamedPlaceholders(formTitle(action, form), titleNames(action, form));
-  if (unnamed.length === 0) return undefined;
-  const listed =
-    unnamed.length === 1 ? unnamed[0] : `${unnamed.slice(0, -1).join(', ')} and ${unnamed.at(-1)}`;
-  return `${listed} ${unnamed.length === 1 ? 'names' : 'name'} nothing`;
-}
+export const titleError = (action: CatalogueAction, form: PresetForm): string | undefined =>
+  unnamedError(formTitle(action, form), titleNames(action, form));
 
 /** The params of `action` that neither rows fill nor hold the query parameters. */
 const otherParams = (action: CatalogueAction): CatalogueParam[] =>

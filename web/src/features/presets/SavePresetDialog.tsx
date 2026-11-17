@@ -63,6 +63,8 @@ export interface SavePresetDialogProps {
   idColumn?: string | null;
   /** The pivot rows of the tab it's saved from; none when editing a preset outside a tab. */
   pivotRows?: readonly Record<string, unknown>[];
+  /** The title template of the tab it's saved from, if it has its own. */
+  titleTemplate?: string;
   onClose: () => void;
   /** After a save, with the preset as saved. */
   onSaved?: (preset: Preset) => void;
@@ -277,11 +279,12 @@ export function SavePresetDialog({
   source,
   idColumn = null,
   pivotRows,
+  titleTemplate,
   onClose,
   onSaved,
   store = usePresetsStore,
 }: SavePresetDialogProps) {
-  const [form, setForm] = useState(() => initialForm(action, params, source));
+  const [form, setForm] = useState(() => initialForm(action, params, source, titleTemplate));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ids = useId();

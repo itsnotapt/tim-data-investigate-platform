@@ -102,6 +102,7 @@ A tab that has run shows the title of its latest run: its **Run title**.
   - The action's name is plain text: write it in the template.
   - `title: "Host timeline {host}"` gives "Host timeline BGIST-L".
   - A preset has its own title template, and its placeholders can also name its query parameters.
+  - An analyst can rename a tab by rewriting its title template. The rename takes the same placeholders as a preset's.
 - Every `{…}` is a placeholder. A template has no filters, defaults, conditionals or escapes.
 - A placeholder must name one of the action's params, or be `row.` and a column.
   - Otherwise the action fails to load, with one error per placeholder, such as `a.yaml:6: title: {hostt} names nothing`.
