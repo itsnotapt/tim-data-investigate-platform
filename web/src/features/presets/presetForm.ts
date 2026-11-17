@@ -6,7 +6,7 @@ import type {
   PresetInput,
 } from '../../lib/api';
 import { isUnset, paramText } from '../action-tab/paramValues';
-import { unnamedPlaceholders } from '../action-tab/titleTemplate';
+import { pivotRowColumns, unnamedPlaceholders } from '../action-tab/titleTemplate';
 import {
   isParametersParam,
   parseValue,
@@ -138,12 +138,18 @@ const namedQueryParameters = (form: PresetForm): QueryParameterForm[] =>
 
 /**
  * The placeholders the Tab title suggests, each once, in order: the inputs, the action's other
- * params, the query parameters, then `row.` and each column the From row inputs read.
+ * params, the query parameters, then `row.` and each column of the tab's `pivotRows`, then `row.`
+ * and each column the From row inputs read.
  */
-export function titleSuggestions(action: CatalogueAction, form: PresetForm): string[] {
+export function titleSuggestions(
+  action: CatalogueAction,
+  form: PresetForm,
+  pivotRows: readonly Record<string, unknown>[] = [],
+): string[] {
   const rowInputs = rowParams(action);
   const queryParameters = namedQueryParameters(form);
   const columns = [
+    ...pivotRowColumns(pivotRows),
     ...rowInputs.flatMap((p) => {
       const mode = form.modes[p.name];
       return mode && !mode.fixed ? mode.columns : [];

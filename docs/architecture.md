@@ -308,13 +308,13 @@ A From row query parameter is left unset too. A From row input that is still uns
 - After a run, a tab shows `latest.title`, the title of its latest run, which the browser filled in from the tab's title template and the server stored ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
 - A preset tab, opened from a preset, pivoted into one or saved as one, has the preset's title template as `toRun.titleTemplate`, in place of the action's. A clone's template is "Copy of " and the template.
   - `runTitleOf` in the action tab module fills the template in with the tab's params, the values of its query parameters, the action's defaults for params left unset, and the pivot rows.
-  - A preset pivot keeps only the pivot rows' columns its template names (`pivotRowsFor`).
 - An action's title template can name the rows the tab was pivoted from as `{row.Column}`. `fillIn` in `features/action-tab/titleTemplate.ts` fills the template in with the run's params and those rows ([actions.md](actions.md#run-titles)).
-  - An action or preset pivot keeps the selected rows in the tab's `toRun.pivotRows`, trimmed (`pivotRowsFor`) to the columns the title template names with `row.` (`titleColumns` in `titleTemplate.ts`), or none when it names none. An action pivot uses the action's `title`, a preset pivot the preset's.
+  - An action or preset pivot keeps the selected rows whole in the tab's `toRun.pivotRows`, with every column, whatever the title template names.
   - Each run fills its title in from them, a plain rerun included, and sends it as `title` in `POST /api/runs`. The rows themselves are never sent.
   - Clone copies them.
   - Editing any param drops them. Reset puts back the pivot rows of the latest run, or none when it had none.
-  - The latest run (`latest.pivotRows`) records the pivot rows its title was filled in from.
+  - The latest run (`latest.pivotRows`) records the whole pivot rows its title was filled in from.
+  - A `{row.Column}` the pivot rows lack fills in as `<not set>`.
 - The tree clamps a title to two lines and the app bar to one. Both show the full title in a tooltip.
 
 The action tab has a header in the app bar, a pills bar in the action bar, and inner tabs.
@@ -516,7 +516,13 @@ The dialog shows, top to bottom:
 - Under the table, the other params that are saved as they are, set and neither an input nor the query, as "Also saved: name: value · …".
 - A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. Save is disabled while it is blank or has an error.
   - It highlights each placeholder: a known one in the primary colour, an unknown one as an error (red, wavy underline). Under the field, an error naming each unknown placeholder, such as "{since} names nothing", replaces the helper text.
-  - Typing `{` opens suggestions, filtered by what follows (case-insensitive, anywhere in the name). They are, in order, the preset's inputs, the action's other params (not `parameters`), the query parameters, then `row.` and each column the From row inputs read. Any column can still be typed.
+  - Opened from a tab, the dialog has the tab's pivot rows. A dialog editing a preset from the New menu has none.
+  - A `{row.X}` the tab's pivot rows lack is a warning: the warning colour, with a dotted underline. A tooltip on hover, or while the caret is inside it, says "This tab's rows have no X column. Its tabs show <not set> for it until it's pivoted from rows that have one." A warning does not block Save, and the helper text stays the example.
+  - Typing `{` opens suggestions, filtered by what follows (case-insensitive, anywhere in the name). Any column can still be typed. The suggestions are, in order:
+    - the preset's inputs, the action's other params (not `parameters`), and the query parameters;
+    - `row.` and each column of the tab's pivot rows, in first-seen order;
+    - `row.` and each other column the From row inputs read.
+  - With pivot rows, each `row.` suggestion shows the value it fills in from them, as the title shows it, or "not in this tab's rows".
   - **Enter** or **Tab** inserts the first suggestion, and a click inserts the one clicked. **Escape** closes the list and leaves the dialog open.
   - The helper text is an example, "e.g. <name> for {<first input>} on {<second input>}". The inputs are the params that rows can fill, then the query parameters. With no inputs, they are the action's first two other params.
 - For **Run KQL** and **Run SQL**, a query block with the action's query and line numbers.

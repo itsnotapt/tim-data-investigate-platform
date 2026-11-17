@@ -9,14 +9,15 @@ Tabs opened from the same action or preset need titles that tell them apart. Act
 
 - **One syntax for actions and presets.** A placeholder names a param, such as `{host}`, or a pivot row column, such as `{row.Image}`. A preset's can also name its query parameters. Everything else is plain text, including the action's or preset's name. There are no filters, conditionals, fallbacks or escapes: every `{…}` is a placeholder.
 - **Values as written.** A string is shown as it is, and any other value as JSON; a connection is shown by its name. A list is shown as `[a]`, `[a, b]` or `[a, b, … +3]`. An unset value is shown as `<not set>`: no value, `null`, `""` or `[]`.
-- **`{row.X}`: the pivot rows' column `X`.** It is the value the rows agree on, or their distinct values as a list when they differ. It is `<not set>` when the run has no pivot rows. The columns a title template names are its title columns, the only columns a tab keeps of its pivot rows.
+- **`{row.X}`: the pivot rows' column `X`.** It is the value the rows agree on, or their distinct values as a list when they differ. It is `<not set>` when the run has no pivot rows, or none has a value for `X`.
+- **A tab keeps its pivot rows whole.** Its title template can change after the pivot: a tab saved as a preset takes the preset's, and an analyst can rewrite it. Every column of the rows it was pivoted from stays available to a `{row.X}` the new template names. The instance's pivot row limit bounds how many rows a tab keeps.
 - **An action's title template.** An action file's optional `title:` holds it. An action without one gives its name. It is checked when the action file is loaded: each placeholder must be a param or `row.` and a column.
 - **A preset's title template.** It is saved with the preset, and replaces the Show in title switches. It defaults to the preset's name, then a placeholder for each From row input. Until the owner edits it, it follows the preset's name. Saving rejects a placeholder that names none of the action's params, the preset's query parameters or `row.` and a column. Copy as action file copies it as the action's `title:`, with each placeholder that names a value the file fixes, not a param, replaced by that value.
 - **The browser fills it in, the server stores the result.** The browser sends the filled-in title with each run, and the server stores it as the run's title, for share links. A run created without a title, or with a blank one, is titled with the action's name. The server cuts off titles past a 1,000-character safety limit. Pivot rows stay in the browser.
 - **Display text only.** A title is never sent to a connection. Params are still bound and never templated into a query ([0019](0019-params-are-bound.md)).
 - **Truncated where it is shown.** The tree clamps a title to two lines and the app bar to one, each with the full title in a tooltip.
 
-Decided by the user, after prototyping the Save preset dialog on the `prototype/save-preset-dialog` branch. Related: [0017](0017-actions-from-providers.md), [0019](0019-params-are-bound.md), [0030](0030-a-param-has-only-a-name.md).
+Decided by the user, after prototyping the Save preset dialog on the `prototype/save-preset-dialog` branch. Keeping pivot rows whole was decided on 2026-11-14, once a tab saved as a preset showed `<not set>` for a column its earlier template hadn't named. Related: [0017](0017-actions-from-providers.md), [0019](0019-params-are-bound.md), [0030](0030-a-param-has-only-a-name.md).
 
 ## Considered Options
 
@@ -28,10 +29,13 @@ Decided by the user, after prototyping the Save preset dialog on the `prototype/
 | The server fills in titles too | Share-link tabs and runs created through the API get filled-in titles | The substitution is implemented twice and has to match; pivot rows are sent to the server for every run |
 | An unset value shown as nothing | Matches the titles before this decision | A title hides that its run had no value, and leaves dangling words such as "on" |
 | A list shown as `a, b +3` | Shorter | Reads as prose rather than as a list value |
+| A tab keeps only its title columns: the pivot row columns its template names | Smaller tabs; made sense while pivot rows were sent to the server with every run | A template changed after the pivot, by saving the tab as a preset or rewriting its title, shows `<not set>` for a column the old one didn't name, until the analyst pivots again |
+| The tab re-reads its pivot rows from the parent's results when its template changes | Tabs stay small | Fails once the parent tab is closed or rerun, and for pivot rows without an `id` |
 
 ## Consequences
 
 - `tim-actions` no longer depends on `jinja2`, and an action type can no longer override how its titles render.
 - Paths are shown in full: `{row.Image}` gives `C:\Windows\System32\cmd.exe`, not `cmd.exe`.
 - A tab opened from the New menu has no pivot rows, so its `{row.X}` placeholders show `<not set>`.
+- A pivoted tab holds a copy of its pivot rows, up to the pivot row limit, even after its parent tab is closed.
 - A run's title is text the browser chose. It is only ever shown as text.

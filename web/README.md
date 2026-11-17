@@ -314,6 +314,7 @@ One more piece lives beside it.
     - The preview lists every param of the action. With query parameters it shows the declare statement (`useDeclareStatement`) before the query, and a line per query parameter. A fixed query parameter's value shows as a Kusto literal: `datetime(…)`, `timespan(…)`, `dynamic(…)`, and the others as typed.
     - After saving on an action tab of Run KQL, the tab takes the declared query parameters: fixed values, and From row ones keep the tab's value for them or are left empty.
     - A Tab title field for the preset's title template. It starts as the name plus a `{name}` placeholder per From row input, follows the Name field and the Fixed and From row choices until edited, and shows an error for each placeholder that names nothing. Save is disabled while it is blank or has an error.
+    - Given the tab's pivot rows (`pivotRows`), the Tab title warns of each `{row.X}` they lack, without blocking Save. Its `row.` suggestions list their columns first, each with its filled-in value.
     - A Query parameters section adds a parameter (its name suggested from names in the query), picks its type, and makes it Fixed with a value or From row with columns.
 - Search: case-insensitive. For actions it matches name, folders and key; for presets, name, folders, action, owner and From columns. It expands the groups.
 - The Welcome page's "Get Started" button is a `NewQueryMenu`.
@@ -389,7 +390,7 @@ The tab that runs an action. How it behaves is in [architecture.md](../docs/arch
 - `RunPanel.tsx`: the Run tab: status, start, duration, run id, the tab's error, details, columns and params. `runText.ts` words the status and durations.
 - `model.ts`: the action tab module. It is the only writer of a tab's content, with pure transitions `(tab: TabContent) => TabContent` and questions about a tab; [architecture.md](../docs/architecture.md#state-and-tab-model) lists them.
   - `title` is the title a tab shows, in the tree and the app bar (one line, full title in a tooltip). Until the tab runs it is the stored title. After a run it is `latest.title`, its latest run's title.
-  - `runTitleOf` fills in the title of a run from the tab's title template (a preset's, else the action's), its params, query parameter values, the action's defaults and the pivot rows.
+  - `runTitleOf` fills in the title of a run from the tab's title template (a preset's, else the action's), its params, query parameter values, the action's defaults and the whole pivot rows.
   - `cloneOf` makes the sibling "Copy of <title>" with the same params.
   - `stillNeeded` lists the params a pivot or preset left missing that are still unset on the pills.
 - `actionRuns.ts`:

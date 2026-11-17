@@ -117,7 +117,7 @@ A tab that has run shows the title of its latest run: its **Run title**.
   - When they differ, it is their distinct values as a list, in first-seen order, leaving out `null` and `""`.
   - With no pivot rows, or none with a value, it is `<not set>`.
   - `title: "Process tree of {row.Image} on {host}"` gives "Process tree of C:\Windows\System32\cmd.exe on BGIST-L". A path shows in full.
-- The columns a template names with `row.` are the template's **title columns**. A tab keeps only those columns of its pivot rows.
+- A tab keeps its pivot rows whole, so a preset saved from it can name any of their columns.
 - The catalogue gives the template as the action's `title` ([api.md](api.md#get-apiinstance)). `POST /api/runs` takes the filled-in title as `title`.
 - The server stores the title as the run's title, and share links show it. A missing or blank title is the action's name. A title past 1,000 characters is cut to 1,000, ending in "…".
 - A sink has no title template.

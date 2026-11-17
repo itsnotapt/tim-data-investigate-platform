@@ -37,7 +37,7 @@ export interface TabToRun {
    */
   titleTemplate?: string;
   /**
-   * The rows the tab was pivoted from, each with only its title columns, for its runs' titles.
+   * The rows the tab was pivoted from, whole, for its runs' titles.
    * Editing a param drops them; Reset puts back the latest run's.
    */
   pivotRows?: Record<string, unknown>[];
@@ -51,7 +51,7 @@ export interface TabLatestRun {
   run: Run | null;
   /** The plain params it started with. */
   params: Record<string, unknown> | null;
-  /** The pivot rows its title was filled in from, which Reset puts back with its params. */
+  /** The whole pivot rows its title was filled in from, which Reset puts back with its params. */
   pivotRows?: Record<string, unknown>[];
   /** Its title, kept while the next run starts. */
   title: string | null;

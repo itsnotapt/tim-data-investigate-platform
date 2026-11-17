@@ -226,6 +226,20 @@ describe('ActionTab', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Sign-ins alice, bob');
   });
 
+  it("suggests the tab's pivot row columns in Save…'s Tab title, with the values they fill in", async () => {
+    setup({ toRun: { pivotRows: [{ User: 'alice', App: 'Teams' }] } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Save preset' });
+    const tabTitle = within(dialog).getByRole('combobox', { name: 'Tab title' });
+    await userEvent.clear(tabTitle);
+    await userEvent.type(tabTitle, 'Sign-ins in {{row.A');
+
+    const placeholders = within(screen.getByRole('listbox', { name: 'Placeholders' }));
+    expect(placeholders.getByRole('option', { name: '{row.App}' })).toHaveAccessibleDescription(
+      'Teams',
+    );
+  });
+
   it('puts Run and the pills in the action bar', () => {
     setup();
     const actionBar = within(screen.getByRole('region', { name: 'Action bar' }));

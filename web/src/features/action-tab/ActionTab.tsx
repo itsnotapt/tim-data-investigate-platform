@@ -475,6 +475,7 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
           params={toRun.params}
           source={saving.source}
           idColumn={linkIdColumn}
+          pivotRows={toRun.pivotRows}
           onClose={() => setSaving(null)}
           onSaved={saved}
         />

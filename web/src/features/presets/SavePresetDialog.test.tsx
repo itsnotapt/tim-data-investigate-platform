@@ -84,6 +84,7 @@ function setup(
   source?: Preset,
   presets: Preset[] = [],
   onClose: () => void = () => {},
+  pivotRows?: Record<string, unknown>[],
 ) {
   const saved: PresetFields[] = [];
   const api = {
@@ -105,6 +106,7 @@ function setup(
       params={params}
       idColumn={idColumn}
       source={source}
+      pivotRows={pivotRows}
       onClose={onClose}
       store={store}
     />,
@@ -113,11 +115,14 @@ function setup(
 }
 
 const tabTitle = () => screen.getByRole('combobox', { name: 'Tab title' });
+const placeholders = () => screen.getByRole('listbox', { name: 'Placeholders' });
 /** The placeholders the Tab title suggests, in order. */
 const suggestions = () =>
-  within(screen.getByRole('listbox', { name: 'Placeholders' }))
+  within(placeholders())
     .getAllByRole('option')
-    .map((o) => o.textContent);
+    .map((o) => o.getAttribute('aria-label'));
+/** The Tab title's suggestion of the placeholder `name`, as written. */
+const suggestion = (name: string) => within(placeholders()).getByRole('option', { name });
 /** The row of the inputs table for the param `name`. */
 const inputRow = (name: string) => screen.getByRole('row', { name });
 /** Picks `option` ('Fixed' or 'From row') in the Source dropdown of `row`. */
@@ -436,6 +441,103 @@ describe('SavePresetDialog Tab title', () => {
       '{row.User}',
       '{row.UserPrincipalName}',
     ]);
+  });
+
+  /** The dialog opened from a tab pivoted from `rows`. */
+  const setupPivoted = (rows: Record<string, unknown>[]) =>
+    setup(huntValues, hunt, null, undefined, [], undefined, rows);
+
+  it('suggests the tab’s pivot row columns with the values they fill in, then the From row columns its rows lack', async () => {
+    setupPivoted([
+      { User: 'alice', App: 'Teams' },
+      { User: 'bob', App: 'Teams', Port: 443 },
+    ]);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt for {{');
+
+    expect(suggestions()).toEqual([
+      '{users}',
+      '{host}',
+      '{connection}',
+      '{database}',
+      '{kql}',
+      '{Since}',
+      '{Upn}',
+      '{row.User}',
+      '{row.App}',
+      '{row.Port}',
+      '{row.UserPrincipalName}',
+    ]);
+    expect(suggestion('{users}')).not.toHaveAccessibleDescription();
+    expect(suggestion('{row.User}')).toHaveAccessibleDescription('[alice, bob]');
+    expect(suggestion('{row.App}')).toHaveAccessibleDescription('Teams');
+    expect(suggestion('{row.Port}')).toHaveAccessibleDescription('443');
+    expect(suggestion('{row.UserPrincipalName}')).toHaveAccessibleDescription(
+      "not in this tab's rows",
+    );
+  });
+
+  it('suggests the From row columns with no values when it has no pivot rows', async () => {
+    setup(huntValues, hunt);
+    await userEvent.clear(tabTitle());
+    await userEvent.type(tabTitle(), 'Hunt on {{row.');
+
+    expect(suggestion('{row.User}')).not.toHaveAccessibleDescription();
+    expect(suggestion('{row.UserPrincipalName}')).not.toHaveAccessibleDescription();
+  });
+
+  const noComputer =
+    "This tab's rows have no Computer column. Its tabs show <not set> for it until it's pivoted from rows that have one.";
+
+  it('warns of a row column the tab’s pivot rows lack, on hover, yet saves it', async () => {
+    const { saved, dialog } = setupPivoted([{ User: 'alice', App: 'Teams' }]);
+    await retype(tabTitle(), 'Hunt on {row.Computer} in {row.App}');
+
+    const { palette } = createTheme();
+    const missing = within(dialog).getByText('{row.Computer}');
+    expect(missing).toHaveStyle({ color: palette.warning.main });
+    expect(within(dialog).getByText('{row.App}')).toHaveStyle({ color: palette.primary.main });
+    expect(tabTitle()).not.toBeInvalid();
+    expect(tabTitle()).toHaveAccessibleDescription(/^e\.g\. /);
+
+    await userEvent.hover(missing);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(noComputer);
+    await userEvent.unhover(missing);
+    await vi.waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toMatchObject({ title: 'Hunt on {row.Computer} in {row.App}' });
+  });
+
+  it('warns of a row column the tab’s pivot rows lack while the caret is in it', async () => {
+    setupPivoted([{ User: 'alice' }]);
+    await retype(tabTitle(), 'Hunt on {row.Computer}');
+
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(noComputer);
+    await userEvent.keyboard('{ArrowRight}');
+    await vi.waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+  });
+
+  it('still refuses a placeholder that names nothing when it has pivot rows', async () => {
+    const { dialog } = setupPivoted([{ User: 'alice' }]);
+    await retype(tabTitle(), 'Hunt for {user}');
+
+    expect(tabTitle()).toHaveAccessibleDescription('{user} names nothing');
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('gives no warning of a row column without pivot rows', async () => {
+    const { dialog } = setup(huntValues, hunt);
+    await retype(tabTitle(), 'Hunt on {row.Computer}');
+
+    const { palette } = createTheme();
+    expect(within(dialog).getByText('{row.Computer}')).toHaveStyle({
+      color: palette.primary.main,
+    });
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
   it('filters the suggestions by what follows the {, and closes them with the }', async () => {

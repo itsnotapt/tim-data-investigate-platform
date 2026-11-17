@@ -61,6 +61,8 @@ export interface SavePresetDialogProps {
   source?: Preset;
   /** The Id column to save: the tab's, or the preset's when editing it, when it isn't the action's. */
   idColumn?: string | null;
+  /** The pivot rows of the tab it's saved from; none when editing a preset outside a tab. */
+  pivotRows?: readonly Record<string, unknown>[];
   onClose: () => void;
   /** After a save, with the preset as saved. */
   onSaved?: (preset: Preset) => void;
@@ -274,6 +276,7 @@ export function SavePresetDialog({
   params,
   source,
   idColumn = null,
+  pivotRows,
   onClose,
   onSaved,
   store = usePresetsStore,
@@ -395,7 +398,8 @@ export function SavePresetDialog({
             value={formTitle(action, form)}
             onChange={(title) => setForm((f) => ({ ...f, title }))}
             names={titleNames(action, form)}
-            suggestions={titleSuggestions(action, form)}
+            suggestions={titleSuggestions(action, form, pivotRows)}
+            pivotRows={pivotRows}
             example={titleExample(action, form)}
             error={tabTitleError}
           />
