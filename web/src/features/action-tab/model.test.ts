@@ -20,6 +20,7 @@ import {
   linkIdColumnOf,
   paramEdited,
   paramsReset,
+  renamed,
   resumed,
   runFailed,
   runRefused,
@@ -32,6 +33,7 @@ import {
   runTitleOf,
   stillNeeded,
   titleOf,
+  titleTemplateOf,
 } from './model';
 
 const HOST_TIMELINE: CatalogueAction = {
@@ -436,6 +438,78 @@ describe('the title', () => {
     expect(titleOf(clone)).toBe('Copy of My hosts');
     const title = runTitleOf(paramEdited('host', 'web03')(clone), TITLED);
     expect(title).toBe('Copy of My hosts: web03');
+  });
+});
+
+describe('a rename', () => {
+  const TITLED: CatalogueAction = { ...HOST_TIMELINE, title: 'Timeline of {host}' };
+
+  it("starts from the tab's own template: its preset's, or an earlier rename's", () => {
+    const ofPreset = fromPreset(MY_HOSTS, TITLED, { params: {}, missing: {} });
+    expect(titleTemplateOf(ofPreset, TITLED)).toBe('My hosts: {host}');
+    const twice = renamed('Hosts {host}', TITLED)(fromAction(TITLED, {}));
+    expect(titleTemplateOf(twice, TITLED)).toBe('Hosts {host}');
+  });
+
+  it("starts from the action's title template when the tab has none", () => {
+    expect(titleTemplateOf(fromAction(TITLED, {}), TITLED)).toBe('Timeline of {host}');
+  });
+
+  it("starts from the action's name when neither has a template", () => {
+    expect(titleTemplateOf(fromAction(HOST_TIMELINE, {}), HOST_TIMELINE)).toBe('Host timeline');
+  });
+
+  it("starts from the tab's stored title when its action is gone and it has no template", () => {
+    expect(titleTemplateOf(fromAction(HOST_TIMELINE, {}), undefined)).toBe('Host timeline');
+  });
+
+  it('titles a tab that has not run with its template filled in from its params and their defaults', () => {
+    const tab = renamed(
+      '{host} last {limit}',
+      HOST_TIMELINE,
+    )(fromAction(HOST_TIMELINE, { host: 'web01' }));
+    expect(titleOf(tab)).toBe('web01 last 10');
+  });
+
+  it("titles a tab that has run with its template filled in from its latest run's params and pivot rows", () => {
+    const pivoted = fromPivot({
+      action: TITLED,
+      params: { host: 'web01' },
+      missing: {},
+      pivotRows: [{ User: 'alice' }],
+      pivotRowIds: ['e1'],
+    });
+    const ranThenEdited = paramEdited(
+      'host',
+      'web02',
+    )(runStarted({ ...RUNNING, title: 'Timeline of web01' }, pivoted.toRun)(pivoted));
+    const tab = renamed('{row.User} on {host}', TITLED)(ranThenEdited);
+    expect(titleOf(tab)).toBe('alice on web01');
+  });
+
+  it('is the title its next run is started with, filled in from the params it runs with', () => {
+    const tab = renamed('{host} last {limit}', TITLED)(fromAction(TITLED, { host: 'web01' }));
+    expect(runTitleOf(paramEdited('host', 'web02')(tab), TITLED)).toBe('web02 last 10');
+  });
+
+  it("names a tab's own params when its action is gone, with no defaults", () => {
+    const tab = renamed('{host} last {limit}', undefined)(fromAction(TITLED, { host: 'web01' }));
+    expect(titleOf(tab)).toBe('web01 last <not set>');
+  });
+
+  it('is kept by Reset', () => {
+    const ran = runStarted(RUNNING, { params: { host: 'web01', limit: 10 } })(
+      fromAction(TITLED, { host: 'web01' }),
+    );
+    const tab = paramsReset(paramEdited('host', 'web02')(renamed('Hosts {host}', TITLED)(ran)));
+    expect(tab.toRun.titleTemplate).toBe('Hosts {host}');
+    expect(titleOf(tab)).toBe('Hosts web01');
+  });
+
+  it('is cloned as "Copy of" and its template', () => {
+    const clone = cloneOf(renamed('Hosts {host}', TITLED)(fromAction(TITLED, { host: 'web01' })));
+    expect(clone.toRun.titleTemplate).toBe('Copy of Hosts {host}');
+    expect(titleOf(clone)).toBe('Copy of Hosts web01');
   });
 });
 

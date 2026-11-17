@@ -218,12 +218,10 @@ describe('ActionTab', () => {
       expect(appBar.getByRole('button', { name })).toBeInTheDocument();
   });
 
-  it('titles the app bar by the latest run, in full in a tooltip', async () => {
+  it('titles the app bar by the latest run', () => {
     setup({ latest: { title: 'Sign-ins alice, bob' } });
     const appBar = within(screen.getByRole('banner'));
-    const heading = appBar.getByRole('heading', { name: 'Sign-ins alice, bob' });
-    await userEvent.hover(heading);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Sign-ins alice, bob');
+    expect(appBar.getByRole('heading', { name: 'Sign-ins alice, bob' })).toBeInTheDocument();
   });
 
   it("suggests the tab's pivot row columns in Save…'s Tab title, with the values they fill in", async () => {
@@ -238,6 +236,164 @@ describe('ActionTab', () => {
     expect(placeholders.getByRole('option', { name: '{row.App}' })).toHaveAccessibleDescription(
       'Teams',
     );
+  });
+
+  describe('Rename', () => {
+    const titleButton = (name = 'Sign-ins for alice') =>
+      within(screen.getByRole('banner')).getByRole('button', { name });
+    const renameBox = () => screen.getByRole('dialog', { name: 'Rename tab' });
+    const tabTitle = () => within(renameBox()).getByRole('combobox', { name: 'Tab title' });
+
+    it('is the title in the app bar, with a Rename tooltip, reached with Tab and opened with Enter', async () => {
+      setup();
+      await userEvent.tab();
+      expect(titleButton()).toHaveFocus();
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('Rename');
+
+      await userEvent.keyboard('{Enter}');
+      expect(tabTitle()).toHaveValue('Sign-ins');
+    });
+
+    /** Types `text` over the Tab title, opening the rename box of the tab titled `title` first. */
+    const retype = async (text: string, title?: string) => {
+      if (!screen.queryByRole('dialog', { name: 'Rename tab' })) {
+        await userEvent.click(titleButton(title));
+      }
+      await userEvent.clear(tabTitle());
+      await userEvent.paste(text);
+    };
+    const renameButton = () => within(renameBox()).getByRole('button', { name: 'Rename' });
+    const heading = (name: string) =>
+      within(screen.getByRole('banner')).getByRole('heading', { name });
+
+    it("opens on a click with the tab's own template, its placeholders as written", async () => {
+      setup({ toRun: { titleTemplate: 'Sign-ins of {users}' } });
+      await userEvent.click(titleButton());
+      expect(tabTitle()).toHaveValue('Sign-ins of {users}');
+    });
+
+    it("opens with the action's title template when the tab has none", async () => {
+      useInstanceStore.setState({
+        instance: { ...instance, actions: [{ ...action, title: 'Sign-ins for {users}' }] },
+      });
+      setup();
+      await userEvent.click(titleButton());
+      expect(tabTitle()).toHaveValue('Sign-ins for {users}');
+    });
+
+    it('says what the title shows as while it is typed', async () => {
+      setup();
+      await retype('Users {users}');
+      expect(renameBox()).toHaveTextContent('Shows as: Users [alice]');
+      await userEvent.paste(' only');
+      expect(renameBox()).toHaveTextContent('Shows as: Users [alice] only');
+    });
+
+    it('cannot rename to a blank title, or one with a placeholder that names nothing', async () => {
+      setup();
+      await retype(' ');
+      expect(renameButton()).toBeDisabled();
+      await retype('Sign-ins of {user}');
+      expect(tabTitle()).toHaveAccessibleDescription('{user} names nothing');
+      expect(renameButton()).toBeDisabled();
+    });
+
+    it("warns of a row column the tab's pivot rows lack, yet renames to it", async () => {
+      setup({ toRun: { pivotRows: [{ User: 'alice' }] } });
+      await retype('Sign-ins on {row.Computer}');
+      await userEvent.hover(within(renameBox()).getByText('{row.Computer}'));
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(
+        "This tab's rows have no Computer column.",
+      );
+      await userEvent.click(renameButton());
+      expect(heading('Sign-ins on <not set>')).toBeInTheDocument();
+    });
+
+    it('renames a tab that has not run at once, filled in from its params, without running it', async () => {
+      const { tabId, onRun } = setup();
+      await retype('Users {users}');
+      await userEvent.click(renameButton());
+
+      expect(heading('Users [alice]')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Rename tab' })).not.toBeInTheDocument();
+      expect(useTabsStore.getState().tabs[tabId]?.toRun.titleTemplate).toBe('Users {users}');
+      expect(onRun).not.toHaveBeenCalled();
+    });
+
+    it("renames a tab that has run on Enter, filled in from its latest run's params", async () => {
+      setup(
+        { latest: { run: succeeded, params: { users: ['bob'] }, title: 'Sign-ins for bob' } },
+        'dev-sign-ins',
+        { params: { users: ['carol'] } },
+      );
+      await retype('Users {users}', 'Sign-ins for bob');
+      await userEvent.keyboard('{Enter}');
+      expect(heading('Users [bob]')).toBeInTheDocument();
+    });
+
+    it('inserts a placeholder on Enter and closes the list on Escape, while the list is open', async () => {
+      setup();
+      await retype('Users ');
+      await userEvent.type(tabTitle(), '{{us');
+      await userEvent.keyboard('{Enter}');
+      expect(tabTitle()).toHaveValue('Users {users}');
+
+      await userEvent.type(tabTitle(), ' {{');
+      expect(screen.getByRole('listbox', { name: 'Placeholders' })).toBeInTheDocument();
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('listbox', { name: 'Placeholders' })).not.toBeInTheDocument();
+      expect(renameBox()).toBeInTheDocument();
+      // The app bar is hidden from the accessibility tree while the box is open.
+      expect(
+        screen.getByRole('heading', { name: 'Sign-ins for alice', hidden: true }),
+      ).toBeInTheDocument();
+    });
+
+    it.each([
+      ['Escape', () => userEvent.keyboard('{Escape}')],
+      [
+        'Cancel',
+        () => userEvent.click(within(renameBox()).getByRole('button', { name: 'Cancel' })),
+      ],
+      [
+        'a click away',
+        // The box's backdrop, which takes a click anywhere outside it.
+        () =>
+          userEvent.click(
+            document.querySelector<HTMLElement>('.MuiPopover-root .MuiBackdrop-root')!,
+          ),
+      ],
+    ])('leaves the tab as it was on %s', async (_, leave) => {
+      const { tabId } = setup();
+      const before = useTabsStore.getState().tabs[tabId];
+      await retype('Users {users}');
+      await leave();
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Rename tab' })).not.toBeInTheDocument(),
+      );
+      expect(heading('Sign-ins for alice')).toBeInTheDocument();
+      expect(useTabsStore.getState().tabs[tabId]).toEqual(before);
+    });
+
+    it("starts Save…'s Tab title from the rename", async () => {
+      setup();
+      await retype('Users {users}');
+      await userEvent.click(renameButton());
+      await userEvent.click(screen.getByRole('button', { name: 'Save…' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Save preset' });
+      expect(within(dialog).getByRole('combobox', { name: 'Tab title' })).toHaveValue(
+        'Users {users}',
+      );
+    });
+
+    it('renames a tab whose action is gone, its placeholders naming its own params', async () => {
+      setup({}, 'gone', { params: { host: 'web01' } });
+      expect(titleButton()).toBeEnabled();
+      await retype('Host {host}');
+      await userEvent.click(renameButton());
+      expect(heading('Host web01')).toBeInTheDocument();
+    });
   });
 
   it('puts Run and the pills in the action bar', () => {

@@ -135,10 +135,10 @@ function MissingColumn({
 }
 
 /**
- * The Tab title of the Save preset dialog: a title template, its placeholders highlighted, the
- * unknown ones as errors and, given the tab's pivot rows, a `{row.X}` they lack as a warning.
- * Typing `{` suggests placeholders, filtered by what follows it: Enter or Tab inserts the first,
- * Escape closes the list.
+ * The Tab title of the Save preset dialog and the rename box: a title template, its placeholders
+ * highlighted, the unknown ones as errors and, given the tab's pivot rows, a `{row.X}` they lack as
+ * a warning. Typing `{` suggests placeholders, filtered by what follows it: Enter or Tab inserts
+ * the first, Escape closes the list.
  */
 export function TitleTemplateField({
   value,

@@ -32,8 +32,9 @@ export interface TabToRun {
   /** The preset the tab was opened from or last saved as, which Save… offers to update. */
   presetId?: string;
   /**
-   * A preset tab's title template, as the preset had it when the tab opened from it or was saved
-   * as it; its runs are titled from it in place of the action's.
+   * The tab's own title template: its preset's, as the preset had it when the tab opened from it
+   * or was saved as it, or the analyst's rename. Its runs are titled from it in place of the
+   * action's.
    */
   titleTemplate?: string;
   /**
@@ -53,7 +54,7 @@ export interface TabLatestRun {
   params: Record<string, unknown> | null;
   /** The whole pivot rows its title was filled in from, which Reset puts back with its params. */
   pivotRows?: Record<string, unknown>[];
-  /** Its title, kept while the next run starts. */
+  /** Its title, kept while the next run starts; a rename fills it in again. */
   title: string | null;
 }
 

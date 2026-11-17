@@ -129,11 +129,15 @@ One execution of an action by the server for the analyst who started it. It ends
 _Avoid_: action run, query run, job, execution
 
 **Run title**:
-The title of a tab that has run: its action's or preset's title template, filled in with the values its latest run was for. An action without a title template gives its name; a clone's starts with "Copy of" and its name.
+The title of a tab that has run: its title template, filled in with the values its latest run was for. An action without a title template gives its name; a clone's starts with "Copy of" and its name.
 _Avoid_: tab name, action run title
 
+**Rename**:
+Rewriting a tab's title template. The tab's title changes at once, filled in with the values its latest run was for, or its params before it has run.
+_Avoid_: retitle, edit title
+
 **Title template**:
-The text an action or preset gives its run titles, with `{…}` placeholders for the values of its params, its query parameters and its pivot rows' columns.
+The text a tab's run titles are made from, with `{…}` placeholders for the values of its params, its query parameters and its pivot rows' columns. A tab takes its action's or preset's, until the analyst renames it.
 _Avoid_: title format, Show in title
 
 **Run details**:

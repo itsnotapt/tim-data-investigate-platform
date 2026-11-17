@@ -217,18 +217,14 @@ export function linkIdColumnOf(
 export const titleOf = (tab: TabContent): string => tab.latest.title ?? tab.title;
 
 /**
- * The title a run of the tab, of `action`, is started with: the tab's title template, else the
- * action's, filled in from its params and pivot rows. An unset param has its default, as the run
- * gets it, and a query parameter its value in `parameters`. None without a template, so the run is
- * titled with the action's name.
+ * `template` filled in for a run of `action` with `params` and `pivotRows`: an unset param has its
+ * default, as the run gets it, and a query parameter its value in `parameters`.
  */
-export function runTitleOf(
-  tab: TabContent,
+function filledIn(
+  template: string,
+  { params, pivotRows }: Pick<TabToRun, 'params' | 'pivotRows'>,
   action: CatalogueAction | undefined,
-): string | undefined {
-  const template = tab.toRun.titleTemplate ?? action?.title;
-  if (!template) return undefined;
-  const { params, pivotRows } = tab.toRun;
+): string {
   const defaults = (action?.params ?? [])
     .filter((p) => p.default !== undefined && isUnset(params[p.name]))
     .map((p): [string, unknown] => [p.name, p.default]);
@@ -243,6 +239,56 @@ export function runTitleOf(
   };
   return fillIn(template, { params: values, ...(pivotRows && { pivotRows }) });
 }
+
+/**
+ * The title a run of the tab, of `action`, is started with: the tab's title template, else the
+ * action's, filled in from its params and pivot rows. None without a template, so the run is
+ * titled with the action's name.
+ */
+export function runTitleOf(
+  tab: TabContent,
+  action: CatalogueAction | undefined,
+): string | undefined {
+  const template = tab.toRun.titleTemplate ?? action?.title;
+  return template ? filledIn(template, tab.toRun, action) : undefined;
+}
+
+/**
+ * The tab's title template as written, which a rename starts from: its own (its preset's, or an
+ * earlier rename's), else its action's, else its action's name, or its stored title when its
+ * action is gone.
+ */
+export const titleTemplateOf = (tab: TabContent, action: CatalogueAction | undefined): string =>
+  tab.toRun.titleTemplate ?? action?.title ?? action?.name ?? tab.title;
+
+/** What the tab's title is filled in from: its latest run's params and pivot rows, or its own. */
+export function titleValuesOf(tab: TabContent): Pick<TabToRun, 'params' | 'pivotRows'> {
+  const { params, pivotRows } = tab.latest;
+  return params ? { params, ...(pivotRows && { pivotRows }) } : tab.toRun;
+}
+
+/** `template` filled in as the tab of `action` shows it, from `titleValuesOf`. */
+export const shownTitle = (
+  tab: TabContent,
+  template: string,
+  action: CatalogueAction | undefined,
+): string => filledIn(template, titleValuesOf(tab), action);
+
+/**
+ * The tab of `action` renamed `template`: it is its title template, and the tab is titled with it
+ * filled in as it shows it.
+ */
+export const renamed =
+  (template: string, action: CatalogueAction | undefined): Transition =>
+  (tab) => {
+    const title = shownTitle(tab, template, action);
+    return {
+      ...tab,
+      title,
+      toRun: { ...tab.toRun, titleTemplate: template },
+      latest: tab.latest.params ? { ...tab.latest, title } : tab.latest,
+    };
+  };
 
 /**
  * The params the tab still needs: those a pivot or preset left missing that are still unset, by

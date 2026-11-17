@@ -85,6 +85,7 @@ function setup(
   presets: Preset[] = [],
   onClose: () => void = () => {},
   pivotRows?: Record<string, unknown>[],
+  titleTemplate?: string,
 ) {
   const saved: PresetFields[] = [];
   const api = {
@@ -107,6 +108,7 @@ function setup(
       idColumn={idColumn}
       source={source}
       pivotRows={pivotRows}
+      titleTemplate={titleTemplate}
       onClose={onClose}
       store={store}
     />,
@@ -380,6 +382,44 @@ describe('SavePresetDialog Tab title', () => {
 
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]).toMatchObject({ name: 'Also mine', title: 'Sign-ins of {users} on {hosts}' });
+  });
+
+  it("of a renamed tab is the tab's template, which no longer follows the name", async () => {
+    const values = { users: ['alice'], hosts: [] };
+    const { dialog } = setup(
+      values,
+      signIns,
+      null,
+      undefined,
+      [],
+      () => {},
+      undefined,
+      'On {hosts}',
+    );
+    expect(tabTitle()).toHaveValue('On {hosts}');
+    await retype(within(dialog).getByRole('textbox', { name: 'Name' }), 'My sign-ins');
+    expect(tabTitle()).toHaveValue('On {hosts}');
+  });
+
+  it("of a renamed preset tab is the tab's template, not the preset's", () => {
+    setup({ users: [], hosts: [] }, signIns, null, mine, [], () => {}, undefined, 'On {hosts}');
+    expect(tabTitle()).toHaveValue('On {hosts}');
+  });
+
+  it("follows the name while the tab's template is the one it would start with", async () => {
+    const values = { users: ['alice'], hosts: [] };
+    const { dialog } = setup(
+      values,
+      signIns,
+      null,
+      undefined,
+      [],
+      () => {},
+      undefined,
+      'Sign-ins {hosts}',
+    );
+    await retype(within(dialog).getByRole('textbox', { name: 'Name' }), 'My sign-ins');
+    expect(tabTitle()).toHaveValue('My sign-ins {hosts}');
   });
 
   it('must not be blank', async () => {

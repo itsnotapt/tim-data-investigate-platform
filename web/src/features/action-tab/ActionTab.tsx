@@ -43,14 +43,15 @@ import {
   linkIdColumnOf,
   paramEdited,
   paramsReset,
+  renamed,
   savedAsPreset,
   stillNeeded,
-  titleOf,
 } from './model';
 import { datetimeText, hasPill } from './paramValues';
 import { PillsBar } from './PillsBar';
 import { pillLabels, pills, queryParameters } from './queryParameters';
 import { RunPanel } from './RunPanel';
+import { TabTitle } from './TabTitle';
 import { useResults } from './results';
 import { durationText, outcomeText } from './runText';
 import { useElapsed } from './useElapsed';
@@ -394,7 +395,6 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
     </Button>
   );
 
-  const title = titleOf(tab);
   return (
     <Box>
       {onShow && (
@@ -415,11 +415,15 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
             <Typography color="text.secondary" aria-hidden>
               ›
             </Typography>
-            <Tooltip title={title}>
-              <Typography variant="subtitle1" component="h2" noWrap sx={{ fontWeight: 500 }}>
-                {title}
-              </Typography>
-            </Tooltip>
+            <TabTitle
+              tab={tab}
+              action={action}
+              onRename={(template) => {
+                apply(renamed(template, action));
+                // Saved at once, so a reload straight after keeps it.
+                void useTabsStore.getState().flush();
+              }}
+            />
             <Box sx={{ display: 'flex', flexShrink: 0 }}>
               <TooltipButton
                 title="Save…"
@@ -476,6 +480,7 @@ export function ActionTab({ tabId, onRun = defaultRun, onCancel = defaultCancel 
           source={saving.source}
           idColumn={linkIdColumn}
           pivotRows={toRun.pivotRows}
+          titleTemplate={toRun.titleTemplate}
           onClose={() => setSaving(null)}
           onSaved={saved}
         />

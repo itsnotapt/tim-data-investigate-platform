@@ -161,11 +161,11 @@ The startup bundle (`index.html`'s script and module preloads) holds React, MUI,
 
 - **Openers** make a tab's content: `fromAction`, `fromPreset`, `fromPivot`, `fromShareLink` and `cloneOf`.
 - **Transitions:**
-  - `paramEdited`, `paramsReset`, `idColumnSwitched` and `savedAsPreset`;
+  - `paramEdited`, `paramsReset`, `idColumnSwitched`, `savedAsPreset` and `renamed`;
   - the run's `runStarting`, `runRefused`, `runStarted`, `runUpdated`, `runSucceeded` and `runFailed`;
   - `cancelRequested`, `cancelFailed`, `resumed`, `stalled` and `linkedRowShown`;
   - `columnViewPicked`, `gridStateChanged` and `columnViewRenamed`.
-- **Questions:** `isEdited`, `idColumnOf`, `linkIdColumnOf`, `titleOf`, `runTitleOf` and `stillNeeded`.
+- **Questions:** `isEdited`, `idColumnOf`, `linkIdColumnOf`, `titleOf`, `shownTitle`, `runTitleOf`, `titleTemplateOf`, `titleValuesOf` and `stillNeeded`.
 - `actionRuns.ts` runs the run's lifecycle and applies the module's transitions through the tabs store.
 
 A stored tab is its content plus its place in the tree (`id`, `parentId`, `index`, `visited`). Its content is:
@@ -173,7 +173,7 @@ A stored tab is its content plus its place in the tree (`id`, `parentId`, `index
 | Field     | Holds                                                                                         |
 | --------- | --------------------------------------------------------------------------------------------- |
 | `title`   | The title the tab was opened with, before any run                                             |
-| `toRun`   | What the tab runs: `{action, params, presetId?, titleTemplate?, pivotRows?, pivotRowIds?}`      |
+| `toRun`   | What the tab runs: `{action, params, presetId?, titleTemplate?, pivotRows?, pivotRowIds?}`    |
 | `latest`  | The latest run: `{run, params, pivotRows?, title}`                                            |
 | `results` | The run whose rows are stored, `{runId, columns, startedAt, rowCount}`, or `null`             |
 | `grid`    | How the tab shows its results: `{gridState, columnView, idColumn?}`                           |
@@ -304,10 +304,13 @@ A From row query parameter is left unset too. A From row input that is still uns
 
 **Tab titles.** An action tab shows a title that `title` of the action tab module chooses, in the tree and in the app bar.
 
-- Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone.
+- Until the tab has run, its stored title: the action's name, the preset's name, or "Copy of <title>" for a clone. A rename replaces it.
 - After a run, a tab shows `latest.title`, the title of its latest run, which the browser filled in from the tab's title template and the server stored ([actions.md](actions.md#run-titles)). A tab opened from a share link shows the run's title.
 - A preset tab, opened from a preset, pivoted into one or saved as one, has the preset's title template as `toRun.titleTemplate`, in place of the action's. A clone's template is "Copy of " and the template.
   - `runTitleOf` in the action tab module fills the template in with the tab's params, the values of its query parameters, the action's defaults for params left unset, and the pivot rows.
+- **Rename** rewrites the tab's title template: `renamed` sets `toRun.titleTemplate`, and the tab is saved at once. Reset params keeps it. The title in the header opens the box.
+  - The tab's title and its latest run's title become the template filled in with the values of that run, or the tab's own before it has run.
+  - Later runs fill in the new template. The server is not asked, and runs already started keep their title.
 - An action's title template can name the rows the tab was pivoted from as `{row.Column}`. `fillIn` in `features/action-tab/titleTemplate.ts` fills the template in with the run's params and those rows ([actions.md](actions.md#run-titles)).
   - An action or preset pivot keeps the selected rows whole in the tab's `toRun.pivotRows`, with every column, whatever the title template names.
   - Each run fills its title in from them, a plain rerun included, and sends it as `title` in `POST /api/runs`. The rows themselves are never sent.
@@ -319,7 +322,15 @@ A From row query parameter is left unset too. A From row input that is still uns
 
 The action tab has a header in the app bar, a pills bar in the action bar, and inner tabs.
 
-**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params, pivot rows and `titleTemplate` ("Copy of " first), and no `presetId`. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
+**Header:** while the tab is on show, the app bar holds the action's menu path · the action, and the tab's title, with **Save…**, **Clone** and **Copy link** icon buttons. The title is a button with the tooltip "Rename", a pencil on hover, and keyboard focus. [Save…](#presets-and-column-views) saves the tab as a preset. [Copy link](#share-links) copies a link to the tab's run. Clone adds a sibling tab titled "Copy of <title>" with the same params, pivot rows and `titleTemplate` ("Copy of " first), and no `presetId`. The copy is not run, and it takes focus. It starts with the [default view](#column-views), not the original's columns.
+
+**Rename box:** the title button opens a box under it (`TabTitle`).
+
+- The **Tab title** field is the one the Save dialog has (`TitleTemplateField`). It opens with the tab's own template, else the action's `title`, else the action's name.
+- A "Shows as: …" line shows the template filled in.
+- A placeholder must name a param of the tab or its action, a query parameter, or be `row.` and a column. A blank template, or one that names nothing, disables **Rename**.
+- A `{row.Column}` that the tab's pivot rows lack is a warning only.
+- **Rename** or Enter renames the tab ([Tab titles](#tab-titles)). **Cancel**, Escape and a click away close the box without renaming. Escape closes the field's open placeholder list first.
 
 **Pills bar:** while the tab is on show, the [action bar](#page-layout) holds, after **New**, the tab's **Run**, then one pill per param that is not edited in an editor, so `kql` and `sql` params are left out.
 
@@ -514,7 +525,7 @@ The dialog shows, top to bottom:
   - SQL offers no `timespan` type.
   - Errors in query parameter fields are listed under the table.
 - Under the table, the other params that are saved as they are, set and neither an input nor the query, as "Also saved: name: value · …".
-- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. Save is disabled while it is blank or has an error.
+- A **Tab title** field, the preset's title template ([Tab titles](#tab-titles)). It starts as the name, then a `{name}` placeholder for each From row input: params in the action's order, query parameters in place of `parameters`. It follows the Name field and the Fixed and From row choices until the analyst edits it. Editing a preset shows its saved template, which does not follow the name. A tab whose template differs from the one the dialog would otherwise start with gives it as the Tab title, counted as edited, so it does not follow the name either. Save is disabled while it is blank or has an error.
   - It highlights each placeholder: a known one in the primary colour, an unknown one as an error (red, wavy underline). Under the field, an error naming each unknown placeholder, such as "{since} names nothing", replaces the helper text.
   - Opened from a tab, the dialog has the tab's pivot rows. A dialog editing a preset from the New menu has none.
   - A `{row.X}` the tab's pivot rows lack is a warning: the warning colour, with a dotted underline. A tooltip on hover, or while the caret is inside it, says "This tab's rows have no X column. Its tabs show <not set> for it until it's pivoted from rows that have one." A warning does not block Save, and the helper text stays the example.

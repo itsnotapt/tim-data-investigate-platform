@@ -88,6 +88,18 @@ export const unnamedPlaceholders = (template: string, names: ReadonlySet<string>
     .filter(([, name = '']) => !namesSomething(name, names))
     .map(([placeholder]) => placeholder);
 
+/**
+ * What's wrong with `template`, if anything: the placeholders that name neither one of `names` nor
+ * `row.` and a column, as "{a} names nothing" or "{a}, {b} and {c} name nothing".
+ */
+export function unnamedError(template: string, names: ReadonlySet<string>): string | undefined {
+  const unnamed = unnamedPlaceholders(template, names);
+  if (unnamed.length === 0) return undefined;
+  const listed =
+    unnamed.length === 1 ? unnamed[0] : `${unnamed.slice(0, -1).join(', ')} and ${unnamed.at(-1)}`;
+  return `${listed} ${unnamed.length === 1 ? 'names' : 'name'} nothing`;
+}
+
 /** A part of a title template: plain text, or a placeholder as written and the name it holds. */
 export type TemplatePart = { text: string } | { placeholder: string; name: string };
 
