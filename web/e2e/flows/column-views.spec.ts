@@ -273,6 +273,26 @@ test('a view saved with Make it the default ticked is the default, until Stop us
   await expect(header(page, 'User')).toBeVisible();
 });
 
+test('the status bar shows the Default view even when looking it up takes a while', async ({
+  page,
+  idPrefix,
+}) => {
+  const name = `${idPrefix} Slow to look up`;
+  await runAction(page, WIDE);
+  await hideColumn(page, 'User');
+  await saveView(page, name, { asDefault: true });
+  await snackbar(page, `"Host sign-ins" now opens with "${name}".`);
+
+  // Longer than AG Grid waits for a status panel to show something before it leaves it out.
+  await page.route('**/api/columnViews', async (route) => {
+    if (route.request().method() === 'GET') await new Promise((r) => setTimeout(r, 2_000));
+    await route.continue();
+  });
+  await runAction(page, WIDE);
+  await expect(header(page, 'User')).toHaveCount(0);
+  await expect(status(page)).toHaveText(`View:${name}`);
+});
+
 test('Save… on your own edited view updates it while the name is unchanged, and saves a new view once it is changed', async ({
   page,
   idPrefix,
