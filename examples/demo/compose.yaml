@@ -21,7 +21,7 @@ x-api-env: &api-env
 
 # The demo image: TIM's api image with the demo's instance files, the dataset and its loader.
 x-demo-image: &demo-image
-  image: ghcr.io/itsnotapt/tim-data-investigate-platform/demo:2.0.0 # x-release-please-version
+  image: ghcr.io/itsnotapt/tim-data-investigate-platform/demo:2.1.0 # x-release-please-version
 
 services:
   kusto:
@@ -89,7 +89,7 @@ services:
 
   # One-shot: applies the Alembic migrations, then exits.
   migrate:
-    image: ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.0.0 # x-release-please-version
+    image: ghcr.io/itsnotapt/tim-data-investigate-platform/api:2.1.0 # x-release-please-version
     command: ["alembic", "upgrade", "head"]
     environment: *api-env
     depends_on:
@@ -114,7 +114,7 @@ services:
       start_interval: 1s
 
   web:
-    image: ghcr.io/itsnotapt/tim-data-investigate-platform/web:2.0.0 # x-release-please-version
+    image: ghcr.io/itsnotapt/tim-data-investigate-platform/web:2.1.0 # x-release-please-version
     restart: unless-stopped
     environment:
       TIM_ENVIRONMENT: development

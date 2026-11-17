@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.1.0](https://github.com/itsnotapt/tim-data-investigate-platform/compare/v2.0.0...v2.1.0) (2026-11-17)
+
+
+### Features
+
+* **api,tim-actions,web,demo:** a param has only a name ([#296](https://github.com/itsnotapt/tim-data-investigate-platform/issues/296)) ([e7105b7](https://github.com/itsnotapt/tim-data-investigate-platform/commit/e7105b734526c9b32c6977fd05adce193860c4ab))
+* **api,web,tim-actions:** a preset's title template replaces Show in title ([#303](https://github.com/itsnotapt/tim-data-investigate-platform/issues/303)) ([0ad4c75](https://github.com/itsnotapt/tim-data-investigate-platform/commit/0ad4c751c5c7d1d39eae62fb4cb5288aa3cb90c3))
+* **api,web,tim-actions:** action run titles from {…} title templates, filled in by the browser, and a Jinja title in an action file is no longer rendered ([#298](https://github.com/itsnotapt/tim-data-investigate-platform/issues/298)) ([bdb21a0](https://github.com/itsnotapt/tim-data-investigate-platform/commit/bdb21a0233487e1fea9f616b973404cedc2869d6))
+* **tim-actions,api:** an action file whose title template names something unknown fails to load ([#311](https://github.com/itsnotapt/tim-data-investigate-platform/issues/311)) ([af2cb04](https://github.com/itsnotapt/tim-data-investigate-platform/commit/af2cb0474a3305446bbb27782e23f53bc1e5a36d))
+* **web:** an analyst renames a tab from its title in the app bar ([#317](https://github.com/itsnotapt/tim-data-investigate-platform/issues/317)) ([475da9f](https://github.com/itsnotapt/tim-data-investigate-platform/commit/475da9f2aafa954396aa4e446572e8c05ff9b88f))
+* **web:** the Save preset dialog as a table ([#308](https://github.com/itsnotapt/tim-data-investigate-platform/issues/308)) ([cd43706](https://github.com/itsnotapt/tim-data-investigate-platform/commit/cd43706ee149dd1231a44db02582c59ee6fad88e))
+* **web:** the Tab title field highlights placeholders and suggests them on { ([#309](https://github.com/itsnotapt/tim-data-investigate-platform/issues/309)) ([b301920](https://github.com/itsnotapt/tim-data-investigate-platform/commit/b3019208aec62dabf35cbcf9fce1c1a0e1c03c16))
+
+
+### Bug Fixes
+
+* **web:** a pivoted tab saved as a preset fills in every {row.…} its new title names ([#314](https://github.com/itsnotapt/tim-data-investigate-platform/issues/314)) ([06a21af](https://github.com/itsnotapt/tim-data-investigate-platform/commit/06a21af5df31650b10e81d576ab0eaf46b422b77))
+* **web:** the status bar shows the column view when putting it on takes over a second ([#316](https://github.com/itsnotapt/tim-data-investigate-platform/issues/316)) ([440860d](https://github.com/itsnotapt/tim-data-investigate-platform/commit/440860d2632f9a89adba9cd7f7fb5036fee28e3e))
+
 ## 2.0.0 (2026-11-11)
 
 
